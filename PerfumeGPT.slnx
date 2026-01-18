@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".env" />
+    <File Path=".env.example" />
+    <File Path=".gitignore" />
+    <File Path="readme.md" />
+  </Folder>
+  <Project Path="PerfumeGPT.API/PerfumeGPT.API.csproj" Id="d45e4b51-40aa-44d2-8fb9-a7905fc4eb1f" />
+  <Project Path="PerfumeGPT.Application/PerfumeGPT.Application.csproj" Id="02a8c806-30b6-46b8-8e73-f0ae2f5f6fea" />
+  <Project Path="PerfumeGPT.Domain/PerfumeGPT.Domain.csproj" Id="ca75c6f7-261b-424d-be06-7a2c100ac445" />
+  <Project Path="PerfumeGPT.Infrastructure/PerfumeGPT.Infrastructure.csproj" Id="fe756d78-6c89-451e-b725-4035dc74c320" />
+  <Project Path="PerfumeGPT.Persistence/PerfumeGPT.Persistence.csproj" Id="c042074b-69fb-4249-a48f-0daf64be7e4a" />
+</Solution>
