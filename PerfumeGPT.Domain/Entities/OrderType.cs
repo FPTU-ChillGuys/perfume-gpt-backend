@@ -2,11 +2,11 @@
 
 namespace PerfumeGPT.Domain.Entities
 {
-    public class OrderType : BaseEntity<int>
-    {
-        public string? Name { get; set; }
+	public class OrderType : BaseEntity<int>
+	{
+		public string? Name { get; set; } // instore, online, shopee
 
-        // Navigation
-        public virtual ICollection<Order> Orders { get; set; } = [];
-    }
+		// Navigation
+		public virtual ICollection<Order> Orders { get; set; } = [];
+	}
 }

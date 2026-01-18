@@ -1,11 +1,7 @@
-﻿using PerfumeGPT.Domain.Commons;
-using PerfumeGPT.Domain.Commons.Audits;
-
-namespace PerfumeGPT.Domain.Entities
+﻿namespace PerfumeGPT.Application.DTOs.Requests.Address
 {
-	public class Address : BaseEntity<Guid>, IHasTimestamps
+	public class CreateAddressRequest
 	{
-		public Guid UserId { get; set; }
 		public string ReceiverName { get; set; } = string.Empty;
 		public string Phone { get; set; } = null!;
 
@@ -17,15 +13,5 @@ namespace PerfumeGPT.Domain.Entities
 		public string WardCode { get; set; } = null!;
 		public int DistrictId { get; set; }
 		public int ProvinceId { get; set; }
-
-		// Is default address
-		public bool IsDefault { get; set; }
-
-		// Audit
-		public DateTime CreatedAt { get; set; }
-		public DateTime? UpdatedAt { get; set; }
-
-		// Navigation
-		public virtual User User { get; set; } = null!;
 	}
 }
