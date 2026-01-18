@@ -24,6 +24,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
             // Register infrastructure 3rd-party services used by Application layer
             services.AddScoped<IEmailService, EmailService>();
             services.AddScoped<IEmailTemplateService, EmailTemplateService>();
+            services.AddHttpClient<IGHNService, GHNService>();
 
             // Convention-based registration for repository implementations in the Persistence assembly.
             // It will register classes where an interface named "I{ClassName}" exists.
