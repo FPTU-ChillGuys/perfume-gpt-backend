@@ -25,6 +25,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
             services.AddScoped<IEmailService, EmailService>();
             services.AddScoped<IEmailTemplateService, EmailTemplateService>();
             services.AddHttpClient<IGHNService, GHNService>();
+            services.AddSingleton<ISupabaseService, SupabaseService>();
 
             // Convention-based registration for repository implementations in the Persistence assembly.
             // It will register classes where an interface named "I{ClassName}" exists.
