@@ -6,7 +6,7 @@ namespace PerfumeGPT.Domain.Entities
 	public class ProductVariant : BaseEntity<Guid>, IHasTimestamps, ISoftDelete
 	{
 		public Guid ProductId { get; set; }
-		public string ImageUrl { get; set; } = null!;
+		public string? ImageUrl { get; set; }
 		public string Sku { get; set; } = null!;
 		public int VolumeMl { get; set; } // (30ml / 50ml / 100ml / etc.)
 		public int ConcentrationId { get; set; } // (Eau de Parfum / Eau de Toilette / etc.)

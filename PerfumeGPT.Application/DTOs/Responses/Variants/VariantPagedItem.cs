@@ -1,6 +1,6 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Responses.Variants
 {
-	public class ProductVariantResponse
+	public class VariantPagedItem
 	{
 		public Guid Id { get; set; }
 		public Guid ProductId { get; set; }
