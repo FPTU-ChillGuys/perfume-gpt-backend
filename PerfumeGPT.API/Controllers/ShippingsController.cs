@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.GHNs;
@@ -21,10 +22,19 @@ namespace PerfumeGPT.API.Controllers
 		{
 			var validation = ValidateRequestBody<CalculateFeeRequest>(request);
 			if (validation != null) return validation;
-			
+
 			try
 			{
 				var result = await _ghnService.CalculateShippingFeeAsync(request);
+				if (result == null)
+				{
+					var notFoundResponse = BaseResponse<CalculateFeeResponse>.Fail(
+						"Unable to calculate shipping fee with the provided details.",
+						ResponseErrorType.NotFound
+					);
+					return HandleResponse(notFoundResponse);
+				}
+
 				var response = BaseResponse<CalculateFeeResponse>.Ok(result, "Shipping fee calculated successfully");
 				return HandleResponse(response);
 			}

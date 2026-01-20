@@ -6,7 +6,7 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 {
 	public interface IGHNService
 	{
-		Task<CalculateFeeResponse> CalculateShippingFeeAsync(CalculateFeeRequest request);
+		Task<CalculateFeeResponse?> CalculateShippingFeeAsync(CalculateFeeRequest request);
 		Task<List<ProvinceResponse>> GetProvincesAsync();
 		Task<List<DistrictResponse>> GetDistrictsByProvinceIdAsync(int provinceId);
 		Task<List<WardResponse>> GetWardsByDistrictIdAsync(int districtId);

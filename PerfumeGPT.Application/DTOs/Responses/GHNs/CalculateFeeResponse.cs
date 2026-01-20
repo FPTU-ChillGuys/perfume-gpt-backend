@@ -8,10 +8,10 @@ namespace PerfumeGPT.Application.DTOs.Responses.GHNs
 		public int Code { get; set; }
 
 		[JsonPropertyName("message")]
-		public string Message { get; set; }
+		public string Message { get; set; } = string.Empty;
 
 		[JsonPropertyName("data")]
-		public CalculateFeeData Data { get; set; }
+		public CalculateFeeData Data { get; set; } = new CalculateFeeData();
 	}
 
 	public class CalculateFeeData
