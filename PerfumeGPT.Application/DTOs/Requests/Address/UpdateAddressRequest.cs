@@ -2,6 +2,5 @@
 {
 	public class UpdateAddressRequest : CreateAddressRequest
 	{
-		bool IsDefault { get; set; }
 	}
 }

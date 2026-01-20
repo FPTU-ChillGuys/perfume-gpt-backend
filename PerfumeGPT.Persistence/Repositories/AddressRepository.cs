@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using PerfumeGPT.Application.DTOs.Responses.Address;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
@@ -13,25 +12,31 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
-		public async Task<List<AddressResponse>> GetUserAddressesWithDetails(Guid userId)
+		public async Task<Address?> GetAddressByIdWithDetails(Guid userId, Guid addressId)
+		{
+			var address = await _context.Addresses
+				.Where(a => a.UserId == userId && a.Id == addressId)
+				.FirstOrDefaultAsync();
+
+			return address;
+		}
+
+		public async Task<Address?> GetDefaultAddressWithDetails(Guid userId)
+		{
+			var address = await _context.Addresses
+				.Where(a => a.UserId == userId && a.IsDefault)
+				.FirstOrDefaultAsync();
+
+			return address;
+		}
+
+		public async Task<List<Address>> GetUserAddressesWithDetails(Guid userId)
 		{
 			var addresses = await _context.Addresses
 				.Where(a => a.UserId == userId)
 				.ToListAsync();
 
-			var addressResponses = addresses.Select(a => new AddressResponse
-			{
-				Id = a.Id,
-				ReceiverName = a.ReceiverName,
-				Phone = a.Phone,
-				Street = a.Street,
-				Ward = a.Ward,
-				District = a.District,
-				City = a.City,
-				IsDefault = a.IsDefault
-			}).ToList();
-
-			return addressResponses;
+			return addresses;
 		}
 	}
 }

@@ -8,7 +8,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.GHNs.Address
 		public int ProvinceID { get; set; }
 
 		[JsonPropertyName("ProvinceName")]
-		public string ProvinceName { get; set; }
+		public string ProvinceName { get; set; } = string.Empty;
 
 		[JsonPropertyName("CountryID")]
 		public int CountryID { get; set; }
@@ -17,7 +17,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.GHNs.Address
 		public int Code { get; set; }
 
 		[JsonPropertyName("NameExtension")]
-		public List<string> NameExtension { get; set; }
+		public List<string> NameExtension { get; set; } = new List<string>();
 
 		[JsonPropertyName("IsEnable")]
 		public int IsEnable { get; set; }
@@ -29,10 +29,10 @@ namespace PerfumeGPT.Application.DTOs.Requests.GHNs.Address
 		public int UpdatedBy { get; set; }
 
 		[JsonPropertyName("CreatedAt")]
-		public string CreatedAt { get; set; }
+		public string CreatedAt { get; set; } = string.Empty;
 
 		[JsonPropertyName("UpdatedAt")]
-		public string UpdatedAt { get; set; }
+		public string UpdatedAt { get; set; } = string.Empty;
 
 		[JsonPropertyName("CanUpdateCOD")]
 		public bool CanUpdateCOD { get; set; }

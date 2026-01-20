@@ -1,9 +1,11 @@
 ﻿using FluentValidation;
+using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Address;
 using PerfumeGPT.Application.DTOs.Responses.Address;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -12,12 +14,14 @@ namespace PerfumeGPT.Application.Services
 		private readonly IAddressRepository _addressRepo;
 		private readonly IValidator<CreateAddressRequest> _validator;
 		private readonly IValidator<UpdateAddressRequest> _updateValidator;
+		private readonly IMapper _mapper;
 
-		public AddressService(IAddressRepository addressRepo, IValidator<CreateAddressRequest> validator, IValidator<UpdateAddressRequest> updateValidator)
+		public AddressService(IAddressRepository addressRepo, IValidator<CreateAddressRequest> validator, IValidator<UpdateAddressRequest> updateValidator, IMapper mapper)
 		{
 			_addressRepo = addressRepo;
 			_validator = validator;
 			_updateValidator = updateValidator;
+			_mapper = mapper;
 		}
 
 		public async Task<BaseResponse<string>> CreateAddressAsync(Guid userId, CreateAddressRequest request)
@@ -31,24 +35,12 @@ namespace PerfumeGPT.Application.Services
 
 			try
 			{
-				// Check if user has any addresses - if not, make this the default
 				var userAddresses = await _addressRepo.GetAllAsync(filter: a => a.UserId == userId);
 				var isFirstAddress = !userAddresses.Any();
 
-				var address = new Domain.Entities.Address
-				{
-					UserId = userId,
-					ReceiverName = request.ReceiverName,
-					Phone = request.Phone,
-					Street = request.Street,
-					Ward = request.Ward,
-					District = request.District,
-					City = request.City,
-					WardCode = request.WardCode,
-					DistrictId = request.DistrictId,
-					ProvinceId = request.ProvinceId,
-					IsDefault = isFirstAddress, // First address is automatically default
-				};
+				var address = _mapper.Map<Address>(request);
+				address.UserId = userId;
+				address.IsDefault = isFirstAddress;
 
 				await _addressRepo.AddAsync(address);
 				var saved = await _addressRepo.SaveChangesAsync();
@@ -100,15 +92,43 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<List<AddressResponse>>> GetUserAddressesAsync(Guid userId)
+	public async Task<BaseResponse<AddressResponse>> GetDefaultAddressAsync(Guid userId)
+	{
+		try
+		{
+			var address = await _addressRepo.GetDefaultAddressWithDetails(userId);
+			if (address == null)
+			{
+				return BaseResponse<AddressResponse>.Fail("Default address not found for user", ResponseErrorType.NotFound);
+			}
+			
+			var response = _mapper.Map<AddressResponse>(address);
+			return BaseResponse<AddressResponse>.Ok(response, "Default address retrieved successfully");
+		}
+		catch (Exception ex)
+		{
+			return BaseResponse<AddressResponse>.Fail($"Error retrieving default address: {ex.Message}", ResponseErrorType.InternalError);
+		}
+	}
+
+	public async Task<BaseResponse<List<AddressResponse>>> GetUserAddressesAsync(Guid userId)
+	{
+		try
 		{
 			var addresses = await _addressRepo.GetUserAddressesWithDetails(userId);
-			if (addresses == null)
+			if (addresses == null || !addresses.Any())
 			{
 				return BaseResponse<List<AddressResponse>>.Fail("No addresses found for user", ResponseErrorType.NotFound);
 			}
-			return BaseResponse<List<AddressResponse>>.Ok(addresses, "User addresses retrieved successfully");
+			
+			var response = _mapper.Map<List<AddressResponse>>(addresses);
+			return BaseResponse<List<AddressResponse>>.Ok(response, "User addresses retrieved successfully");
 		}
+		catch (Exception ex)
+		{
+			return BaseResponse<List<AddressResponse>>.Fail($"Error retrieving user addresses: {ex.Message}", ResponseErrorType.InternalError);
+		}
+	}
 
 		public async Task<BaseResponse<string>> UpdateAddressAsync(Guid userId, Guid addressId, UpdateAddressRequest request)
 		{
@@ -132,16 +152,7 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Fail("Address does not belong to this user", ResponseErrorType.Forbidden);
 				}
 
-				// Update address fields
-				address.ReceiverName = request.ReceiverName;
-				address.Phone = request.Phone;
-				address.Street = request.Street;
-				address.Ward = request.Ward;
-				address.District = request.District;
-				address.City = request.City;
-				address.WardCode = request.WardCode;
-				address.DistrictId = request.DistrictId;
-				address.ProvinceId = request.ProvinceId;
+				_mapper.Map(request, address);
 
 				_addressRepo.Update(address);
 				var saved = await _addressRepo.SaveChangesAsync();
@@ -157,5 +168,72 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail($"Error updating address: {ex.Message}", ResponseErrorType.InternalError);
 			}
 		}
+
+		public async Task<BaseResponse<string>> SetDefaultAddressAsync(Guid userId, Guid addressId)
+		{
+			try
+			{
+				var address = await _addressRepo.GetByIdAsync(addressId);
+				if (address == null)
+				{
+					return BaseResponse<string>.Fail("Address not found", ResponseErrorType.NotFound);
+				}
+
+				if (address.UserId != userId)
+				{
+					return BaseResponse<string>.Fail("Address does not belong to this user", ResponseErrorType.Forbidden);
+				}
+
+				if (address.IsDefault)
+				{
+					return BaseResponse<string>.Ok(addressId.ToString(), "Address is already the default");
+				}
+
+				var currentDefaultAddress = await _addressRepo.GetDefaultAddressWithDetails(userId);
+				if (currentDefaultAddress != null)
+				{
+					var currentDefault = await _addressRepo.GetByIdAsync(currentDefaultAddress.Id);
+					if (currentDefault != null)
+					{
+						currentDefault.IsDefault = false;
+						_addressRepo.Update(currentDefault);
+					}
+				}
+
+				address.IsDefault = true;
+				_addressRepo.Update(address);
+
+				var saved = await _addressRepo.SaveChangesAsync();
+				if (!saved)
+				{
+					return BaseResponse<string>.Fail("Could not set default address", ResponseErrorType.InternalError);
+				}
+
+				return BaseResponse<string>.Ok(addressId.ToString(), "Default address set successfully");
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<string>.Fail($"Error setting default address: {ex.Message}", ResponseErrorType.InternalError);
+			}
+		}
+
+	public async Task<BaseResponse<AddressResponse>> GetAddressByIdAsync(Guid userId, Guid addressId)
+	{
+		try
+		{
+			var address = await _addressRepo.GetAddressByIdWithDetails(userId, addressId);
+			if (address == null)
+			{
+				return BaseResponse<AddressResponse>.Fail("Address not found", ResponseErrorType.NotFound);
+			}
+			
+			var response = _mapper.Map<AddressResponse>(address);
+			return BaseResponse<AddressResponse>.Ok(response, "Address retrieved successfully");
+		}
+		catch (Exception ex)
+		{
+			return BaseResponse<AddressResponse>.Fail($"Error retrieving address: {ex.Message}", ResponseErrorType.InternalError);
+		}
 	}
+}
 }

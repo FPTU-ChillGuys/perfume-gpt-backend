@@ -6,7 +6,7 @@
 		//public int FromDistrictId { get; set; }
 		//public int FromWardCode { get; set; }
 		public int ToDistrictId { get; set; }
-		public int ToWardCode { get; set; }
+		public string ToWardCode { get; set; } = null!;
 		public int Length { get; set; }
 		public int Width { get; set; }
 		public int Height { get; set; }
