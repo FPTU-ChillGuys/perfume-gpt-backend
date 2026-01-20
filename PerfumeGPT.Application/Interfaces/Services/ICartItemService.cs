@@ -3,10 +3,10 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 
 namespace PerfumeGPT.Application.Interfaces.Services
 {
-    public interface ICartItemService
-    {
-        Task<BaseResponse<string>> AddToCartAsync(CreateCartItemRequest request);
-        Task<BaseResponse<string>> UpdateCart(Guid UserId, Guid CartItemId, UpdateCartItemRequest request);
-        Task<BaseResponse<string>> RemoveFromCartAsync(Guid UserIdId, Guid cartItemId);
-    }
+	public interface ICartItemService
+	{
+		Task<BaseResponse<string>> AddToCartAsync(Guid userId, CreateCartItemRequest request);
+		Task<BaseResponse<string>> UpdateCartItemAsync(Guid userId, Guid cartItemId, UpdateCartItemRequest request);
+		Task<BaseResponse<string>> RemoveFromCartAsync(Guid userId, Guid cartItemId);
+	}
 }
