@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Address;
 using PerfumeGPT.Application.DTOs.Requests.GHNs.Address;
 using PerfumeGPT.Application.DTOs.Responses.Address;
@@ -28,6 +29,25 @@ namespace PerfumeGPT.API.Controllers
 		{
 			var userId = GetCurrentUserId();
 			var result = await _addressService.GetUserAddressesAsync(userId);
+			return HandleResponse(result);
+		}
+
+		[HttpGet("{id:guid}")]
+		[Authorize]
+		public async Task<ActionResult<BaseResponse<AddressResponse>>> GetAddressByIdAsync([FromRoute] Guid id)
+		{
+			var userId = GetCurrentUserId();
+			var result = await _addressService.GetAddressByIdAsync(userId, id);
+			return HandleResponse(result);
+		}
+
+
+		[HttpGet("default")]
+		[Authorize]
+		public async Task<ActionResult<BaseResponse<AddressResponse>>> GetDefaultAddressAsync()
+		{
+			var userId = GetCurrentUserId();
+			var result = await _addressService.GetDefaultAddressAsync(userId);
 			return HandleResponse(result);
 		}
 
@@ -60,6 +80,15 @@ namespace PerfumeGPT.API.Controllers
 		{
 			var userId = GetCurrentUserId();
 			var result = await _addressService.DeleteAddressAsync(userId, id);
+			return HandleResponse(result);
+		}
+
+		[HttpPut("{id:guid}/set-default")]
+		[Authorize]
+		public async Task<ActionResult<BaseResponse<string>>> SetDefaultAddressAsync([FromRoute] Guid id)
+		{
+			var userId = GetCurrentUserId();
+			var result = await _addressService.SetDefaultAddressAsync(userId, id);
 			return HandleResponse(result);
 		}
 
