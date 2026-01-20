@@ -2,14 +2,13 @@
 {
 	public class CalculateFeeRequest
 	{
-		//public List<GetCartItemResponse> CartItemIds { get; set; } 
-		//public int FromDistrictId { get; set; }
-		//public int FromWardCode { get; set; }
 		public int ToDistrictId { get; set; }
 		public string ToWardCode { get; set; } = null!;
-		public int Length { get; set; }
-		public int Width { get; set; }
-		public int Height { get; set; }
-		public int Weight { get; set; }
+		public int Length { get; set; } = 30; // Assume default value
+		public int Width { get; set; } = 40; // Assume default value
+		public int Height { get; set; } = 20; // Assume default value
+		public int Weight { get; set; } = 3000; // Assume default value
+
+		//public List<Items> Items { get; set; } = new();
 	}
 }

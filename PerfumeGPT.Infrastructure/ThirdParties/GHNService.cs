@@ -19,7 +19,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			_configuration = configuration;
 		}
 
-		public async Task<CalculateFeeResponse> CalculateShippingFeeAsync(CalculateFeeRequest request)
+		public async Task<CalculateFeeResponse?> CalculateShippingFeeAsync(CalculateFeeRequest request)
 		{
 			var token = _configuration["GHN:Token"];
 			var shopId = _configuration["GHN:ShopId"];
@@ -27,7 +27,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			var requestBody = new
 			{
-				service_type_id = 2,
+				service_type_id = 2, // Lightning Service
 				to_district_id = request.ToDistrictId,
 				to_ward_code = request.ToWardCode.ToString(),
 				length = request.Length,
