@@ -74,6 +74,20 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			})
 			.AddEntityFrameworkStores<PerfumeDbContext>()
 			.AddDefaultTokenProviders();
+
+			// CORS
+			var webUrl = configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url!!");
+			services.AddCors(options =>
+			{
+				options.AddPolicy("AllowFrontend", builder =>
+				{
+					builder
+						.WithOrigins(webUrl)
+						.AllowAnyHeader()
+						.AllowAnyMethod()
+						.AllowCredentials();
+				});
+			});
 		}
 
 		public static void AddIdentityServices(this IServiceCollection services, IConfiguration configuration)

@@ -138,12 +138,10 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<Batch> Batches { get; set; }
 		public DbSet<Stock> Stocks { get; set; }
 		public DbSet<Order> Orders { get; set; }
-		//public DbSet<OrderType> OrderTypes { get; set; }
 		public DbSet<OrderDetail> OrderDetails { get; set; }
 		public DbSet<Notification> Notifications { get; set; }
 		public DbSet<Cart> Carts { get; set; }
 		public DbSet<CartItem> CartItems { get; set; }
-		//public DbSet<PaymentMethod> PaymentMethods { get; set; }
 		public DbSet<PaymentTransaction> PaymentTransactions { get; set; }
 		public DbSet<Receipt> Receipts { get; set; }
 		public DbSet<Voucher> Vouchers { get; set; }
@@ -316,6 +314,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(od => od.VariantId)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			// Variant -> ImportDetail (1:M)
+			builder.Entity<ProductVariant>()
+				.HasMany(v => v.ImportDetails)
+				.WithOne(d => d.ProductVariant)
+				.HasForeignKey(d => d.ProductVariantId)
+				.OnDelete(DeleteBehavior.Restrict);
+
 			// Cart -> CartItems (1:M)
 			builder.Entity<Cart>()
 				.HasMany(c => c.Items)
@@ -361,7 +366,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Order>()
 				.HasOne(o => o.RecipientInfo)
 				.WithOne(r => r.Order)
-				.HasForeignKey<Domain.Entities.RecipientInfo>(r => r.OrderId)
+				.HasForeignKey<RecipientInfo>(r => r.OrderId)
 				.OnDelete(DeleteBehavior.Cascade);
 
 			// Voucher -> UserVoucher (1:M)

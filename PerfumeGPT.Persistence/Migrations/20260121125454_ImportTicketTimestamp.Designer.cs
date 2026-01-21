@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -11,9 +12,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260121125454_ImportTicketTimestamp")]
+    partial class ImportTicketTimestamp
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -438,6 +441,9 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("VariantId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
@@ -1221,7 +1227,7 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasOne("PerfumeGPT.Domain.Entities.ProductVariant", "ProductVariant")
                         .WithMany("ImportDetails")
                         .HasForeignKey("ProductVariantId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("ImportTicket");
