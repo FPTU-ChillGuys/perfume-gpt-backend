@@ -2,14 +2,20 @@
 
 namespace PerfumeGPT.Domain.Entities
 {
-    public class RecipientInfo : BaseEntity<Guid>
-    {
-        public Guid OrderId { get; set; }
-        public string? FullName { get; set; }
-        public string? Phone { get; set; }
-        public string? Address { get; set; }
+	public class RecipientInfo : BaseEntity<Guid>
+	{
+		public Guid OrderId { get; set; }
+		public string? FullName { get; set; }
+		public string? Phone { get; set; }
 
-        // Navigation
-        public virtual Order Order { get; set; } = null!;
-    }
+		// Calculate Shipping fee based on Address
+		public int DistrictId { get; set; }
+		public string WardCode { get; set; } = null!;
+
+		// Recipient Full Address
+		public string FullAddress { get; set; } = null!;
+
+		// Navigation
+		public virtual Order Order { get; set; } = null!;
+	}
 }

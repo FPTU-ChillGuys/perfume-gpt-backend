@@ -1,4 +1,6 @@
-﻿namespace PerfumeGPT.Application.DTOs.Requests.Variants
+﻿using PerfumeGPT.Domain.Enums;
+
+namespace PerfumeGPT.Application.DTOs.Requests.Variants
 {
 	public class UpdateVariantRequest
 	{
@@ -6,8 +8,8 @@
 		public string Sku { get; set; } = null!;
 		public int VolumeMl { get; set; } // (30ml / 50ml / 100ml / etc.)
 		public int ConcentrationId { get; set; } // (Eau de Parfum / Eau de Toilette / etc.)
-		public string? Type { get; set; } // (fullbox / tester / mini)
+		public VariantType Type { get; set; }
 		public decimal BasePrice { get; set; }
-		public string? Status { get; set; } // (available / out_of_stock / discontinued)
+		public VariantStatus Status { get; set; }
 	}
 }
