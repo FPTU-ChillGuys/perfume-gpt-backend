@@ -5,6 +5,6 @@
 		Pending = 1,
 		InProgress,
 		Completed,
-		Faile,
+		Canceled,
 	}
 }
