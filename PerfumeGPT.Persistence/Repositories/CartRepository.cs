@@ -1,4 +1,5 @@
-﻿using PerfumeGPT.Application.Interfaces.Repositories;
+﻿using Microsoft.EntityFrameworkCore;
+using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
@@ -14,7 +15,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<bool> ClearCartByUserIdAsync(Guid userId)
 		{
-			var cart = await FirstOrDefaultAsync(c => c.UserId == userId);
+			var cart = await FirstOrDefaultAsync(c => c.UserId == userId, c => c.Include(c => c.Items));
 			if (cart == null)
 			{
 				return false;

@@ -79,6 +79,7 @@ namespace PerfumeGPT.Application.Services
 				if (voucherId.HasValue)
 				{
 					totalPrice = await ApplyVoucherDiscountAsync(totalPrice, voucherId.Value);
+					totalPrice = Math.Round(totalPrice, 0, MidpointRounding.AwayFromZero);
 				}
 
 				var response = new GetCartResponse

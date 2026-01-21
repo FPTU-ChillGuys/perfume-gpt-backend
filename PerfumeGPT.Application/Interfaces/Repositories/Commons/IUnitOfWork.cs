@@ -1,22 +1,32 @@
 ﻿namespace PerfumeGPT.Application.Interfaces.Repositories.Commons
 {
-    public interface IUnitOfWork : IDisposable, IAsyncDisposable
-    {
-        /// <summary>
-        /// Save changes and return true if one or more rows were affected.
-        /// </summary>
-        Task<bool> SaveChangesAsync();
+	public interface IUnitOfWork : IDisposable, IAsyncDisposable
+	{
+		IPaymentRepository Payments { get; }
+		IOrderRepository Orders { get; }
+		ICartRepository Carts { get; }
 
-        /// <summary>
-        /// Save changes and return number of affected rows.
-        /// </summary>
-        Task<int> SaveChangesAndReturnCountAsync();
+		/// <summary>
+		/// Save changes and return true if one or more rows were affected.
+		/// </summary>
+		Task<bool> SaveChangesAsync();
 
-        /// <summary>
-        /// Transaction helpers.
-        /// </summary>
-        Task BeginTransactionAsync();
-        Task CommitTransactionAsync();
-        Task RollbackTransactionAsync();
-    }
+		/// <summary>
+		/// Save changes and return number of affected rows.
+		/// </summary>
+		Task<int> SaveChangesAndReturnCountAsync();
+
+		/// <summary>
+		/// Transaction helpers.
+		/// </summary>
+		Task BeginTransactionAsync();
+		Task CommitTransactionAsync();
+		Task RollbackTransactionAsync();
+
+		/// <summary>
+		/// Executes an operation within a transaction using the execution strategy.
+		/// This is the recommended approach when using SQL Server retry logic.
+		/// </summary>
+		Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation);
+	}
 }

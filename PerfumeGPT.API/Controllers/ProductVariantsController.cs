@@ -1,5 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
+using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Base;
 using PerfumeGPT.Application.DTOs.Requests.Variants;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -33,43 +33,43 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(result);
 		}
 
-	[HttpPost]
-	public async Task<ActionResult<BaseResponse<string>>> CreateVariant([FromForm] CreateVariantRequest request, IFormFile? imageFile)
-	{
-		FileUpload? fileUpload = null;
-		if (imageFile != null && imageFile.Length > 0)
+		[HttpPost]
+		public async Task<ActionResult<BaseResponse<string>>> CreateVariant([FromForm] CreateVariantRequest request, IFormFile? imageFile)
 		{
-			fileUpload = new FileUpload
+			FileUpload? fileUpload = null;
+			if (imageFile != null && imageFile.Length > 0)
 			{
-				FileStream = imageFile.OpenReadStream(),
-				FileName = imageFile.FileName,
-				Length = imageFile.Length,
-				ContentType = imageFile.ContentType
-			};
+				fileUpload = new FileUpload
+				{
+					FileStream = imageFile.OpenReadStream(),
+					FileName = imageFile.FileName,
+					Length = imageFile.Length,
+					ContentType = imageFile.ContentType
+				};
+			}
+
+			var result = await _variantService.CreateVariantAsync(request, fileUpload);
+			return HandleResponse(result);
 		}
 
-		var result = await _variantService.CreateVariantAsync(request, fileUpload);
-		return HandleResponse(result);
-	}
-
-	[HttpPut("{variantId:guid}")]
-	public async Task<ActionResult<BaseResponse<string>>> UpdateVariant(Guid variantId, [FromForm] UpdateVariantRequest request, IFormFile? imageFile)
-	{
-		FileUpload? fileUpload = null;
-		if (imageFile != null && imageFile.Length > 0)
+		[HttpPut("{variantId:guid}")]
+		public async Task<ActionResult<BaseResponse<string>>> UpdateVariant(Guid variantId, [FromForm] UpdateVariantRequest request, IFormFile? imageFile)
 		{
-			fileUpload = new FileUpload
+			FileUpload? fileUpload = null;
+			if (imageFile != null && imageFile.Length > 0)
 			{
-				FileStream = imageFile.OpenReadStream(),
-				FileName = imageFile.FileName,
-				Length = imageFile.Length,
-				ContentType = imageFile.ContentType
-			};
-		}
+				fileUpload = new FileUpload
+				{
+					FileStream = imageFile.OpenReadStream(),
+					FileName = imageFile.FileName,
+					Length = imageFile.Length,
+					ContentType = imageFile.ContentType
+				};
+			}
 
-		var result = await _variantService.UpdateVariantAsync(variantId, request, fileUpload);
-		return HandleResponse(result);
-	}
+			var result = await _variantService.UpdateVariantAsync(variantId, request, fileUpload);
+			return HandleResponse(result);
+		}
 
 		[HttpDelete("{variantId:guid}")]
 		public async Task<ActionResult<BaseResponse<string>>> DeleteVariant(Guid variantId)
