@@ -16,7 +16,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		}
 
 		// Current user identifier for auditing (set externally, e.g. in services)
-		public string? CurrentUserId { get; set; }
+		public string? CurrentUserId { get; set; } = "system";
 
 		private void ApplyAuditRules()
 		{
