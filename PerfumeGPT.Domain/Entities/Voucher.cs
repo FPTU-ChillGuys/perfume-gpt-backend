@@ -13,6 +13,12 @@ namespace PerfumeGPT.Domain.Entities
 		public decimal MinOrderValue { get; set; }
 		public DateTime ExpiryDate { get; set; }
 
+		// Implement not yet
+		//public int TotalQuantity { get; set; }
+		//public int RemainingQuantity { get; set; }
+		//public int MaxUsagePerUser { get; set; } = 1;
+		//public bool IsPublic { get; set; }
+
 		// Navigation
 		public virtual ICollection<UserVoucher> UserVouchers { get; set; } = [];
 		public virtual ICollection<Notification> Notifications { get; set; } = [];

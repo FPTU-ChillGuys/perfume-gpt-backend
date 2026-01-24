@@ -92,43 +92,43 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-	public async Task<BaseResponse<AddressResponse>> GetDefaultAddressAsync(Guid userId)
-	{
-		try
+		public async Task<BaseResponse<AddressResponse>> GetDefaultAddressAsync(Guid userId)
 		{
-			var address = await _addressRepo.GetDefaultAddressWithDetails(userId);
-			if (address == null)
+			try
 			{
-				return BaseResponse<AddressResponse>.Fail("Default address not found for user", ResponseErrorType.NotFound);
-			}
-			
-			var response = _mapper.Map<AddressResponse>(address);
-			return BaseResponse<AddressResponse>.Ok(response, "Default address retrieved successfully");
-		}
-		catch (Exception ex)
-		{
-			return BaseResponse<AddressResponse>.Fail($"Error retrieving default address: {ex.Message}", ResponseErrorType.InternalError);
-		}
-	}
+				var address = await _addressRepo.GetDefaultAddressWithDetails(userId);
+				if (address == null)
+				{
+					return BaseResponse<AddressResponse>.Fail("Default address not found for user", ResponseErrorType.NotFound);
+				}
 
-	public async Task<BaseResponse<List<AddressResponse>>> GetUserAddressesAsync(Guid userId)
-	{
-		try
-		{
-			var addresses = await _addressRepo.GetUserAddressesWithDetails(userId);
-			if (addresses == null || !addresses.Any())
-			{
-				return BaseResponse<List<AddressResponse>>.Fail("No addresses found for user", ResponseErrorType.NotFound);
+				var response = _mapper.Map<AddressResponse>(address);
+				return BaseResponse<AddressResponse>.Ok(response, "Default address retrieved successfully");
 			}
-			
-			var response = _mapper.Map<List<AddressResponse>>(addresses);
-			return BaseResponse<List<AddressResponse>>.Ok(response, "User addresses retrieved successfully");
+			catch (Exception ex)
+			{
+				return BaseResponse<AddressResponse>.Fail($"Error retrieving default address: {ex.Message}", ResponseErrorType.InternalError);
+			}
 		}
-		catch (Exception ex)
+
+		public async Task<BaseResponse<List<AddressResponse>>> GetUserAddressesAsync(Guid userId)
 		{
-			return BaseResponse<List<AddressResponse>>.Fail($"Error retrieving user addresses: {ex.Message}", ResponseErrorType.InternalError);
+			try
+			{
+				var addresses = await _addressRepo.GetUserAddressesWithDetails(userId);
+				if (addresses == null || addresses.Count == 0)
+				{
+					return BaseResponse<List<AddressResponse>>.Fail("No addresses found for user", ResponseErrorType.NotFound);
+				}
+
+				var response = _mapper.Map<List<AddressResponse>>(addresses);
+				return BaseResponse<List<AddressResponse>>.Ok(response, "User addresses retrieved successfully");
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<List<AddressResponse>>.Fail($"Error retrieving user addresses: {ex.Message}", ResponseErrorType.InternalError);
+			}
 		}
-	}
 
 		public async Task<BaseResponse<string>> UpdateAddressAsync(Guid userId, Guid addressId, UpdateAddressRequest request)
 		{
@@ -217,23 +217,23 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-	public async Task<BaseResponse<AddressResponse>> GetAddressByIdAsync(Guid userId, Guid addressId)
-	{
-		try
+		public async Task<BaseResponse<AddressResponse>> GetAddressByIdAsync(Guid userId, Guid addressId)
 		{
-			var address = await _addressRepo.GetAddressByIdWithDetails(userId, addressId);
-			if (address == null)
+			try
 			{
-				return BaseResponse<AddressResponse>.Fail("Address not found", ResponseErrorType.NotFound);
+				var address = await _addressRepo.GetAddressByIdWithDetails(userId, addressId);
+				if (address == null)
+				{
+					return BaseResponse<AddressResponse>.Fail("Address not found", ResponseErrorType.NotFound);
+				}
+
+				var response = _mapper.Map<AddressResponse>(address);
+				return BaseResponse<AddressResponse>.Ok(response, "Address retrieved successfully");
 			}
-			
-			var response = _mapper.Map<AddressResponse>(address);
-			return BaseResponse<AddressResponse>.Ok(response, "Address retrieved successfully");
-		}
-		catch (Exception ex)
-		{
-			return BaseResponse<AddressResponse>.Fail($"Error retrieving address: {ex.Message}", ResponseErrorType.InternalError);
+			catch (Exception ex)
+			{
+				return BaseResponse<AddressResponse>.Fail($"Error retrieving address: {ex.Message}", ResponseErrorType.InternalError);
+			}
 		}
 	}
-}
 }

@@ -1,5 +1,6 @@
 ﻿using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Domain.Entities
 {
@@ -8,6 +9,13 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid UserId { get; set; }
 		public Guid VoucherId { get; set; }
 		public bool IsUsed { get; set; }
+		public UsageStatus Status { get; set; }
+
+		// not implemented
+		//public bool IsGiftable { get; set; }
+		//public Guid? ClaimedById { get; set; }
+		//public string? RecipientEmail { get; set; }
+
 
 		// Navigation
 		public virtual User User { get; set; } = null!;

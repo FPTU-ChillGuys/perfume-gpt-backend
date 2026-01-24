@@ -1,9 +1,9 @@
+using FluentValidation;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Imports;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Imports;
-using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -13,59 +13,61 @@ namespace PerfumeGPT.Application.Services
 {
 	public class ImportTicketService : IImportTicketService
 	{
-		private readonly IImportTicketRepository _importTicketRepository;
-		private readonly IImportDetailRepository _importDetailRepository;
-		private readonly ISupplierRepository _supplierRepository;
-		private readonly IVariantRepository _variantRepository;
-		private readonly IStockRepository _stockRepository;
-		private readonly IBatchRepository _batchRepository;
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IStockService _stockService;
+		private readonly IBatchService _batchService;
+		private readonly IValidator<CreateImportTicketRequest> _createImportTicketValidator;
+		private readonly IValidator<VerifyImportTicketRequest> _verifyImportTicketValidator;
+		private readonly IValidator<UpdateImportTicketRequest> _updateImportTicketValidator;
 		private readonly IMapper _mapper;
 
 		public ImportTicketService(
-			IImportTicketRepository importTicketRepository,
-			IImportDetailRepository importDetailRepository,
-			ISupplierRepository supplierRepository,
-			IVariantRepository variantRepository,
-			IStockRepository stockRepository,
-			IBatchRepository batchRepository,
 			IUnitOfWork unitOfWork,
-			IMapper mapper)
+			IStockService stockService,
+			IBatchService batchService,
+			IMapper mapper,
+			IValidator<CreateImportTicketRequest> createImportTicketValidator,
+			IValidator<VerifyImportTicketRequest> verifyImportTicketValidator,
+			IValidator<UpdateImportTicketRequest> updateImportTicketValidator)
 		{
-			_importTicketRepository = importTicketRepository;
-			_importDetailRepository = importDetailRepository;
-			_supplierRepository = supplierRepository;
-			_variantRepository = variantRepository;
-			_stockRepository = stockRepository;
-			_batchRepository = batchRepository;
 			_unitOfWork = unitOfWork;
+			_stockService = stockService;
+			_batchService = batchService;
 			_mapper = mapper;
+			_createImportTicketValidator = createImportTicketValidator;
+			_verifyImportTicketValidator = verifyImportTicketValidator;
+			_updateImportTicketValidator = updateImportTicketValidator;
 		}
 
-		public async Task<BaseResponse<ImportTicketResponse>> CreateImportTicketAsync(CreateImportTicketRequest request, Guid userId)
+		public async Task<BaseResponse<string>> CreateImportTicketAsync(CreateImportTicketRequest request, Guid userId)
 		{
 			try
 			{
-				var supplier = await _supplierRepository.GetByIdAsync(request.SupplierId);
-				if (supplier == null)
+				// Validate request using FluentValidation
+				var validationResult = await _createImportTicketValidator.ValidateAsync(request);
+				if (!validationResult.IsValid)
 				{
-					return BaseResponse<ImportTicketResponse>.Fail("Supplier not found.", ResponseErrorType.NotFound);
+					var errors = string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage));
+					return BaseResponse<string>.Fail(errors, ResponseErrorType.BadRequest);
 				}
 
-				if (request.ImportDetails == null || request.ImportDetails.Count == 0)
+				// Validation - Entity existence checks
+				var supplier = await _unitOfWork.Suppliers.GetByIdAsync(request.SupplierId);
+				if (supplier == null)
 				{
-					return BaseResponse<ImportTicketResponse>.Fail("Import details cannot be empty.", ResponseErrorType.BadRequest);
+					return BaseResponse<string>.Fail("Supplier not found.", ResponseErrorType.NotFound);
 				}
 
 				foreach (var detail in request.ImportDetails)
 				{
-					var variant = await _variantRepository.GetByIdAsync(detail.VariantId);
+					var variant = await _unitOfWork.Variants.GetByIdAsync(detail.VariantId);
 					if (variant == null)
 					{
-						return BaseResponse<ImportTicketResponse>.Fail($"Variant with ID {detail.VariantId} not found.", ResponseErrorType.NotFound);
+						return BaseResponse<string>.Fail($"Variant with ID {detail.VariantId} not found.", ResponseErrorType.NotFound);
 					}
 				}
 
+				// Execute within transaction - orchestrator handles SaveChanges
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
 					var totalCost = request.ImportDetails.Sum(d => d.Quantity * d.UnitPrice);
@@ -79,7 +81,7 @@ namespace PerfumeGPT.Application.Services
 						Status = ImportStatus.Pending
 					};
 
-					await _importTicketRepository.AddAsync(importTicket);
+					await _unitOfWork.ImportTickets.AddAsync(importTicket);
 
 					foreach (var detailRequest in request.ImportDetails)
 					{
@@ -87,50 +89,55 @@ namespace PerfumeGPT.Application.Services
 						{
 							ImportId = importTicket.Id,
 							ProductVariantId = detailRequest.VariantId,
+							RejectQuantity = 0,
+							Note = null,
 							Quantity = detailRequest.Quantity,
 							UnitPrice = detailRequest.UnitPrice
 						};
 
-						await _importDetailRepository.AddAsync(importDetail);
+						await _unitOfWork.ImportDetails.AddAsync(importDetail);
 					}
 
-					await _unitOfWork.SaveChangesAsync();
-
-					return await GetImportTicketByIdAsync(importTicket.Id);
+					return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Import ticket created successfully.");
 				});
 			}
 			catch (Exception ex)
 			{
-				return BaseResponse<ImportTicketResponse>.Fail($"Error creating import ticket: {ex.Message}", ResponseErrorType.InternalError);
+				return BaseResponse<string>.Fail($"Error creating import ticket: {ex.Message}", ResponseErrorType.InternalError);
 			}
 		}
 
-		public async Task<BaseResponse<ImportTicketResponse>> VerifyImportTicketAsync(VerifyImportTicketRequest request)
+
+		public async Task<BaseResponse<string>> VerifyImportTicketAsync(Guid ticketId, VerifyImportTicketRequest request, Guid verifiedByUserId)
 		{
 			try
 			{
-				var importTicket = await _importTicketRepository.GetByConditionAsync(
-					predicate: it => it.Id == request.ImportTicketId,
+				// Validate request using FluentValidation
+				var validationResult = await _verifyImportTicketValidator.ValidateAsync(request);
+				if (!validationResult.IsValid)
+				{
+					var errors = string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage));
+					return BaseResponse<string>.Fail(errors, ResponseErrorType.BadRequest);
+				}
+
+				// Validation - Entity existence and business rules
+				var importTicket = await _unitOfWork.ImportTickets.GetByConditionAsync(
+					predicate: it => it.Id == ticketId,
 					include: query => query.Include(it => it.ImportDetails));
 
 				if (importTicket == null)
 				{
-					return BaseResponse<ImportTicketResponse>.Fail("Import ticket not found.", ResponseErrorType.NotFound);
+					return BaseResponse<string>.Fail("Import ticket not found.", ResponseErrorType.NotFound);
 				}
 
 				if (importTicket.Status != ImportStatus.InProgress)
 				{
-					return BaseResponse<ImportTicketResponse>.Fail("Only in progress import tickets can be verified.", ResponseErrorType.BadRequest);
+					return BaseResponse<string>.Fail("Only in progress import tickets can be verified.", ResponseErrorType.BadRequest);
 				}
 
 				if (request.ImportDetails.Count != importTicket.ImportDetails.Count)
 				{
-					return BaseResponse<ImportTicketResponse>.Fail("Mismatch in number of import details for verification.", ResponseErrorType.BadRequest);
-				}
-
-				if (request.ImportDetails.Any(d => d.Batches == null || d.Batches.Count == 0))
-				{
-					return BaseResponse<ImportTicketResponse>.Fail("Batches for each import detail cannot be empty.", ResponseErrorType.BadRequest);
+					return BaseResponse<string>.Fail("Mismatch in number of import details for verification.", ResponseErrorType.BadRequest);
 				}
 
 				// Validate all import details exist and match request
@@ -139,76 +146,78 @@ namespace PerfumeGPT.Application.Services
 					var importDetail = importTicket.ImportDetails.FirstOrDefault(d => d.Id == verifyDetail.ImportDetailId);
 					if (importDetail == null)
 					{
-						return BaseResponse<ImportTicketResponse>.Fail($"Import detail with ID {verifyDetail.ImportDetailId} not found.", ResponseErrorType.NotFound);
+						return BaseResponse<string>.Fail($"Import detail with ID {verifyDetail.ImportDetailId} not found.", ResponseErrorType.NotFound);
 					}
 
-					if (verifyDetail.Batches == null || verifyDetail.Batches.Count == 0)
+					if (verifyDetail.RejectQuantity > importDetail.Quantity)
 					{
-						return BaseResponse<ImportTicketResponse>.Fail($"Batches for import detail {verifyDetail.ImportDetailId} cannot be empty.", ResponseErrorType.BadRequest);
+						return BaseResponse<string>.Fail($"Reject quantity ({verifyDetail.RejectQuantity}) cannot exceed total quantity ({importDetail.Quantity}) for import detail {verifyDetail.ImportDetailId}.", ResponseErrorType.BadRequest);
 					}
 
-					var totalBatchQuantity = verifyDetail.Batches.Sum(b => b.Quantity);
-					if (totalBatchQuantity != importDetail.Quantity)
+					// Calculate accepted quantity
+					var acceptedQuantity = importDetail.Quantity - verifyDetail.RejectQuantity;
+
+					if (acceptedQuantity > 0 && (verifyDetail.Batches == null || verifyDetail.Batches.Count == 0))
 					{
-						return BaseResponse<ImportTicketResponse>.Fail(
-							$"Total batch quantity ({totalBatchQuantity}) does not match import quantity ({importDetail.Quantity}) for import detail {verifyDetail.ImportDetailId}.",
+						return BaseResponse<string>.Fail($"Batches for import detail {verifyDetail.ImportDetailId} cannot be empty when there is accepted quantity.", ResponseErrorType.BadRequest);
+					}
+
+					// Use BatchService to validate batches against accepted quantity
+					if (acceptedQuantity > 0 && !_batchService.ValidateBatches(verifyDetail.Batches, acceptedQuantity))
+					{
+						return BaseResponse<string>.Fail(
+							$"Total batch quantity does not match accepted quantity ({acceptedQuantity}) for import detail {verifyDetail.ImportDetailId}.",
 							ResponseErrorType.BadRequest);
 					}
 				}
 
+				// Execute within transaction - orchestrator handles SaveChanges
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
 					foreach (var verifyDetail in request.ImportDetails)
 					{
 						var importDetail = importTicket.ImportDetails.First(d => d.Id == verifyDetail.ImportDetailId);
 
-						foreach (var batchRequest in verifyDetail.Batches)
-						{
-							var batch = new Batch
-							{
-								VariantId = importDetail.ProductVariantId,
-								ImportDetailId = importDetail.Id,
-								BatchCode = batchRequest.BatchCode,
-								ManufactureDate = batchRequest.ManufactureDate,
-								ExpiryDate = batchRequest.ExpiryDate,
-								ImportQuantity = batchRequest.Quantity,
-								RemainingQuantity = batchRequest.Quantity
-							};
+						// Calculate accepted quantity
+						var acceptedQuantity = importDetail.Quantity - verifyDetail.RejectQuantity;
 
-							await _batchRepository.AddAsync(batch);
-						}
+						// Update import detail with reject quantity and note
+						importDetail.RejectQuantity = verifyDetail.RejectQuantity;
+						importDetail.Note = verifyDetail.Note;
+						_unitOfWork.ImportDetails.Update(importDetail);
 
-						// Update stock
-						var stock = await _stockRepository.FirstOrDefaultAsync(s => s.VariantId == importDetail.ProductVariantId);
-						if (stock == null)
+						// Only create batches and update stock if there is accepted quantity
+						if (acceptedQuantity > 0)
 						{
-							stock = new Stock
+							// Use BatchService to create batches with validation
+							await _batchService.CreateBatchesAsync(
+								importDetail.ProductVariantId,
+								importDetail.Id,
+								verifyDetail.Batches);
+
+							// Use StockService to increase stock by accepted quantity only
+							var stockIncreased = await _stockService.IncreaseStockAsync(
+								importDetail.ProductVariantId,
+								acceptedQuantity);
+
+							if (!stockIncreased)
 							{
-								VariantId = importDetail.ProductVariantId,
-								TotalQuantity = importDetail.Quantity,
-								LowStockThreshold = 10
-							};
-							await _stockRepository.AddAsync(stock);
-						}
-						else
-						{
-							stock.TotalQuantity += importDetail.Quantity;
-							_stockRepository.Update(stock);
+								throw new InvalidOperationException($"Failed to increase stock for variant {importDetail.ProductVariantId}");
+							}
 						}
 					}
 
-					// Update import ticket status to Completed
+					// Update import ticket status to Completed and set verifier
 					importTicket.Status = ImportStatus.Completed;
-					_importTicketRepository.Update(importTicket);
+					importTicket.VerifiedById = verifiedByUserId;
+					_unitOfWork.ImportTickets.Update(importTicket);
 
-					await _unitOfWork.SaveChangesAsync();
-
-					return await GetImportTicketByIdAsync(importTicket.Id);
+					return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Import ticket verified successfully.");
 				});
 			}
 			catch (Exception ex)
 			{
-				return BaseResponse<ImportTicketResponse>.Fail($"Error verifying import ticket: {ex.Message}", ResponseErrorType.InternalError);
+				return BaseResponse<string>.Fail($"Error verifying import ticket: {ex.Message}", ResponseErrorType.InternalError);
 			}
 		}
 
@@ -216,7 +225,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var importTicket = await _importTicketRepository.GetByIdWithDetailsAsync(id);
+				var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAsync(id);
 
 				if (importTicket == null)
 				{
@@ -237,7 +246,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var (items, totalCount) = await _importTicketRepository.GetPagedWithDetailsAsync(request);
+				var (items, totalCount) = await _unitOfWork.ImportTickets.GetPagedWithDetailsAsync(request);
 
 				var response = _mapper.Map<List<ImportTicketListItem>>(items);
 
@@ -256,35 +265,46 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<ImportTicketResponse>> UpdateImportStatusAsync(Guid id, UpdateImportTicketRequest request)
+
+		public async Task<BaseResponse<string>> UpdateImportStatusAsync(Guid id, UpdateImportTicketRequest request)
 		{
 			try
 			{
-				var importTicket = await _importTicketRepository.GetByIdAsync(id);
+				// Validate request using FluentValidation
+				var validationResult = await _updateImportTicketValidator.ValidateAsync(request);
+				if (!validationResult.IsValid)
+				{
+					var errors = string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage));
+					return BaseResponse<string>.Fail(errors, ResponseErrorType.BadRequest);
+				}
+
+				// Validation
+				var importTicket = await _unitOfWork.ImportTickets.GetByIdAsync(id);
 				if (importTicket == null)
 				{
-					return BaseResponse<ImportTicketResponse>.Fail("Import ticket not found.", ResponseErrorType.NotFound);
+					return BaseResponse<string>.Fail("Import ticket not found.", ResponseErrorType.NotFound);
 				}
 
 				if (importTicket.Status == ImportStatus.Completed || importTicket.Status == ImportStatus.Canceled)
 				{
-					return BaseResponse<ImportTicketResponse>.Fail("Cannot update status of a completed/Canceled import ticket.", ResponseErrorType.BadRequest);
+					return BaseResponse<string>.Fail("Cannot update status of a completed/Canceled import ticket.", ResponseErrorType.BadRequest);
 				}
 
 				if (request.Status < importTicket.Status)
 				{
-					return BaseResponse<ImportTicketResponse>.Fail("Cannot revert to a previous status.", ResponseErrorType.BadRequest);
+					return BaseResponse<string>.Fail("Cannot revert to a previous status.", ResponseErrorType.BadRequest);
 				}
 
+				// Update and save
 				importTicket.Status = request.Status;
-				_importTicketRepository.Update(importTicket);
+				_unitOfWork.ImportTickets.Update(importTicket);
 				await _unitOfWork.SaveChangesAsync();
 
-				return await GetImportTicketByIdAsync(id);
+				return BaseResponse<string>.Ok(id.ToString(), "Import ticket status updated successfully.");
 			}
 			catch (Exception ex)
 			{
-				return BaseResponse<ImportTicketResponse>.Fail($"Error updating import status: {ex.Message}", ResponseErrorType.InternalError);
+				return BaseResponse<string>.Fail($"Error updating import status: {ex.Message}", ResponseErrorType.InternalError);
 			}
 		}
 
@@ -292,9 +312,10 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
+				// Execute within transaction - orchestrator handles SaveChanges
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
-					var importTicket = await _importTicketRepository.GetByIdWithDetailsForDeleteAsync(id);
+					var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsForDeleteAsync(id);
 
 					if (importTicket == null)
 					{
@@ -310,22 +331,25 @@ namespace PerfumeGPT.Application.Services
 					{
 						foreach (var batch in detail.Batches)
 						{
-							_batchRepository.Remove(batch);
+							_unitOfWork.Batches.Remove(batch);
 						}
 
-						var stock = await _stockRepository.FirstOrDefaultAsync(s => s.VariantId == detail.ProductVariantId);
-						if (stock != null)
+						// Use StockService to decrease stock with validation
+						var stockDecreased = await _stockService.DecreaseStockAsync(
+							detail.ProductVariantId,
+							detail.Quantity);
+
+						if (!stockDecreased)
 						{
-							stock.TotalQuantity -= detail.Quantity;
-							if (stock.TotalQuantity < 0) stock.TotalQuantity = 0;
-							_stockRepository.Update(stock);
+							// Log warning but continue - stock might not exist
+							Console.WriteLine($"Warning: Failed to decrease stock for variant {detail.ProductVariantId}");
 						}
 
-						_importDetailRepository.Remove(detail);
+						_unitOfWork.ImportDetails.Remove(detail);
 					}
 
-					_importTicketRepository.Remove(importTicket);
-					await _unitOfWork.SaveChangesAsync();
+					_unitOfWork.ImportTickets.Remove(importTicket);
+					// SaveChanges is handled by ExecuteInTransactionAsync orchestrator
 
 					return BaseResponse<bool>.Ok(true, "Import ticket deleted successfully.");
 				});

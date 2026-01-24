@@ -49,13 +49,21 @@ namespace PerfumeGPT.Persistence.Repositories
 			return true;
 		}
 
-		public async Task<bool> IsValidForDeductionAsync(Guid variantId, int requiredQuantity)
-		{
-			var totalAvailable = await _context.Batches
-				.Where(b => b.VariantId == variantId && b.ExpiryDate > DateTime.UtcNow)
-				.SumAsync(b => b.RemainingQuantity);
+	public async Task<bool> IsValidForDeductionAsync(Guid variantId, int requiredQuantity)
+	{
+		var totalAvailable = await _context.Batches
+			.Where(b => b.VariantId == variantId && b.ExpiryDate > DateTime.UtcNow)
+			.SumAsync(b => b.RemainingQuantity);
 
-			return totalAvailable >= requiredQuantity;
-		}
+		return totalAvailable >= requiredQuantity;
 	}
+
+	public async Task<List<Batch>> GetAvailableBatchesByVariantAsync(Guid variantId)
+	{
+		return await _context.Batches
+			.Where(b => b.VariantId == variantId)
+			.OrderBy(b => b.ExpiryDate)
+			.ToListAsync();
+	}
+}
 }

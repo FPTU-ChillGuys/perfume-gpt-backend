@@ -1,22 +1,46 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
+using System.Security.Claims;
 
 namespace PerfumeGPT.Persistence.Contexts
 {
 	public class PerfumeDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
 	{
-		public PerfumeDbContext(DbContextOptions<PerfumeDbContext> options)
+		private readonly IHttpContextAccessor? _httpContextAccessor;
+		private readonly IAuditScope? _auditScope;
+
+		public PerfumeDbContext(DbContextOptions<PerfumeDbContext> options, IHttpContextAccessor? httpContextAccessor, IAuditScope? auditScope = null)
 			: base(options)
 		{
+			_httpContextAccessor = httpContextAccessor;
+			_auditScope = auditScope;
 		}
 
 		// Current user identifier for auditing (set externally, e.g. in services)
-		public string? CurrentUserId { get; set; } = "system";
+		public string? CurrentUserId
+		{
+			get
+			{
+				// If a system action is in progress, return "system"
+				if (_auditScope?.IsSystemAction == true)
+				{
+					return "system";
+				}
+
+				// Try to get user ID from HTTP context
+				var userId = _httpContextAccessor?.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+						  ?? _httpContextAccessor?.HttpContext?.User?.FindFirst("sub")?.Value;
+
+				return userId ?? "system";
+			}
+			set { } // Keep setter for backward compatibility
+		}
 
 		private void ApplyAuditRules()
 		{
@@ -194,6 +218,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasMany(u => u.ImportTickets)
 				.WithOne(it => it.CreatedByUser)
 				.HasForeignKey(it => it.CreatedById)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// User -> ImportTickets as Verifier (1:M)
+			builder.Entity<ImportTicket>()
+				.HasOne(it => it.VerifiedByUser)
+				.WithMany()
+				.HasForeignKey(it => it.VerifiedById)
 				.OnDelete(DeleteBehavior.Restrict);
 
 			// User -> Notifications (1:M)
@@ -428,10 +459,15 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<ProductVariant>().Property(pv => pv.Type).HasConversion<string>();
 			builder.Entity<ProductVariant>().Property(pv => pv.Status).HasConversion<string>();
 			builder.Entity<Voucher>().Property(v => v.DiscountType).HasConversion<string>();
+			builder.Entity<UserVoucher>().Property(uv => uv.Status).HasConversion<string>();
 			builder.Entity<ShippingInfo>().Property(s => s.CarrierName).HasConversion<string>();
 
 			// Seed roles
 			builder.Entity<IdentityRole<Guid>>().HasData(SeedingRoles());
+			// Seed users
+			builder.Entity<User>().HasData(SeedingUsers());
+			// Seed user roles
+			builder.Entity<IdentityUserRole<Guid>>().HasData(SeedingUserRoles());
 		}
 
 		private ICollection<IdentityRole<Guid>> SeedingRoles()
@@ -458,6 +494,80 @@ namespace PerfumeGPT.Persistence.Contexts
 					Name = "staff",
 					NormalizedName = "STAFF",
 					ConcurrencyStamp = "seed-3"
+				}
+			};
+		}
+
+		private ICollection<User> SeedingUsers()
+		{
+			// Pre-computed password hashes for "12345aA@" to avoid dynamic values
+			// You can generate these by running: new PasswordHasher<User>().HashPassword(null, "12345aA@")
+			var admin = new User
+			{
+				Id = Guid.Parse("33f41895-b601-4aa1-8dc4-8229a9d07008"),
+				UserName = "admin",
+				NormalizedUserName = "ADMIN",
+				Email = "admin@example.com",
+				NormalizedEmail = "ADMIN@EXAMPLE.COM",
+				EmailConfirmed = true,
+				PasswordHash = "AQAAAAIAAYagAAAAEKHinnJYz3sNmgoyw1lyOSf143VtvFvyCDcYcupcT7XK7Hf+J3UFoVZMKadVq3YmOA==",
+				SecurityStamp = "seed-4",
+				ConcurrencyStamp = "seed-5",
+				CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+				UpdatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+			};
+
+			var user = new User
+			{
+				Id = Guid.Parse("09097277-2705-40c2-bce5-51dbd1f4c1e6"),
+				UserName = "user",
+				NormalizedUserName = "USER",
+				Email = "user@example.com",
+				NormalizedEmail = "USER@EXAMPLE.COM",
+				EmailConfirmed = true,
+				PasswordHash = "AQAAAAIAAYagAAAAEKHinnJYz3sNmgoyw1lyOSf143VtvFvyCDcYcupcT7XK7Hf+J3UFoVZMKadVq3YmOA==",
+				SecurityStamp = "seed-6",
+				ConcurrencyStamp = "seed-7",
+				CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+				UpdatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+			};
+
+			var staff = new User
+			{
+				Id = Guid.Parse("09097277-5555-40c2-bce5-51dbd1f4c1e6"),
+				UserName = "staff",
+				NormalizedUserName = "STAFF",
+				Email = "staff@example.com",
+				NormalizedEmail = "STAFF@EXAMPLE.COM",
+				EmailConfirmed = true,
+				PasswordHash = "AQAAAAIAAYagAAAAEKHinnJYz3sNmgoyw1lyOSf143VtvFvyCDcYcupcT7XK7Hf+J3UFoVZMKadVq3YmOA==",
+				SecurityStamp = "seed-8",
+				ConcurrencyStamp = "seed-9",
+				CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+				UpdatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+			};
+
+			return new List<User> { admin, user, staff };
+		}
+
+		private ICollection<IdentityUserRole<Guid>> SeedingUserRoles()
+		{
+			return new List<IdentityUserRole<Guid>>
+			{
+				new IdentityUserRole<Guid>
+				{
+					UserId = Guid.Parse("33f41895-b601-4aa1-8dc4-8229a9d07008"),
+					RoleId = Guid.Parse("3631e38b-60dd-4d1a-af7f-a26f21c2ef82")
+				},
+				new IdentityUserRole<Guid>
+				{
+					UserId = Guid.Parse("09097277-2705-40c2-bce5-51dbd1f4c1e6"),
+					RoleId = Guid.Parse("51ef7e08-ff07-459b-8c55-c7ebac505103")
+				},
+				new IdentityUserRole<Guid>
+				{
+					UserId = Guid.Parse("09097277-5555-40c2-bce5-51dbd1f4c1e6"),
+					RoleId = Guid.Parse("8f6e1c3d-2d3b-4f4a-9f4a-2e5d6c7b8a9b")
 				}
 			};
 		}

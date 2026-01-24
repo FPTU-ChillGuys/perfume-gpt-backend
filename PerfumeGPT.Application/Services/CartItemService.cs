@@ -1,36 +1,32 @@
 ﻿using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.CartItems;
 using PerfumeGPT.Application.DTOs.Responses.Base;
-using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
-using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class CartItemService : ICartItemService
 	{
-		private readonly ICartItemRepository _cartItemRepo;
-		private readonly ICartRepository _cartRepo;
-		private readonly IVariantRepository _variantRepo;
-		private readonly IStockRepository _stockRepo;
+		private readonly IUnitOfWork _unitOfWork;
+		private readonly IVariantService _variantService;
+		private readonly IStockService _stockService;
 		private readonly IValidator<CreateCartItemRequest> _createCartItemValidator;
 		private readonly IValidator<UpdateCartItemRequest> _updateCartItemValidator;
 
 		public CartItemService(
-			ICartItemRepository cartItemRepo,
+			IUnitOfWork unitOfWork,
+			IVariantService variantService,
+			IStockService stockService,
 			IValidator<CreateCartItemRequest> createCartItemValidator,
-			IValidator<UpdateCartItemRequest> updateCartItemValidator,
-			ICartRepository cartRepo,
-			IStockRepository stockRepo,
-			IVariantRepository variantRepo)
+			IValidator<UpdateCartItemRequest> updateCartItemValidator)
 		{
-			_cartItemRepo = cartItemRepo;
+			_unitOfWork = unitOfWork;
+			_variantService = variantService;
+			_stockService = stockService;
 			_createCartItemValidator = createCartItemValidator;
 			_updateCartItemValidator = updateCartItemValidator;
-			_cartRepo = cartRepo;
-			_stockRepo = stockRepo;
-			_variantRepo = variantRepo;
 		}
 
 		public async Task<BaseResponse<string>> AddToCartAsync(Guid userId, CreateCartItemRequest request)
@@ -44,30 +40,30 @@ namespace PerfumeGPT.Application.Services
 
 			try
 			{
-				var cart = await _cartRepo.GetByUserIdAsync(userId);
+				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
 				if (cart == null)
 				{
 					return BaseResponse<string>.Fail("Cart not found for user", ResponseErrorType.NotFound);
 				}
 
-				var variant = await _variantRepo.GetByIdAsync(request.VariantId);
+				var variant = await _unitOfWork.Variants.GetByIdAsync(request.VariantId);
 				if (variant == null)
 				{
 					return BaseResponse<string>.Fail("Product variant not found", ResponseErrorType.NotFound);
 				}
 
-				var variantValidation = ValidateVariant(variant);
-				if (!variantValidation.IsValid)
+				var (IsValid, ErrorMessage) = _variantService.ValidateVariantForCart(variant);
+				if (!IsValid)
 				{
-					return BaseResponse<string>.Fail(variantValidation.ErrorMessage!, ResponseErrorType.BadRequest);
+					return BaseResponse<string>.Fail(ErrorMessage!, ResponseErrorType.BadRequest);
 				}
 
-				var existing = await _cartItemRepo.FirstOrDefaultAsync(
+				var existing = await _unitOfWork.CartItems.FirstOrDefaultAsync(
 					ci => ci.CartId == cart.Id && ci.VariantId == request.VariantId);
 
 				var totalQuantity = existing != null ? existing.Quantity + request.Quantity : request.Quantity;
 
-				var hasStock = await _stockRepo.IsValidToCart(request.VariantId, totalQuantity);
+				var hasStock = await _stockService.IsValidToCartAsync(request.VariantId, totalQuantity);
 				if (!hasStock)
 				{
 					return BaseResponse<string>.Fail(
@@ -78,8 +74,8 @@ namespace PerfumeGPT.Application.Services
 				if (existing != null)
 				{
 					existing.Quantity = totalQuantity;
-					_cartItemRepo.Update(existing);
-					var updated = await _cartItemRepo.SaveChangesAsync();
+					_unitOfWork.CartItems.Update(existing);
+					var updated = await _unitOfWork.SaveChangesAsync();
 
 					if (!updated)
 					{
@@ -98,8 +94,8 @@ namespace PerfumeGPT.Application.Services
 					Quantity = request.Quantity
 				};
 
-				await _cartItemRepo.AddAsync(cartItem);
-				var saved = await _cartItemRepo.SaveChangesAsync();
+				await _unitOfWork.CartItems.AddAsync(cartItem);
+				var saved = await _unitOfWork.SaveChangesAsync();
 
 				if (!saved)
 				{
@@ -127,13 +123,13 @@ namespace PerfumeGPT.Application.Services
 
 			try
 			{
-				var cart = await _cartRepo.GetByUserIdAsync(userId);
+				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
 				if (cart == null)
 				{
 					return BaseResponse<string>.Fail("Cart not found for user", ResponseErrorType.NotFound);
 				}
 
-				var cartItem = await _cartItemRepo.GetByIdAsync(cartItemId);
+				var cartItem = await _unitOfWork.CartItems.GetByIdAsync(cartItemId);
 				if (cartItem == null)
 				{
 					return BaseResponse<string>.Fail("Cart item not found", ResponseErrorType.NotFound);
@@ -146,8 +142,8 @@ namespace PerfumeGPT.Application.Services
 						ResponseErrorType.Forbidden);
 				}
 
-				_cartItemRepo.Remove(cartItem);
-				var saved = await _cartItemRepo.SaveChangesAsync();
+				_unitOfWork.CartItems.Remove(cartItem);
+				var saved = await _unitOfWork.SaveChangesAsync();
 
 				if (!saved)
 				{
@@ -177,13 +173,13 @@ namespace PerfumeGPT.Application.Services
 
 			try
 			{
-				var cart = await _cartRepo.GetByUserIdAsync(userId);
+				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
 				if (cart == null)
 				{
 					return BaseResponse<string>.Fail("Cart not found for user", ResponseErrorType.NotFound);
 				}
 
-				var cartItem = await _cartItemRepo.FirstOrDefaultAsync(
+				var cartItem = await _unitOfWork.CartItems.FirstOrDefaultAsync(
 					ci => ci.Id == cartItemId && ci.CartId == cart.Id);
 
 				if (cartItem == null)
@@ -191,41 +187,41 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Fail("Cart item not found", ResponseErrorType.NotFound);
 				}
 
-			if (request.Quantity <= 0)
-			{
-				_cartItemRepo.Remove(cartItem);
-				var removed = await _cartItemRepo.SaveChangesAsync();
+				if (request.Quantity <= 0)
+				{
+					_unitOfWork.CartItems.Remove(cartItem);
+					var removed = await _unitOfWork.SaveChangesAsync();
 
-				if (!removed)
+					if (!removed)
+					{
+						return BaseResponse<string>.Fail(
+							"Could not remove cart item",
+							ResponseErrorType.InternalError);
+					}
+
+					return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Item removed from cart successfully");
+				}
+
+				var hasStock = await _stockService.IsValidToCartAsync(cartItem.VariantId, request.Quantity);
+				if (!hasStock)
 				{
 					return BaseResponse<string>.Fail(
-						"Could not remove cart item",
+						"Insufficient stock for the requested quantity",
+						ResponseErrorType.BadRequest);
+				}
+
+				cartItem.Quantity = request.Quantity;
+				_unitOfWork.CartItems.Update(cartItem);
+
+				var saved = await _unitOfWork.SaveChangesAsync();
+				if (!saved)
+				{
+					return BaseResponse<string>.Fail(
+						"Could not update cart item",
 						ResponseErrorType.InternalError);
 				}
 
-				return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Item removed from cart successfully");
-			}
-
-			var hasStock = await _stockRepo.IsValidToCart(cartItem.VariantId, request.Quantity);
-			if (!hasStock)
-			{
-				return BaseResponse<string>.Fail(
-					"Insufficient stock for the requested quantity",
-					ResponseErrorType.BadRequest);
-			}
-
-			cartItem.Quantity = request.Quantity;
-			_cartItemRepo.Update(cartItem);
-
-			var saved = await _cartItemRepo.SaveChangesAsync();
-			if (!saved)
-			{
-				return BaseResponse<string>.Fail(
-					"Could not update cart item",
-					ResponseErrorType.InternalError);
-			}
-
-			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Cart item updated successfully");
+				return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Cart item updated successfully");
 			}
 			catch (Exception ex)
 			{
@@ -233,31 +229,6 @@ namespace PerfumeGPT.Application.Services
 					$"Error updating cart item: {ex.Message}",
 					ResponseErrorType.InternalError);
 			}
-		}
-
-		private static (bool IsValid, string? ErrorMessage) ValidateVariant(ProductVariant variant)
-		{
-			if (variant.IsDeleted)
-			{
-				return (false, "This product variant is no longer available");
-			}
-
-			if (variant.Status == VariantStatus.Discontinued)
-			{
-				return (false, "This product variant has been discontinued");
-			}
-
-			if (variant.Status == VariantStatus.Inactive)
-			{
-				return (false, "This product variant is currently inactive");
-			}
-
-			if (variant.Status == VariantStatus.out_of_stock)
-			{
-				return (false, "This product variant is out of stock");
-			}
-
-			return (true, null);
 		}
 	}
 }

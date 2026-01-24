@@ -8,6 +8,8 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid ProductVariantId { get; set; }
 		public int Quantity { get; set; }
 		public decimal UnitPrice { get; set; }
+		public int RejectQuantity { get; set; } = 0;
+		public string? Note { get; set; }
 
 		// Navigation
 		public virtual ImportTicket ImportTicket { get; set; } = null!;

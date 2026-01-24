@@ -2,7 +2,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Vouchers
 {
 	public class ApplyVoucherRequest
 	{
-		public string VoucherCode { get; set; } = null!;
+		public Guid VoucherId { get; set; }
 		public decimal OrderAmount { get; set; }
 	}
 }

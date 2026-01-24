@@ -19,14 +19,21 @@ namespace PerfumeGPT.API.Controllers
 			_variantService = variantService;
 		}
 
-		[HttpGet]
-		public async Task<ActionResult<BaseResponse<PagedResult<VariantPagedItem>>>> GetPagedVariants([FromQuery] GetPagedVariantsRequest request)
-		{
-			var result = await _variantService.GetPagedVariantsAsync(request);
-			return HandleResponse(result);
-		}
+	[HttpGet]
+	public async Task<ActionResult<BaseResponse<PagedResult<VariantPagedItem>>>> GetPagedVariants([FromQuery] GetPagedVariantsRequest request)
+	{
+		var result = await _variantService.GetPagedVariantsAsync(request);
+		return HandleResponse(result);
+	}
 
-		[HttpGet("{variantId:guid}")]
+	[HttpGet("lookup")]
+	public async Task<ActionResult<BaseResponse<List<VariantLookupItem>>>> GetVariantLookupList([FromQuery] Guid? productId = null)
+	{
+		var result = await _variantService.GetVariantLookupListAsync(productId);
+		return HandleResponse(result);
+	}
+
+	[HttpGet("{variantId:guid}")]
 		public async Task<ActionResult<BaseResponse<ProductVariantResponse>>> GetVariantById(Guid variantId)
 		{
 			var result = await _variantService.GetVariantByIdAsync(variantId);

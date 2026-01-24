@@ -24,7 +24,7 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpPost]
 		[Authorize]
-		public async Task<ActionResult<BaseResponse<ImportTicketResponse>>> CreateImportTicket([FromBody] CreateImportTicketRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> CreateImportTicket([FromBody] CreateImportTicketRequest request)
 		{
 			var validation = ValidateRequestBody<CreateImportTicketRequest>(request);
 			if (validation != null) return validation;
@@ -37,14 +37,15 @@ namespace PerfumeGPT.API.Controllers
 		/// <summary>
 		/// Verify import ticket by adding batches and updating stock
 		/// </summary>
-		[HttpPost("verify")]
+		[HttpPost("verify/{ticketId:guid}")]
 		[Authorize]
-		public async Task<ActionResult<BaseResponse<ImportTicketResponse>>> VerifyImportTicket([FromBody] VerifyImportTicketRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> VerifyImportTicket([FromRoute] Guid ticketId, [FromBody] VerifyImportTicketRequest request)
 		{
 			var validation = ValidateRequestBody<VerifyImportTicketRequest>(request);
 			if (validation != null) return validation;
 
-			var response = await _importTicketService.VerifyImportTicketAsync(request);
+			var verifiedByUserId = GetCurrentUserId();
+			var response = await _importTicketService.VerifyImportTicketAsync(ticketId, request, verifiedByUserId);
 			return HandleResponse(response);
 		}
 
@@ -73,7 +74,7 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpPut("status/{id:guid}")]
 		[Authorize]
-		public async Task<ActionResult<BaseResponse<ImportTicketResponse>>> UpdateImportStatus([FromRoute] Guid id, [FromBody] UpdateImportTicketRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> UpdateImportStatus([FromRoute] Guid id, [FromBody] UpdateImportTicketRequest request)
 		{
 			var validation = ValidateRequestBody<UpdateImportTicketRequest>(request);
 			if (validation != null) return validation;

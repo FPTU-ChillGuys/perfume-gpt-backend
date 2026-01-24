@@ -25,6 +25,22 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(result);
 		}
 
+		[HttpGet("items")]
+		public async Task<ActionResult<BaseResponse<GetCartItemsResponse>>> GetCartItems()
+		{
+			var userId = GetCurrentUserId();
+			var result = await _cartService.GetCartItemsAsync(userId);
+			return HandleResponse(result);
+		}
+
+		[HttpGet("total")]
+		public async Task<ActionResult<BaseResponse<GetCartTotalResponse>>> GetCartTotal([FromQuery] Guid? voucherId)
+		{
+			var userId = GetCurrentUserId();
+			var result = await _cartService.GetCartTotalAsync(userId, voucherId);
+			return HandleResponse(result);
+		}
+
 		[HttpDelete]
 		public async Task<ActionResult<BaseResponse<string>>> ClearCart()
 		{

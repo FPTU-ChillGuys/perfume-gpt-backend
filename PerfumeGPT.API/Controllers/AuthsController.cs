@@ -117,12 +117,5 @@ namespace PerfumeGPT.API.Controllers
 
 			return HandleResponse(result);
 		}
-
-		[HttpGet("ping")]
-		[Authorize]
-		public ActionResult<string> Ping()
-		{
-			return "Pong";
-		}
 	}
 }

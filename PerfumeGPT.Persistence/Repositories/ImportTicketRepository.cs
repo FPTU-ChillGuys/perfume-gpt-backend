@@ -17,6 +17,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			return await _context.ImportTickets
 				.Include(it => it.CreatedByUser)
+				.Include(it => it.VerifiedByUser)
 				.Include(it => it.Supplier)
 				.Include(it => it.ImportDetails)
 					.ThenInclude(d => d.ProductVariant)

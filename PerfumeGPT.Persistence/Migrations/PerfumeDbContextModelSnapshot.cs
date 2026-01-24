@@ -155,6 +155,23 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasIndex("RoleId");
 
                     b.ToTable("AspNetUserRoles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            UserId = new Guid("33f41895-b601-4aa1-8dc4-8229a9d07008"),
+                            RoleId = new Guid("3631e38b-60dd-4d1a-af7f-a26f21c2ef82")
+                        },
+                        new
+                        {
+                            UserId = new Guid("09097277-2705-40c2-bce5-51dbd1f4c1e6"),
+                            RoleId = new Guid("51ef7e08-ff07-459b-8c55-c7ebac505103")
+                        },
+                        new
+                        {
+                            UserId = new Guid("09097277-5555-40c2-bce5-51dbd1f4c1e6"),
+                            RoleId = new Guid("8f6e1c3d-2d3b-4f4a-9f4a-2e5d6c7b8a9b")
+                        });
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
@@ -429,10 +446,16 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<Guid>("ImportId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid>("ProductVariantId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RejectQuantity")
                         .HasColumnType("int");
 
                     b.Property<decimal>("UnitPrice")
@@ -457,6 +480,9 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid>("CreatedById")
                         .HasColumnType("uniqueidentifier");
 
@@ -480,11 +506,22 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("VerifiedById")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedById");
 
                     b.HasIndex("SupplierId");
+
+                    b.HasIndex("VerifiedById");
 
                     b.ToTable("ImportTickets");
                 });
@@ -1029,6 +1066,71 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
                     b.ToTable("AspNetUsers", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("33f41895-b601-4aa1-8dc4-8229a9d07008"),
+                            AccessFailedCount = 0,
+                            ConcurrencyStamp = "seed-5",
+                            CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Email = "admin@example.com",
+                            EmailConfirmed = true,
+                            FullName = "",
+                            IsActive = true,
+                            IsDeleted = false,
+                            LockoutEnabled = false,
+                            NormalizedEmail = "ADMIN@EXAMPLE.COM",
+                            NormalizedUserName = "ADMIN",
+                            PasswordHash = "AQAAAAIAAYagAAAAEKHinnJYz3sNmgoyw1lyOSf143VtvFvyCDcYcupcT7XK7Hf+J3UFoVZMKadVq3YmOA==",
+                            PhoneNumberConfirmed = false,
+                            SecurityStamp = "seed-4",
+                            TwoFactorEnabled = false,
+                            UpdatedAt = new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UserName = "admin"
+                        },
+                        new
+                        {
+                            Id = new Guid("09097277-2705-40c2-bce5-51dbd1f4c1e6"),
+                            AccessFailedCount = 0,
+                            ConcurrencyStamp = "seed-7",
+                            CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Email = "user@example.com",
+                            EmailConfirmed = true,
+                            FullName = "",
+                            IsActive = true,
+                            IsDeleted = false,
+                            LockoutEnabled = false,
+                            NormalizedEmail = "USER@EXAMPLE.COM",
+                            NormalizedUserName = "USER",
+                            PasswordHash = "AQAAAAIAAYagAAAAEKHinnJYz3sNmgoyw1lyOSf143VtvFvyCDcYcupcT7XK7Hf+J3UFoVZMKadVq3YmOA==",
+                            PhoneNumberConfirmed = false,
+                            SecurityStamp = "seed-6",
+                            TwoFactorEnabled = false,
+                            UpdatedAt = new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UserName = "user"
+                        },
+                        new
+                        {
+                            Id = new Guid("09097277-5555-40c2-bce5-51dbd1f4c1e6"),
+                            AccessFailedCount = 0,
+                            ConcurrencyStamp = "seed-9",
+                            CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Email = "staff@example.com",
+                            EmailConfirmed = true,
+                            FullName = "",
+                            IsActive = true,
+                            IsDeleted = false,
+                            LockoutEnabled = false,
+                            NormalizedEmail = "STAFF@EXAMPLE.COM",
+                            NormalizedUserName = "STAFF",
+                            PasswordHash = "AQAAAAIAAYagAAAAEKHinnJYz3sNmgoyw1lyOSf143VtvFvyCDcYcupcT7XK7Hf+J3UFoVZMKadVq3YmOA==",
+                            PhoneNumberConfirmed = false,
+                            SecurityStamp = "seed-8",
+                            TwoFactorEnabled = false,
+                            UpdatedAt = new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UserName = "staff"
+                        });
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.UserVoucher", b =>
@@ -1042,6 +1144,10 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.Property<bool>("IsUsed")
                         .HasColumnType("bit");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -1261,9 +1367,16 @@ namespace PerfumeGPT.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PerfumeGPT.Domain.Entities.User", "VerifiedByUser")
+                        .WithMany()
+                        .HasForeignKey("VerifiedById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Supplier");
+
+                    b.Navigation("VerifiedByUser");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.LoyaltyPoint", b =>

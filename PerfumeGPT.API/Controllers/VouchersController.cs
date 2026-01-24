@@ -105,16 +105,15 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		/// <summary>
-		/// Get user's redeemed vouchers
+		/// Get user's redeemed vouchers with filtering and sorting
 		/// </summary>
 		[HttpGet("my-vouchers")]
 		[Authorize]
 		public async Task<ActionResult<BaseResponse<PagedResult<UserVoucherResponse>>>> GetMyVouchers(
-			[FromQuery] int pageNumber = 1,
-			[FromQuery] int pageSize = 10)
+			[FromQuery] GetUserVouchersRequest request)
 		{
 			var userId = GetCurrentUserId();
-			var response = await _voucherService.GetUserVouchersAsync(userId, pageNumber, pageSize);
+			var response = await _voucherService.GetUserVouchersAsync(userId, request);
 			return HandleResponse(response);
 		}
 
@@ -137,12 +136,12 @@ namespace PerfumeGPT.API.Controllers
 		/// <summary>
 		/// Validate if a voucher can be applied
 		/// </summary>
-		[HttpGet("validate/{voucherCode}")]
+		[HttpGet("validate/{voucherId:guid}")]
 		[Authorize]
-		public async Task<ActionResult<BaseResponse<bool>>> ValidateVoucher(string voucherCode)
+		public async Task<ActionResult<BaseResponse<bool>>> ValidateVoucher(Guid voucherId)
 		{
 			var userId = GetCurrentUserId();
-			var response = await _voucherService.ValidateToApplyVoucherAsync(voucherCode, userId);
+			var response = await _voucherService.ValidateToApplyVoucherAsync(voucherId, userId);
 			return HandleResponse(response);
 		}
 

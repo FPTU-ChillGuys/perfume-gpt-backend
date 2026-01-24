@@ -1,36 +1,31 @@
-﻿using MapsterMapper;
-using PerfumeGPT.Application.DTOs.Requests.GHNs;
+using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.CartItems;
 using PerfumeGPT.Application.DTOs.Responses.Carts;
-using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
-using PerfumeGPT.Application.Interfaces.ThirdParties;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class CartService : ICartService
 	{
-		private readonly ICartRepository _cartRepository;
-		private readonly ICartItemRepository _cartItemRepository;
-		private readonly IGHNService _ghnService;
-		private readonly IVoucherRepository _voucherRepository;
+		private readonly IUnitOfWork _unitOfWork;
+		private readonly IShippingService _shippingService;
+		private readonly IVoucherService _voucherService;
 		private readonly IAddressService _addressService;
 		private readonly IMapper _mapper;
 
 		public CartService(
-			ICartRepository cartRepository,
-			ICartItemRepository cartItemRepository,
-			IGHNService ghnService,
+			IUnitOfWork unitOfWork,
+			IShippingService shippingService,
 			IAddressService addressService,
-			IVoucherRepository voucherRepository,
+			IVoucherService voucherService,
 			IMapper mapper)
 		{
-			_cartRepository = cartRepository;
-			_cartItemRepository = cartItemRepository;
-			_ghnService = ghnService;
+			_unitOfWork = unitOfWork;
+			_shippingService = shippingService;
 			_addressService = addressService;
-			_voucherRepository = voucherRepository;
+			_voucherService = voucherService;
 			_mapper = mapper;
 		}
 
@@ -38,13 +33,13 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var cart = await _cartRepository.GetByUserIdAsync(userId);
+				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
 				if (cart == null)
 				{
 					return BaseResponse<GetCartResponse>.Fail("Cart not found", ResponseErrorType.NotFound);
 				}
 
-				var items = await _cartItemRepository.GetCartItemByCartIdAsync(cart.Id);
+				var items = await _unitOfWork.CartItems.GetCartItemByCartIdAsync(cart.Id);
 				if (items == null || items.Count == 0)
 				{
 					return BaseResponse<GetCartResponse>.Ok(new GetCartResponse
@@ -65,7 +60,11 @@ namespace PerfumeGPT.Application.Services
 						ResponseErrorType.NotFound);
 				}
 
-				var shippingFee = await CalculateShippingFeeAsync(addressResponse.Payload.DistrictId, addressResponse.Payload.WardCode);
+				// Use ShippingService to calculate shipping fee
+				var shippingFee = await _shippingService.CalculateShippingFeeAsync(
+					addressResponse.Payload.DistrictId, 
+					addressResponse.Payload.WardCode);
+				
 				if (shippingFee == null)
 				{
 					return BaseResponse<GetCartResponse>.Fail(
@@ -78,7 +77,17 @@ namespace PerfumeGPT.Application.Services
 
 				if (voucherId.HasValue)
 				{
-					totalPrice = await ApplyVoucherDiscountAsync(totalPrice, voucherId.Value);
+					// Validate voucher before applying discount
+					var voucherValidation = await _voucherService.ValidateToApplyVoucherAsync(voucherId.Value, userId);
+					if (!voucherValidation.Success)
+					{
+						return BaseResponse<GetCartResponse>.Fail(
+							voucherValidation.Message,
+							voucherValidation.ErrorType);
+					}
+
+					// Use VoucherService to calculate discount
+					totalPrice = await _voucherService.CalculateVoucherDiscountAsync(voucherId.Value, totalPrice);
 					totalPrice = Math.Round(totalPrice, 0, MidpointRounding.AwayFromZero);
 				}
 
@@ -99,69 +108,139 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
+		public async Task<BaseResponse<GetCartItemsResponse>> GetCartItemsAsync(Guid userId)
+		{
+			try
+			{
+				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
+				if (cart == null)
+				{
+					return BaseResponse<GetCartItemsResponse>.Fail("Cart not found", ResponseErrorType.NotFound);
+				}
+
+				var items = await _unitOfWork.CartItems.GetCartItemByCartIdAsync(cart.Id);
+				if (items == null || items.Count == 0)
+				{
+					return BaseResponse<GetCartItemsResponse>.Ok(new GetCartItemsResponse
+					{
+						Items = []
+					}, "Cart is empty");
+				}
+
+				var itemResponses = _mapper.Map<List<GetCartItemResponse>>(items);
+
+				var response = new GetCartItemsResponse
+				{
+					Items = itemResponses
+				};
+
+				return BaseResponse<GetCartItemsResponse>.Ok(response, "Cart items retrieved successfully");
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<GetCartItemsResponse>.Fail(
+					$"Error retrieving cart items: {ex.Message}",
+					ResponseErrorType.InternalError);
+			}
+		}
+
+		public async Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, Guid? voucherId)
+		{
+			try
+			{
+				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
+				if (cart == null)
+				{
+					return BaseResponse<GetCartTotalResponse>.Fail("Cart not found", ResponseErrorType.NotFound);
+				}
+
+				var items = await _unitOfWork.CartItems.GetCartItemByCartIdAsync(cart.Id);
+				if (items == null || items.Count == 0)
+				{
+					return BaseResponse<GetCartTotalResponse>.Ok(new GetCartTotalResponse
+					{
+						Subtotal = 0m,
+						ShippingFee = 0m,
+						TotalPrice = 0m
+					}, "Cart is empty");
+				}
+
+				var itemResponses = _mapper.Map<List<GetCartItemResponse>>(items);
+
+				var addressResponse = await _addressService.GetDefaultAddressAsync(userId);
+				if (!addressResponse.Success || addressResponse.Payload == null)
+				{
+					return BaseResponse<GetCartTotalResponse>.Fail(
+						"Default address not found. Please set a default address to calculate shipping.",
+						ResponseErrorType.NotFound);
+				}
+
+				// Use ShippingService to calculate shipping fee
+				var shippingFee = await _shippingService.CalculateShippingFeeAsync(
+					addressResponse.Payload.DistrictId,
+					addressResponse.Payload.WardCode);
+
+				if (shippingFee == null)
+				{
+					return BaseResponse<GetCartTotalResponse>.Fail(
+						"Failed to calculate shipping fee",
+						ResponseErrorType.InternalError);
+				}
+
+				var subtotal = CalculateSubtotal(itemResponses);
+				var totalPrice = subtotal + shippingFee.Value;
+
+				if (voucherId.HasValue)
+				{
+					// Validate voucher before applying discount
+					var voucherValidation = await _voucherService.ValidateToApplyVoucherAsync(voucherId.Value, userId);
+					if (!voucherValidation.Success)
+					{
+						return BaseResponse<GetCartTotalResponse>.Fail(
+							voucherValidation.Message,
+							voucherValidation.ErrorType);
+					}
+
+					// Use VoucherService to calculate discount
+					totalPrice = await _voucherService.CalculateVoucherDiscountAsync(voucherId.Value, totalPrice);
+					totalPrice = Math.Round(totalPrice, 0, MidpointRounding.AwayFromZero);
+				}
+
+				var response = new GetCartTotalResponse
+				{
+					Subtotal = subtotal,
+					ShippingFee = shippingFee.Value,
+					TotalPrice = totalPrice
+				};
+
+				return BaseResponse<GetCartTotalResponse>.Ok(response, "Cart total calculated successfully");
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<GetCartTotalResponse>.Fail(
+					$"Error calculating cart total: {ex.Message}",
+					ResponseErrorType.InternalError);
+			}
+		}
+
 		private static decimal CalculateSubtotal(List<GetCartItemResponse> items)
 		{
 			return items.Sum(item => item.SubTotal);
 		}
 
-		private async Task<decimal?> CalculateShippingFeeAsync(int districtId, string wardCode)
-		{
-			try
-			{
-				var calculateShippingFeeRequest = new CalculateFeeRequest
-				{
-					ToDistrictId = districtId,
-					ToWardCode = wardCode
-				};
-
-				var shippingFeeResponse = await _ghnService.CalculateShippingFeeAsync(calculateShippingFeeRequest);
-				return shippingFeeResponse?.Data?.Total;
-			}
-			catch
-			{
-				return null;
-			}
-		}
-
-		private async Task<decimal> ApplyVoucherDiscountAsync(decimal totalPrice, Guid voucherId)
-		{
-			try
-			{
-				var voucher = await _voucherRepository.GetByIdAsync(voucherId);
-				if (voucher == null)
-				{
-					return totalPrice;
-				}
-
-				var discountAmount = voucher.DiscountType switch
-				{
-					Domain.Enums.DiscountType.Percentage => totalPrice * (voucher.DiscountValue / 100m),
-					Domain.Enums.DiscountType.FixedAmount => voucher.DiscountValue,
-					_ => 0m
-				};
-
-				var finalPrice = totalPrice - discountAmount;
-				return finalPrice < 0m ? 0m : finalPrice;
-			}
-			catch
-			{
-				return totalPrice;
-			}
-		}
-
 		public async Task<BaseResponse<string>> ClearCartAsync(Guid userId)
 		{
-			var cart = await _cartRepository.GetByUserIdAsync(userId);
+			var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
 			if (cart == null)
 			{
 				return BaseResponse<string>.Fail("Cart not found", ResponseErrorType.NotFound);
 			}
 			try
 			{
-				var items = await _cartItemRepository.GetCartItemByCartIdAsync(cart.Id);
+				var items = await _unitOfWork.CartItems.GetCartItemByCartIdAsync(cart.Id);
 				if (items != null && items.Count > 0)
 				{
-					var result = await _cartRepository.ClearCartByUserIdAsync(userId);
+					var result = await _unitOfWork.Carts.ClearCartByUserIdAsync(userId);
 					if (!result)
 					{
 						return BaseResponse<string>.Fail("Could not clear cart", ResponseErrorType.InternalError);

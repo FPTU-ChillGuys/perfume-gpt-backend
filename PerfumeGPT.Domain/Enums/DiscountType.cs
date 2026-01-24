@@ -3,6 +3,6 @@
 	public enum DiscountType
 	{
 		Percentage,
-		FixedAmount
+		Fixed
 	}
 }

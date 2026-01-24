@@ -8,10 +8,12 @@ using Microsoft.IdentityModel.Tokens;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
+using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Infrastructure.ThirdParties;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using PerfumeGPT.Persistence.Services;
 using System.Reflection;
 using System.Text;
 
@@ -21,6 +23,9 @@ namespace PerfumeGPT.Infrastructure.Extensions
 	{
 		public static void AddInfrastructureDIs(this IServiceCollection services, IConfiguration configuration)
 		{
+			// Register audit scope for tracking system actions
+			services.AddScoped<IAuditScope, AuditScope>();
+
 			// Register infrastructure 3rd-party services used by Application layer
 			services.AddScoped<IEmailService, EmailService>();
 			services.AddScoped<IEmailTemplateService, EmailTemplateService>();

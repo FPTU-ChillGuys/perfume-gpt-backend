@@ -74,6 +74,8 @@ builder.Services.AddApplicationServices();
 // Add identity and JWT services
 builder.Services.AddIdentityServices(builder.Configuration);
 
+builder.Services.AddHttpContextAccessor();
+
 // Force all routes to be lowercase
 builder.Services.AddRouting(options => options.LowercaseUrls = true);
 

@@ -1,7 +1,7 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.LoyaltyPoints
 {
-    public class CreateLoyaltyPointRequest : UpdateLoyaltyPointRequest
-    {
-        public Guid UserId { get; set; }
-    }
+	public class CreateLoyaltyPointRequest
+	{
+		public Guid UserId { get; set; }
+	}
 }

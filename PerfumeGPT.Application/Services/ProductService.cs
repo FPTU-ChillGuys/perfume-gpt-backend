@@ -1,9 +1,8 @@
-﻿using FluentValidation;
-using Microsoft.EntityFrameworkCore;
+using FluentValidation;
+using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Products;
-using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -15,12 +14,18 @@ namespace PerfumeGPT.Application.Services
 		private readonly IProductRepository _productRepo;
 		private readonly IValidator<CreateProductRequest> _createValidator;
 		private readonly IValidator<UpdateProductRequest> _updateValidator;
+		private readonly IMapper _mapper;
 
-		public ProductService(IProductRepository productRepo, IValidator<CreateProductRequest> createValidator, IValidator<UpdateProductRequest> updateValidator)
+		public ProductService(
+			IProductRepository productRepo,
+			IValidator<CreateProductRequest> createValidator,
+			IValidator<UpdateProductRequest> updateValidator,
+			IMapper mapper)
 		{
 			_productRepo = productRepo;
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
+			_mapper = mapper;
 		}
 
 		public async Task<BaseResponse<string>> CreateProductAsync(CreateProductRequest request)
@@ -35,17 +40,8 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
-			var product = new Product
-			{
-				Name = request.Name,
-				BrandId = request.BrandId,
-				CategoryId = request.CategoryId,
-				FamilyId = request.FamilyId,
-				Description = request.Description,
-				TopNotes = request.TopNotes,
-				MiddleNotes = request.MiddleNotes,
-				BaseNotes = request.BaseNotes
-			};
+			// Use mapper to create Product entity
+			var product = _mapper.Map<Product>(request);
 
 			await _productRepo.AddAsync(product);
 			var saved = await _productRepo.SaveChangesAsync();
@@ -71,7 +67,7 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Product already deleted", ResponseErrorType.BadRequest);
 			}
 
-			_productRepo.Update(product);
+			_productRepo.Remove(product);
 			var saved = await _productRepo.SaveChangesAsync();
 
 			if (!saved)
@@ -84,82 +80,27 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ProductResponse>> GetProductAsync(Guid productId)
 		{
-			var product = await _productRepo.GetByConditionAsync(
-				p => p.Id == productId && !p.IsDeleted,
-				include: q => q
-					.Include(p => p.Brand)
-					.Include(p => p.Category)
-					.Include(p => p.FragranceFamily)
-					.Include(p => p.Variants)
-						.ThenInclude(v => v.Concentration),
-				asNoTracking: true
-			);
+			// Use repository method with includes
+			var product = await _productRepo.GetProductWithDetailsAsync(productId);
 
 			if (product == null)
 			{
 				return BaseResponse<ProductResponse>.Fail("Product not found", ResponseErrorType.NotFound);
 			}
 
-			var response = new ProductResponse
-			{
-				Id = product.Id,
-				Name = product.Name,
-				BrandId = product.BrandId,
-				BrandName = product.Brand.Name ?? string.Empty,
-				CategoryId = product.CategoryId,
-				CategoryName = product.Category.Name ?? string.Empty,
-				FamilyId = product.FamilyId,
-				FamilyName = product.FragranceFamily.Name ?? string.Empty,
-				Description = product.Description,
-				TopNotes = product.TopNotes,
-				MiddleNotes = product.MiddleNotes,
-				BaseNotes = product.BaseNotes,
-				Variants = product.Variants.Select(v => new ProductVariantResponse
-				{
-					Id = v.Id,
-					ProductId = v.ProductId,
-					Sku = v.Sku,
-					VolumeMl = v.VolumeMl,
-					ConcentrationId = v.ConcentrationId,
-					ConcentrationName = v.Concentration.Name ?? string.Empty,
-					Type = v.Type,
-					BasePrice = v.BasePrice,
-					Status = v.Status
-				}).ToList()
-			};
+			// Use mapper to convert to response DTO
+			var response = _mapper.Map<ProductResponse>(product);
 
 			return BaseResponse<ProductResponse>.Ok(response, "Product retrieved successfully");
 		}
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetProductsAsync(GetPagedProductRequest request)
 		{
-			var (items, totalCount) = await _productRepo.GetPagedAsync(
-				filter: p => !p.IsDeleted,
-				include: q => q
-					.Include(p => p.Brand)
-					.Include(p => p.Category)
-					.Include(p => p.FragranceFamily),
-				orderBy: q => q.OrderByDescending(p => p.CreatedAt),
-				pageNumber: request.PageNumber,
-				pageSize: request.PageSize,
-				asNoTracking: true
-			);
+			// Use repository method with includes
+			var (items, totalCount) = await _productRepo.GetPagedProductsWithDetailsAsync(request);
 
-			var productList = items.Select(p => new ProductListItem
-			{
-				Id = p.Id,
-				Name = p.Name,
-				BrandId = p.BrandId,
-				BrandName = p.Brand.Name ?? string.Empty,
-				CategoryId = p.CategoryId,
-				CategoryName = p.Category.Name ?? string.Empty,
-				FamilyId = p.FamilyId,
-				FamilyName = p.FragranceFamily.Name ?? string.Empty,
-				Description = p.Description,
-				TopNotes = p.TopNotes,
-				MiddleNotes = p.MiddleNotes,
-				BaseNotes = p.BaseNotes
-			}).ToList();
+			// Use mapper to convert to response DTOs
+			var productList = _mapper.Map<List<ProductListItem>>(items);
 
 			var pagedResult = new PagedResult<ProductListItem>(
 				productList,
@@ -194,14 +135,8 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Cannot update deleted product", ResponseErrorType.BadRequest);
 			}
 
-			product.Name = request.Name;
-			product.BrandId = request.BrandId;
-			product.CategoryId = request.CategoryId;
-			product.FamilyId = request.FamilyId;
-			product.Description = request.Description;
-			product.TopNotes = request.TopNotes;
-			product.MiddleNotes = request.MiddleNotes;
-			product.BaseNotes = request.BaseNotes;
+			// Use mapper to update entity
+			_mapper.Map(request, product);
 
 			_productRepo.Update(product);
 			var saved = await _productRepo.SaveChangesAsync();
