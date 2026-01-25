@@ -102,6 +102,25 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		/// <summary>
+		/// Update import ticket details (supplier, date, import details)
+		/// </summary>
+		[HttpPut("{id:guid}")]
+		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.InternalServerError)]
+		public async Task<ActionResult<BaseResponse<string>>> UpdateImportTicket([FromRoute] Guid id, [FromBody] UpdateFullImportTicketRequest request)
+		{
+			var validation = ValidateRequestBody<UpdateFullImportTicketRequest>(request);
+			if (validation != null) return validation;
+
+			var adminId = GetCurrentUserId();
+			var response = await _importTicketService.UpdateImportTicketAsync(adminId, id, request);
+			return HandleResponse(response);
+		}
+
+		/// <summary>
 		/// Delete import ticket
 		/// </summary>
 		[HttpDelete("{id:guid}")]

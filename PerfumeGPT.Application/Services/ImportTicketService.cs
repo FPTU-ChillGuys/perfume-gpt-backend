@@ -19,6 +19,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IValidator<CreateImportTicketRequest> _createImportTicketValidator;
 		private readonly IValidator<VerifyImportTicketRequest> _verifyImportTicketValidator;
 		private readonly IValidator<UpdateImportTicketRequest> _updateImportTicketValidator;
+		private readonly IValidator<UpdateFullImportTicketRequest> _updateFullImportTicketValidator;
 		private readonly IMapper _mapper;
 
 		public ImportTicketService(
@@ -28,7 +29,8 @@ namespace PerfumeGPT.Application.Services
 			IMapper mapper,
 			IValidator<CreateImportTicketRequest> createImportTicketValidator,
 			IValidator<VerifyImportTicketRequest> verifyImportTicketValidator,
-			IValidator<UpdateImportTicketRequest> updateImportTicketValidator)
+			IValidator<UpdateImportTicketRequest> updateImportTicketValidator,
+			IValidator<UpdateFullImportTicketRequest> updateFullImportTicketValidator)
 		{
 			_unitOfWork = unitOfWork;
 			_stockService = stockService;
@@ -37,6 +39,7 @@ namespace PerfumeGPT.Application.Services
 			_createImportTicketValidator = createImportTicketValidator;
 			_verifyImportTicketValidator = verifyImportTicketValidator;
 			_updateImportTicketValidator = updateImportTicketValidator;
+			_updateFullImportTicketValidator = updateFullImportTicketValidator;
 		}
 
 		public async Task<BaseResponse<string>> CreateImportTicketAsync(CreateImportTicketRequest request, Guid userId)
@@ -56,6 +59,19 @@ namespace PerfumeGPT.Application.Services
 				if (supplier == null)
 				{
 					return BaseResponse<string>.Fail("Supplier not found.", ResponseErrorType.NotFound);
+				}
+
+				// VALIDATION: Check for duplicate variant IDs
+				var duplicateVariants = request.ImportDetails
+					.GroupBy(d => d.VariantId)
+					.Where(g => g.Count() > 1)
+					.Select(g => g.Key)
+					.ToList();
+
+				if (duplicateVariants.Any())
+				{
+					var duplicateIds = string.Join(", ", duplicateVariants);
+					return BaseResponse<string>.Fail($"Duplicate variant IDs found: {duplicateIds}. Each variant can only appear once per import ticket.", ResponseErrorType.BadRequest);
 				}
 
 				foreach (var detail in request.ImportDetails)
@@ -189,11 +205,14 @@ namespace PerfumeGPT.Application.Services
 						// Only create batches and update stock if there is accepted quantity
 						if (acceptedQuantity > 0)
 						{
+							// ENHANCEMENT: Merge batches with the same batch code before creating
+							var mergedBatches = MergeBatchesBySameCode(verifyDetail.Batches);
+
 							// Use BatchService to create batches with validation
 							await _batchService.CreateBatchesAsync(
 								importDetail.ProductVariantId,
 								importDetail.Id,
-								verifyDetail.Batches);
+								mergedBatches);
 
 							// Use StockService to increase stock by accepted quantity only
 							var stockIncreased = await _stockService.IncreaseStockAsync(
@@ -285,14 +304,31 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Fail("Import ticket not found.", ResponseErrorType.NotFound);
 				}
 
-				if (importTicket.Status == ImportStatus.Completed || importTicket.Status == ImportStatus.Canceled)
+				// Completed and Cancelled are immutable
+				if (importTicket.Status == ImportStatus.Completed)
 				{
-					return BaseResponse<string>.Fail("Cannot update status of a completed/Canceled import ticket.", ResponseErrorType.BadRequest);
+					return BaseResponse<string>.Fail("Completed import tickets are immutable. Create an adjustment ticket if needed.", ResponseErrorType.BadRequest);
 				}
 
-				if (request.Status < importTicket.Status)
+				if (importTicket.Status == ImportStatus.Canceled)
 				{
-					return BaseResponse<string>.Fail("Cannot revert to a previous status.", ResponseErrorType.BadRequest);
+					return BaseResponse<string>.Fail("Cancelled import tickets are read-only.", ResponseErrorType.BadRequest);
+				}
+
+				// InProgress tickets are locked
+				if (importTicket.Status == ImportStatus.InProgress && request.Status != ImportStatus.Canceled)
+				{
+					return BaseResponse<string>.Fail("Import ticket is locked while in progress. Complete verification or cancel it first.", ResponseErrorType.BadRequest);
+				}
+
+				// Only Pending tickets can have their status changed
+				// Valid transitions: Pending -> InProgress, Pending -> Canceled
+				if (importTicket.Status == ImportStatus.Pending)
+				{
+					if (request.Status != ImportStatus.InProgress && request.Status != ImportStatus.Canceled)
+					{
+						return BaseResponse<string>.Fail("Pending tickets can only transition to InProgress or Canceled status.", ResponseErrorType.BadRequest);
+					}
 				}
 
 				// Update and save
@@ -305,6 +341,145 @@ namespace PerfumeGPT.Application.Services
 			catch (Exception ex)
 			{
 				return BaseResponse<string>.Fail($"Error updating import status: {ex.Message}", ResponseErrorType.InternalError);
+			}
+		}
+
+		public async Task<BaseResponse<string>> UpdateImportTicketAsync(Guid adminId, Guid id, UpdateFullImportTicketRequest request)
+		{
+			try
+			{
+				// Validate request using FluentValidation
+				var validationResult = await _updateFullImportTicketValidator.ValidateAsync(request);
+				if (!validationResult.IsValid)
+				{
+					var errors = string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage));
+					return BaseResponse<string>.Fail(errors, ResponseErrorType.BadRequest);
+				}
+
+				// Validation - Check if supplier exists
+				var supplier = await _unitOfWork.Suppliers.GetByIdAsync(request.SupplierId);
+				if (supplier == null)
+				{
+					return BaseResponse<string>.Fail("Supplier not found.", ResponseErrorType.NotFound);
+				}
+
+				// Validate all variants exist
+				foreach (var detail in request.ImportDetails)
+				{
+					var variant = await _unitOfWork.Variants.GetByIdAsync(detail.VariantId);
+					if (variant == null)
+					{
+						return BaseResponse<string>.Fail($"Variant with ID {detail.VariantId} not found.", ResponseErrorType.NotFound);
+					}
+				}
+
+				// Execute within transaction
+				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				{
+					var importTicket = await _unitOfWork.ImportTickets.GetByConditionAsync(
+						predicate: it => it.Id == id,
+						include: query => query.Include(it => it.ImportDetails));
+
+					if (importTicket == null)
+					{
+						return BaseResponse<string>.Fail("Import ticket not found.", ResponseErrorType.NotFound);
+					}
+
+					// SAFETY RULE: Only Pending tickets can be updated
+					if (importTicket.Status == ImportStatus.InProgress)
+					{
+						return BaseResponse<string>.Fail("Import ticket is locked while in progress. Changes will cause process errors.", ResponseErrorType.BadRequest);
+					}
+
+					if (importTicket.Status == ImportStatus.Completed)
+					{
+						return BaseResponse<string>.Fail("Completed import tickets are immutable. Create an adjustment ticket if needed.", ResponseErrorType.BadRequest);
+					}
+
+					if (importTicket.Status == ImportStatus.Canceled)
+					{
+						return BaseResponse<string>.Fail("Cancelled import tickets are read-only.", ResponseErrorType.BadRequest);
+					}
+
+					// At this point, status must be Pending - safe to update
+					// Update import ticket fields
+					importTicket.SupplierId = request.SupplierId;
+					importTicket.ImportDate = request.ImportDate;
+
+					// VALIDATION: Check for duplicate variant IDs in request
+					var duplicateVariants = request.ImportDetails
+						.GroupBy(d => d.VariantId)
+						.Where(g => g.Count() > 1)
+						.Select(g => g.Key)
+						.ToList();
+
+					if (duplicateVariants.Count != 0)
+					{
+						var duplicateIds = string.Join(", ", duplicateVariants);
+						return BaseResponse<string>.Fail($"Duplicate variant IDs found: {duplicateIds}. Each variant can only appear once per import ticket.", ResponseErrorType.BadRequest);
+					}
+
+					// Calculate new total cost
+					var totalCost = request.ImportDetails.Sum(d => d.Quantity * d.UnitPrice);
+					importTicket.TotalCost = totalCost;
+
+					// SAFE UPDATE LOGIC: Handle ImportDetails for Pending status only
+					// No stock adjustments needed - stock is only adjusted during verify
+					var requestDetailIds = request.ImportDetails.Where(d => d.Id.HasValue).Select(d => d.Id!.Value).ToList();
+
+					// Remove details that are not in the request
+					var detailsToRemove = importTicket.ImportDetails.Where(d => !requestDetailIds.Contains(d.Id)).ToList();
+					foreach (var detail in detailsToRemove)
+					{
+						// Safe to remove - Pending status has no stock or batches
+						_unitOfWork.ImportDetails.Remove(detail);
+					}
+
+					// Update existing and add new details
+					foreach (var detailRequest in request.ImportDetails)
+					{
+						if (detailRequest.Id.HasValue)
+						{
+							// Update existing detail
+							var existingDetail = importTicket.ImportDetails.FirstOrDefault(d => d.Id == detailRequest.Id.Value);
+							if (existingDetail != null)
+							{
+								// Simple update - no stock adjustments for Pending status
+								existingDetail.ProductVariantId = detailRequest.VariantId;
+								existingDetail.Quantity = detailRequest.Quantity;
+								existingDetail.UnitPrice = detailRequest.UnitPrice;
+								// Note: RejectQuantity and Note are set during verification, not here
+								existingDetail.RejectQuantity = 0;
+								existingDetail.Note = null;
+								_unitOfWork.ImportDetails.Update(existingDetail);
+							}
+						}
+						else
+						{
+							// Add new detail
+							var newDetail = new ImportDetail
+							{
+								ImportId = importTicket.Id,
+								ProductVariantId = detailRequest.VariantId,
+								Quantity = detailRequest.Quantity,
+								UnitPrice = detailRequest.UnitPrice,
+								// RejectQuantity and Note are set during verification
+								RejectQuantity = 0,
+								Note = null
+							};
+
+							await _unitOfWork.ImportDetails.AddAsync(newDetail);
+						}
+					}
+
+					_unitOfWork.ImportTickets.Update(importTicket);
+
+					return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Import ticket updated successfully.");
+				});
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<string>.Fail($"Error updating import ticket: {ex.Message}", ResponseErrorType.InternalError);
 			}
 		}
 
@@ -322,29 +497,26 @@ namespace PerfumeGPT.Application.Services
 						return BaseResponse<bool>.Fail("Import ticket not found.", ResponseErrorType.NotFound);
 					}
 
-					if (importTicket.Status == ImportStatus.Completed)
+					// SAFETY RULE: Only Pending tickets can be deleted
+					if (importTicket.Status == ImportStatus.InProgress)
 					{
-						return BaseResponse<bool>.Fail("Cannot delete completed import ticket.", ResponseErrorType.BadRequest);
+						return BaseResponse<bool>.Fail("Cannot delete import ticket that is in progress. Cancel it first.", ResponseErrorType.BadRequest);
 					}
 
+					if (importTicket.Status == ImportStatus.Completed)
+					{
+						return BaseResponse<bool>.Fail("Cannot delete completed import ticket. It is immutable.", ResponseErrorType.BadRequest);
+					}
+
+					if (importTicket.Status == ImportStatus.Canceled)
+					{
+						return BaseResponse<bool>.Fail("Cannot delete cancelled import ticket. It is read-only for history.", ResponseErrorType.BadRequest);
+					}
+
+					// At this point, status must be Pending - safe to delete
+					// No need to adjust stock or remove batches - Pending tickets don't have them
 					foreach (var detail in importTicket.ImportDetails)
 					{
-						foreach (var batch in detail.Batches)
-						{
-							_unitOfWork.Batches.Remove(batch);
-						}
-
-						// Use StockService to decrease stock with validation
-						var stockDecreased = await _stockService.DecreaseStockAsync(
-							detail.ProductVariantId,
-							detail.Quantity);
-
-						if (!stockDecreased)
-						{
-							// Log warning but continue - stock might not exist
-							Console.WriteLine($"Warning: Failed to decrease stock for variant {detail.ProductVariantId}");
-						}
-
 						_unitOfWork.ImportDetails.Remove(detail);
 					}
 
@@ -358,6 +530,44 @@ namespace PerfumeGPT.Application.Services
 			{
 				return BaseResponse<bool>.Fail($"Error deleting import ticket: {ex.Message}", ResponseErrorType.InternalError);
 			}
+		}
+
+		/// <summary>
+		/// Merges batches with the same batch code into a single batch with combined quantity.
+		/// This prevents duplicate batch codes and consolidates inventory.
+		/// </summary>
+		/// <param name="batches">List of batches to merge</param>
+		/// <returns>List of merged batches</returns>
+		private List<CreateBatchRequest> MergeBatchesBySameCode(List<CreateBatchRequest> batches)
+		{
+			// Group batches by batch code
+			var groupedBatches = batches
+				.GroupBy(b => b.BatchCode, StringComparer.OrdinalIgnoreCase)
+				.Select(group =>
+				{
+					// Take the first batch in the group as the base
+					var firstBatch = group.First();
+
+					// Sum quantities of all batches with the same code
+					var totalQuantity = group.Sum(b => b.Quantity);
+
+					// Use the earliest manufacture date
+					var earliestManufactureDate = group.Min(b => b.ManufactureDate);
+
+					// Use the earliest expiry date (most conservative approach)
+					var earliestExpiryDate = group.Min(b => b.ExpiryDate);
+
+					return new CreateBatchRequest
+					{
+						BatchCode = firstBatch.BatchCode,
+						ManufactureDate = earliestManufactureDate,
+						ExpiryDate = earliestExpiryDate,
+						Quantity = totalQuantity
+					};
+				})
+				.ToList();
+
+			return groupedBatches;
 		}
 	}
 }
