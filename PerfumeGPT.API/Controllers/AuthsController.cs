@@ -56,7 +56,7 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpPost("admin/register")]
-		[Authorize(Roles = "Admin")]
+		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status409Conflict)]

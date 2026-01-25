@@ -23,7 +23,12 @@ namespace PerfumeGPT.Application.Services
 		private readonly IProfileService _profileService;
 		private readonly ILoyaltyPointService _loyaltyPointService;
 
-		public AuthService(IEmailTemplateService templateService, UserManager<User> userManager, IEmailService emailService, IAuthRepository authRepository, IProfileService profileService, ILoyaltyPointService loyaltyPointService)
+		public AuthService(IEmailTemplateService templateService,
+			UserManager<User> userManager,
+			IEmailService emailService,
+			IAuthRepository authRepository,
+			IProfileService profileService,
+			ILoyaltyPointService loyaltyPointService)
 		{
 			_templateService = templateService;
 			_userManager = userManager;
@@ -36,7 +41,7 @@ namespace PerfumeGPT.Application.Services
 		private async Task TryCreateProfileAndLoyaltyPointsAsync(User user)
 		{
 			var roles = await _userManager.GetRolesAsync(user);
-			if (!roles.Any(r => r == UserRole.User.ToString()))
+			if (!roles.Any(r => r.Equals(UserRole.User.ToString().ToLower())))
 				return;
 
 			try
