@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Carts;
@@ -17,15 +18,19 @@ namespace PerfumeGPT.API.Controllers
 			_cartService = cartService;
 		}
 
-		[HttpGet]
-		public async Task<ActionResult<BaseResponse<GetCartResponse>>> GetCart([FromQuery] Guid? voucherId)
-		{
-			var userId = GetCurrentUserId();
-			var result = await _cartService.GetCartByUserIdAsync(userId, voucherId);
-			return HandleResponse(result);
-		}
+		//[HttpGet]
+		//public async Task<ActionResult<BaseResponse<GetCartResponse>>> GetCart([FromQuery] Guid? voucherId)
+		//{
+		//	var userId = GetCurrentUserId();
+		//	var result = await _cartService.GetCartByUserIdAsync(userId, voucherId);
+		//	return HandleResponse(result);
+		//}
 
 		[HttpGet("items")]
+		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<GetCartItemsResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<GetCartItemsResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<GetCartItemsResponse>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<GetCartItemsResponse>>> GetCartItems()
 		{
 			var userId = GetCurrentUserId();
@@ -34,6 +39,10 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpGet("total")]
+		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<GetCartTotalResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<GetCartTotalResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<GetCartTotalResponse>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<GetCartTotalResponse>>> GetCartTotal([FromQuery] Guid? voucherId)
 		{
 			var userId = GetCurrentUserId();
@@ -41,7 +50,11 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(result);
 		}
 
-		[HttpDelete]
+		[HttpDelete("clear")]
+		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> ClearCart()
 		{
 			var userId = GetCurrentUserId();

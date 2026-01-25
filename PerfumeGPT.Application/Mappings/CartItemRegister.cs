@@ -12,7 +12,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.CartItemId, src => src.Id)
 				.Map(dest => dest.VariantId, src => src.VariantId)
 				.Map(dest => dest.ImageUrl, src => src.ProductVariant.ImageUrl)
-				.Map(dest => dest.VariantName, src => src.ProductVariant.Product.Name)
+				.Map(dest => dest.VariantName, src => $"{src.ProductVariant.Product.Name} - {src.ProductVariant.VolumeMl}ml")
 				.Map(dest => dest.VolumeMl, src => src.ProductVariant.VolumeMl)
 				.Map(dest => dest.VariantPrice, src => src.ProductVariant.BasePrice)
 				.Map(dest => dest.Quantity, src => src.Quantity);

@@ -4,6 +4,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Carts
 	{
 		public decimal Subtotal { get; set; }
 		public decimal ShippingFee { get; set; }
+		public decimal Discount { get; set; }
 		public decimal TotalPrice { get; set; }
 	}
 }

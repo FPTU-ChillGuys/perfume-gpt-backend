@@ -21,6 +21,7 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpPost("login")]
+		[AllowAnonymous]
 		[ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status401Unauthorized)]
@@ -39,6 +40,7 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpPost("register")]
+		[AllowAnonymous]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status409Conflict)]
@@ -99,6 +101,7 @@ namespace PerfumeGPT.API.Controllers
 
 
 		[HttpPost("google-login")]
+		[AllowAnonymous]
 		[ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status403Forbidden)]

@@ -62,9 +62,9 @@ namespace PerfumeGPT.Application.Services
 
 				// Use ShippingService to calculate shipping fee
 				var shippingFee = await _shippingService.CalculateShippingFeeAsync(
-					addressResponse.Payload.DistrictId, 
+					addressResponse.Payload.DistrictId,
 					addressResponse.Payload.WardCode);
-				
+
 				if (shippingFee == null)
 				{
 					return BaseResponse<GetCartResponse>.Fail(
@@ -161,6 +161,7 @@ namespace PerfumeGPT.Application.Services
 					{
 						Subtotal = 0m,
 						ShippingFee = 0m,
+						Discount = 0m,
 						TotalPrice = 0m
 					}, "Cart is empty");
 				}
@@ -210,6 +211,7 @@ namespace PerfumeGPT.Application.Services
 				{
 					Subtotal = subtotal,
 					ShippingFee = shippingFee.Value,
+					Discount = subtotal + shippingFee.Value - totalPrice,
 					TotalPrice = totalPrice
 				};
 

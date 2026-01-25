@@ -5,6 +5,7 @@ using PerfumeGPT.Application.DTOs.Requests.Imports;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Imports;
 using PerfumeGPT.Application.Interfaces.Services;
+using System.Net;
 
 namespace PerfumeGPT.API.Controllers
 {
@@ -24,6 +25,10 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpPost]
 		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> CreateImportTicket([FromBody] CreateImportTicketRequest request)
 		{
 			var validation = ValidateRequestBody<CreateImportTicketRequest>(request);
@@ -37,8 +42,12 @@ namespace PerfumeGPT.API.Controllers
 		/// <summary>
 		/// Verify import ticket by adding batches and updating stock
 		/// </summary>
-		[HttpPost("verify/{ticketId:guid}")]
+		[HttpPost("{ticketId:guid}/verify")]
 		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> VerifyImportTicket([FromRoute] Guid ticketId, [FromBody] VerifyImportTicketRequest request)
 		{
 			var validation = ValidateRequestBody<VerifyImportTicketRequest>(request);
@@ -52,7 +61,10 @@ namespace PerfumeGPT.API.Controllers
 		/// <summary>
 		/// Get import ticket by ID
 		/// </summary>
-		[HttpGet("{id}")]
+		[HttpGet("{id:guid}")]
+		[ProducesResponseType(typeof(BaseResponse<ImportTicketResponse>), (int)HttpStatusCode.OK)]
+		[ProducesResponseType(typeof(BaseResponse<ImportTicketResponse>), (int)HttpStatusCode.NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<ImportTicketResponse>), (int)HttpStatusCode.InternalServerError)]
 		public async Task<ActionResult<BaseResponse<ImportTicketResponse>>> GetImportTicketById(Guid id)
 		{
 			var response = await _importTicketService.GetImportTicketByIdAsync(id);
@@ -63,6 +75,8 @@ namespace PerfumeGPT.API.Controllers
 		/// Get paged list of import tickets
 		/// </summary>
 		[HttpGet]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<ImportTicketListItem>>), (int)HttpStatusCode.OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<ImportTicketListItem>>), (int)HttpStatusCode.InternalServerError)]
 		public async Task<ActionResult<BaseResponse<PagedResult<ImportTicketListItem>>>> GetPagedImportTickets([FromQuery] GetPagedImportTicketsRequest request)
 		{
 			var response = await _importTicketService.GetPagedImportTicketsAsync(request);
@@ -72,8 +86,12 @@ namespace PerfumeGPT.API.Controllers
 		/// <summary>
 		/// Update import ticket status
 		/// </summary>
-		[HttpPut("status/{id:guid}")]
+		[HttpPut("{id:guid}/status")]
 		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), (int)HttpStatusCode.InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateImportStatus([FromRoute] Guid id, [FromBody] UpdateImportTicketRequest request)
 		{
 			var validation = ValidateRequestBody<UpdateImportTicketRequest>(request);
@@ -86,8 +104,12 @@ namespace PerfumeGPT.API.Controllers
 		/// <summary>
 		/// Delete import ticket
 		/// </summary>
-		[HttpDelete("{id}")]
+		[HttpDelete("{id:guid}")]
 		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<bool>), (int)HttpStatusCode.OK)]
+		[ProducesResponseType(typeof(BaseResponse<bool>), (int)HttpStatusCode.BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<bool>), (int)HttpStatusCode.NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<bool>), (int)HttpStatusCode.InternalServerError)]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteImportTicket(Guid id)
 		{
 			var response = await _importTicketService.DeleteImportTicketAsync(id);
