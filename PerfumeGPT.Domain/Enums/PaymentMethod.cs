@@ -3,7 +3,7 @@
 	public enum PaymentMethod
 	{
 		CashOnDelivery = 1,
-		VnPay = 2,
+		VnPay,
 		Momo,
 		CashInStore
 	}

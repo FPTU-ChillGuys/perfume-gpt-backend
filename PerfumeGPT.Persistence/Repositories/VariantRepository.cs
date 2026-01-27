@@ -25,6 +25,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			return await _context.ProductVariants
 				.Include(v => v.Concentration)
+				.Include(v => v.Product)
 				.AsNoTracking()
 				.FirstOrDefaultAsync(v => v.Id == variantId && !v.IsDeleted);
 		}

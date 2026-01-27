@@ -1,4 +1,5 @@
-﻿using PerfumeGPT.Application.Interfaces.Repositories;
+﻿using Microsoft.EntityFrameworkCore;
+using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
@@ -9,6 +10,11 @@ namespace PerfumeGPT.Persistence.Repositories
 	{
 		public RecipientInfoRepository(PerfumeDbContext context) : base(context)
 		{
+		}
+
+		public async Task<RecipientInfo?> GetByOrderIdAsync(Guid orderId)
+		{
+			return await _context.RecipientInfos.FirstOrDefaultAsync(ri => ri.OrderId == orderId);
 		}
 	}
 }

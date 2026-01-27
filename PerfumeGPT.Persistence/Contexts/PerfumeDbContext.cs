@@ -451,6 +451,7 @@ namespace PerfumeGPT.Persistence.Contexts
 
 			// Configure enum to string conversions
 			builder.Entity<PaymentTransaction>().Property(pt => pt.TransactionStatus).HasConversion<string>();
+			builder.Entity<PaymentTransaction>().Property(pt => pt.Method).HasConversion<string>();
 			builder.Entity<ShippingInfo>().Property(s => s.Status).HasConversion<string>();
 			builder.Entity<Order>().Property(o => o.Status).HasConversion<string>();
 			builder.Entity<Order>().Property(o => o.PaymentStatus).HasConversion<string>();

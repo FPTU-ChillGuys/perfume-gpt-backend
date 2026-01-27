@@ -7,7 +7,7 @@ namespace PerfumeGPT.Domain.Entities
 	public class Order : BaseEntity<Guid>, IHasTimestamps
 	{
 		public Guid? CustomerId { get; set; }
-		public Guid StaffId { get; set; }
+		public Guid? StaffId { get; set; }
 		public OrderType Type { get; set; }
 		public OrderStatus Status { get; set; }
 		public decimal TotalAmount { get; set; }
@@ -17,7 +17,7 @@ namespace PerfumeGPT.Domain.Entities
 
 		// Navigation
 		public virtual User? Customer { get; set; }
-		public virtual User Staff { get; set; } = null!;
+		public virtual User? Staff { get; set; } = null!;
 		public virtual ICollection<OrderDetail> OrderDetails { get; set; } = [];
 		public virtual ICollection<Notification> Notifications { get; set; } = [];
 		public virtual ICollection<PaymentTransaction> PaymentTransactions { get; set; } = null!;

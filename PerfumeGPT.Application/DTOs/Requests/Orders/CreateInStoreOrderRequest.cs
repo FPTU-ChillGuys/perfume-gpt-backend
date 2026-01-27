@@ -4,7 +4,6 @@ namespace PerfumeGPT.Application.DTOs.Requests.Orders
 {
 	public class CreateInStoreOrderRequest
 	{
-		public Guid StaffId { get; set; }
 		public string? VoucherCode { get; set; }
 		public bool IsPickupInStore { get; set; } = false;
 

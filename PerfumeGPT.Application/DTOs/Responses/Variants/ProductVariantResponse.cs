@@ -6,6 +6,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 	{
 		public Guid Id { get; set; }
 		public Guid ProductId { get; set; }
+		public string ProductName { get; set; } = null!;
 		public string? ImageUrl { get; set; }
 		public string Sku { get; set; } = null!;
 		public int VolumeMl { get; set; } // (30ml / 50ml / 100ml / etc.)

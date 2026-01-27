@@ -5,5 +5,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 {
 	public interface IShippingInfoRepository : IGenericRepository<ShippingInfo>
 	{
+		Task<ShippingInfo?> GetByOrderIdAsync(Guid orderId);
 	}
 }

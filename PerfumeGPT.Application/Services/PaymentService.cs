@@ -76,6 +76,7 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
+		// change or retry payment methods
 		public async Task<BaseResponse<string>> ChangePaymentMethodAsync(Guid paymentId, PaymentInformation newMethod)
 		{
 			return await ProcessPaymentRetryAsync(paymentId, newMethod, requirePending: true);
@@ -86,6 +87,7 @@ namespace PerfumeGPT.Application.Services
 			return await ProcessPaymentRetryAsync(paymentId, newMethod, requirePending: false);
 		}
 
+		// VnPay methods
 		public async Task<BaseResponse<VnPayReturnResponse>> GetVnPayReturnResponseAsync(IQueryCollection queryParameters)
 		{
 			var vnPayResponse = _vnPayService.GetPaymentResponseAsync(queryParameters);
@@ -171,7 +173,6 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<bool>.Fail($"An error occurred while processing payment: {ex.Message}", ResponseErrorType.InternalError);
 			}
 		}
-
 
 		// private methods
 		private async Task<BaseResponse<string>> ProcessPaymentRetryAsync(
@@ -304,7 +305,7 @@ namespace PerfumeGPT.Application.Services
 				order.Status = OrderStatus.Delivered;
 			}
 			else
-				order.Status = OrderStatus.Processing;
+				order.Status = OrderStatus.Pending;
 
 			_unitOfWork.Payments.Update(payment);
 			_unitOfWork.Orders.Update(order);

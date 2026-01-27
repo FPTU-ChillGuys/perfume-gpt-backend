@@ -1,13 +1,11 @@
 using FluentValidation;
-using Microsoft.AspNetCore.Http;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
-using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.OrderDetails;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
-using PerfumeGPT.Application.Interfaces.ThirdParties;
+using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
@@ -16,44 +14,44 @@ namespace PerfumeGPT.Application.Services
 	public class OrderService : IOrderService
 	{
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IAddressService _addressService;
 		private readonly ICartService _cartService;
 		private readonly IVariantService _variantService;
-		private readonly IStockService _stockService;
-		private readonly IBatchService _batchService;
 		private readonly IVoucherService _voucherService;
 		private readonly IShippingService _shippingService;
 		private readonly IValidator<CreateOrderRequest> _createOrderValidator;
-		private readonly IVnPayService _vnPayService;
-		private readonly IHttpContextAccessor _httpContextAccessor;
+		private readonly IOrderPaymentService _orderPaymentService;
+		private readonly IOrderInventoryManager _inventoryManager;
+		private readonly IOrderShippingHelper _shippingHelper;
+		private readonly IOrderValidationService _validationService;
+		private readonly IOrderDetailsFactory _orderDetailsFactory;
 
 		public OrderService(
 			IUnitOfWork unitOfWork,
-			IAddressService addressService,
 			ICartService cartService,
 			IVariantService variantService,
-			IStockService stockService,
-			IBatchService batchService,
 			IVoucherService voucherService,
 			IShippingService shippingService,
 			IValidator<CreateOrderRequest> createOrderValidator,
-			IVnPayService vnPayService,
-			IHttpContextAccessor httpContextAccessor)
+			IOrderPaymentService orderPaymentService,
+			IOrderInventoryManager inventoryManager,
+			IOrderShippingHelper shippingHelper,
+			IOrderValidationService validationService,
+			IOrderDetailsFactory orderDetailsFactory)
 		{
 			_unitOfWork = unitOfWork;
-			_addressService = addressService;
 			_cartService = cartService;
 			_variantService = variantService;
-			_stockService = stockService;
-			_batchService = batchService;
 			_voucherService = voucherService;
 			_shippingService = shippingService;
 			_createOrderValidator = createOrderValidator;
-			_vnPayService = vnPayService;
-			_httpContextAccessor = httpContextAccessor;
+			_orderPaymentService = orderPaymentService;
+			_inventoryManager = inventoryManager;
+			_shippingHelper = shippingHelper;
+			_validationService = validationService;
+			_orderDetailsFactory = orderDetailsFactory;
 		}
 
-		public async Task<BaseResponse<string>> Checkout(CreateOrderRequest request)
+		public async Task<BaseResponse<string>> Checkout(Guid userId, CreateOrderRequest request)
 		{
 			var validationResult = await _createOrderValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
@@ -72,7 +70,7 @@ namespace PerfumeGPT.Application.Services
 					{
 						var voucherValidation = await _voucherService.ValidateToApplyVoucherAsync(
 							request.VoucherId.Value,
-							request.CustomerId);
+							userId);
 
 						if (!voucherValidation.Success)
 						{
@@ -82,7 +80,7 @@ namespace PerfumeGPT.Application.Services
 						}
 					}
 
-					var cartResponse = await _cartService.GetCartByUserIdAsync(request.CustomerId, request.VoucherId);
+					var cartResponse = await _cartService.GetCartByUserIdAsync(userId, request.VoucherId);
 					if (!cartResponse.Success || cartResponse.Payload == null)
 					{
 						return BaseResponse<string>.Fail(
@@ -99,7 +97,7 @@ namespace PerfumeGPT.Application.Services
 						.Select(item => (item.VariantId, item.Quantity))
 						.ToList();
 
-					var orderDetailsResult = await CreateOrderDetailsAsync(itemsToValidate);
+					var orderDetailsResult = await _orderDetailsFactory.CreateOrderDetailsAsync(itemsToValidate);
 					if (!orderDetailsResult.Success || orderDetailsResult.Payload == null)
 					{
 						return BaseResponse<string>.Fail(
@@ -109,8 +107,7 @@ namespace PerfumeGPT.Application.Services
 
 					var order = new Order
 					{
-						CustomerId = request.CustomerId,
-						StaffId = request.StaffId,
+						CustomerId = userId,
 						Type = OrderType.Online,
 						Status = OrderStatus.Pending,
 						PaymentStatus = PaymentStatus.Unpaid,
@@ -123,23 +120,35 @@ namespace PerfumeGPT.Application.Services
 					await _unitOfWork.Orders.AddAsync(order);
 					// Don't save yet - let transaction handle it at the end
 
-					if (!request.IsPickupInStore)
-					{
-						var shippingResult = await SetupShippingInfoAsync(
-							order.Id,
-							request.Recipient,
-							request.CustomerId,
-							cartResponse.Payload.ShippingFee);
+				if (!request.IsPickupInStore)
+				{
+					var shippingResult = await _shippingHelper.SetupShippingInfoAsync(
+						order.Id,
+						request.Recipient,
+						userId,
+						cartResponse.Payload.ShippingFee);
 
-						if (!shippingResult.Success)
-						{
-							return BaseResponse<string>.Fail(
-								shippingResult.Message ?? "Failed to setup shipping info.",
-								shippingResult.ErrorType);
-						}
+					if (!shippingResult.Success)
+					{
+						return BaseResponse<string>.Fail(
+							shippingResult.Message ?? "Failed to setup shipping info.",
+							shippingResult.ErrorType);
 					}
 
-					var deductionResult = await DeductInventory(itemsToValidate);
+					// Create GHN shipping order
+					var recipientInfo = await _unitOfWork.RecipientInfos.GetByOrderIdAsync(order.Id);
+					if (recipientInfo != null)
+					{
+						var ghnOrderResult = await _shippingHelper.CreateGHNShippingOrderAsync(order, recipientInfo);
+						// Log if GHN order creation fails but don't stop the checkout process
+						if (!ghnOrderResult.Success)
+						{
+							Console.WriteLine($"Warning: Failed to create GHN order: {ghnOrderResult.Message}");
+						}
+					}
+				}
+
+					var deductionResult = await _inventoryManager.DeductInventoryAsync(itemsToValidate);
 					if (!deductionResult.Success)
 					{
 						return BaseResponse<string>.Fail(
@@ -151,7 +160,7 @@ namespace PerfumeGPT.Application.Services
 					if (request.VoucherId.HasValue && request.VoucherId.Value != Guid.Empty)
 					{
 						var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(
-							request.CustomerId,
+							userId,
 							request.VoucherId.Value);
 
 						if (!markVoucherResult.Success)
@@ -162,7 +171,7 @@ namespace PerfumeGPT.Application.Services
 						}
 					}
 
-					return await CreatePaymentAndGenerateResponseAsync(
+					return await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(
 						order.Id,
 						cartResponse.Payload.TotalPrice,
 						request.Payment.Method,
@@ -177,7 +186,7 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<string>> CheckoutInStore(CreateInStoreOrderRequest request)
+		public async Task<BaseResponse<string>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request)
 		{
 			if (request.OrderDetails.Count == 0)
 			{
@@ -216,7 +225,7 @@ namespace PerfumeGPT.Application.Services
 						.Select(od => (od.VariantId, od.Quantity))
 						.ToList();
 
-					var orderDetailsResult = await CreateOrderDetailsAsync(itemsToValidate);
+					var orderDetailsResult = await _orderDetailsFactory.CreateOrderDetailsAsync(itemsToValidate);
 					if (!orderDetailsResult.Success || orderDetailsResult.Payload == null)
 					{
 						return BaseResponse<string>.Fail(
@@ -238,7 +247,7 @@ namespace PerfumeGPT.Application.Services
 					var order = new Order
 					{
 						CustomerId = null,
-						StaffId = request.StaffId,
+						StaffId = staffId,
 						Type = OrderType.Offline,
 						Status = OrderStatus.Pending,
 						PaymentStatus = PaymentStatus.Unpaid,
@@ -252,7 +261,7 @@ namespace PerfumeGPT.Application.Services
 
 					if (!request.IsPickupInStore && request.Recipient != null)
 					{
-						var shippingResult = await SetupShippingInfoAsync(
+						var shippingResult = await _shippingHelper.SetupShippingInfoAsync(
 							order.Id,
 							request.Recipient,
 							null,
@@ -269,7 +278,7 @@ namespace PerfumeGPT.Application.Services
 						totalAmount = order.TotalAmount; // Order was updated by SetupShippingInfoAsync
 					}
 
-					var deductionResult = await DeductInventory(itemsToValidate);
+					var deductionResult = await _inventoryManager.DeductInventoryAsync(itemsToValidate);
 					if (!deductionResult.Success)
 					{
 						return BaseResponse<string>.Fail(
@@ -280,7 +289,7 @@ namespace PerfumeGPT.Application.Services
 					// Note: We don't mark voucher as reserved for offline orders since there's no customer
 					// The voucher discount is applied but not tracked per user
 
-					return await CreatePaymentAndGenerateResponseAsync(
+					return await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(
 						order.Id,
 						totalAmount,
 						request.Payment.Method,
@@ -370,230 +379,179 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		private async Task<BaseResponse<List<OrderDetail>>> CreateOrderDetailsAsync(List<(Guid VariantId, int Quantity)> items)
+		public async Task<BaseResponse<string>> UpdateOrderStatusAsync(Guid orderId, Guid staffId, UpdateOrderStatusRequest request)
 		{
-			var stockValidation = await ValidateStockAvailability(items);
-			if (!stockValidation.Success)
+			try
 			{
-				return BaseResponse<List<OrderDetail>>.Fail(
-					stockValidation.Message ?? "Stock validation failed.",
-					stockValidation.ErrorType);
-			}
+				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				{
+					// Get the order
+					var order = await _unitOfWork.Orders.GetByIdAsync(orderId);
+					if (order == null)
+					{
+						return BaseResponse<string>.Fail("Order not found.", ResponseErrorType.NotFound);
+					}
 
-			var orderDetails = new List<OrderDetail>();
-			foreach (var item in items)
+					// For offline orders, only allow cancellation
+					if (order.Type == OrderType.Offline && request.Status != OrderStatus.Canceled)
+					{
+						return BaseResponse<string>.Fail(
+							"Offline orders can only be cancelled. Other status updates are not allowed.",
+							ResponseErrorType.BadRequest);
+					}
+
+					// Validate status transition
+					var validationResult = _validationService.ValidateStatusTransition(order.Status, request.Status);
+					if (!validationResult.Success)
+					{
+						return BaseResponse<string>.Fail(validationResult.Message ?? "Invalid status transition.", validationResult.ErrorType);
+					}
+
+					// Update order status
+					order.Status = request.Status;
+					order.StaffId = staffId;
+					_unitOfWork.Orders.Update(order);
+
+					// Update shipping status if applicable (only for online orders with shipping)
+					if (order.ShippingInfo != null)
+					{
+						var shippingStatus = _shippingHelper.MapOrderStatusToShippingStatus(request.Status);
+						if (shippingStatus.HasValue)
+						{
+							order.ShippingInfo.Status = shippingStatus.Value;
+							_unitOfWork.ShippingInfos.Update(order.ShippingInfo);
+						}
+					}
+
+					// Handle order cancellation
+					if (request.Status == OrderStatus.Canceled)
+					{
+						// Restore inventory
+						var itemsToRestore = order.OrderDetails
+							.Select(od => (od.VariantId, od.Quantity))
+							.ToList();
+
+						var restoreResult = await _inventoryManager.RestoreInventoryAsync(itemsToRestore);
+						if (!restoreResult.Success)
+						{
+							return BaseResponse<string>.Fail(
+								restoreResult.Message ?? "Failed to restore inventory.",
+								restoreResult.ErrorType);
+						}
+
+						// Release voucher if it was used (only for online orders with customers)
+						if (order.VoucherId.HasValue && order.CustomerId.HasValue)
+						{
+							var releaseVoucherResult = await _voucherService.ReleaseReservedVoucherAsync(
+								order.CustomerId.Value,
+								order.VoucherId.Value);
+
+							// Log but don't fail if voucher release fails
+							if (!releaseVoucherResult.Success)
+							{
+								// Consider logging this error
+							}
+						}
+					}
+
+					var orderTypeText = order.Type == OrderType.Online ? "online" : "in-store";
+					return BaseResponse<string>.Ok($"Order status updated to {request.Status} for {orderTypeText} order.");
+				});
+			}
+			catch (Exception ex)
 			{
-				var variantResponse = await _variantService.GetVariantByIdAsync(item.VariantId);
-				if (!variantResponse.Success || variantResponse.Payload == null)
-				{
-					return BaseResponse<List<OrderDetail>>.Fail(
-						$"Product variant {item.VariantId} not found.",
-						ResponseErrorType.NotFound);
-				}
-
-				var variant = variantResponse.Payload;
-				var orderDetail = new OrderDetail
-				{
-					VariantId = item.VariantId,
-					Quantity = item.Quantity,
-					UnitPrice = variant.BasePrice,
-					Snapshot = $"{variant.ProductId} - {variant.VolumeMl}ml - {variant.ConcentrationName} - {variant.Type}"
-				};
-
-				orderDetails.Add(orderDetail);
+				return BaseResponse<string>.Fail(
+					$"An error occurred while updating order status: {ex.Message}",
+					ResponseErrorType.InternalError);
 			}
-
-			return BaseResponse<List<OrderDetail>>.Ok(orderDetails);
 		}
 
-		private async Task<BaseResponse<decimal>> SetupShippingInfoAsync(
-			Guid orderId,
-			RecipientInformation? recipientRequest,
-			Guid? customerId,
-			decimal? preCalculatedShippingFee = null,
-			Order? orderToUpdate = null)
+		public async Task<BaseResponse<string>> CancelOrderAsync(Guid orderId, Guid userId)
 		{
-			RecipientInfo recipientInfo;
-
-			// Resolve recipient information
-			if (recipientRequest == null)
+			try
 			{
-				if (!customerId.HasValue)
+				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
-					return BaseResponse<decimal>.Fail(
-						"Either recipient information or customer ID must be provided.",
-						ResponseErrorType.BadRequest);
-				}
+					// Get the order
+					var order = await _unitOfWork.Orders.GetByIdAsync(orderId);
+					if (order == null)
+					{
+						return BaseResponse<string>.Fail("Order not found.", ResponseErrorType.NotFound);
+					}
 
-				var customerAddress = await _addressService.GetDefaultAddressAsync(customerId.Value);
-				if (customerAddress == null || !customerAddress.Success || customerAddress.Payload == null)
-				{
-					return BaseResponse<decimal>.Fail(
-						"Customer default address not found. Please provide recipient information.",
-						ResponseErrorType.BadRequest);
-				}
+					// Verify the order belongs to the customer
+					if (order.CustomerId != userId)
+					{
+						return BaseResponse<string>.Fail("You are not authorized to cancel this order.", ResponseErrorType.Forbidden);
+					}
 
-				recipientInfo = new RecipientInfo
-				{
-					OrderId = orderId,
-					FullName = customerAddress.Payload.ReceiverName,
-					Phone = customerAddress.Payload.Phone,
-					DistrictId = customerAddress.Payload.DistrictId,
-					WardCode = customerAddress.Payload.WardCode,
-					FullAddress = $"{customerAddress.Payload.Street}, {customerAddress.Payload.Ward}, {customerAddress.Payload.District}, {customerAddress.Payload.City}"
-				};
+					// Only allow canceling online orders
+					if (order.Type != OrderType.Online)
+					{
+						return BaseResponse<string>.Fail("Only online orders can be cancelled.", ResponseErrorType.BadRequest);
+					}
+
+					// Check if order can be cancelled (only Pending or Processing)
+					if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Processing)
+					{
+						return BaseResponse<string>.Fail(
+							$"Cannot cancel order with status {order.Status}. Only Pending or Processing orders can be cancelled.",
+							ResponseErrorType.BadRequest);
+					}
+
+					// Check if order is already cancelled
+					if (order.Status == OrderStatus.Canceled)
+					{
+						return BaseResponse<string>.Fail("Order is already cancelled.", ResponseErrorType.BadRequest);
+					}
+
+					// Update order status to Canceled
+					order.Status = OrderStatus.Canceled;
+					_unitOfWork.Orders.Update(order);
+
+					// Update shipping status if applicable
+					if (order.ShippingInfo != null)
+					{
+						order.ShippingInfo.Status = ShippingStatus.Cancelled;
+						_unitOfWork.ShippingInfos.Update(order.ShippingInfo);
+					}
+
+					// Restore inventory
+					var itemsToRestore = order.OrderDetails
+						.Select(od => (od.VariantId, od.Quantity))
+						.ToList();
+
+					var restoreResult = await _inventoryManager.RestoreInventoryAsync(itemsToRestore);
+					if (!restoreResult.Success)
+					{
+						return BaseResponse<string>.Fail(
+							restoreResult.Message ?? "Failed to restore inventory.",
+							restoreResult.ErrorType);
+					}
+
+					// Release voucher if it was used
+					if (order.VoucherId.HasValue && order.CustomerId.HasValue)
+					{
+						var releaseVoucherResult = await _voucherService.ReleaseReservedVoucherAsync(
+							order.CustomerId.Value,
+							order.VoucherId.Value);
+
+						// Log but don't fail if voucher release fails
+						if (!releaseVoucherResult.Success)
+						{
+							// Consider logging this error
+						}
+					}
+
+					return BaseResponse<string>.Ok("Order has been cancelled successfully.");
+				});
 			}
-			else
+			catch (Exception ex)
 			{
-				recipientInfo = new RecipientInfo
-				{
-					OrderId = orderId,
-					FullName = recipientRequest.FullName,
-					Phone = recipientRequest.Phone,
-					DistrictId = recipientRequest.DistrictId,
-					WardCode = recipientRequest.WardCode,
-					FullAddress = recipientRequest.FullAddress
-				};
+				return BaseResponse<string>.Fail(
+					$"An error occurred while cancelling order: {ex.Message}",
+					ResponseErrorType.InternalError);
 			}
-
-			await _unitOfWork.RecipientInfos.AddAsync(recipientInfo);
-
-			// Calculate or use pre-calculated shipping fee
-			decimal shippingFee;
-			if (preCalculatedShippingFee.HasValue)
-			{
-				shippingFee = preCalculatedShippingFee.Value;
-			}
-			else
-			{
-				// Calculate shipping fee using ShippingService
-				var calculatedFee = await _shippingService.CalculateShippingFeeAsync(
-					recipientInfo.DistrictId,
-					recipientInfo.WardCode);
-
-				if (calculatedFee == null)
-				{
-					return BaseResponse<decimal>.Fail("Failed to calculate shipping fee.", ResponseErrorType.InternalError);
-				}
-
-				shippingFee = calculatedFee.Value;
-			}
-
-			// Create shipping info
-			var shippingInfo = new ShippingInfo
-			{
-				OrderId = orderId,
-				CarrierName = CarrierName.GHN,
-				TrackingNumber = null,
-				ShippingFee = shippingFee,
-				Status = ShippingStatus.Pending
-			};
-
-			await _unitOfWork.ShippingInfos.AddAsync(shippingInfo);
-
-			// Update order total if order instance provided
-			if (orderToUpdate != null)
-			{
-				var totalAmount = orderToUpdate.TotalAmount + shippingFee;
-				orderToUpdate.TotalAmount = totalAmount;
-				_unitOfWork.Orders.Update(orderToUpdate);
-			}
-
-			// Don't save - let transaction orchestrator handle it
-			return BaseResponse<decimal>.Ok(shippingFee);
-		}
-
-		private async Task<BaseResponse<string>> CreatePaymentAndGenerateResponseAsync(
-			Guid orderId,
-			decimal amount,
-			PaymentMethod paymentMethod,
-			string successMessage)
-		{
-			var payment = new PaymentTransaction
-			{
-				OrderId = orderId,
-				Method = paymentMethod,
-				TransactionStatus = TransactionStatus.Pending,
-				Amount = amount
-			};
-
-			await _unitOfWork.Payments.AddAsync(payment);
-			// Don't save - let transaction orchestrator handle it
-
-			if (paymentMethod == PaymentMethod.VnPay)
-			{
-				var httpContext = _httpContextAccessor.HttpContext;
-				if (httpContext == null)
-				{
-					return BaseResponse<string>.Fail(
-						"HttpContext is not available.",
-						ResponseErrorType.InternalError);
-				}
-
-				var vnPayRequest = new VnPaymentRequest
-				{
-					OrderId = orderId,
-					PaymentId = payment.Id,
-					Amount = (int)amount
-				};
-
-				var checkoutResponse = await _vnPayService.CreatePaymentUrlAsync(httpContext, vnPayRequest);
-				return BaseResponse<string>.Ok(checkoutResponse.PaymentUrl, $"{successMessage} Please complete payment.");
-			}
-			else if (paymentMethod == PaymentMethod.Momo)
-			{
-				return BaseResponse<string>.Fail("Momo payment not yet implemented.", ResponseErrorType.InternalError);
-			}
-
-			return BaseResponse<string>.Ok(payment.Id.ToString(), successMessage);
-		}
-
-		private async Task<BaseResponse<bool>> ValidateStockAvailability(List<(Guid VariantId, int Quantity)> items)
-		{
-			foreach (var item in items)
-			{
-				// Use StockService to validate stock
-				var isStockValid = await _stockService.IsValidToCartAsync(item.VariantId, item.Quantity);
-				if (!isStockValid)
-				{
-					var variantResponse = await _variantService.GetVariantByIdAsync(item.VariantId);
-					var productName = variantResponse.Payload != null ? $"Variant {variantResponse.Payload.Sku}" : "Unknown product";
-					return BaseResponse<bool>.Fail($"Insufficient stock for {productName}.", ResponseErrorType.BadRequest);
-				}
-
-				// Use BatchService to validate batch availability
-				var isBatchValid = await _batchService.ValidateBatchAvailabilityAsync(item.VariantId, item.Quantity);
-				if (!isBatchValid)
-				{
-					var variantResponse = await _variantService.GetVariantByIdAsync(item.VariantId);
-					var productName = variantResponse.Payload != null ? $"Variant {variantResponse.Payload.Sku}" : "Unknown product";
-					return BaseResponse<bool>.Fail($"Insufficient batch quantity for {productName}.", ResponseErrorType.BadRequest);
-				}
-			}
-
-			return BaseResponse<bool>.Ok(true);
-		}
-
-		private async Task<BaseResponse<bool>> DeductInventory(List<(Guid VariantId, int Quantity)> items)
-		{
-			foreach (var item in items)
-			{
-				// Use BatchService to deduct batches (FIFO)
-				var batchDeducted = await _batchService.DeductBatchesByVariantAsync(item.VariantId, item.Quantity);
-				if (!batchDeducted)
-				{
-					return BaseResponse<bool>.Fail($"Failed to deduct batch quantity for variant {item.VariantId}.", ResponseErrorType.InternalError);
-				}
-
-				// Use StockService to decrease stock
-				var stockDecreased = await _stockService.DecreaseStockAsync(item.VariantId, item.Quantity);
-				if (!stockDecreased)
-				{
-					return BaseResponse<bool>.Fail($"Failed to update stock for variant {item.VariantId}.", ResponseErrorType.InternalError);
-				}
-			}
-
-			return BaseResponse<bool>.Ok(true);
 		}
 	}
 }
