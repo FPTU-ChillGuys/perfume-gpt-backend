@@ -3,6 +3,7 @@
     <File Path=".env" />
     <File Path=".env.example" />
     <File Path=".gitignore" />
+    <File Path="private_key.pem" />
     <File Path="readme.md" />
   </Folder>
   <Project Path="PerfumeGPT.API/PerfumeGPT.API.csproj" Id="d45e4b51-40aa-44d2-8fb9-a7905fc4eb1f" />
