@@ -64,8 +64,15 @@ namespace PerfumeGPT.Persistence.Repositories
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            //var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
+            //var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            var rsa = RSA.Create();
+            rsa.ImportFromPem(_secretKey); // nội dung private-key.pem
+            var key = new RsaSecurityKey(rsa);
+            var creds = new SigningCredentials(
+                key,
+                SecurityAlgorithms.RsaSha256 // RS256
+            );
 
             var token = new JwtSecurityToken(
                 issuer: _issuer,

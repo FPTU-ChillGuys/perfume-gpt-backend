@@ -93,7 +93,21 @@ namespace PerfumeGPT.Infrastructure.Extensions
 						.AllowCredentials();
 				});
 			});
-		}
+
+            //Backend
+            var backend = configuration["Back-end:aiUrl"] ?? throw new Exception("Missing web url!!");
+            services.AddCors(options =>
+            {
+                options.AddPolicy("AllowBackend", builder =>
+                {
+                    builder
+                        .WithOrigins(webUrl)
+                        .AllowAnyHeader()
+                        .AllowAnyMethod()
+                        .AllowCredentials();
+                });
+            });
+        }
 
 		public static void AddIdentityServices(this IServiceCollection services, IConfiguration configuration)
 		{
