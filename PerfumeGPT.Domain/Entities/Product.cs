@@ -1,4 +1,5 @@
-﻿using PerfumeGPT.Domain.Commons;
+﻿using Microsoft.Data.SqlTypes;
+using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
 
 namespace PerfumeGPT.Domain.Entities
@@ -27,5 +28,9 @@ namespace PerfumeGPT.Domain.Entities
 		// IHasTimestamps implementation
 		public DateTime? UpdatedAt { get; set; }
 		public DateTime CreatedAt { get; set; }
-	}
+
+        //Embedding vector for search functionality
+        public SqlVector<float>? Embedding { get; set; }
+
+    }
 }
