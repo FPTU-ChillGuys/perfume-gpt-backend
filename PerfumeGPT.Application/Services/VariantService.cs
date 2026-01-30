@@ -7,30 +7,30 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
-using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class VariantService : IVariantService
 	{
 		private readonly IVariantRepository _variantRepository;
-		private readonly ISupabaseService _supabaseService;
+		private readonly IMediaService _mediaService;
 		private readonly IValidator<CreateVariantRequest> _createVariantValidator;
 		private readonly IValidator<UpdateVariantRequest> _updateVariantValidator;
 		private readonly IMapper _mapper;
 
 		public VariantService(
-			IVariantRepository variantRepository, 
-			IValidator<CreateVariantRequest> createVariantValidator, 
-			IValidator<UpdateVariantRequest> updateVariantValidator, 
-			ISupabaseService supabaseService, 
+			IVariantRepository variantRepository,
+			IMediaService mediaService,
+			IValidator<CreateVariantRequest> createVariantValidator,
+			IValidator<UpdateVariantRequest> updateVariantValidator,
 			IMapper mapper)
 		{
 			_variantRepository = variantRepository;
+			_mediaService = mediaService;
 			_createVariantValidator = createVariantValidator;
 			_updateVariantValidator = updateVariantValidator;
-			_supabaseService = supabaseService;
 			_mapper = mapper;
 		}
 
@@ -46,9 +46,18 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
-			string? imageUrl = null;
+			// Use mapper to create ProductVariant entity
+			var variant = _mapper.Map<ProductVariant>(request);
 
-			// Upload image if provided
+			await _variantRepository.AddAsync(variant);
+			var saved = await _variantRepository.SaveChangesAsync();
+
+			if (!saved)
+			{
+				return BaseResponse<string>.Fail("Failed to create variant", ResponseErrorType.InternalError);
+			}
+
+			// Upload image if provided using MediaService
 			if (imageFile != null && imageFile.Length > 0)
 			{
 				// Validate file type
@@ -56,49 +65,34 @@ namespace PerfumeGPT.Application.Services
 				var extension = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
 				if (!allowedExtensions.Contains(extension))
 				{
-					return BaseResponse<string>.Fail(
-						"Invalid file type. Only images (jpg, jpeg, png, gif, webp) are allowed.",
-						ResponseErrorType.BadRequest
-					);
+					// Variant created but image validation failed - log warning
+					Console.WriteLine($"Warning: Invalid image file type for variant {variant.Id}");
+					return BaseResponse<string>.Ok(variant.Id.ToString(), "Variant created successfully but image upload failed: Invalid file type");
 				}
 
 				// Validate file size (max 5MB)
 				if (imageFile.Length > 5 * 1024 * 1024)
 				{
-					return BaseResponse<string>.Fail(
-						"File size exceeds 5MB limit.",
-						ResponseErrorType.BadRequest
-					);
+					Console.WriteLine($"Warning: Image file too large for variant {variant.Id}");
+					return BaseResponse<string>.Ok(variant.Id.ToString(), "Variant created successfully but image upload failed: File too large");
 				}
 
-				imageUrl = await _supabaseService.UploadVariantImageAsync(imageFile.FileStream, imageFile.FileName);
+				var mediaResult = await _mediaService.UploadMediaAsync(
+					imageFile.FileStream,
+					imageFile.FileName,
+					EntityType.ProductVariant,
+					variant.Id,
+					altText: null,
+					displayOrder: 0,
+					isPrimary: true
+				);
 
-				if (string.IsNullOrWhiteSpace(imageUrl))
+				if (!mediaResult.Success)
 				{
-					return BaseResponse<string>.Fail(
-						"Failed to upload image to storage.",
-						ResponseErrorType.InternalError
-					);
+					// Variant was created but image upload failed - log warning
+					Console.WriteLine($"Warning: Variant {variant.Id} created but image upload failed: {mediaResult.Message}");
+					return BaseResponse<string>.Ok(variant.Id.ToString(), "Variant created successfully but image upload failed");
 				}
-			}
-
-			// Use mapper to create ProductVariant entity
-			var variant = _mapper.Map<ProductVariant>(request);
-			
-			// Set image URL (uploaded or from request)
-			variant.ImageUrl = imageUrl ?? request.ImageUrl;
-
-			await _variantRepository.AddAsync(variant);
-			var saved = await _variantRepository.SaveChangesAsync();
-
-			if (!saved)
-			{
-				// Cleanup: delete uploaded image if variant creation failed
-				if (!string.IsNullOrWhiteSpace(imageUrl))
-				{
-					await _supabaseService.DeleteVariantImageAsync(imageUrl);
-				}
-				return BaseResponse<string>.Fail("Failed to create variant", ResponseErrorType.InternalError);
 			}
 
 			return BaseResponse<string>.Ok(variant.Id.ToString(), "Variant created successfully");
@@ -117,14 +111,11 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Variant already deleted", ResponseErrorType.BadRequest);
 			}
 
-			// Delete image from Supabase if exists
-			if (!string.IsNullOrWhiteSpace(variant.ImageUrl))
+			// Delete all media for this variant
+			var deleteMediaResult = await _mediaService.DeleteAllMediaByEntityAsync(EntityType.ProductVariant, variantId);
+			if (!deleteMediaResult.Success)
 			{
-				var imageDeleted = await _supabaseService.DeleteVariantImageAsync(variant.ImageUrl);
-				if (!imageDeleted)
-				{
-					Console.WriteLine($"Warning: Failed to delete image for variant {variantId}: {variant.ImageUrl}");
-				}
+				Console.WriteLine($"Warning: Failed to delete media for variant {variantId}: {deleteMediaResult.Message}");
 			}
 
 			variant.IsDeleted = true;
@@ -175,46 +166,40 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<ProductVariantResponse>.Ok(response, "Variant retrieved successfully");
 		}
 
-	public async Task<BaseResponse<ProductVariantResponse>> GetVariantByBarcodeAsync(string barcode)
-	{
-		var variant = await _variantRepository.GetByBarcodeAsync(barcode);
-
-		if (variant == null)
+		public async Task<BaseResponse<ProductVariantResponse>> GetVariantByBarcodeAsync(string barcode)
 		{
-			return BaseResponse<ProductVariantResponse>.Fail("Variant not found", ResponseErrorType.NotFound);
+			var variant = await _variantRepository.GetByBarcodeAsync(barcode);
+
+			if (variant == null)
+			{
+				return BaseResponse<ProductVariantResponse>.Fail("Variant not found", ResponseErrorType.NotFound);
+			}
+
+			// Use mapper to convert to response DTO
+			var response = _mapper.Map<ProductVariantResponse>(variant);
+
+			return BaseResponse<ProductVariantResponse>.Ok(response, "Variant retrieved successfully");
 		}
 
-		// Use mapper to convert to response DTO
-		var response = _mapper.Map<ProductVariantResponse>(variant);
-
-		return BaseResponse<ProductVariantResponse>.Ok(response, "Variant retrieved successfully");
-	}
-
-	public async Task<BaseResponse<List<VariantLookupItem>>> GetVariantLookupListAsync(Guid? productId = null)
-	{
-		var query = await _variantRepository.GetAllAsync(
-			filter: v => !v.IsDeleted && v.Status != Domain.Enums.VariantStatus.Discontinued 
-				&& (!productId.HasValue || v.ProductId == productId.Value),
-			include: q => q.Include(v => v.Concentration).Include(v => v.Product)
-		);
-
-		var variants = query.OrderBy(v => v.Sku).ToList();
-
-		var lookupItems = variants.Select(v => new VariantLookupItem
+		public async Task<BaseResponse<List<VariantLookupItem>>> GetVariantLookupListAsync(Guid? productId = null)
 		{
-			Id = v.Id,
-			Sku = v.Sku,
-			DisplayName = $"{v.Product?.Name ?? "Unknown"} - {v.VolumeMl}ml {v.Concentration?.Name ?? "Unknown"}",
-			VolumeMl = v.VolumeMl,
-			ConcentrationName = v.Concentration?.Name ?? "Unknown",
-			BasePrice = v.BasePrice,
-			ImageUrl = v.ImageUrl
-		}).ToList();
+			var query = await _variantRepository.GetAllAsync(
+				filter: v => !v.IsDeleted && v.Status != VariantStatus.Discontinued
+					&& (!productId.HasValue || v.ProductId == productId.Value),
+				include: q => q.Include(v => v.Concentration)
+					.Include(v => v.Product)
+					.Include(v => v.Media.Where(m => !m.IsDeleted && m.IsPrimary))
+			);
 
-		return BaseResponse<List<VariantLookupItem>>.Ok(lookupItems, "Variant lookup list retrieved successfully");
-	}
+			var variants = query.OrderBy(v => v.Sku).ToList();
 
-	public async Task<BaseResponse<string>> UpdateVariantAsync(Guid variantId, UpdateVariantRequest request, FileUpload? imageFile)
+			// Use mapper to convert to VariantLookupItem
+			var lookupItems = _mapper.Map<List<VariantLookupItem>>(variants);
+
+			return BaseResponse<List<VariantLookupItem>>.Ok(lookupItems, "Variant lookup list retrieved successfully");
+		}
+
+		public async Task<BaseResponse<string>> UpdateVariantAsync(Guid variantId, UpdateVariantRequest request, FileUpload? imageFile)
 		{
 			var validationResult = await _updateVariantValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
@@ -237,8 +222,16 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Cannot update deleted variant", ResponseErrorType.BadRequest);
 			}
 
-			string? newImageUrl = null;
-			string? oldImageUrl = variant.ImageUrl;
+			// Use mapper to update entity
+			_mapper.Map(request, variant);
+
+			_variantRepository.Update(variant);
+			var saved = await _variantRepository.SaveChangesAsync();
+
+			if (!saved)
+			{
+				return BaseResponse<string>.Fail("Failed to update variant", ResponseErrorType.InternalError);
+			}
 
 			// Upload new image if provided
 			if (imageFile != null && imageFile.Length > 0)
@@ -248,61 +241,46 @@ namespace PerfumeGPT.Application.Services
 				var extension = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
 				if (!allowedExtensions.Contains(extension))
 				{
-					return BaseResponse<string>.Fail(
-						"Invalid file type. Only images (jpg, jpeg, png, gif, webp) are allowed.",
-						ResponseErrorType.BadRequest
-					);
+					Console.WriteLine($"Warning: Invalid image file type for variant {variantId}");
+					return BaseResponse<string>.Ok(variantId.ToString(), "Variant updated successfully but image upload failed: Invalid file type");
 				}
 
 				// Validate file size (max 5MB)
 				if (imageFile.Length > 5 * 1024 * 1024)
 				{
-					return BaseResponse<string>.Fail(
-						"File size exceeds 5MB limit.",
-						ResponseErrorType.BadRequest
-					);
+					Console.WriteLine($"Warning: Image file too large for variant {variantId}");
+					return BaseResponse<string>.Ok(variantId.ToString(), "Variant updated successfully but image upload failed: File too large");
 				}
 
-				newImageUrl = await _supabaseService.UploadVariantImageAsync(imageFile.FileStream, imageFile.FileName);
+			// Get existing primary image to delete after new upload succeeds
+			var existingMediaResult = await _mediaService.GetMediaByEntityAsync(EntityType.ProductVariant, variantId);
+			var oldPrimaryMedia = existingMediaResult.Payload?.FirstOrDefault(m => m.IsPrimary);
 
-				if (string.IsNullOrWhiteSpace(newImageUrl))
+				// Upload new image
+				var mediaResult = await _mediaService.UploadMediaAsync(
+					imageFile.FileStream,
+					imageFile.FileName,
+					EntityType.ProductVariant,
+					variantId,
+					altText: null,
+					displayOrder: 0,
+					isPrimary: true
+				);
+
+				if (!mediaResult.Success)
 				{
-					return BaseResponse<string>.Fail(
-						"Failed to upload new image to storage.",
-						ResponseErrorType.InternalError
-					);
+					Console.WriteLine($"Warning: Image upload failed for variant {variantId}: {mediaResult.Message}");
+					return BaseResponse<string>.Ok(variantId.ToString(), "Variant updated successfully but image upload failed");
 				}
-			}
 
-			// Use mapper to update entity
-			_mapper.Map(request, variant);
-
-			// Override image URL if new image was uploaded
-			if (!string.IsNullOrWhiteSpace(newImageUrl))
-			{
-				variant.ImageUrl = newImageUrl;
-			}
-
-			_variantRepository.Update(variant);
-			var saved = await _variantRepository.SaveChangesAsync();
-
-			if (!saved)
-			{
-				// Cleanup: delete new image if update failed
-				if (!string.IsNullOrWhiteSpace(newImageUrl))
+				// Delete old primary image if it exists
+				if (oldPrimaryMedia != null)
 				{
-					await _supabaseService.DeleteVariantImageAsync(newImageUrl);
-				}
-				return BaseResponse<string>.Fail("Failed to update variant", ResponseErrorType.InternalError);
-			}
-
-			// Delete old image if a new one was uploaded successfully
-			if (!string.IsNullOrWhiteSpace(newImageUrl) && !string.IsNullOrWhiteSpace(oldImageUrl) && oldImageUrl != newImageUrl)
-			{
-				var oldImageDeleted = await _supabaseService.DeleteVariantImageAsync(oldImageUrl);
-				if (!oldImageDeleted)
-				{
-					Console.WriteLine($"Warning: Failed to delete old image: {oldImageUrl}");
+					var deleteResult = await _mediaService.DeleteMediaAsync(oldPrimaryMedia.Id);
+					if (!deleteResult.Success)
+					{
+						Console.WriteLine($"Warning: Failed to delete old primary image for variant {variantId}");
+					}
 				}
 			}
 
@@ -316,17 +294,17 @@ namespace PerfumeGPT.Application.Services
 				return (false, "This product variant is no longer available");
 			}
 
-			if (variant.Status == Domain.Enums.VariantStatus.Discontinued)
+			if (variant.Status == VariantStatus.Discontinued)
 			{
 				return (false, "This product variant has been discontinued");
 			}
 
-			if (variant.Status == Domain.Enums.VariantStatus.Inactive)
+			if (variant.Status == VariantStatus.Inactive)
 			{
 				return (false, "This product variant is currently inactive");
 			}
 
-			if (variant.Status == Domain.Enums.VariantStatus.out_of_stock)
+			if (variant.Status == VariantStatus.out_of_stock)
 			{
 				return (false, "This product variant is out of stock");
 			}

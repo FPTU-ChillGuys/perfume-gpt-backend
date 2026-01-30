@@ -1,4 +1,5 @@
-﻿using PerfumeGPT.Application.Interfaces.Repositories.Commons;
+﻿using PerfumeGPT.Application.DTOs.Requests.Inventory;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Interfaces.Repositories
@@ -8,6 +9,9 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<bool> DeductBathAsync(Guid variantId, int quantity);
 		Task<bool> IsValidForDeductionAsync(Guid variantId, int requiredQuantity);
 		Task<List<Batch>> GetAvailableBatchesByVariantAsync(Guid variantId);
+		Task<(List<Batch> Batches, int TotalCount)> GetBatchesWithFiltersAsync(GetBatchesRequest request);
+		Task<List<Batch>> GetBatchesByVariantWithIncludesAsync(Guid variantId);
+		Task<Batch?> GetBatchByIdWithIncludesAsync(Guid batchId);
 	}
 }
 

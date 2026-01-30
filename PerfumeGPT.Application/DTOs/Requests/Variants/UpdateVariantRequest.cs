@@ -4,7 +4,6 @@ namespace PerfumeGPT.Application.DTOs.Requests.Variants
 {
 	public class UpdateVariantRequest
 	{
-		public string? ImageUrl { get; set; }
 		public string Sku { get; set; } = null!;
 		public int VolumeMl { get; set; } // (30ml / 50ml / 100ml / etc.)
 		public int ConcentrationId { get; set; } // (Eau de Parfum / Eau de Toilette / etc.)
@@ -13,3 +12,4 @@ namespace PerfumeGPT.Application.DTOs.Requests.Variants
 		public VariantStatus Status { get; set; }
 	}
 }
+

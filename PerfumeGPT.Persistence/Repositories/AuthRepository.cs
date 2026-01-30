@@ -66,7 +66,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			//var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
 			//var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 			var rsa = RSA.Create();
-			rsa.ImportFromPem(_secretKey); // nội dung private-key.pem
+			rsa.ImportFromPem(_secretKey);
 			var key = new RsaSecurityKey(rsa);
 			var creds = new SigningCredentials(
 				key,

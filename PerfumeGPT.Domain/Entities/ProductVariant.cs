@@ -7,7 +7,6 @@ namespace PerfumeGPT.Domain.Entities
 	public class ProductVariant : BaseEntity<Guid>, IHasTimestamps, ISoftDelete
 	{
 		public Guid ProductId { get; set; }
-		public string? ImageUrl { get; set; }
 		public string Barcode { get; set; } = null!;
 		public string Sku { get; set; } = null!;
 		public int VolumeMl { get; set; } // (30ml / 50ml / 100ml / etc.)
@@ -24,6 +23,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual Stock Stock { get; set; } = null!;
 		public virtual ICollection<CartItem> CartItems { get; set; } = [];
 		public virtual ICollection<OrderDetail> OrderDetails { get; set; } = [];
+		public virtual ICollection<Media> Media { get; set; } = [];
 
 		// ISoftDelete implementation
 		public bool IsDeleted { get; set; }

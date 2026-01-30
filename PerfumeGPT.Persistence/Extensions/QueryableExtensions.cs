@@ -1,6 +1,6 @@
 ﻿using System.Linq.Expressions;
 
-namespace PerfumeGPT.Application.Extensions
+namespace PerfumeGPT.Persistence.Extensions
 {
 	public static class QueryableExtensions
 	{

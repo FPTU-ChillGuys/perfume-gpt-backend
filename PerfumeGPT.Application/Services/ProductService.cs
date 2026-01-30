@@ -1,28 +1,34 @@
 using FluentValidation;
 using MapsterMapper;
+using PerfumeGPT.Application.DTOs.Requests.Media;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Products;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class ProductService : IProductService
 	{
 		private readonly IProductRepository _productRepo;
+		private readonly IMediaService _mediaService;
 		private readonly IValidator<CreateProductRequest> _createValidator;
 		private readonly IValidator<UpdateProductRequest> _updateValidator;
 		private readonly IMapper _mapper;
 
 		public ProductService(
 			IProductRepository productRepo,
+			IMediaService mediaService,
 			IValidator<CreateProductRequest> createValidator,
 			IValidator<UpdateProductRequest> updateValidator,
 			IMapper mapper)
 		{
 			_productRepo = productRepo;
+			_mediaService = mediaService;
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
 			_mapper = mapper;
@@ -68,6 +74,7 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			_productRepo.Remove(product);
+			await _mediaService.DeleteAllMediaByEntityAsync(EntityType.Product, productId);
 			var saved = await _productRepo.SaveChangesAsync();
 
 			if (!saved)
@@ -147,6 +154,137 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			return BaseResponse<string>.Ok(productId.ToString(), "Product updated successfully");
+		}
+
+		// Media management methods
+		public async Task<BaseResponse<List<MediaResponse>>> UploadProductImageAsync(Guid productId, BulkUploadMediaRequest request)
+		{
+			// Verify product exists
+			var product = await _productRepo.GetByIdAsync(productId);
+			if (product == null)
+			{
+				return BaseResponse<List<MediaResponse>>.Fail("Product not found", ResponseErrorType.NotFound);
+			}
+
+			if (product.IsDeleted)
+			{
+				return BaseResponse<List<MediaResponse>>.Fail("Cannot add image to deleted product", ResponseErrorType.BadRequest);
+			}
+
+			// Validate bulk request
+			if (request.Images == null || request.Images.Count == 0)
+			{
+				return BaseResponse<List<MediaResponse>>.Fail("At least one image is required", ResponseErrorType.BadRequest);
+			}
+
+			var uploadedMedia = new List<MediaResponse>();
+			var errors = new List<string>();
+
+			// Process each image
+			foreach (var imageRequest in request.Images)
+			{
+				// Validate image
+				if (imageRequest.ImageFile == null || imageRequest.ImageFile.Length == 0)
+				{
+					errors.Add($"Image file is required for one of the images");
+					continue;
+				}
+
+				// Validate file type
+				var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+				var extension = Path.GetExtension(imageRequest.ImageFile.FileName).ToLowerInvariant();
+				if (!allowedExtensions.Contains(extension))
+				{
+					errors.Add($"Invalid image format for {imageRequest.ImageFile.FileName}. Allowed: jpg, jpeg, png, gif, webp");
+					continue;
+				}
+
+				// Validate file size (max 5MB)
+				const long maxFileSize = 5 * 1024 * 1024;
+				if (imageRequest.ImageFile.Length > maxFileSize)
+				{
+					errors.Add($"Image size must be less than 5MB for {imageRequest.ImageFile.FileName}");
+					continue;
+				}
+
+				// Upload image
+				using var stream = imageRequest.ImageFile.OpenReadStream();
+				var result = await _mediaService.UploadMediaAsync(
+					stream,
+					imageRequest.ImageFile.FileName,
+					EntityType.Product,
+					productId,
+					imageRequest.AltText,
+					imageRequest.DisplayOrder,
+					imageRequest.IsPrimary
+				);
+
+				if (result.Success && result.Payload != null)
+				{
+					uploadedMedia.Add(result.Payload);
+				}
+				else
+				{
+					errors.Add($"Failed to upload {imageRequest.ImageFile.FileName}: {result.Message}");
+				}
+			}
+
+			// Return response based on results
+			if (uploadedMedia.Count == 0)
+			{
+				return BaseResponse<List<MediaResponse>>.Fail(
+					"Failed to upload any images",
+					ResponseErrorType.BadRequest,
+					errors
+				);
+			}
+
+			return BaseResponse<List<MediaResponse>>.Ok(
+				uploadedMedia,
+				$"Successfully uploaded {uploadedMedia.Count} image(s)"
+			);
+		}
+
+		public async Task<BaseResponse<string>> DeleteProductImageAsync(Guid productId, Guid mediaId)
+		{
+			// Verify product exists
+			var product = await _productRepo.GetByIdAsync(productId);
+			if (product == null)
+			{
+				return BaseResponse<string>.Fail("Product not found", ResponseErrorType.NotFound);
+			}
+
+			// Delete media
+			var result = await _mediaService.DeleteMediaAsync(mediaId);
+			return result;
+		}
+
+		public async Task<BaseResponse<string>> SetPrimaryProductImageAsync(Guid productId, Guid mediaId)
+		{
+			// Verify product exists
+			var product = await _productRepo.GetByIdAsync(productId);
+			if (product == null)
+			{
+				return BaseResponse<string>.Fail("Product not found", ResponseErrorType.NotFound);
+			}
+
+			// Set primary media
+			var result = await _mediaService.SetPrimaryMediaAsync(mediaId);
+			return result;
+		}
+
+		public async Task<BaseResponse<List<MediaResponse>>> GetProductImagesAsync(Guid productId)
+		{
+			// Verify product exists
+			var product = await _productRepo.GetByIdAsync(productId);
+			if (product == null)
+			{
+				return BaseResponse<List<MediaResponse>>.Fail("Product not found", ResponseErrorType.NotFound);
+			}
+
+			// Get media
+			var result = await _mediaService.GetMediaByEntityAsync(EntityType.Product, productId);
+			return result;
 		}
 	}
 }

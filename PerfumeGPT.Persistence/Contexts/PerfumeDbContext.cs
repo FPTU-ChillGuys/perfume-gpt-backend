@@ -93,6 +93,12 @@ namespace PerfumeGPT.Persistence.Contexts
 						fullAud.UpdatedAt = now;
 						fullAud.UpdatedBy = CurrentUserId;
 					}
+					// Update auditable (updated + updatedBy)
+					else if (entity is IUpdateAuditable updateAud)
+					{
+						updateAud.UpdatedAt = now;
+						updateAud.UpdatedBy = CurrentUserId;
+					}
 					// HasTimestamps only (updated)
 					else if (entity is IHasTimestamps hasTimestamps)
 					{
@@ -172,6 +178,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<UserVoucher> UserVouchers { get; set; }
 		public DbSet<ShippingInfo> ShippingInfos { get; set; }
 		public DbSet<RecipientInfo> RecipientInfos { get; set; }
+		public DbSet<Media> Media { get; set; }
 
 
 		protected override void OnModelCreating(ModelBuilder builder)
@@ -432,6 +439,35 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(n => n.BatchId)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			// Media -> Product (M:1) using ProductId
+			builder.Entity<Media>()
+				.HasOne(m => m.Product)
+				.WithMany(p => p.Media)
+				.HasForeignKey(m => m.ProductId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// Media -> ProductVariant (M:1) using ProductVariantId
+			builder.Entity<Media>()
+				.HasOne(m => m.ProductVariant)
+				.WithMany(pv => pv.Media)
+				.HasForeignKey(m => m.ProductVariantId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// Ignore the computed EntityId property from mapping
+			builder.Entity<Media>()
+				.Ignore(m => m.EntityId);
+
+			// Create indexes for efficient queries
+			builder.Entity<Media>()
+				.HasIndex(m => new { m.EntityType, m.ProductId });
+			
+			builder.Entity<Media>()
+				.HasIndex(m => new { m.EntityType, m.ProductVariantId });
+
+			// Create index on IsPrimary for quick primary image lookup
+			builder.Entity<Media>()
+				.HasIndex(m => m.IsPrimary);
+
 			// Configure decimal precision/scale to avoid default truncation warnings
 			builder.Entity<CustomerProfile>().Property(cp => cp.MinBudget).HasPrecision(18, 2);
 			builder.Entity<CustomerProfile>().Property(cp => cp.MaxBudget).HasPrecision(18, 2);
@@ -457,11 +493,13 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Order>().Property(o => o.PaymentStatus).HasConversion<string>();
 			builder.Entity<ImportTicket>().Property(it => it.Status).HasConversion<string>();
 			builder.Entity<Notification>().Property(n => n.Type).HasConversion<string>();
+			builder.Entity<Product>().Property(p => p.Gender).HasConversion<string>();
 			builder.Entity<ProductVariant>().Property(pv => pv.Type).HasConversion<string>();
 			builder.Entity<ProductVariant>().Property(pv => pv.Status).HasConversion<string>();
 			builder.Entity<Voucher>().Property(v => v.DiscountType).HasConversion<string>();
 			builder.Entity<UserVoucher>().Property(uv => uv.Status).HasConversion<string>();
 			builder.Entity<ShippingInfo>().Property(s => s.CarrierName).HasConversion<string>();
+			builder.Entity<Media>().Property(m => m.EntityType).HasConversion<string>();
 
 			// Seed roles
 			builder.Entity<IdentityRole<Guid>>().HasData(SeedingRoles());

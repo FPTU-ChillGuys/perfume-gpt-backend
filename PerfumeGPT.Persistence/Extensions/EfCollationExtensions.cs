@@ -1,7 +1,7 @@
 ﻿using System.Linq.Expressions;
 using System.Reflection;
 
-namespace PerfumeGPT.Application.Extensions
+namespace PerfumeGPT.Persistence.Extensions
 {
 	public static class EfCollationExtensions
 	{

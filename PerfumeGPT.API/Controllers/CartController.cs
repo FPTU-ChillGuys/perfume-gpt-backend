@@ -18,14 +18,6 @@ namespace PerfumeGPT.API.Controllers
 			_cartService = cartService;
 		}
 
-		//[HttpGet]
-		//public async Task<ActionResult<BaseResponse<GetCartResponse>>> GetCart([FromQuery] Guid? voucherId)
-		//{
-		//	var userId = GetCurrentUserId();
-		//	var result = await _cartService.GetCartByUserIdAsync(userId, voucherId);
-		//	return HandleResponse(result);
-		//}
-
 		[HttpGet("items")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<GetCartItemsResponse>), StatusCodes.Status200OK)]

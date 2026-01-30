@@ -25,7 +25,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual RecipientInfo RecipientInfo { get; set; } = null!;
 		public virtual Voucher? Voucher { get; set; }
 
-
+		// Audit
 		public DateTime? UpdatedAt { get; set; }
 		public DateTime CreatedAt { get; set; }
 	}

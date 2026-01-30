@@ -4,7 +4,7 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Domain.Entities
 {
-	public class ImportTicket : BaseEntity<Guid>, IFullAuditable, ISoftDelete
+	public class ImportTicket : BaseEntity<Guid>, IUpdateAuditable, IHasCreatedAt, ISoftDelete
 	{
 		public Guid CreatedById { get; set; }
 		public Guid? VerifiedById { get; set; }
@@ -23,7 +23,6 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime CreatedAt { get; set; }
 		public DateTime? UpdatedAt { get; set; }
 		public string? UpdatedBy { get; set; }
-		public string? CreatedBy { get; set; }
 
 		// Soft Delete
 		public bool IsDeleted { get; set; }

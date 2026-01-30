@@ -13,40 +13,43 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
-		public async Task<ProductVariant?> GetByBarcodeAsync(string barcode)
-		{
-			return await _context.ProductVariants
-				.Include(v => v.Product)
-				.Include(v => v.Concentration)
-				.FirstOrDefaultAsync(v => v.Barcode == barcode && !v.IsDeleted);
-		}
+	public async Task<ProductVariant?> GetByBarcodeAsync(string barcode)
+	{
+		return await _context.ProductVariants
+			.Include(v => v.Product)
+			.Include(v => v.Concentration)
+			.Include(v => v.Media.Where(m => !m.IsDeleted))
+			.FirstOrDefaultAsync(v => v.Barcode == barcode && !v.IsDeleted);
+	}
 
-		public async Task<ProductVariant?> GetVariantWithDetailsAsync(Guid variantId)
-		{
-			return await _context.ProductVariants
-				.Include(v => v.Concentration)
-				.Include(v => v.Product)
-				.AsNoTracking()
-				.FirstOrDefaultAsync(v => v.Id == variantId && !v.IsDeleted);
-		}
+	public async Task<ProductVariant?> GetVariantWithDetailsAsync(Guid variantId)
+	{
+		return await _context.ProductVariants
+			.Include(v => v.Concentration)
+			.Include(v => v.Product)
+			.Include(v => v.Media.Where(m => !m.IsDeleted))
+			.AsNoTracking()
+			.FirstOrDefaultAsync(v => v.Id == variantId && !v.IsDeleted);
+	}
 
-		public async Task<(List<ProductVariant> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(GetPagedVariantsRequest request)
-		{
-			var query = _context.ProductVariants
-				.Include(v => v.Concentration)
-				.Where(v => !v.IsDeleted)
-				.AsNoTracking();
+	public async Task<(List<ProductVariant> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(GetPagedVariantsRequest request)
+	{
+		var query = _context.ProductVariants
+			.Include(v => v.Concentration)
+			.Include(v => v.Media.Where(m => !m.IsDeleted && m.IsPrimary))
+			.Where(v => !v.IsDeleted)
+			.AsNoTracking();
 
-			var totalCount = await query.CountAsync();
+		var totalCount = await query.CountAsync();
 
-			var items = await query
-				.OrderByDescending(v => v.CreatedAt)
-				.Skip((request.PageNumber - 1) * request.PageSize)
-				.Take(request.PageSize)
-				.ToListAsync();
+		var items = await query
+			.OrderByDescending(v => v.CreatedAt)
+			.Skip((request.PageNumber - 1) * request.PageSize)
+			.Take(request.PageSize)
+			.ToListAsync();
 
-			return (items, totalCount);
-		}
+		return (items, totalCount);
+	}
 	}
 }
 

@@ -317,28 +317,28 @@ namespace PerfumeGPT.Application.Services
 				foreach (var barcode in request.BarCodes)
 				{
 					var variantResponse = await _variantService.GetVariantByBarcodeAsync(barcode);
-					if (!variantResponse.Success || variantResponse.Payload == null)
-					{
-						return BaseResponse<PreviewOrderResponse>.Fail($"Product with barcode {barcode} not found.", ResponseErrorType.NotFound);
-					}
-
-					var variant = variantResponse.Payload;
-					var quantity = request.BarCodes.Count(b => b == barcode);
-					var itemTotal = variant.BasePrice * quantity;
-					subtotal += itemTotal;
-
-					if (!items.Any(i => i.VariantId == variant.Id))
-					{
-						items.Add(new OrderDetailListItems
-						{
-							VariantId = variant.Id,
-							VariantName = $"{variant.Sku} - {variant.VolumeMl}ml - {variant.ConcentrationName} - {variant.Type}",
-							ImageUrl = variant.ImageUrl ?? string.Empty,
-							Quantity = quantity,
-							Total = (int)itemTotal
-						});
-					}
+				if (!variantResponse.Success || variantResponse.Payload == null)
+				{
+					return BaseResponse<PreviewOrderResponse>.Fail($"Product with barcode {barcode} not found.", ResponseErrorType.NotFound);
 				}
+
+				var variant = variantResponse.Payload;
+				var quantity = request.BarCodes.Count(b => b == barcode);
+				var itemTotal = variant.BasePrice * quantity;
+				subtotal += itemTotal;
+
+				if (!items.Any(i => i.VariantId == variant.Id))
+				{
+					items.Add(new OrderDetailListItems
+					{
+						VariantId = variant.Id,
+						VariantName = $"{variant.Sku} - {variant.VolumeMl}ml - {variant.ConcentrationName} - {variant.Type}",
+						ImageUrl = variant.Media?.FirstOrDefault(m => m.IsPrimary)?.Url ?? string.Empty,
+						Quantity = quantity,
+						Total = (int)itemTotal
+					});
+				}
+			}
 
 				decimal shippingFee = 0;
 				if (!string.IsNullOrEmpty(request.WardCode) && request.DistrictId > 0)

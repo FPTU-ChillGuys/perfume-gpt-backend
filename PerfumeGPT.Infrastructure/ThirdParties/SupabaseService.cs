@@ -16,6 +16,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			{
 				Url = configuration["SUPABASE__URL"] ?? configuration["Supabase:Url"] ?? string.Empty,
 				ApiKey = configuration["SUPABASE__API_KEY"] ?? configuration["Supabase:API_KEY"] ?? string.Empty,
+				BucketProductName = configuration["SUPABASE__BUCKET_Product_NAME"] ?? configuration["Supabase:BucketProductName"] ?? "Products",
 				BucketVariantName = configuration["SUPABASE__BUCKET_Variant_NAME"] ?? configuration["Supabase:BucketVariantName"] ?? "ProductVariants",
 				BucketAvatarName = configuration["SUPABASE__BUCKET_Avatar_NAME"] ?? configuration["Supabase:BucketAvatarName"] ?? "ProfileAvatars"
 			};
@@ -114,6 +115,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			return await UploadImageAsync(fileStream, fileName, _settings.BucketVariantName);
 		}
 
+		public async Task<string?> UploadProductImageAsync(Stream fileStream, string fileName)
+		{
+			return await UploadImageAsync(fileStream, fileName, _settings.BucketProductName);
+		}
+
 		public async Task<string?> UploadAvatarImageAsync(Stream fileStream, string fileName)
 		{
 			return await UploadImageAsync(fileStream, fileName, _settings.BucketAvatarName);
@@ -122,6 +128,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 		public async Task<bool> DeleteVariantImageAsync(string filePath)
 		{
 			return await DeleteImageAsync(filePath, _settings.BucketVariantName);
+		}
+
+		public async Task<bool> DeleteProductImageAsync(string filePath)
+		{
+			return await DeleteImageAsync(filePath, _settings.BucketProductName);
 		}
 
 		public async Task<bool> DeleteAvatarImageAsync(string filePath)

@@ -1,5 +1,8 @@
 using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Imports;
+using PerfumeGPT.Application.DTOs.Requests.Inventory;
+using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Inventory;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -92,61 +95,191 @@ namespace PerfumeGPT.Application.Services
 			batch.RemainingQuantity -= quantity;
 			_batchRepository.Update(batch);
 
-		// Don't call SaveChanges - let the orchestrator/transaction handle it
-		return true;
-	}
-
-	public async Task<bool> ValidateBatchAvailabilityAsync(Guid variantId, int requiredQuantity)
-	{
-		// Get all non-expired batches for the variant
-		var batches = await _batchRepository.GetAvailableBatchesByVariantAsync(variantId);
-		
-		var totalAvailable = batches
-			.Where(b => b.ExpiryDate >= DateTime.UtcNow)
-			.Sum(b => b.RemainingQuantity);
-
-		return totalAvailable >= requiredQuantity;
-	}
-
-	public async Task<bool> DeductBatchesByVariantAsync(Guid variantId, int quantity)
-	{
-		// Validation
-		if (quantity <= 0)
-		{
-			return false;
+			// Don't call SaveChanges - let the orchestrator/transaction handle it
+			return true;
 		}
 
-		// Get all available batches ordered by expiry date (FIFO - oldest first)
-		var batches = await _batchRepository.GetAvailableBatchesByVariantAsync(variantId);
-		var availableBatches = batches
-			.Where(b => b.ExpiryDate >= DateTime.UtcNow && b.RemainingQuantity > 0)
-			.OrderBy(b => b.ExpiryDate)
-			.ToList();
-
-		var remainingToDeduct = quantity;
-
-		foreach (var batch in availableBatches)
+		public async Task<bool> ValidateBatchAvailabilityAsync(Guid variantId, int requiredQuantity)
 		{
-			if (remainingToDeduct <= 0)
-				break;
+			// Get all non-expired batches for the variant
+			var batches = await _batchRepository.GetAvailableBatchesByVariantAsync(variantId);
 
-			var deductFromThisBatch = Math.Min(batch.RemainingQuantity, remainingToDeduct);
-			batch.RemainingQuantity -= deductFromThisBatch;
-			remainingToDeduct -= deductFromThisBatch;
+			var totalAvailable = batches
+				.Where(b => b.ExpiryDate >= DateTime.UtcNow)
+				.Sum(b => b.RemainingQuantity);
 
-			_batchRepository.Update(batch);
+			return totalAvailable >= requiredQuantity;
 		}
 
-		// If we couldn't deduct the full quantity, return false
-		if (remainingToDeduct > 0)
+		public async Task<bool> DeductBatchesByVariantAsync(Guid variantId, int quantity)
 		{
-			return false;
+			// Validation
+			if (quantity <= 0)
+			{
+				return false;
+			}
+
+			// Get all available batches ordered by expiry date (FIFO - oldest first)
+			var batches = await _batchRepository.GetAvailableBatchesByVariantAsync(variantId);
+			var availableBatches = batches
+				.Where(b => b.ExpiryDate >= DateTime.UtcNow && b.RemainingQuantity > 0)
+				.OrderBy(b => b.ExpiryDate)
+				.ToList();
+
+			var remainingToDeduct = quantity;
+
+			foreach (var batch in availableBatches)
+			{
+				if (remainingToDeduct <= 0)
+					break;
+
+				var deductFromThisBatch = Math.Min(batch.RemainingQuantity, remainingToDeduct);
+				batch.RemainingQuantity -= deductFromThisBatch;
+				remainingToDeduct -= deductFromThisBatch;
+
+				_batchRepository.Update(batch);
+			}
+
+			// If we couldn't deduct the full quantity, return false
+			if (remainingToDeduct > 0)
+			{
+				return false;
+			}
+
+			// Don't call SaveChanges - let the orchestrator/transaction handle it
+			return true;
 		}
 
-		// Don't call SaveChanges - let the orchestrator/transaction handle it
-		return true;
+		public async Task<BaseResponse<PagedResult<BatchResponse>>> GetBatchesAsync(GetBatchesRequest request)
+		{
+			try
+			{
+				var now = DateTime.UtcNow;
+
+				// Use repository method that encapsulates all query logic
+				var (batches, totalCount) = await _batchRepository.GetBatchesWithFiltersAsync(request);
+
+				// Map to response DTOs
+				var batchResponses = batches.Select(b => new BatchResponse
+				{
+					Id = b.Id,
+					VariantId = b.VariantId,
+					VariantSku = b.ProductVariant.Sku,
+					ProductName = b.ProductVariant.Product.Name ?? "",
+					VolumeMl = b.ProductVariant.VolumeMl,
+					ConcentrationName = b.ProductVariant.Concentration.Name ?? "",
+					BatchCode = b.BatchCode,
+					ManufactureDate = b.ManufactureDate,
+					ExpiryDate = b.ExpiryDate,
+					ImportQuantity = b.ImportQuantity,
+					RemainingQuantity = b.RemainingQuantity,
+					IsExpired = b.ExpiryDate < now,
+					DaysUntilExpiry = (int)(b.ExpiryDate - now).TotalDays,
+					CreatedAt = b.CreatedAt
+				}).ToList();
+
+				var pagedResult = new PagedResult<BatchResponse>(
+					batchResponses,
+					request.PageNumber,
+					request.PageSize,
+					totalCount
+				);
+
+				return BaseResponse<PagedResult<BatchResponse>>.Ok(pagedResult);
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<PagedResult<BatchResponse>>.Fail(
+					$"Error retrieving batches: {ex.Message}",
+					ResponseErrorType.InternalError
+				);
+			}
+		}
+
+		public async Task<BaseResponse<List<BatchResponse>>> GetBatchesByVariantIdAsync(Guid variantId)
+		{
+			try
+			{
+				var now = DateTime.UtcNow;
+
+				// Use repository method that encapsulates query logic with includes
+				var batches = await _batchRepository.GetBatchesByVariantWithIncludesAsync(variantId);
+
+				// Map to response DTOs
+				var batchResponses = batches.Select(b => new BatchResponse
+				{
+					Id = b.Id,
+					VariantId = b.VariantId,
+					VariantSku = b.ProductVariant.Sku,
+					ProductName = b.ProductVariant.Product.Name ?? "",
+					VolumeMl = b.ProductVariant.VolumeMl,
+					ConcentrationName = b.ProductVariant.Concentration.Name ?? "",
+					BatchCode = b.BatchCode,
+					ManufactureDate = b.ManufactureDate,
+					ExpiryDate = b.ExpiryDate,
+					ImportQuantity = b.ImportQuantity,
+					RemainingQuantity = b.RemainingQuantity,
+					IsExpired = b.ExpiryDate < now,
+					DaysUntilExpiry = (int)(b.ExpiryDate - now).TotalDays,
+					CreatedAt = b.CreatedAt
+				}).ToList();
+
+				return BaseResponse<List<BatchResponse>>.Ok(batchResponses);
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<List<BatchResponse>>.Fail(
+					$"Error retrieving batches for variant: {ex.Message}",
+					ResponseErrorType.InternalError
+				);
+			}
+		}
+
+		public async Task<BaseResponse<BatchResponse>> GetBatchByIdAsync(Guid batchId)
+		{
+			try
+			{
+				var now = DateTime.UtcNow;
+
+				// Use repository method that encapsulates query logic with includes
+				var batch = await _batchRepository.GetBatchByIdWithIncludesAsync(batchId);
+
+				if (batch == null)
+				{
+					return BaseResponse<BatchResponse>.Fail(
+						"Batch not found",
+						ResponseErrorType.NotFound
+					);
+				}
+
+				// Map to response DTO
+				var response = new BatchResponse
+				{
+					Id = batch.Id,
+					VariantId = batch.VariantId,
+					VariantSku = batch.ProductVariant.Sku,
+					ProductName = batch.ProductVariant.Product.Name,
+					VolumeMl = batch.ProductVariant.VolumeMl,
+					ConcentrationName = batch.ProductVariant.Concentration.Name,
+					BatchCode = batch.BatchCode,
+					ManufactureDate = batch.ManufactureDate,
+					ExpiryDate = batch.ExpiryDate,
+					ImportQuantity = batch.ImportQuantity,
+					RemainingQuantity = batch.RemainingQuantity,
+					IsExpired = batch.ExpiryDate < now,
+					DaysUntilExpiry = (int)(batch.ExpiryDate - now).TotalDays,
+					CreatedAt = batch.CreatedAt
+				};
+
+				return BaseResponse<BatchResponse>.Ok(response);
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<BatchResponse>.Fail(
+					$"Error retrieving batch: {ex.Message}",
+					ResponseErrorType.InternalError
+				);
+			}
+		}
 	}
 }
-
-}
-

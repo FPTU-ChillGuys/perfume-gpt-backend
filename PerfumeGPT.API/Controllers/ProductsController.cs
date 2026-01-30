@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
+using PerfumeGPT.Application.DTOs.Requests.Media;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Products;
 using PerfumeGPT.Application.Interfaces.Services;
 
@@ -52,5 +54,38 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _productService.DeleteProductAsync(productId);
 			return HandleResponse(response);
 		}
+
+		// Media endpoints
+		[HttpPost("{productId:guid}/images")]
+		public async Task<ActionResult<BaseResponse<List<MediaResponse>>>> UploadProductImage(
+			Guid productId,
+			[FromForm] BulkUploadMediaRequest request)
+		{
+			var response = await _productService.UploadProductImageAsync(productId, request);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("{productId:guid}/images")]
+		public async Task<ActionResult<BaseResponse<List<MediaResponse>>>> GetProductImages(Guid productId)
+		{
+			var response = await _productService.GetProductImagesAsync(productId);
+			return HandleResponse(response);
+		}
+
+		[HttpDelete("{productId:guid}/images/{mediaId:guid}")]
+		public async Task<ActionResult<BaseResponse<string>>> DeleteProductImage(Guid productId, Guid mediaId)
+		{
+			var response = await _productService.DeleteProductImageAsync(productId, mediaId);
+			return HandleResponse(response);
+		}
+
+		[HttpPatch("{productId:guid}/images/{mediaId:guid}/set-primary")]
+		public async Task<ActionResult<BaseResponse<string>>> SetPrimaryProductImage(Guid productId, Guid mediaId)
+		{
+			var response = await _productService.SetPrimaryProductImageAsync(productId, mediaId);
+			return HandleResponse(response);
+		}
 	}
 }
+
+

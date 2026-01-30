@@ -68,7 +68,7 @@ namespace PerfumeGPT.Application.Services
 					.Select(g => g.Key)
 					.ToList();
 
-				if (duplicateVariants.Any())
+				if (duplicateVariants.Count != 0)
 				{
 					var duplicateIds = string.Join(", ", duplicateVariants);
 					return BaseResponse<string>.Fail($"Duplicate variant IDs found: {duplicateIds}. Each variant can only appear once per import ticket.", ResponseErrorType.BadRequest);

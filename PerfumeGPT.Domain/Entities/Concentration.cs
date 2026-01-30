@@ -2,11 +2,11 @@
 
 namespace PerfumeGPT.Domain.Entities
 {
-    public class Concentration : BaseEntity<int>
-    {
-        public string? Name { get; set; }
+	public class Concentration : BaseEntity<int>
+	{
+		public string Name { get; set; } = null!;
 
-        // Navigation
-        public virtual ICollection<ProductVariant> Variants { get; set; } = [];
-    }
+		// Navigation
+		public virtual ICollection<ProductVariant> Variants { get; set; } = [];
+	}
 }

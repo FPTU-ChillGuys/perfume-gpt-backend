@@ -19,6 +19,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Include(p => p.Brand)
 				.Include(p => p.Category)
 				.Include(p => p.FragranceFamily)
+				.Include(p => p.Media.Where(m => !m.IsDeleted))
 				.Include(p => p.Variants)
 					.ThenInclude(v => v.Concentration)
 				.AsNoTracking()
