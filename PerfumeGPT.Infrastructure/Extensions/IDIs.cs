@@ -188,5 +188,12 @@ namespace PerfumeGPT.Infrastructure.Extensions
 				services.AddScoped(match, impl);
 			}
 		}
-	}
+
+		public static void AddSemanticKernelServices(this IServiceCollection services, IConfiguration configuration)
+		{
+            // Register Semantic Kernel related services here
+            // Example:
+            // services.AddSingleton<ISemanticKernelService, SemanticKernelService>();
+        }	
+    }
 }
