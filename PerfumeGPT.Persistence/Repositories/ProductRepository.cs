@@ -56,11 +56,19 @@ namespace PerfumeGPT.Persistence.Repositories
         {
             IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
+            if (String.IsNullOrEmpty(searchText))
+            {
+                return (new List<Product>(), 0);
+            }
+
             var searchEmbedding = await embeddingGenerator.GenerateVectorAsync(searchText);
 
             var sqlVector = new SqlVector<float>(searchEmbedding);
 
-            var topSimilarProductsQuery = _context.Products.OrderBy(p => EF.Functions.VectorDistance("cosine", p.Embedding!.Value, sqlVector)).AsNoTracking();
+            var topSimilarProductsQuery = _context.Products.OrderBy(p => EF.Functions.VectorDistance("cosine", p.Embedding!.Value, sqlVector)).Include(p => p.Brand)
+                .Include(p => p.Category)
+                .Include(p => p.FragranceFamily)
+                .Where(p => !p.IsDeleted).AsNoTracking();
 
             var totalCount = await _context.Products.CountAsync();
 
@@ -99,7 +107,8 @@ namespace PerfumeGPT.Persistence.Repositories
             await _context.SaveChangesAsync();
         }
 
-        public async Task AddProductEmbeddingsAsync(Guid productId) {             
+        public async Task AddProductEmbeddingsAsync(Guid productId)
+        {
             IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
             var product = await _context.Products
                 .Include(p => p.Brand)
