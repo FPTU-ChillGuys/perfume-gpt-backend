@@ -507,7 +507,9 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<User>().HasData(SeedingUsers());
 			// Seed user roles
 			builder.Entity<IdentityUserRole<Guid>>().HasData(SeedingUserRoles());
-		}
+
+            builder.Entity<Product>().Property(p => p.Embedding).HasColumnType("vector(1024)");
+        }
 
 		private ICollection<IdentityRole<Guid>> SeedingRoles()
 		{

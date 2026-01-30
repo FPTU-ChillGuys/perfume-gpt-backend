@@ -85,7 +85,28 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _productService.SetPrimaryProductImageAsync(productId, mediaId);
 			return HandleResponse(response);
 		}
-	}
+
+        [HttpPost("embeddings/update/alls")]
+        public async Task<ActionResult<BaseResponse>> UpdateAllProductEmbeddings()
+        {
+            var response = await _productService.UpdateAllProductsEmbeddingAsync();
+            return HandleResponse(response);
+        }
+
+        [HttpPost("embeddings/update/{productId:guid}")]
+        public async Task<ActionResult<BaseResponse>> UpdateProductEmbeddings(Guid productId)
+        {
+            var response = await _productService.UpdateProductEmbeddingAsync(productId);
+            return HandleResponse(response);
+        }
+
+        [HttpGet("search/semantic")]
+        public async Task<ActionResult<BaseResponse<PagedResult<ProductListItem>>>> GetSemanticSearchProducts([FromQuery] string searchText, [FromQuery] GetPagedProductRequest request)
+        {
+            var response = await _productService.GetSemanticSearchProductAsync(searchText, request);
+            return HandleResponse(response);
+        }
+    }
 }
 
 
