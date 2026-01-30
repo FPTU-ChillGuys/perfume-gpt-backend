@@ -73,6 +73,8 @@ builder.Services.AddInfrastructureDIs(builder.Configuration);
 builder.Services.AddApplicationServices();
 // Add identity and JWT services
 builder.Services.AddIdentityServices(builder.Configuration);
+// Add Semantic Kernel services
+builder.Services.AddSemanticKernelServices(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
 
