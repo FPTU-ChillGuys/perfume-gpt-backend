@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.EntityFrameworkCore;
@@ -67,7 +67,6 @@ builder.Services.AddOpenApi(options =>
 	options.AddSchemaTransformer<EnumSchemaTransformer>();
 });
 
-// Add infrastructure services (includes DbContext registration)
 builder.Services.AddInfrastructureDIs(builder.Configuration);
 // Add application services
 builder.Services.AddApplicationServices();
@@ -118,14 +117,12 @@ app.Run();
 
 void ApplyMigration()
 {
-	using (var scope = app.Services.CreateScope())
-	{
-		var _db = scope.ServiceProvider.GetRequiredService<PerfumeDbContext>();
+	using var scope = app.Services.CreateScope();
+	var _db = scope.ServiceProvider.GetRequiredService<PerfumeDbContext>();
 
-		if (_db.Database.GetPendingMigrations().Count() > 0)
-		{
-			_db.Database.Migrate();
-		}
+	if (_db.Database.GetPendingMigrations().Any())
+	{
+		_db.Database.Migrate();
 	}
 }
 

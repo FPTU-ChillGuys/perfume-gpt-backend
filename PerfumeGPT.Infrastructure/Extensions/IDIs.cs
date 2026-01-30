@@ -15,6 +15,7 @@ using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
 using PerfumeGPT.Persistence.Services;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace PerfumeGPT.Infrastructure.Extensions
@@ -80,36 +81,31 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			.AddEntityFrameworkStores<PerfumeDbContext>()
 			.AddDefaultTokenProviders();
 
-		// CORS - Allow both frontend and AI backend
-		var webUrl = configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url!!");
-		var aiBackendUrl = configuration["Back-end:aiUrl"] ?? throw new Exception("Missing ai url!!");
-		services.AddCors(options =>
-		{
-			options.AddPolicy("AllowConfiguredOrigins", builder =>
+			// CORS - Allow both frontend and AI backend
+			var webUrl = configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url!!");
+			var aiBackendUrl = configuration["Back-end:aiUrl"] ?? throw new Exception("Missing ai url!!");
+			services.AddCors(options =>
 			{
-				builder
-					.WithOrigins(webUrl, aiBackendUrl)
-					.AllowAnyHeader()
-					.AllowAnyMethod()
-					.AllowCredentials();
+				options.AddPolicy("AllowConfiguredOrigins", builder =>
+				{
+					builder
+						.WithOrigins(webUrl, aiBackendUrl)
+						.AllowAnyHeader()
+						.AllowAnyMethod()
+						.AllowCredentials();
+				});
 			});
-		});
 		}
 
 		public static void AddIdentityServices(this IServiceCollection services, IConfiguration configuration)
 		{
 			// Read JWT configuration from configuration or environment variables
 			var jwtKey = configuration["Jwt:Key"] ?? Environment.GetEnvironmentVariable("JWT_KEY");
+			var jwtPublicKey = configuration["Jwt:PublicKey"] ?? Environment.GetEnvironmentVariable("JWT_PUBLIC_KEY");
 			var jwtIssuer = configuration["Jwt:Issuer"] ?? Environment.GetEnvironmentVariable("JWT_ISSUER");
 			var jwtAudience = configuration["Jwt:Audience"] ?? Environment.GetEnvironmentVariable("JWT_AUDIENCE");
 
-			if (string.IsNullOrWhiteSpace(jwtKey))
-			{
-				// Warn at runtime if key is missing (tokens cannot be validated without it)
-				Console.WriteLine("Warning: JWT Key not found. Set 'Jwt:Key' in configuration or 'JWT_KEY' environment variable.");
-			}
-
-			var keyBytes = Encoding.UTF8.GetBytes(jwtKey ?? string.Empty);
+			var keyBytes = Encoding.UTF8.GetBytes(jwtKey ?? throw new Exception("JWT Key is not configured."));
 
 			services.AddAuthentication(options =>
 			{
@@ -146,6 +142,20 @@ namespace PerfumeGPT.Infrastructure.Extensions
 
 				options.RequireHttpsMetadata = false;
 				options.SaveToken = true;
+				var rsa = RSA.Create();
+				// Use Public Key for token validation (verification doesn't need Private Key)
+				if (!string.IsNullOrWhiteSpace(jwtPublicKey))
+				{
+					// Replace escaped newlines with actual newlines for PEM format
+					var pemKey = jwtPublicKey.Replace("\\n", "\n");
+					rsa.ImportFromPem(pemKey);
+				}
+				else
+				{
+					throw new Exception("JWT Public Key is not configured.");
+				}
+
+				var rsaKey = new RsaSecurityKey(rsa);
 				options.TokenValidationParameters = new TokenValidationParameters
 				{
 					ValidateIssuer = !string.IsNullOrWhiteSpace(jwtIssuer),
@@ -153,7 +163,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 					ValidateAudience = !string.IsNullOrWhiteSpace(jwtAudience),
 					ValidAudience = jwtAudience,
 					ValidateIssuerSigningKey = !string.IsNullOrWhiteSpace(jwtKey),
-					IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
+					IssuerSigningKey = rsaKey,
 					ValidateLifetime = false,
 					ClockSkew = TimeSpan.FromMinutes(5)
 				};
