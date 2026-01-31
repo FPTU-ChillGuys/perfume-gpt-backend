@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -11,9 +12,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260130150743_Stock_Adjustment")]
+    partial class Stock_Adjustment
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1083,10 +1086,7 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<int>("AdjustmentQuantity")
                         .HasColumnType("int");
 
-                    b.Property<int>("ApprovedQuantity")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("BatchId")
+                    b.Property<Guid?>("BatchId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Note")
@@ -1777,8 +1777,7 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasOne("PerfumeGPT.Domain.Entities.Batch", "Batch")
                         .WithMany("StockAdjustmentDetails")
                         .HasForeignKey("BatchId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PerfumeGPT.Domain.Entities.ProductVariant", "ProductVariant")
                         .WithMany("StockAdjustmentDetails")

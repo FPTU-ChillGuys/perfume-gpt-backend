@@ -17,7 +17,14 @@ namespace PerfumeGPT.API.Controllers
 			_ghnService = shippingService;
 		}
 
+		/// <summary>
+		/// Calculate shipping fee using GHN service
+		/// </summary>
 		[HttpPost("calculate-fee")]
+		[ProducesResponseType(typeof(BaseResponse<CalculateFeeResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<CalculateFeeResponse>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<CalculateFeeResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<CalculateFeeResponse>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<CalculateFeeResponse>>> CalculateShippingFeeAsync([FromBody] CalculateFeeRequest request)
 		{
 			var validation = ValidateRequestBody<CalculateFeeRequest>(request);

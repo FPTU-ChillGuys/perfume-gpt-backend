@@ -26,6 +26,10 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpPost]
 		//[Authorize(Roles = "Admin")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status409Conflict)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> CreateVoucher([FromBody] CreateVoucherRequest request)
 		{
 			var validation = ValidateRequestBody<CreateVoucherRequest>(request);
@@ -40,6 +44,11 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpPut("{voucherId}")]
 		//[Authorize(Roles = "Admin")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status409Conflict)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateVoucher(
 			Guid voucherId,
 			[FromBody] UpdateVoucherRequest request)
@@ -56,6 +65,9 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpDelete("{voucherId}")]
 		//[Authorize(Roles = "Admin")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> DeleteVoucher(Guid voucherId)
 		{
 			var response = await _voucherService.DeleteVoucherAsync(voucherId);
@@ -67,6 +79,9 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet("{voucherId}")]
 		//[Authorize(Roles = "Admin")]
+		[ProducesResponseType(typeof(BaseResponse<VoucherResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<VoucherResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<VoucherResponse>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<VoucherResponse>>> GetVoucher(Guid voucherId)
 		{
 			var response = await _voucherService.GetVoucherAsync(voucherId);
@@ -78,6 +93,8 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet]
 		//[Authorize(Roles = "Admin")]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<VoucherResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<VoucherResponse>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<PagedResult<VoucherResponse>>>> GetVouchers(
 			[FromQuery] GetPagedVouchersRequest request)
 		{
@@ -94,6 +111,11 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpPost("redeem")]
 		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status409Conflict)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> RedeemVoucher([FromBody] RedeemVoucherRequest request)
 		{
 			var validation = ValidateRequestBody<RedeemVoucherRequest>(request);
@@ -109,6 +131,8 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet("my-vouchers")]
 		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<PagedResult<UserVoucherResponse>>>> GetMyVouchers(
 			[FromQuery] GetUserVouchersRequest request)
 		{
@@ -122,6 +146,10 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpPost("apply")]
 		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<ApplyVoucherResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<ApplyVoucherResponse>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<ApplyVoucherResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<ApplyVoucherResponse>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<ApplyVoucherResponse>>> ApplyVoucher(
 			[FromBody] ApplyVoucherRequest request)
 		{
@@ -138,6 +166,10 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet("validate/{voucherId:guid}")]
 		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<bool>>> ValidateVoucher(Guid voucherId)
 		{
 			var userId = GetCurrentUserId();

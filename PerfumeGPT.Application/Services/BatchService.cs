@@ -281,5 +281,29 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 		}
+
+		public async Task IncreaseBatchQuantityAsync(Guid batchId, int quantity)
+		{
+			var batch = await _batchRepository.GetByIdAsync(batchId);
+			if (batch == null)
+			{
+				throw new InvalidOperationException($"Batch {batchId} not found.");
+			}
+
+			batch.RemainingQuantity += quantity;
+			_batchRepository.Update(batch);
+		}
+
+		public async Task DecreaseBatchQuantityAsync(Guid batchId, int quantity)
+		{
+			var batch = await _batchRepository.GetByIdAsync(batchId) ?? throw new InvalidOperationException($"Batch {batchId} not found.");
+			if (batch.RemainingQuantity < quantity)
+			{
+				throw new InvalidOperationException($"Insufficient quantity in batch {batchId}. Available: {batch.RemainingQuantity}, Requested: {quantity}");
+			}
+
+			batch.RemainingQuantity -= quantity;
+			_batchRepository.Update(batch);
+		}
 	}
 }

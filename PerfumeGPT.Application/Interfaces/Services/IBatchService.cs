@@ -1,4 +1,3 @@
-using PerfumeGPT.Application.DTOs.Requests.Base;
 using PerfumeGPT.Application.DTOs.Requests.Imports;
 using PerfumeGPT.Application.DTOs.Requests.Inventory;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -73,7 +72,25 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		/// <param name="batchId">The batch ID</param>
 		/// <returns>Batch details</returns>
 		Task<BaseResponse<BatchResponse>> GetBatchByIdAsync(Guid batchId);
-}
+
+		/// <summary>
+		/// Increases batch quantity (used for stock adjustments).
+		/// NOTE: Does NOT call SaveChanges - caller must save changes (transaction orchestrator).
+		/// </summary>
+		/// <param name="batchId">The batch ID to increase</param>
+		/// <param name="quantity">The quantity to add</param>
+		/// <returns>Task</returns>
+		Task IncreaseBatchQuantityAsync(Guid batchId, int quantity);
+
+		/// <summary>
+		/// Decreases batch quantity (used for stock adjustments).
+		/// NOTE: Does NOT call SaveChanges - caller must save changes (transaction orchestrator).
+		/// </summary>
+		/// <param name="batchId">The batch ID to decrease</param>
+		/// <param name="quantity">The quantity to subtract</param>
+		/// <returns>Task</returns>
+		Task DecreaseBatchQuantityAsync(Guid batchId, int quantity);
+	}
 
 
 }

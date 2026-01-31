@@ -19,7 +19,13 @@ namespace PerfumeGPT.API.Controllers
 			_configuration = configuration;
 		}
 
+		/// <summary>
+		/// Handle VNPay payment callback
+		/// </summary>
 		[HttpGet("vnpay-return")]
+		[ProducesResponseType(StatusCodes.Status200OK)]
+		[ProducesResponseType(StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(StatusCodes.Status404NotFound)]
 		public async Task<IActionResult> HandleVnPayCallback()
 		{
 			// Update payment status based on VNPay return query parameters
@@ -102,21 +108,41 @@ namespace PerfumeGPT.API.Controllers
 			//return Redirect(redirectUrl);
 		}
 
+		/// <summary>
+		/// Retry a failed payment with optional new payment method
+		/// </summary>
 		[HttpPost("retry/{paymentId:guid}")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> RetryPayment(Guid paymentId, [FromBody] PaymentInformation? newMethod = null)
 		{
 			var response = await _paymentService.RetryPaymentWithMethodAsync(paymentId, newMethod);
 			return HandleResponse(response);
 		}
 
+		/// <summary>
+		/// Change payment method for a pending payment
+		/// </summary>
 		[HttpPut("change-method/{paymentId:guid}")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> ChangePaymentMethod(Guid paymentId, [FromBody] PaymentInformation newMethod)
 		{
 			var response = await _paymentService.ChangePaymentMethodAsync(paymentId, newMethod);
 			return HandleResponse(response);
 		}
 
+		/// <summary>
+		/// Confirm payment status (success or failure)
+		/// </summary>
 		[HttpPut("confirm/{paymentId:guid}")]
+		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<bool>>> ConfirmPayment(Guid paymentId, [FromQuery] bool isSuccess = true, [FromQuery] string? failureReason = null)
 		{
 			var response = await _paymentService.UpdatePaymentStatusAsync(paymentId, isSuccess, failureReason);

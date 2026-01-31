@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -179,6 +179,8 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<ShippingInfo> ShippingInfos { get; set; }
 		public DbSet<RecipientInfo> RecipientInfos { get; set; }
 		public DbSet<Media> Media { get; set; }
+		public DbSet<StockAdjustment> StockAdjustments { get; set; }
+		public DbSet<StockAdjustmentDetail> StockAdjustmentDetails { get; set; }
 
 
 		protected override void OnModelCreating(ModelBuilder builder)
@@ -232,6 +234,20 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasOne(it => it.VerifiedByUser)
 				.WithMany()
 				.HasForeignKey(it => it.VerifiedById)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// User -> StockAdjustments (1:M)
+			builder.Entity<User>()
+				.HasMany(u => u.StockAdjustments)
+				.WithOne(sa => sa.CreatedByUser)
+				.HasForeignKey(sa => sa.CreatedById)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// User -> StockAdjustments as Verifier (1:M)
+			builder.Entity<StockAdjustment>()
+				.HasOne(sa => sa.VerifiedByUser)
+				.WithMany()
+				.HasForeignKey(sa => sa.VerifiedById)
 				.OnDelete(DeleteBehavior.Restrict);
 
 			// User -> Notifications (1:M)
@@ -290,6 +306,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasMany(d => d.Batches)
 				.WithOne(b => b.ImportDetail)
 				.HasForeignKey(b => b.ImportDetailId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// StockAdjustment -> StockAdjustmentDetail (1:M)
+			builder.Entity<StockAdjustment>()
+				.HasMany(sa => sa.AdjustmentDetails)
+				.WithOne(d => d.StockAdjustment)
+				.HasForeignKey(d => d.StockAdjustmentId)
 				.OnDelete(DeleteBehavior.Cascade);
 
 			// Product -> Variants (1:M)
@@ -357,6 +380,20 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasMany(v => v.ImportDetails)
 				.WithOne(d => d.ProductVariant)
 				.HasForeignKey(d => d.ProductVariantId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// Variant -> StockAdjustmentDetail (1:M)
+			builder.Entity<ProductVariant>()
+				.HasMany(v => v.StockAdjustmentDetails)
+				.WithOne(d => d.ProductVariant)
+				.HasForeignKey(d => d.ProductVariantId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// Batch -> StockAdjustmentDetail (1:M)
+			builder.Entity<Batch>()
+				.HasMany(b => b.StockAdjustmentDetails)
+				.WithOne(d => d.Batch)
+				.HasForeignKey(d => d.BatchId)
 				.OnDelete(DeleteBehavior.Restrict);
 
 			// Cart -> CartItems (1:M)
@@ -500,115 +537,15 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<UserVoucher>().Property(uv => uv.Status).HasConversion<string>();
 			builder.Entity<ShippingInfo>().Property(s => s.CarrierName).HasConversion<string>();
 			builder.Entity<Media>().Property(m => m.EntityType).HasConversion<string>();
+			builder.Entity<StockAdjustment>().Property(sa => sa.Status).HasConversion<string>();
+			builder.Entity<StockAdjustment>().Property(sa => sa.Reason).HasConversion<string>();
 
 			// Seed roles
-			builder.Entity<IdentityRole<Guid>>().HasData(SeedingRoles());
+			builder.Entity<IdentityRole<Guid>>().HasData(PerfumeDbContextSeed.SeedingRoles());
 			// Seed users
-			builder.Entity<User>().HasData(SeedingUsers());
+			builder.Entity<User>().HasData(PerfumeDbContextSeed.SeedingUsers());
 			// Seed user roles
-			builder.Entity<IdentityUserRole<Guid>>().HasData(SeedingUserRoles());
-		}
-
-		private ICollection<IdentityRole<Guid>> SeedingRoles()
-		{
-			return new List<IdentityRole<Guid>>()
-			{
-				new IdentityRole<Guid>
-				{
-					Id = Guid.Parse("3631e38b-60dd-4d1a-af7f-a26f21c2ef82"),
-					Name = "admin",
-					NormalizedName = "ADMIN",
-					ConcurrencyStamp = "seed-1"
-				},
-				new IdentityRole<Guid>
-				{
-					Id = Guid.Parse("51ef7e08-ff07-459b-8c55-c7ebac505103"),
-					Name = "user",
-					NormalizedName = "USER",
-					ConcurrencyStamp = "seed-2"
-				},
-				new IdentityRole<Guid>
-				{
-					Id = Guid.Parse("8f6e1c3d-2d3b-4f4a-9f4a-2e5d6c7b8a9b"),
-					Name = "staff",
-					NormalizedName = "STAFF",
-					ConcurrencyStamp = "seed-3"
-				}
-			};
-		}
-
-		private ICollection<User> SeedingUsers()
-		{
-			// Pre-computed password hashes for "12345aA@" to avoid dynamic values
-			// You can generate these by running: new PasswordHasher<User>().HashPassword(null, "12345aA@")
-			var admin = new User
-			{
-				Id = Guid.Parse("33f41895-b601-4aa1-8dc4-8229a9d07008"),
-				UserName = "admin",
-				NormalizedUserName = "ADMIN",
-				Email = "admin@example.com",
-				NormalizedEmail = "ADMIN@EXAMPLE.COM",
-				EmailConfirmed = true,
-				PasswordHash = "AQAAAAIAAYagAAAAEKHinnJYz3sNmgoyw1lyOSf143VtvFvyCDcYcupcT7XK7Hf+J3UFoVZMKadVq3YmOA==",
-				SecurityStamp = "seed-4",
-				ConcurrencyStamp = "seed-5",
-				CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-				UpdatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-			};
-
-			var user = new User
-			{
-				Id = Guid.Parse("09097277-2705-40c2-bce5-51dbd1f4c1e6"),
-				UserName = "user",
-				NormalizedUserName = "USER",
-				Email = "user@example.com",
-				NormalizedEmail = "USER@EXAMPLE.COM",
-				EmailConfirmed = true,
-				PasswordHash = "AQAAAAIAAYagAAAAEKHinnJYz3sNmgoyw1lyOSf143VtvFvyCDcYcupcT7XK7Hf+J3UFoVZMKadVq3YmOA==",
-				SecurityStamp = "seed-6",
-				ConcurrencyStamp = "seed-7",
-				CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-				UpdatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-			};
-
-			var staff = new User
-			{
-				Id = Guid.Parse("09097277-5555-40c2-bce5-51dbd1f4c1e6"),
-				UserName = "staff",
-				NormalizedUserName = "STAFF",
-				Email = "staff@example.com",
-				NormalizedEmail = "STAFF@EXAMPLE.COM",
-				EmailConfirmed = true,
-				PasswordHash = "AQAAAAIAAYagAAAAEKHinnJYz3sNmgoyw1lyOSf143VtvFvyCDcYcupcT7XK7Hf+J3UFoVZMKadVq3YmOA==",
-				SecurityStamp = "seed-8",
-				ConcurrencyStamp = "seed-9",
-				CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-				UpdatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-			};
-
-			return new List<User> { admin, user, staff };
-		}
-
-		private ICollection<IdentityUserRole<Guid>> SeedingUserRoles()
-		{
-			return new List<IdentityUserRole<Guid>>
-			{
-				new IdentityUserRole<Guid>
-				{
-					UserId = Guid.Parse("33f41895-b601-4aa1-8dc4-8229a9d07008"),
-					RoleId = Guid.Parse("3631e38b-60dd-4d1a-af7f-a26f21c2ef82")
-				},
-				new IdentityUserRole<Guid>
-				{
-					UserId = Guid.Parse("09097277-2705-40c2-bce5-51dbd1f4c1e6"),
-					RoleId = Guid.Parse("51ef7e08-ff07-459b-8c55-c7ebac505103")
-				},
-				new IdentityUserRole<Guid>
-				{
-					UserId = Guid.Parse("09097277-5555-40c2-bce5-51dbd1f4c1e6"),
-					RoleId = Guid.Parse("8f6e1c3d-2d3b-4f4a-9f4a-2e5d6c7b8a9b")
-				}
-			};
+			builder.Entity<IdentityUserRole<Guid>>().HasData(PerfumeDbContextSeed.SeedingUserRoles());
 		}
 	}
 }

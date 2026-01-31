@@ -5,7 +5,6 @@ using PerfumeGPT.Application.DTOs.Requests.Inventory;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Inventory;
 using PerfumeGPT.Application.Interfaces.Services;
-using System.Net;
 
 namespace PerfumeGPT.API.Controllers
 {
@@ -27,8 +26,8 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet("stock")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<StockResponse>>), (int)HttpStatusCode.OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<StockResponse>>), (int)HttpStatusCode.InternalServerError)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<StockResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<StockResponse>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<PagedResult<StockResponse>>>> GetInventory([FromQuery] GetInventoryRequest request)
 		{
 			var response = await _stockService.GetInventoryAsync(request);
@@ -40,9 +39,9 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet("stock/variant/{variantId:guid}")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<StockResponse>), (int)HttpStatusCode.OK)]
-		[ProducesResponseType(typeof(BaseResponse<StockResponse>), (int)HttpStatusCode.NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<StockResponse>), (int)HttpStatusCode.InternalServerError)]
+		[ProducesResponseType(typeof(BaseResponse<StockResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<StockResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<StockResponse>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<StockResponse>>> GetStockByVariantId(Guid variantId)
 		{
 			var response = await _stockService.GetStockByVariantIdAsync(variantId);
@@ -54,8 +53,8 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet("batches")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<BatchResponse>>), (int)HttpStatusCode.OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<BatchResponse>>), (int)HttpStatusCode.InternalServerError)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<BatchResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<BatchResponse>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<PagedResult<BatchResponse>>>> GetBatches([FromQuery] GetBatchesRequest request)
 		{
 			var response = await _batchService.GetBatchesAsync(request);
@@ -67,8 +66,8 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet("batches/variant/{variantId:guid}")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<List<BatchResponse>>), (int)HttpStatusCode.OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<BatchResponse>>), (int)HttpStatusCode.InternalServerError)]
+		[ProducesResponseType(typeof(BaseResponse<List<BatchResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<BatchResponse>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<List<BatchResponse>>>> GetBatchesByVariantId(Guid variantId)
 		{
 			var response = await _batchService.GetBatchesByVariantIdAsync(variantId);
@@ -80,9 +79,9 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet("batches/{batchId:guid}")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<BatchResponse>), (int)HttpStatusCode.OK)]
-		[ProducesResponseType(typeof(BaseResponse<BatchResponse>), (int)HttpStatusCode.NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<BatchResponse>), (int)HttpStatusCode.InternalServerError)]
+		[ProducesResponseType(typeof(BaseResponse<BatchResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<BatchResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<BatchResponse>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<BatchResponse>>> GetBatchById(Guid batchId)
 		{
 			var response = await _batchService.GetBatchByIdAsync(batchId);
@@ -94,8 +93,8 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet("summary")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<InventorySummaryResponse>), (int)HttpStatusCode.OK)]
-		[ProducesResponseType(typeof(BaseResponse<InventorySummaryResponse>), (int)HttpStatusCode.InternalServerError)]
+		[ProducesResponseType(typeof(BaseResponse<InventorySummaryResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<InventorySummaryResponse>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<InventorySummaryResponse>>> GetInventorySummary()
 		{
 			var response = await _stockService.GetInventorySummaryAsync();

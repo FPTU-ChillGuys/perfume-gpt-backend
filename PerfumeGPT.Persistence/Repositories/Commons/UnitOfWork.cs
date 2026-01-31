@@ -222,6 +222,34 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 		}
 	}
 
+	public IStockAdjustmentRepository StockAdjustments
+	{
+		get
+		{
+			var key = typeof(IStockAdjustmentRepository);
+			if (!_repositories.TryGetValue(key, out var repo))
+			{
+				repo = new StockAdjustmentRepository(_context);
+				_repositories[key] = repo!;
+			}
+			return (IStockAdjustmentRepository)repo!;
+		}
+	}
+
+	public IStockAdjustmentDetailRepository StockAdjustmentDetails
+	{
+		get
+		{
+			var key = typeof(IStockAdjustmentDetailRepository);
+			if (!_repositories.TryGetValue(key, out var repo))
+			{
+				repo = new StockAdjustmentDetailRepository(_context);
+				_repositories[key] = repo!;
+			}
+			return (IStockAdjustmentDetailRepository)repo!;
+		}
+	}
+
 		public UnitOfWork(PerfumeDbContext context)
 		{
 			_context = context ?? throw new ArgumentNullException(nameof(context));

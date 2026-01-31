@@ -17,6 +17,8 @@
 	IReceiptRepository Receipts { get; }
 	IVoucherRepository Vouchers { get; }
 	IUserVoucherRepository UserVouchers { get; }
+	IStockAdjustmentRepository StockAdjustments { get; }
+	IStockAdjustmentDetailRepository StockAdjustmentDetails { get; }
 
 		/// <summary>
 		/// Save changes and return true if one or more rows were affected.

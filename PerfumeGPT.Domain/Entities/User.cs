@@ -17,6 +17,7 @@ namespace PerfumeGPT.Domain.Entities
         public virtual LoyaltyPoint? LoyaltyPoint { get; set; }
         public virtual ICollection<Address> Addresses { get; set; } = [];
         public virtual ICollection<ImportTicket> ImportTickets { get; set; } = [];
+        public virtual ICollection<StockAdjustment> StockAdjustments { get; set; } = [];
         public virtual ICollection<Notification> Notifications { get; set; } = [];
         public virtual ICollection<UserVoucher> UserVouchers { get; set; } = [];
         public virtual Cart? Cart { get; set; }
