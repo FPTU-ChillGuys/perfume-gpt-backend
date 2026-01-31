@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.SemanticKernel;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
@@ -197,6 +198,18 @@ namespace PerfumeGPT.Infrastructure.Extensions
 
 				services.AddScoped(match, impl);
 			}
+		}
+
+		public static void AddSemanticKernelServices(this IServiceCollection services, IConfiguration configuration)
+		{
+			var openAIApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "";
+
+			var kernalBulder = services.AddKernel();
+
+#pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+			kernalBulder.AddOpenAIEmbeddingGenerator(modelId: "text-embedding-3-small", apiKey: openAIApiKey, dimensions: 1024);
+#pragma warning restore SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
 		}
 	}
 }

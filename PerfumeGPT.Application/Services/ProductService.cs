@@ -286,5 +286,32 @@ namespace PerfumeGPT.Application.Services
 			var result = await _mediaService.GetMediaByEntityAsync(EntityType.Product, productId);
 			return result;
 		}
-	}
+
+        public async Task<BaseResponse<PagedResult<ProductListItem>>> GetSemanticSearchProductAsync(string searchText, GetPagedProductRequest request)
+        {
+            var (items, totalCount) = await _productRepo.GetPagedProductsWithSemanticSearch(searchText, request);
+
+            var productList = _mapper.Map<List<ProductListItem>>(items ?? new List<Product>());
+
+            var pagedResult = new PagedResult<ProductListItem>(
+                productList,
+                request.PageNumber,
+                request.PageSize,
+                totalCount);
+
+            return BaseResponse<PagedResult<ProductListItem>>.Ok(pagedResult, "Semantic search products retrieved successfully");
+        }
+
+        public async Task<BaseResponse> UpdateAllProductsEmbeddingAsync()
+        {
+            await _productRepo.AddAllProductEmbeddingsAsync();
+            return BaseResponse.Ok("All product embeddings updated successfully");
+        }
+
+        public async Task<BaseResponse> UpdateProductEmbeddingAsync(Guid productId)
+        {
+            await _productRepo.AddProductEmbeddingsAsync(productId);
+            return BaseResponse.Ok("Product embedding updated successfully");
+        }
+    }
 }

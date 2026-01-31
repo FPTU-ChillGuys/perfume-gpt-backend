@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260130160714_UpdateDB2")]
+    partial class UpdateDB2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1028,91 +1031,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.ToTable("Stocks");
                 });
 
-            modelBuilder.Entity("PerfumeGPT.Domain.Entities.StockAdjustment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("AdjustmentDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("CreatedById")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid?>("VerifiedById")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedById");
-
-                    b.HasIndex("VerifiedById");
-
-                    b.ToTable("StockAdjustments");
-                });
-
-            modelBuilder.Entity("PerfumeGPT.Domain.Entities.StockAdjustmentDetail", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("AdjustmentQuantity")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ApprovedQuantity")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("BatchId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("ProductVariantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("StockAdjustmentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BatchId");
-
-                    b.HasIndex("ProductVariantId");
-
-                    b.HasIndex("StockAdjustmentId");
-
-                    b.ToTable("StockAdjustmentDetails");
-                });
-
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Supplier", b =>
                 {
                     b.Property<int>("Id")
@@ -1758,51 +1676,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("ProductVariant");
                 });
 
-            modelBuilder.Entity("PerfumeGPT.Domain.Entities.StockAdjustment", b =>
-                {
-                    b.HasOne("PerfumeGPT.Domain.Entities.User", "CreatedByUser")
-                        .WithMany("StockAdjustments")
-                        .HasForeignKey("CreatedById")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PerfumeGPT.Domain.Entities.User", "VerifiedByUser")
-                        .WithMany()
-                        .HasForeignKey("VerifiedById")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("CreatedByUser");
-
-                    b.Navigation("VerifiedByUser");
-                });
-
-            modelBuilder.Entity("PerfumeGPT.Domain.Entities.StockAdjustmentDetail", b =>
-                {
-                    b.HasOne("PerfumeGPT.Domain.Entities.Batch", "Batch")
-                        .WithMany("StockAdjustmentDetails")
-                        .HasForeignKey("BatchId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PerfumeGPT.Domain.Entities.ProductVariant", "ProductVariant")
-                        .WithMany("StockAdjustmentDetails")
-                        .HasForeignKey("ProductVariantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PerfumeGPT.Domain.Entities.StockAdjustment", "StockAdjustment")
-                        .WithMany("AdjustmentDetails")
-                        .HasForeignKey("StockAdjustmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Batch");
-
-                    b.Navigation("ProductVariant");
-
-                    b.Navigation("StockAdjustment");
-                });
-
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.UserVoucher", b =>
                 {
                     b.HasOne("PerfumeGPT.Domain.Entities.User", "User")
@@ -1825,8 +1698,6 @@ namespace PerfumeGPT.Persistence.Migrations
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Batch", b =>
                 {
                     b.Navigation("Notifications");
-
-                    b.Navigation("StockAdjustmentDetails");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Brand", b =>
@@ -1907,18 +1778,11 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.Navigation("Stock")
                         .IsRequired();
-
-                    b.Navigation("StockAdjustmentDetails");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Stock", b =>
                 {
                     b.Navigation("Notifications");
-                });
-
-            modelBuilder.Entity("PerfumeGPT.Domain.Entities.StockAdjustment", b =>
-                {
-                    b.Navigation("AdjustmentDetails");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Supplier", b =>
@@ -1941,8 +1805,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("Notifications");
 
                     b.Navigation("Orders");
-
-                    b.Navigation("StockAdjustments");
 
                     b.Navigation("UserVouchers");
                 });
