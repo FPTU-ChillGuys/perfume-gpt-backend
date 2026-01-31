@@ -1,6 +1,6 @@
 using PerfumeGPT.Domain.Commons.Audits;
 
-namespace PerfumeGPT.Persistence.Services
+namespace PerfumeGPT.Persistence.Repositories.Commons
 {
 	public class AuditScope : IAuditScope
 	{

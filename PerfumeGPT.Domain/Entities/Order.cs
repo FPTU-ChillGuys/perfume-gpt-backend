@@ -14,11 +14,15 @@ namespace PerfumeGPT.Domain.Entities
 		public PaymentStatus PaymentStatus { get; set; }
 		public string? ExternalShopeeId { get; set; }
 		public Guid? VoucherId { get; set; }
+		public DateTime? PaymentExpiresAt { get; set; }
+		public DateTime? PaidAt { get; set; }
+		public bool IsExpired => !PaidAt.HasValue && PaymentExpiresAt.HasValue && DateTime.UtcNow > PaymentExpiresAt.Value;
 
 		// Navigation
 		public virtual User? Customer { get; set; }
 		public virtual User? Staff { get; set; } = null!;
 		public virtual ICollection<OrderDetail> OrderDetails { get; set; } = [];
+		public virtual ICollection<StockReservation> StockReservations { get; set; } = [];
 		public virtual ICollection<Notification> Notifications { get; set; } = [];
 		public virtual ICollection<PaymentTransaction> PaymentTransactions { get; set; } = null!;
 		public virtual ShippingInfo? ShippingInfo { get; set; }

@@ -12,17 +12,19 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
-	public async Task<List<CartItem>> GetCartItemByCartIdAsync(Guid cartId)
-	{
-		var items = await _context.CartItems
-			.Include(ci => ci.ProductVariant)
-				.ThenInclude(pv => pv.Product)
-			.Include(ci => ci.ProductVariant)
-				.ThenInclude(pv => pv.Media.Where(m => !m.IsDeleted && m.IsPrimary))
-			.Where(ci => ci.CartId == cartId)
-			.ToListAsync();
+		public async Task<List<CartItem>> GetCartItemByCartIdAsync(Guid cartId)
+		{
+			var items = await _context.CartItems
+				.Include(ci => ci.ProductVariant)
+					.ThenInclude(pv => pv.Product)
+				.Include(pv => pv.ProductVariant)
+					.ThenInclude(pv => pv.Concentration)
+				.Include(ci => ci.ProductVariant)
+					.ThenInclude(pv => pv.Media.Where(m => !m.IsDeleted && m.IsPrimary))
+				.Where(ci => ci.CartId == cartId)
+				.ToListAsync();
 
-		return items;
-	}
+			return items;
+		}
 	}
 }

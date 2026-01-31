@@ -20,6 +20,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IVoucherService _voucherService;
 		private readonly IAuditScope _auditScope;
+		private readonly IStockReservationService _stockReservationService;
 
 		public PaymentService(
 			IVnPayService vnPayService,
@@ -27,7 +28,8 @@ namespace PerfumeGPT.Application.Services
 			ILoyaltyPointService loyaltyPointService,
 			IHttpContextAccessor httpContextAccessor,
 			IVoucherService voucherService,
-			IAuditScope auditScope)
+			IAuditScope auditScope,
+			IStockReservationService stockReservationService)
 		{
 			_vnPayService = vnPayService;
 			_unitOfWork = unitOfWork;
@@ -35,6 +37,7 @@ namespace PerfumeGPT.Application.Services
 			_httpContextAccessor = httpContextAccessor;
 			_voucherService = voucherService;
 			_auditScope = auditScope;
+			_stockReservationService = stockReservationService;
 		}
 
 		public async Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, bool isSuccess, string? failureReason = null)
@@ -295,6 +298,20 @@ namespace PerfumeGPT.Application.Services
 		{
 			payment.TransactionStatus = TransactionStatus.Success;
 			order.PaymentStatus = PaymentStatus.Paid;
+			order.PaidAt = DateTime.UtcNow;
+
+			// Commit stock reservation for online orders (convert reserved to actual deduction)
+			if (order.Type == OrderType.Online)
+			{
+				var commitResult = await _stockReservationService.CommitReservationAsync(order.Id);
+				if (!commitResult.Success)
+				{
+					return BaseResponse<bool>.Fail(
+						commitResult.Message ?? "Failed to commit stock reservation.",
+						commitResult.ErrorType);
+				}
+			}
+
 			if (order.VoucherId.HasValue)
 			{
 				var voucherResult = await _voucherService.MarkVoucherAsUsedAsync(order.VoucherId.Value, order.Id);
@@ -389,6 +406,6 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		private string GenerateReceiptNumber() => $"RCP-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper()}";
+		private static string GenerateReceiptNumber() => $"RCP-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper()}";
 	}
 }

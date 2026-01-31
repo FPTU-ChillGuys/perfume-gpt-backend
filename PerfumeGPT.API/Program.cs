@@ -9,6 +9,7 @@ using PerfumeGPT.Persistence.Contexts;
 using Scalar.AspNetCore;
 using System.Text.Json.Serialization;
 using System.Text.Json.Nodes;
+using Hangfire;
 
 // Load .env file (search upward from current directory) and set environment variables
 static string? FindDotEnv(string startDir)
@@ -111,6 +112,13 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Configure Hangfire Dashboard
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+	Authorization = []
+	// For production, use: Authorization = new[] { new HangfireAuthorizationFilter() }
+});
 
 app.MapControllers();
 

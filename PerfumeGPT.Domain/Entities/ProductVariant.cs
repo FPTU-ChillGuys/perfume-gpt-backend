@@ -9,8 +9,8 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid ProductId { get; set; }
 		public string Barcode { get; set; } = null!;
 		public string Sku { get; set; } = null!;
-		public int VolumeMl { get; set; } // (30ml / 50ml / 100ml / etc.)
-		public int ConcentrationId { get; set; } // (Eau de Parfum / Eau de Toilette / etc.)
+		public int VolumeMl { get; set; }
+		public int ConcentrationId { get; set; }
 		public VariantType Type { get; set; }
 		public decimal BasePrice { get; set; }
 		public VariantStatus Status { get; set; }
@@ -21,6 +21,7 @@ namespace PerfumeGPT.Domain.Entities
         public virtual ICollection<ImportDetail> ImportDetails { get; set; } = [];
         public virtual ICollection<StockAdjustmentDetail> StockAdjustmentDetails { get; set; } = [];
         public virtual ICollection<Batch> Batches { get; set; } = [];
+        public virtual ICollection<StockReservation> StockReservations { get; set; } = [];
         public virtual Stock Stock { get; set; } = null!;
         public virtual ICollection<CartItem> CartItems { get; set; } = [];
         public virtual ICollection<OrderDetail> OrderDetails { get; set; } = [];

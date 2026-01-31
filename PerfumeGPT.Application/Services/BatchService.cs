@@ -105,8 +105,7 @@ namespace PerfumeGPT.Application.Services
 			var batches = await _batchRepository.GetAvailableBatchesByVariantAsync(variantId);
 
 			var totalAvailable = batches
-				.Where(b => b.ExpiryDate >= DateTime.UtcNow)
-				.Sum(b => b.RemainingQuantity);
+				.Sum(b => b.AvailableInBatch);
 
 			return totalAvailable >= requiredQuantity;
 		}

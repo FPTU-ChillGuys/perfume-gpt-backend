@@ -250,6 +250,20 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 		}
 	}
 
+	public IStockReservationRepository StockReservations
+	{
+		get
+		{
+			var key = typeof(IStockReservationRepository);
+			if (!_repositories.TryGetValue(key, out var repo))
+			{
+				repo = new StockReservationRepository(_context);
+				_repositories[key] = repo!;
+			}
+			return (IStockReservationRepository)repo!;
+		}
+	}
+
 		public UnitOfWork(PerfumeDbContext context)
 		{
 			_context = context ?? throw new ArgumentNullException(nameof(context));

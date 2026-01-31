@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Hangfire;
+using Hangfire.SqlServer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -11,10 +13,10 @@ using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Infrastructure.BackgroundJobs;
 using PerfumeGPT.Infrastructure.ThirdParties;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
-using PerfumeGPT.Persistence.Services;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -61,6 +63,26 @@ namespace PerfumeGPT.Infrastructure.Extensions
 					options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure());
 				}
 			});
+
+			// Configure Hangfire for background jobs
+			services.AddHangfire(config => config
+				.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+				.UseSimpleAssemblyNameTypeSerializer()
+				.UseRecommendedSerializerSettings()
+				.UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+				{
+					CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+					SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+					QueuePollInterval = TimeSpan.Zero,
+					UseRecommendedIsolationLevel = true,
+					DisableGlobalLocks = true
+				}));
+
+			services.AddHangfireServer();
+
+			// Register background job classes
+			services.AddScoped<StockReservationJob>();
+			services.AddHostedService<StartupJobScheduler>();
 
 			// Configure ASP.NET Core Identity using the application's User entity and GUID roles
 			services.AddIdentity<User, IdentityRole<Guid>>(options =>

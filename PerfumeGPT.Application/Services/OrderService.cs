@@ -24,6 +24,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IOrderShippingHelper _shippingHelper;
 		private readonly IOrderValidationService _validationService;
 		private readonly IOrderDetailsFactory _orderDetailsFactory;
+		private readonly IStockReservationService _stockReservationService;
 
 		public OrderService(
 			IUnitOfWork unitOfWork,
@@ -36,7 +37,8 @@ namespace PerfumeGPT.Application.Services
 			IOrderInventoryManager inventoryManager,
 			IOrderShippingHelper shippingHelper,
 			IOrderValidationService validationService,
-			IOrderDetailsFactory orderDetailsFactory)
+			IOrderDetailsFactory orderDetailsFactory,
+			IStockReservationService stockReservationService)
 		{
 			_unitOfWork = unitOfWork;
 			_cartService = cartService;
@@ -49,6 +51,7 @@ namespace PerfumeGPT.Application.Services
 			_shippingHelper = shippingHelper;
 			_validationService = validationService;
 			_orderDetailsFactory = orderDetailsFactory;
+			_stockReservationService = stockReservationService;
 		}
 
 		public async Task<BaseResponse<string>> Checkout(Guid userId, CreateOrderRequest request)
@@ -105,6 +108,13 @@ namespace PerfumeGPT.Application.Services
 							orderDetailsResult.ErrorType);
 					}
 
+					// Set payment expiration based on payment method
+					var paymentExpiresAt = DateTime.UtcNow.AddDays(1); // default payment expiration time for staff to process
+					if (request.Payment.Method == PaymentMethod.VnPay)
+					{
+						paymentExpiresAt = DateTime.UtcNow.AddMinutes(15); // vnpay payment expiration time
+					}
+
 					var order = new Order
 					{
 						CustomerId = userId,
@@ -114,49 +124,43 @@ namespace PerfumeGPT.Application.Services
 						ExternalShopeeId = request.ExternalShopeeId,
 						VoucherId = request.VoucherId,
 						TotalAmount = cartResponse.Payload.TotalPrice,
+						PaymentExpiresAt = paymentExpiresAt,
 						OrderDetails = orderDetailsResult.Payload
 					};
 
 					await _unitOfWork.Orders.AddAsync(order);
 					// Don't save yet - let transaction handle it at the end
 
-				if (!request.IsPickupInStore)
-				{
-					var shippingResult = await _shippingHelper.SetupShippingInfoAsync(
-						order.Id,
-						request.Recipient,
-						userId,
-						cartResponse.Payload.ShippingFee);
-
-					if (!shippingResult.Success)
+					if (!request.IsPickupInStore)
 					{
-						return BaseResponse<string>.Fail(
-							shippingResult.Message ?? "Failed to setup shipping info.",
-							shippingResult.ErrorType);
-					}
+						var shippingResult = await _shippingHelper.SetupShippingInfoAsync(
+							order.Id,
+							request.Recipient,
+							userId,
+							cartResponse.Payload.ShippingFee);
 
-					// Create GHN shipping order
-					var recipientInfo = await _unitOfWork.RecipientInfos.GetByOrderIdAsync(order.Id);
-					if (recipientInfo != null)
-					{
-						var ghnOrderResult = await _shippingHelper.CreateGHNShippingOrderAsync(order, recipientInfo);
-						// Log if GHN order creation fails but don't stop the checkout process
-						if (!ghnOrderResult.Success)
+						if (!shippingResult.Success)
 						{
-							Console.WriteLine($"Warning: Failed to create GHN order: {ghnOrderResult.Message}");
+							return BaseResponse<string>.Fail(
+								shippingResult.Message ?? "Failed to setup shipping info.",
+								shippingResult.ErrorType);
 						}
 					}
-				}
 
-					var deductionResult = await _inventoryManager.DeductInventoryAsync(itemsToValidate);
-					if (!deductionResult.Success)
+					// Reserve stock instead of deducting immediately (for online orders)
+					var reservationResult = await _stockReservationService.ReserveStockForOrderAsync(
+						order.Id,
+						itemsToValidate,
+						paymentExpiresAt);
+
+					if (!reservationResult.Success)
 					{
 						return BaseResponse<string>.Fail(
-							deductionResult.Message ?? "Inventory deduction failed.",
-							deductionResult.ErrorType);
+							reservationResult.Message ?? "Stock reservation failed.",
+							reservationResult.ErrorType);
 					}
 
-					// Mark voucher as used if provided
+					// Mark voucher as reserved if provided
 					if (request.VoucherId.HasValue && request.VoucherId.Value != Guid.Empty)
 					{
 						var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(
@@ -317,28 +321,28 @@ namespace PerfumeGPT.Application.Services
 				foreach (var barcode in request.BarCodes)
 				{
 					var variantResponse = await _variantService.GetVariantByBarcodeAsync(barcode);
-				if (!variantResponse.Success || variantResponse.Payload == null)
-				{
-					return BaseResponse<PreviewOrderResponse>.Fail($"Product with barcode {barcode} not found.", ResponseErrorType.NotFound);
-				}
-
-				var variant = variantResponse.Payload;
-				var quantity = request.BarCodes.Count(b => b == barcode);
-				var itemTotal = variant.BasePrice * quantity;
-				subtotal += itemTotal;
-
-				if (!items.Any(i => i.VariantId == variant.Id))
-				{
-					items.Add(new OrderDetailListItems
+					if (!variantResponse.Success || variantResponse.Payload == null)
 					{
-						VariantId = variant.Id,
-						VariantName = $"{variant.Sku} - {variant.VolumeMl}ml - {variant.ConcentrationName} - {variant.Type}",
-						ImageUrl = variant.Media?.FirstOrDefault(m => m.IsPrimary)?.Url ?? string.Empty,
-						Quantity = quantity,
-						Total = (int)itemTotal
-					});
+						return BaseResponse<PreviewOrderResponse>.Fail($"Product with barcode {barcode} not found.", ResponseErrorType.NotFound);
+					}
+
+					var variant = variantResponse.Payload;
+					var quantity = request.BarCodes.Count(b => b == barcode);
+					var itemTotal = variant.BasePrice * quantity;
+					subtotal += itemTotal;
+
+					if (!items.Any(i => i.VariantId == variant.Id))
+					{
+						items.Add(new OrderDetailListItems
+						{
+							VariantId = variant.Id,
+							VariantName = $"{variant.Sku} - {variant.VolumeMl}ml - {variant.ConcentrationName} - {variant.Type}",
+							ImageUrl = variant.Media?.FirstOrDefault(m => m.IsPrimary)?.Url ?? string.Empty,
+							Quantity = quantity,
+							Total = (int)itemTotal
+						});
+					}
 				}
-			}
 
 				decimal shippingFee = 0;
 				if (!string.IsNullOrEmpty(request.WardCode) && request.DistrictId > 0)
@@ -423,20 +427,48 @@ namespace PerfumeGPT.Application.Services
 						}
 					}
 
+					// Create GHN shipping order when status is updated to Processing (for online orders with shipping)
+					if (request.Status == OrderStatus.Processing && order.Type == OrderType.Online && order.ShippingInfo != null)
+					{
+						var recipientInfo = await _unitOfWork.RecipientInfos.GetByOrderIdAsync(order.Id);
+						if (recipientInfo != null)
+						{
+							var ghnOrderResult = await _shippingHelper.CreateGHNShippingOrderAsync(order, recipientInfo);
+							if (!ghnOrderResult.Success)
+							{
+								Console.WriteLine($"Warning: Failed to create GHN order: {ghnOrderResult.Message}");
+							}
+						}
+					}
+
 					// Handle order cancellation
 					if (request.Status == OrderStatus.Canceled)
 					{
-						// Restore inventory
-						var itemsToRestore = order.OrderDetails
-							.Select(od => (od.VariantId, od.Quantity))
-							.ToList();
-
-						var restoreResult = await _inventoryManager.RestoreInventoryAsync(itemsToRestore);
-						if (!restoreResult.Success)
+						// Release reservations for online orders, restore inventory for offline orders
+						if (order.Type == OrderType.Online)
 						{
-							return BaseResponse<string>.Fail(
-								restoreResult.Message ?? "Failed to restore inventory.",
-								restoreResult.ErrorType);
+							var releaseResult = await _stockReservationService.ReleaseReservationAsync(order.Id);
+							if (!releaseResult.Success)
+							{
+								return BaseResponse<string>.Fail(
+									releaseResult.Message ?? "Failed to release stock reservation.",
+									releaseResult.ErrorType);
+							}
+						}
+						else
+						{
+							// For offline orders, restore inventory
+							var itemsToRestore = order.OrderDetails
+								.Select(od => (od.VariantId, od.Quantity))
+								.ToList();
+
+							var restoreResult = await _inventoryManager.RestoreInventoryAsync(itemsToRestore);
+							if (!restoreResult.Success)
+							{
+								return BaseResponse<string>.Fail(
+									restoreResult.Message ?? "Failed to restore inventory.",
+									restoreResult.ErrorType);
+							}
 						}
 
 						// Release voucher if it was used (only for online orders with customers)

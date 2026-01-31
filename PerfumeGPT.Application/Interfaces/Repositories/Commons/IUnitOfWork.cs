@@ -19,6 +19,7 @@
 	IUserVoucherRepository UserVouchers { get; }
 	IStockAdjustmentRepository StockAdjustments { get; }
 	IStockAdjustmentDetailRepository StockAdjustmentDetails { get; }
+	IStockReservationRepository StockReservations { get; }
 
 		/// <summary>
 		/// Save changes and return true if one or more rows were affected.

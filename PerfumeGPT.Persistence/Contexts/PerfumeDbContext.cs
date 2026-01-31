@@ -181,6 +181,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<Media> Media { get; set; }
 		public DbSet<StockAdjustment> StockAdjustments { get; set; }
 		public DbSet<StockAdjustmentDetail> StockAdjustmentDetails { get; set; }
+		public DbSet<StockReservation> StockReservations { get; set; }
 
 
 		protected override void OnModelCreating(ModelBuilder builder)
@@ -415,6 +416,40 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(od => od.OrderId)
 				.OnDelete(DeleteBehavior.Cascade);
 
+			// Order -> StockReservations (1:M)
+			builder.Entity<Order>()
+				.HasMany(o => o.StockReservations)
+				.WithOne(sr => sr.Order)
+				.HasForeignKey(sr => sr.OrderId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// Batch -> StockReservations (1:M)
+			builder.Entity<Batch>()
+				.HasMany(b => b.StockReservations)
+				.WithOne(sr => sr.Batch)
+				.HasForeignKey(sr => sr.BatchId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// ProductVariant -> StockReservations (1:M)
+			builder.Entity<ProductVariant>()
+				.HasMany(pv => pv.StockReservations)
+				.WithOne(sr => sr.ProductVariant)
+				.HasForeignKey(sr => sr.VariantId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// Indexes for StockReservation
+			builder.Entity<StockReservation>()
+				.HasIndex(sr => new { sr.OrderId, sr.Status });
+
+			builder.Entity<StockReservation>()
+				.HasIndex(sr => new { sr.Status, sr.ExpiresAt });
+
+			builder.Entity<StockReservation>()
+				.HasIndex(sr => sr.BatchId);
+
+			builder.Entity<StockReservation>()
+				.HasIndex(sr => sr.VariantId);
+
 			// Order <-> PaymentTransaction (1:M)
 			builder.Entity<Order>()
 				.HasMany(o => o.PaymentTransactions)
@@ -533,6 +568,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<ShippingInfo>().Property(s => s.Status).HasConversion<string>();
 			builder.Entity<Order>().Property(o => o.Status).HasConversion<string>();
 			builder.Entity<Order>().Property(o => o.PaymentStatus).HasConversion<string>();
+			builder.Entity<Order>().Property(o => o.Type).HasConversion<string>();
 			builder.Entity<ImportTicket>().Property(it => it.Status).HasConversion<string>();
 			builder.Entity<Notification>().Property(n => n.Type).HasConversion<string>();
 			builder.Entity<Product>().Property(p => p.Gender).HasConversion<string>();
@@ -544,6 +580,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Media>().Property(m => m.EntityType).HasConversion<string>();
 			builder.Entity<StockAdjustment>().Property(sa => sa.Status).HasConversion<string>();
 			builder.Entity<StockAdjustment>().Property(sa => sa.Reason).HasConversion<string>();
+			builder.Entity<StockReservation>().Property(sr => sr.Status).HasConversion<string>();
 
 			// Seed roles
 			builder.Entity<IdentityRole<Guid>>().HasData(PerfumeDbContextSeed.SeedingRoles());
