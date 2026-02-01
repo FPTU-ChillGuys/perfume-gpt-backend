@@ -261,10 +261,52 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 				_repositories[key] = repo!;
 			}
 			return (IStockReservationRepository)repo!;
+	}
+}
+
+	public IReviewRepository Reviews
+	{
+		get
+		{
+			var key = typeof(IReviewRepository);
+			if (!_repositories.TryGetValue(key, out var repo))
+			{
+				repo = new ReviewRepository(_context);
+				_repositories[key] = repo!;
+			}
+			return (IReviewRepository)repo!;
 		}
 	}
 
-		public UnitOfWork(PerfumeDbContext context)
+	public ITemporaryMediaRepository TemporaryMedia
+	{
+		get
+		{
+			var key = typeof(ITemporaryMediaRepository);
+			if (!_repositories.TryGetValue(key, out var repo))
+			{
+				repo = new TemporaryMediaRepository(_context);
+				_repositories[key] = repo!;
+			}
+			return (ITemporaryMediaRepository)repo!;
+		}
+	}
+
+	public IMediaRepository Media
+	{
+		get
+		{
+			var key = typeof(IMediaRepository);
+			if (!_repositories.TryGetValue(key, out var repo))
+			{
+				repo = new MediaRepository(_context);
+				_repositories[key] = repo!;
+			}
+			return (IMediaRepository)repo!;
+		}
+	}
+
+	public UnitOfWork(PerfumeDbContext context)
 		{
 			_context = context ?? throw new ArgumentNullException(nameof(context));
 		}

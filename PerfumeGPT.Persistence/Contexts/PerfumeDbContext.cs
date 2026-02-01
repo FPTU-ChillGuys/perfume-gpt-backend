@@ -182,6 +182,8 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<StockAdjustment> StockAdjustments { get; set; }
 		public DbSet<StockAdjustmentDetail> StockAdjustmentDetails { get; set; }
 		public DbSet<StockReservation> StockReservations { get; set; }
+		public DbSet<Review> Reviews { get; set; }
+		public DbSet<TemporaryMedia> TemporaryMedia { get; set; }
 
 
 		protected override void OnModelCreating(ModelBuilder builder)
@@ -530,9 +532,26 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(m => m.ProductVariantId)
 				.OnDelete(DeleteBehavior.Restrict);
 
-			// Ignore the computed EntityId property from mapping
-			builder.Entity<Media>()
-				.Ignore(m => m.EntityId);
+			// Review -> User (M:1)
+			builder.Entity<Review>()
+				.HasOne(r => r.User)
+				.WithMany(u => u.Reviews)
+				.HasForeignKey(r => r.UserId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// Review -> OrderDetail (1:1)
+			builder.Entity<Review>()
+				.HasOne(r => r.OrderDetail)
+				.WithOne(od => od.Review)
+				.HasForeignKey<Review>(r => r.OrderDetailId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// Review -> ModeratedByStaff (M:1, nullable)
+			builder.Entity<Review>()
+				.HasOne(r => r.ModeratedByStaff)
+				.WithMany(u => u.ModeratedReviews)
+				.HasForeignKey(r => r.ModeratedByStaffId)
+				.OnDelete(DeleteBehavior.Restrict);
 
 			// Create indexes for efficient queries
 			builder.Entity<Media>()
@@ -541,9 +560,40 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Media>()
 				.HasIndex(m => new { m.EntityType, m.ProductVariantId });
 
+			builder.Entity<Media>()
+				.HasIndex(m => new { m.EntityType, m.ReviewId });
+
 			// Create index on IsPrimary for quick primary image lookup
 			builder.Entity<Media>()
 				.HasIndex(m => m.IsPrimary);
+
+			// Review indexes
+			builder.Entity<Review>()
+				.HasIndex(r => r.UserId);
+
+			builder.Entity<Review>()
+				.HasIndex(r => r.OrderDetailId)
+				.IsUnique();
+
+			builder.Entity<Review>()
+				.HasIndex(r => r.Status);
+
+			builder.Entity<Review>()
+				.HasIndex(r => r.Rating);
+
+			// TemporaryMedia -> User (M:1, nullable)
+			builder.Entity<TemporaryMedia>()
+				.HasOne(tm => tm.UploadedByUser)
+				.WithMany()
+				.HasForeignKey(tm => tm.UploadedByUserId)
+				.OnDelete(DeleteBehavior.SetNull);
+
+			// TemporaryMedia indexes
+			builder.Entity<TemporaryMedia>()
+				.HasIndex(tm => tm.ExpiresAt);
+
+			builder.Entity<TemporaryMedia>()
+				.HasIndex(tm => tm.UploadedByUserId);
 
 			// Configure decimal precision/scale to avoid default truncation warnings
 			builder.Entity<CustomerProfile>().Property(cp => cp.MinBudget).HasPrecision(18, 2);
@@ -581,6 +631,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<StockAdjustment>().Property(sa => sa.Status).HasConversion<string>();
 			builder.Entity<StockAdjustment>().Property(sa => sa.Reason).HasConversion<string>();
 			builder.Entity<StockReservation>().Property(sr => sr.Status).HasConversion<string>();
+			builder.Entity<Review>().Property(r => r.Status).HasConversion<string>();
 
 			// Seed roles
 			builder.Entity<IdentityRole<Guid>>().HasData(PerfumeDbContextSeed.SeedingRoles());

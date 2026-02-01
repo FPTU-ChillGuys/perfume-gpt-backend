@@ -13,5 +13,6 @@ namespace PerfumeGPT.Domain.Entities
 		// Navigation
 		public virtual Order Order { get; set; } = null!;
 		public virtual ProductVariant ProductVariant { get; set; } = null!;
+		public virtual Review? Review { get; set; }
 	}
 }

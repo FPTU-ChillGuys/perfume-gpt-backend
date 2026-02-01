@@ -7,9 +7,11 @@
 		string GetPublicUrl(string filePath, string bucketName);
 		Task<string?> UploadProductImageAsync(Stream fileStream, string fileName);
 		Task<string?> UploadVariantImageAsync(Stream fileStream, string fileName);
+		Task<string?> UploadPreviewImageAsync(Stream fileStream, string fileName);
 		Task<string?> UploadAvatarImageAsync(Stream fileStream, string fileName);
 		Task<bool> DeleteProductImageAsync(string filePath);
 		Task<bool> DeleteVariantImageAsync(string filePath);
+		Task<bool> DeletePreviewImageAsync(string filePath);
 		Task<bool> DeleteAvatarImageAsync(string filePath);
 	}
 }

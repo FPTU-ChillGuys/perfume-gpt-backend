@@ -78,13 +78,14 @@ namespace PerfumeGPT.Infrastructure.Extensions
 					DisableGlobalLocks = true
 				}));
 
-			services.AddHangfireServer();
+		services.AddHangfireServer();
 
-			// Register background job classes
-			services.AddScoped<StockReservationJob>();
-			services.AddHostedService<StartupJobScheduler>();
+		// Register background job classes
+		services.AddScoped<StockReservationJob>();
+		services.AddScoped<TemporaryMediaCleanupJob>();
+		services.AddHostedService<StartupJobScheduler>();
 
-			// Configure ASP.NET Core Identity using the application's User entity and GUID roles
+		// Configure ASP.NET Core Identity using the application's User entity and GUID roles
 			services.AddIdentity<User, IdentityRole<Guid>>(options =>
 			{
 				// Basic password / user settings - tweak as necessary for your environment

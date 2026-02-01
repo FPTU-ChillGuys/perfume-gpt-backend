@@ -18,7 +18,8 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				ApiKey = configuration["SUPABASE__API_KEY"] ?? configuration["Supabase:API_KEY"] ?? string.Empty,
 				BucketProductName = configuration["SUPABASE__BUCKET_Product_NAME"] ?? configuration["Supabase:BucketProductName"] ?? "Products",
 				BucketVariantName = configuration["SUPABASE__BUCKET_Variant_NAME"] ?? configuration["Supabase:BucketVariantName"] ?? "ProductVariants",
-				BucketAvatarName = configuration["SUPABASE__BUCKET_Avatar_NAME"] ?? configuration["Supabase:BucketAvatarName"] ?? "ProfileAvatars"
+				BucketAvatarName = configuration["SUPABASE__BUCKET_Avatar_NAME"] ?? configuration["Supabase:BucketAvatarName"] ?? "ProfileAvatars",
+				BucketPreviewName = configuration["SUPABASE__BUCKET_Preview_NAME"] ?? configuration["Supabase:BucketPreviewName"] ?? "Previews"
 			};
 
 			if (string.IsNullOrWhiteSpace(_settings.Url) || string.IsNullOrWhiteSpace(_settings.ApiKey))
@@ -120,6 +121,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			return await UploadImageAsync(fileStream, fileName, _settings.BucketProductName);
 		}
 
+		public async Task<string?> UploadPreviewImageAsync(Stream fileStream, string fileName)
+		{
+			return await UploadImageAsync(fileStream, fileName, _settings.BucketPreviewName);
+		}
+
 		public async Task<string?> UploadAvatarImageAsync(Stream fileStream, string fileName)
 		{
 			return await UploadImageAsync(fileStream, fileName, _settings.BucketAvatarName);
@@ -135,12 +141,17 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			return await DeleteImageAsync(filePath, _settings.BucketProductName);
 		}
 
+		public async Task<bool> DeletePreviewImageAsync(string filePath)
+		{
+			return await DeleteImageAsync(filePath, _settings.BucketPreviewName);
+		}
+
 		public async Task<bool> DeleteAvatarImageAsync(string filePath)
 		{
 			return await DeleteImageAsync(filePath, _settings.BucketAvatarName);
 		}
 
-		private string ExtractFileNameFromUrl(string url)
+		private static string ExtractFileNameFromUrl(string url)
 		{
 			try
 			{

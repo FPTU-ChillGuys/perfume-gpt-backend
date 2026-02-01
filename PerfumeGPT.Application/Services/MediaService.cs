@@ -1,7 +1,9 @@
 using MapsterMapper;
+using PerfumeGPT.Application.DTOs.Requests.Media;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
@@ -13,15 +15,18 @@ namespace PerfumeGPT.Application.Services
 	{
 		private readonly IMediaRepository _mediaRepo;
 		private readonly ISupabaseService _supabaseService;
+		private readonly IUnitOfWork _unitOfWork;
 		private readonly IMapper _mapper;
 
 		public MediaService(
 			IMediaRepository mediaRepo,
 			ISupabaseService supabaseService,
+			IUnitOfWork unitOfWork,
 			IMapper mapper)
 		{
 			_mediaRepo = mediaRepo;
 			_supabaseService = supabaseService;
+			_unitOfWork = unitOfWork;
 			_mapper = mapper;
 		}
 
@@ -210,6 +215,7 @@ namespace PerfumeGPT.Application.Services
 				EntityType.Product => "Products",
 				EntityType.ProductVariant => "ProductVariants",
 				EntityType.User => "ProfileAvatars",
+				EntityType.Review => "Reviews",
 				_ => "Products"
 			};
 		}
@@ -240,6 +246,283 @@ namespace PerfumeGPT.Application.Services
 				".svg" => "image/svg+xml",
 				_ => null
 			};
+		}
+
+		// ==================== TEMPORARY MEDIA METHODS ====================
+
+		public async Task<BaseResponse<List<TemporaryMediaResponse>>> UploadTemporaryMediaAsync(Guid? userId, ReviewUploadMediaRequest request, EntityType targetEntityType = EntityType.Review)
+		{
+			var uploadedMedia = new List<TemporaryMediaResponse>();
+			var errors = new List<string>();
+
+			// Auto-assign display order based on list index
+			for (int i = 0; i < request.Images.Count; i++)
+			{
+				var imageFile = request.Images[i];
+
+				if (imageFile == null || imageFile.Length == 0)
+				{
+					continue;
+				}
+
+				// Validate file type
+				var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+				var extension = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
+				if (!allowedExtensions.Contains(extension))
+				{
+					errors.Add($"Invalid image format for {imageFile.FileName}. Allowed: jpg, jpeg, png, gif, webp");
+					continue;
+				}
+
+				// Validate file size (max 5MB)
+				const long maxFileSize = 5 * 1024 * 1024;
+				if (imageFile.Length > maxFileSize)
+				{
+					errors.Add($"Image size must be less than 5MB for {imageFile.FileName}");
+					continue;
+				}
+
+				try
+				{
+					// Upload to temporary bucket (different buckets based on entity type)
+					using var stream = imageFile.OpenReadStream();
+					var url = await _supabaseService.UploadPreviewImageAsync(stream, imageFile.FileName);
+
+					if (string.IsNullOrEmpty(url))
+					{
+						errors.Add($"Failed to upload {imageFile.FileName}");
+						continue;
+					}
+
+					// Create temporary media record
+					var tempMedia = new TemporaryMedia
+					{
+						Url = url,
+						AltText = null,
+						DisplayOrder = i,
+						PublicId = ExtractFileNameFromUrl(url),
+						FileSize = imageFile.Length,
+						MimeType = GetMimeType(imageFile.FileName),
+						UploadedByUserId = userId,
+						TargetEntityType = targetEntityType, // Track target entity
+						ExpiresAt = DateTime.UtcNow.AddHours(24),
+					};
+
+					await _unitOfWork.TemporaryMedia.AddAsync(tempMedia);
+					await _unitOfWork.SaveChangesAsync();
+
+					var response = _mapper.Map<TemporaryMediaResponse>(tempMedia);
+					uploadedMedia.Add(response);
+				}
+				catch (Exception ex)
+				{
+					errors.Add($"Failed to upload {imageFile.FileName}: {ex.Message}");
+				}
+			}
+
+			if (uploadedMedia.Count == 0)
+			{
+				return BaseResponse<List<TemporaryMediaResponse>>.Fail(
+					"Failed to upload any images",
+					ResponseErrorType.BadRequest,
+					errors
+				);
+			}
+
+			return BaseResponse<List<TemporaryMediaResponse>>.Ok(
+				uploadedMedia,
+				$"Successfully uploaded {uploadedMedia.Count} temporary image(s). They will expire in 24 hours."
+			);
+		}
+
+		public async Task<BaseResponse<string>> DeleteTemporaryMediaAsync(Guid temporaryMediaId)
+		{
+			var tempMedia = await _unitOfWork.TemporaryMedia.GetByIdAsync(temporaryMediaId);
+			if (tempMedia == null)
+			{
+				return BaseResponse<string>.Fail("Temporary media not found", ResponseErrorType.NotFound);
+			}
+
+			if (!string.IsNullOrEmpty(tempMedia.PublicId))
+			{
+				await _supabaseService.DeletePreviewImageAsync(tempMedia.PublicId);
+			}
+
+			_unitOfWork.TemporaryMedia.Remove(tempMedia);
+			await _unitOfWork.SaveChangesAsync();
+
+			return BaseResponse<string>.Ok("Temporary media deleted successfully");
+		}
+
+		public async Task<BaseResponse<List<TemporaryMediaResponse>>> GetUserTemporaryMediaAsync(Guid userId)
+		{
+			var tempMedia = await _unitOfWork.TemporaryMedia.GetByUserIdAsync(userId);
+			var response = _mapper.Map<List<TemporaryMediaResponse>>(tempMedia);
+			return BaseResponse<List<TemporaryMediaResponse>>.Ok(response);
+		}
+
+		/// <summary>
+		/// Upload temporary media for Products (with IsPrimary and DisplayOrder)
+		/// </summary>
+		public async Task<BaseResponse<List<TemporaryMediaResponse>>> UploadTemporaryProductMediaAsync(Guid? userId, ProductUploadMediaRequest request)
+		{
+			var uploadedMedia = new List<TemporaryMediaResponse>();
+			var errors = new List<string>();
+
+			foreach (var imageRequest in request.Images)
+			{
+				if (imageRequest.ImageFile == null || imageRequest.ImageFile.Length == 0)
+				{
+					continue;
+				}
+
+				// Validate file type
+				var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+				var extension = Path.GetExtension(imageRequest.ImageFile.FileName).ToLowerInvariant();
+				if (!allowedExtensions.Contains(extension))
+				{
+					errors.Add($"Invalid image format for {imageRequest.ImageFile.FileName}. Allowed: jpg, jpeg, png, gif, webp");
+					continue;
+				}
+
+				// Validate file size (max 5MB)
+				const long maxFileSize = 5 * 1024 * 1024;
+				if (imageRequest.ImageFile.Length > maxFileSize)
+				{
+					errors.Add($"Image size must be less than 5MB for {imageRequest.ImageFile.FileName}");
+					continue;
+				}
+
+				try
+				{
+					// Upload to temporary bucket
+					using var stream = imageRequest.ImageFile.OpenReadStream();
+					var url = await _supabaseService.UploadPreviewImageAsync(stream, imageRequest.ImageFile.FileName);
+
+					if (string.IsNullOrEmpty(url))
+					{
+						errors.Add($"Failed to upload {imageRequest.ImageFile.FileName}");
+						continue;
+					}
+
+					// Create temporary media record WITH metadata
+					var tempMedia = new TemporaryMedia
+					{
+						Url = url,
+						AltText = imageRequest.AltText,
+						DisplayOrder = imageRequest.DisplayOrder, // User-specified order
+						IsPrimary = imageRequest.IsPrimary, // Store IsPrimary flag
+						PublicId = ExtractFileNameFromUrl(url),
+						FileSize = imageRequest.ImageFile.Length,
+						MimeType = GetMimeType(imageRequest.ImageFile.FileName),
+						UploadedByUserId = userId,
+						TargetEntityType = EntityType.Product,
+						ExpiresAt = DateTime.UtcNow.AddHours(24),
+					};
+
+					await _unitOfWork.TemporaryMedia.AddAsync(tempMedia);
+					await _unitOfWork.SaveChangesAsync();
+
+					var response = _mapper.Map<TemporaryMediaResponse>(tempMedia);
+					uploadedMedia.Add(response);
+				}
+				catch (Exception ex)
+				{
+					errors.Add($"Failed to upload {imageRequest.ImageFile.FileName}: {ex.Message}");
+				}
+			}
+
+			if (uploadedMedia.Count == 0)
+			{
+				return BaseResponse<List<TemporaryMediaResponse>>.Fail(
+					"Failed to upload any images",
+					ResponseErrorType.BadRequest,
+					errors
+				);
+			}
+
+			return BaseResponse<List<TemporaryMediaResponse>>.Ok(
+				uploadedMedia,
+				$"Successfully uploaded {uploadedMedia.Count} temporary image(s). They will expire in 24 hours."
+			);
+		}
+
+		/// <summary>
+		/// Upload temporary media for Variant (single image only)
+		/// </summary>
+		public async Task<BaseResponse<TemporaryMediaResponse>> UploadTemporaryVariantMediaAsync(Guid? userId, VariantUploadMediaRequest request)
+		{
+			if (request.ImageFile == null || request.ImageFile.Length == 0)
+			{
+				return BaseResponse<TemporaryMediaResponse>.Fail("Image file is required", ResponseErrorType.BadRequest);
+			}
+
+			// Validate file type
+			var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+			var extension = Path.GetExtension(request.ImageFile.FileName).ToLowerInvariant();
+			if (!allowedExtensions.Contains(extension))
+			{
+				return BaseResponse<TemporaryMediaResponse>.Fail(
+					$"Invalid image format. Allowed: jpg, jpeg, png, gif, webp",
+					ResponseErrorType.BadRequest
+				);
+			}
+
+			// Validate file size (max 5MB)
+			const long maxFileSize = 5 * 1024 * 1024;
+			if (request.ImageFile.Length > maxFileSize)
+			{
+				return BaseResponse<TemporaryMediaResponse>.Fail(
+					"Image size must be less than 5MB",
+					ResponseErrorType.BadRequest
+				);
+			}
+
+			try
+			{
+				// Upload to temporary bucket
+				using var stream = request.ImageFile.OpenReadStream();
+				var url = await _supabaseService.UploadPreviewImageAsync(stream, request.ImageFile.FileName);
+
+				if (string.IsNullOrEmpty(url))
+				{
+					return BaseResponse<TemporaryMediaResponse>.Fail(
+						"Failed to upload image",
+						ResponseErrorType.InternalError
+					);
+				}
+
+				// Create temporary media record
+				var tempMedia = new TemporaryMedia
+				{
+					Url = url,
+					AltText = null,
+					DisplayOrder = 0,
+					IsPrimary = true, // Variant only has one image, so it's always primary
+					PublicId = ExtractFileNameFromUrl(url),
+					FileSize = request.ImageFile.Length,
+					MimeType = GetMimeType(request.ImageFile.FileName),
+					UploadedByUserId = userId,
+					TargetEntityType = EntityType.ProductVariant,
+					ExpiresAt = DateTime.UtcNow.AddHours(24),
+				};
+
+				await _unitOfWork.TemporaryMedia.AddAsync(tempMedia);
+				await _unitOfWork.SaveChangesAsync();
+
+				var response = _mapper.Map<TemporaryMediaResponse>(tempMedia);
+				return BaseResponse<TemporaryMediaResponse>.Ok(
+					response,
+					"Temporary image uploaded successfully. It will expire in 24 hours."
+				);
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<TemporaryMediaResponse>.Fail(
+					$"Failed to upload image: {ex.Message}",
+					ResponseErrorType.InternalError
+				);
+			}
 		}
 	}
 }

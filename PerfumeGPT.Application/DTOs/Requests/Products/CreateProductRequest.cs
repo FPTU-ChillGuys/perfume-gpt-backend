@@ -13,5 +13,8 @@ namespace PerfumeGPT.Application.DTOs.Requests.Products
 		public string? TopNotes { get; set; }
 		public string? MiddleNotes { get; set; }
 		public string? BaseNotes { get; set; }
+		
+		// Upload First Pattern: Images uploaded to temporary storage first
+		public List<Guid>? TemporaryMediaIds { get; set; }
 	}
 }

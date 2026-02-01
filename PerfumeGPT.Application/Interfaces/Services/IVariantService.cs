@@ -1,6 +1,6 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.Base;
-using PerfumeGPT.Application.DTOs.Requests.Variants;
+﻿using PerfumeGPT.Application.DTOs.Requests.Variants;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Domain.Entities;
 
@@ -12,9 +12,10 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<ProductVariantResponse>> GetVariantByIdAsync(Guid variantId);
 		Task<BaseResponse<ProductVariantResponse>> GetVariantByBarcodeAsync(string barcode);
 		Task<BaseResponse<List<VariantLookupItem>>> GetVariantLookupListAsync(Guid? productId = null);
-		Task<BaseResponse<string>> CreateVariantAsync(CreateVariantRequest request, FileUpload? imageFile);
-		Task<BaseResponse<string>> UpdateVariantAsync(Guid variantId, UpdateVariantRequest request, FileUpload? imageFile);
+		Task<BaseResponse<string>> CreateVariantAsync(CreateVariantRequest request);
+		Task<BaseResponse<string>> UpdateVariantAsync(Guid variantId, UpdateVariantRequest request);
 		Task<BaseResponse<string>> DeleteVariantAsync(Guid variantId);
+		Task<BaseResponse<List<MediaResponse>>> GetVariantImagesAsync(Guid variantId);
 
 		/// <summary>
 		/// Validates if a product variant is available for adding to cart.

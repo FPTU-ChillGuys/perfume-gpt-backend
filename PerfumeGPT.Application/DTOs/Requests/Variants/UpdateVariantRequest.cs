@@ -10,6 +10,9 @@ namespace PerfumeGPT.Application.DTOs.Requests.Variants
 		public VariantType Type { get; set; }
 		public decimal BasePrice { get; set; }
 		public VariantStatus Status { get; set; }
+
+		// Upload First Pattern: Replace existing image
+		public Guid? TemporaryMediaIdToReplace { get; set; }
 	}
 }
 

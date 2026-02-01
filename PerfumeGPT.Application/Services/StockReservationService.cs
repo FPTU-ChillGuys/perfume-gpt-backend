@@ -111,6 +111,20 @@ namespace PerfumeGPT.Application.Services
 						ResponseErrorType.NotFound);
 				}
 
+				// Calculate total reserved quantities per variant BEFORE changing status
+				var variantIds = reservations.Select(r => r.VariantId).Distinct();
+				var reservedByVariant = new Dictionary<Guid, int>();
+
+				foreach (var variantId in variantIds)
+				{
+					var totalReserved = reservations
+						.Where(r => r.VariantId == variantId && r.Status == ReservationStatus.Reserved)
+						.Sum(r => r.ReservedQuantity);
+
+					reservedByVariant[variantId] = totalReserved;
+				}
+
+				// Update batches and reservation statuses
 				foreach (var reservation in reservations)
 				{
 					if (reservation.Status != ReservationStatus.Reserved)
@@ -129,13 +143,12 @@ namespace PerfumeGPT.Application.Services
 					_unitOfWork.StockReservations.Update(reservation);
 				}
 
-				// Update stock: decrease both reserved and total quantities
-				var variantIds = reservations.Select(r => r.VariantId).Distinct();
+				// Update stock: decrease both reserved and total quantities using pre-calculated totals
 				foreach (var variantId in variantIds)
 				{
-					var totalReserved = reservations
-						.Where(r => r.VariantId == variantId && r.Status == ReservationStatus.Reserved)
-						.Sum(r => r.ReservedQuantity);
+					var totalReserved = reservedByVariant[variantId];
+
+					if (totalReserved <= 0) continue;
 
 					var stock = await _unitOfWork.Stocks
 						.FirstOrDefaultAsync(s => s.VariantId == variantId);
@@ -174,13 +187,13 @@ namespace PerfumeGPT.Application.Services
 				// Calculate total reserved quantities per variant BEFORE changing status
 				var variantIds = reservations.Select(r => r.VariantId).Distinct();
 				var reservedByVariant = new Dictionary<Guid, int>();
-				
+
 				foreach (var variantId in variantIds)
 				{
 					var totalReserved = reservations
 						.Where(r => r.VariantId == variantId && r.Status == ReservationStatus.Reserved)
 						.Sum(r => r.ReservedQuantity);
-					
+
 					reservedByVariant[variantId] = totalReserved;
 				}
 
@@ -206,7 +219,7 @@ namespace PerfumeGPT.Application.Services
 				foreach (var variantId in variantIds)
 				{
 					var totalReserved = reservedByVariant[variantId];
-					
+
 					if (totalReserved <= 0) continue;
 
 					var stock = await _unitOfWork.Stocks
@@ -235,6 +248,27 @@ namespace PerfumeGPT.Application.Services
 			try
 			{
 				var expiredReservations = await _unitOfWork.StockReservations.GetExpiredReservationsAsync();
+
+				if (!expiredReservations.Any())
+				{
+					return BaseResponse<int>.Ok(0, "No expired reservations to process.");
+				}
+
+				// Calculate total reserved quantities per variant BEFORE changing status
+				var variantIds = expiredReservations.Select(r => r.VariantId).Distinct();
+				var reservedByVariant = new Dictionary<Guid, int>();
+
+				foreach (var variantId in variantIds)
+				{
+					var totalReserved = expiredReservations
+						.Where(r => r.VariantId == variantId && r.Status == ReservationStatus.Reserved)
+						.Sum(r => r.ReservedQuantity);
+
+					reservedByVariant[variantId] = totalReserved;
+				}
+
+				// Collect affected orders for status update
+				var affectedOrders = new HashSet<Guid>();
 				var count = 0;
 
 				foreach (var reservation in expiredReservations)
@@ -244,7 +278,7 @@ namespace PerfumeGPT.Application.Services
 						continue;
 					}
 
-					// Release the reservation
+					// Update batch: decrease reserved quantity
 					var batch = reservation.Batch;
 					batch.ReservedQuantity -= reservation.ReservedQuantity;
 					_unitOfWork.Batches.Update(batch);
@@ -252,24 +286,43 @@ namespace PerfumeGPT.Application.Services
 					reservation.Status = ReservationStatus.Released;
 					_unitOfWork.StockReservations.Update(reservation);
 
-					// Update stock
-					var stock = await _unitOfWork.Stocks
-						.FirstOrDefaultAsync(s => s.VariantId == reservation.VariantId);
-
-					if (stock != null)
-					{
-						stock.ReservedQuantity -= reservation.ReservedQuantity;
-						_unitOfWork.Stocks.Update(stock);
-					}
-
-					// Update order status if needed
+					// Track order for cancellation
 					if (reservation.Order != null && reservation.Order.Status == OrderStatus.Pending)
 					{
-						reservation.Order.Status = OrderStatus.Canceled;
-						_unitOfWork.Orders.Update(reservation.Order);
+						affectedOrders.Add(reservation.OrderId);
 					}
 
 					count++;
+				}
+
+				// Update stock: decrease reserved quantity using pre-calculated totals
+				foreach (var variantId in variantIds)
+				{
+					var totalReserved = reservedByVariant[variantId];
+
+					if (totalReserved <= 0) continue;
+
+					var stock = await _unitOfWork.Stocks
+						.FirstOrDefaultAsync(s => s.VariantId == variantId);
+
+					if (stock != null)
+					{
+						stock.ReservedQuantity -= totalReserved;
+						_unitOfWork.Stocks.Update(stock);
+					}
+				}
+
+				// Update affected orders to Canceled status
+				foreach (var orderId in affectedOrders)
+				{
+					var order = await _unitOfWork.Orders
+						.FirstOrDefaultAsync(o => o.Id == orderId);
+
+					if (order != null && order.Status == OrderStatus.Pending)
+					{
+						order.Status = OrderStatus.Canceled;
+						_unitOfWork.Orders.Update(order);
+					}
 				}
 
 				if (count > 0)

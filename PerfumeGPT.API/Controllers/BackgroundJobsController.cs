@@ -39,25 +39,36 @@ namespace PerfumeGPT.API.Controllers
 				result.ErrorType));
 		}
 
-		/// <summary>
-		/// Trigger the background job immediately (for testing)
-		/// </summary>
-		[HttpPost("trigger-job")]
-		[Authorize(Roles = "Admin")]
-		public IActionResult TriggerJob()
-		{
-			BackgroundJob.Enqueue<StockReservationJob>(job => job.ProcessExpiredReservationsAsync());
-			return Ok(BaseResponse<string>.Ok("Background job triggered successfully."));
-		}
-
-		/// <summary>
-		/// Get Hangfire dashboard URL
-		/// </summary>
-		[HttpGet("dashboard-url")]
-		public IActionResult GetDashboardUrl()
-		{
-			var baseUrl = $"{Request.Scheme}://{Request.Host}";
-			return Ok(BaseResponse<string>.Ok($"{baseUrl}/hangfire"));
-		}
+	/// <summary>
+	/// Trigger the background job immediately (for testing)
+	/// </summary>
+	[HttpPost("trigger-job")]
+	[Authorize(Roles = "Admin")]
+	public IActionResult TriggerJob()
+	{
+		BackgroundJob.Enqueue<StockReservationJob>(job => job.ProcessExpiredReservationsAsync());
+		return Ok(BaseResponse<string>.Ok("Background job triggered successfully."));
 	}
+
+	/// <summary>
+	/// Manually trigger temporary media cleanup (for testing)
+	/// </summary>
+	[HttpPost("cleanup-temporary-media")]
+	[Authorize(Roles = "Admin")]
+	public IActionResult CleanupTemporaryMedia()
+	{
+		BackgroundJob.Enqueue<TemporaryMediaCleanupJob>(job => job.CleanupExpiredMediaAsync());
+		return Ok(BaseResponse<string>.Ok("Temporary media cleanup job triggered successfully."));
+	}
+
+	/// <summary>
+	/// Get Hangfire dashboard URL
+	/// </summary>
+	[HttpGet("dashboard-url")]
+	public IActionResult GetDashboardUrl()
+	{
+		var baseUrl = $"{Request.Scheme}://{Request.Host}";
+		return Ok(BaseResponse<string>.Ok($"{baseUrl}/hangfire"));
+	}
+}
 }
