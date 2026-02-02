@@ -14,11 +14,11 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<MediaResponse?>> GetPrimaryMediaAsync(EntityType entityType, Guid entityId);
 		Task<BaseResponse<string>> DeleteAllMediaByEntityAsync(EntityType entityType, Guid entityId);
 
-	// Temporary media methods
-	Task<BaseResponse<List<TemporaryMediaResponse>>> UploadTemporaryMediaAsync(Guid? userId, ReviewUploadMediaRequest request, EntityType targetEntityType = EntityType.Review);
-	Task<BaseResponse<List<TemporaryMediaResponse>>> UploadTemporaryProductMediaAsync(Guid? userId, ProductUploadMediaRequest request);
-	Task<BaseResponse<TemporaryMediaResponse>> UploadTemporaryVariantMediaAsync(Guid? userId, VariantUploadMediaRequest request);
-	Task<BaseResponse<string>> DeleteTemporaryMediaAsync(Guid temporaryMediaId);
-	Task<BaseResponse<List<TemporaryMediaResponse>>> GetUserTemporaryMediaAsync(Guid userId);
+		// Temporary media methods
+		Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadTemporaryMediaAsync(Guid? userId, ReviewUploadMediaRequest request, EntityType targetEntityType = EntityType.Review);
+		Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadTemporaryProductMediaAsync(Guid? userId, ProductUploadMediaRequest request);
+		Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadTemporaryVariantMediaAsync(Guid? userId, VariantUploadMediaRequest request);
+		Task<BaseResponse<string>> DeleteTemporaryMediaAsync(Guid temporaryMediaId);
+		Task<BaseResponse<List<TemporaryMediaResponse>>> GetUserTemporaryMediaAsync(Guid userId);
 	}
 }

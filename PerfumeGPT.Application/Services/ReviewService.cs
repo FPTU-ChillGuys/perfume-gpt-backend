@@ -39,13 +39,13 @@ namespace PerfumeGPT.Application.Services
 			_mapper = mapper;
 		}
 
-		public async Task<BaseResponse<Guid>> CreateReviewAsync(Guid userId, CreateReviewRequest request)
+		public async Task<BaseResponse<BulkActionResult<Guid>>> CreateReviewAsync(Guid userId, CreateReviewRequest request)
 		{
 			// Validate request
 			var validationResult = await _createValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 			{
-				return BaseResponse<Guid>.Fail(
+				return BaseResponse<BulkActionResult<Guid>>.Fail(
 					"Validation failed",
 					ResponseErrorType.BadRequest,
 					[.. validationResult.Errors.Select(e => e.ErrorMessage)]
@@ -56,7 +56,7 @@ namespace PerfumeGPT.Application.Services
 			var canReview = await _unitOfWork.Reviews.CanUserReviewOrderDetailAsync(userId, request.OrderDetailId);
 			if (!canReview)
 			{
-				return BaseResponse<Guid>.Fail(
+				return BaseResponse<BulkActionResult<Guid>>.Fail(
 					"You cannot review this item. Either you haven't purchased it, the order is not delivered yet, or you've already reviewed it.",
 					ResponseErrorType.BadRequest
 				);
@@ -72,23 +72,33 @@ namespace PerfumeGPT.Application.Services
 
 			if (!saved)
 			{
-				return BaseResponse<Guid>.Fail("Failed to create review", ResponseErrorType.InternalError);
+				return BaseResponse<BulkActionResult<Guid>>.Fail("Failed to create review", ResponseErrorType.InternalError);
 			}
 
+			var metadata = new BulkActionMetadata();
 			if (request.TemporaryMediaIds != null && request.TemporaryMediaIds.Count != 0)
 			{
-				await ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIds, review.Id);
+				var conversionResult = await ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIds, review.Id);
+				if (conversionResult.TotalProcessed > 0)
+				{
+					metadata.Operations.Add(BulkOperationResult.FromBulkActionResponse("Media Upload", conversionResult));
+				}
 			}
 
-			return BaseResponse<Guid>.Ok(review.Id, "Review submitted successfully. It will be published after moderation.");
+			var result = new BulkActionResult<Guid>(review.Id, metadata.Operations.Count > 0 ? metadata : null);
+			var message = metadata.HasPartialFailure
+				? $"Review submitted successfully with {metadata.TotalFailed} media upload failure(s). It will be published after moderation."
+				: "Review submitted successfully. It will be published after moderation.";
+
+			return BaseResponse<BulkActionResult<Guid>>.Ok(result, message);
 		}
 
-		public async Task<BaseResponse<string>> UpdateReviewAsync(Guid userId, Guid reviewId, UpdateReviewRequest request)
+		public async Task<BaseResponse<BulkActionResult<string>>> UpdateReviewAsync(Guid userId, Guid reviewId, UpdateReviewRequest request)
 		{
 			var validationResult = await _updateValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 			{
-				return BaseResponse<string>.Fail(
+				return BaseResponse<BulkActionResult<string>>.Fail(
 					"Validation failed",
 					ResponseErrorType.BadRequest,
 					[.. validationResult.Errors.Select(e => e.ErrorMessage)]
@@ -99,35 +109,36 @@ namespace PerfumeGPT.Application.Services
 			var review = await _unitOfWork.Reviews.GetByIdAsync(reviewId);
 			if (review == null || review.IsDeleted)
 			{
-				return BaseResponse<string>.Fail("Review not found", ResponseErrorType.NotFound);
+				return BaseResponse<BulkActionResult<string>>.Fail("Review not found", ResponseErrorType.NotFound);
 			}
 
 			// Check ownership
 			if (review.UserId != userId)
 			{
-				return BaseResponse<string>.Fail("You can only edit your own reviews", ResponseErrorType.Forbidden);
+				return BaseResponse<BulkActionResult<string>>.Fail("You can only edit your own reviews", ResponseErrorType.Forbidden);
 			}
 
 			// === IMAGE MANAGEMENT ===
+			var metadata = new BulkActionMetadata();
 
 			// Delete specified images first
 			if (request.MediaIdsToDelete != null && request.MediaIdsToDelete.Count != 0)
 			{
-				foreach (var mediaId in request.MediaIdsToDelete)
+				var deleteResult = await DeleteMultipleMediaAsync(request.MediaIdsToDelete);
+				if (deleteResult.TotalProcessed > 0)
 				{
-					var deleteResult = await _mediaService.DeleteMediaAsync(mediaId);
-					if (!deleteResult.Success)
-					{
-						// Log but continue - don't fail entire update if one image delete fails
-						Console.WriteLine($"Warning: Failed to delete media {mediaId}: {deleteResult.Message}");
-					}
+					metadata.Operations.Add(BulkOperationResult.FromBulkActionResponse("Media Deletion", deleteResult));
 				}
 			}
 
 			// Add new images from temporary media
 			if (request.TemporaryMediaIdsToAdd != null && request.TemporaryMediaIdsToAdd.Any())
 			{
-				await ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIdsToAdd, reviewId);
+				var conversionResult = await ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIdsToAdd, reviewId);
+				if (conversionResult.TotalProcessed > 0)
+				{
+					metadata.Operations.Add(BulkOperationResult.FromBulkActionResponse("Media Upload", conversionResult));
+				}
 			}
 
 			// === UPDATE REVIEW DATA ===
@@ -140,10 +151,15 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
 			{
-				return BaseResponse<string>.Fail("Failed to update review", ResponseErrorType.InternalError);
+				return BaseResponse<BulkActionResult<string>>.Fail("Failed to update review", ResponseErrorType.InternalError);
 			}
 
-			return BaseResponse<string>.Ok("Review updated successfully. It will be re-moderated.");
+			var result = new BulkActionResult<string>("Review updated successfully", metadata.Operations.Count > 0 ? metadata : null);
+			var message = metadata.HasPartialFailure
+				? $"Review updated with {metadata.TotalFailed} media operation failure(s). It will be re-moderated."
+				: "Review updated successfully. It will be re-moderated.";
+
+			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
 		}
 
 		public async Task<BaseResponse<string>> DeleteReviewAsync(Guid userId, Guid reviewId)
@@ -324,37 +340,106 @@ namespace PerfumeGPT.Application.Services
 
 		#region Private Methods
 
-		private async Task ConvertTemporaryMediaToPermanentAsync(List<Guid> temporaryMediaIds, Guid reviewId)
+		private async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(List<Guid> temporaryMediaIds, Guid reviewId)
 		{
+			var response = new BulkActionResponse();
+
 			foreach (var tempMediaId in temporaryMediaIds)
 			{
-				// Get temporary media
-				var tempMedia = await _unitOfWork.TemporaryMedia.GetByIdAsync(tempMediaId);
-				if (tempMedia == null || tempMedia.IsExpired)
+				try
 				{
-					continue; // Skip if not found or expired
+					// Get temporary media
+					var tempMedia = await _unitOfWork.TemporaryMedia.GetByIdAsync(tempMediaId);
+					if (tempMedia == null)
+					{
+						response.FailedItems.Add(new BulkActionError
+						{
+							Id = tempMediaId,
+							ErrorMessage = "Temporary media not found"
+						});
+						continue;
+					}
+
+					if (tempMedia.IsExpired)
+					{
+						response.FailedItems.Add(new BulkActionError
+						{
+							Id = tempMediaId,
+							ErrorMessage = "Temporary media has expired"
+						});
+						continue;
+					}
+
+					// Create permanent media from temporary
+					var media = new Media
+					{
+						Url = tempMedia.Url,
+						AltText = tempMedia.AltText,
+						EntityType = EntityType.Review,
+						ReviewId = reviewId,
+						DisplayOrder = tempMedia.DisplayOrder,
+						IsPrimary = false,
+						PublicId = tempMedia.PublicId,
+						FileSize = tempMedia.FileSize,
+						MimeType = tempMedia.MimeType
+					};
+
+					await _unitOfWork.Media.AddAsync(media);
+					_unitOfWork.TemporaryMedia.Remove(tempMedia);
+
+					response.SucceededIds.Add(tempMediaId);
 				}
-
-				// Create permanent media from temporary
-				var media = new Media
+				catch (Exception ex)
 				{
-					Url = tempMedia.Url,
-					AltText = tempMedia.AltText,
-					EntityType = EntityType.Review,
-					ReviewId = reviewId,
-					DisplayOrder = tempMedia.DisplayOrder,
-					IsPrimary = false,
-					PublicId = tempMedia.PublicId,
-					FileSize = tempMedia.FileSize,
-					MimeType = tempMedia.MimeType
-				};
-
-				await _unitOfWork.Media.AddAsync(media);
-
-				_unitOfWork.TemporaryMedia.Remove(tempMedia);
+					response.FailedItems.Add(new BulkActionError
+					{
+						Id = tempMediaId,
+						ErrorMessage = $"Failed to convert media: {ex.Message}"
+					});
+				}
 			}
 
-			await _unitOfWork.SaveChangesAsync();
+			if (response.SucceededIds.Count > 0)
+			{
+				await _unitOfWork.SaveChangesAsync();
+			}
+
+			return response;
+		}
+
+		private async Task<BulkActionResponse> DeleteMultipleMediaAsync(List<Guid> mediaIds)
+		{
+			var response = new BulkActionResponse();
+
+			foreach (var mediaId in mediaIds)
+			{
+				try
+				{
+					var deleteResult = await _mediaService.DeleteMediaAsync(mediaId);
+					if (deleteResult.Success)
+					{
+						response.SucceededIds.Add(mediaId);
+					}
+					else
+					{
+						response.FailedItems.Add(new BulkActionError
+						{
+							Id = mediaId,
+							ErrorMessage = deleteResult.Message ?? "Unknown error"
+						});
+					}
+				}
+				catch (Exception ex)
+				{
+					response.FailedItems.Add(new BulkActionError
+					{
+						Id = mediaId,
+						ErrorMessage = $"Exception during deletion: {ex.Message}"
+					});
+				}
+			}
+
+			return response;
 		}
 
 		#endregion

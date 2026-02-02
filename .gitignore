@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 
 # Pem files
 *.pem
+
+# Docs folder
+Docs/

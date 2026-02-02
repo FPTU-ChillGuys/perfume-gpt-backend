@@ -14,21 +14,7 @@ namespace PerfumeGPT.Application.Mappings
 			config.NewConfig<CreateReviewRequest, Review>()
 				.Map(dest => dest.OrderDetailId, src => src.OrderDetailId)
 				.Map(dest => dest.Rating, src => src.Rating)
-				.Map(dest => dest.Comment, src => src.Comment)
-				.Ignore(dest => dest.Id)
-				.Ignore(dest => dest.UserId)
-				.Ignore(dest => dest.Status)
-				.Ignore(dest => dest.ModeratedByStaffId)
-				.Ignore(dest => dest.ModeratedAt)
-				.Ignore(dest => dest.ModerationReason)
-				.Ignore(dest => dest.IsDeleted)
-				.Ignore(dest => dest.DeletedAt)
-				.Ignore(dest => dest.CreatedAt)
-				.Ignore(dest => dest.UpdatedAt)
-				.Ignore(dest => dest.User)
-				.Ignore(dest => dest.OrderDetail)
-				.Ignore(dest => dest.ModeratedByStaff)
-				.Ignore(dest => dest.ReviewImages);
+				.Map(dest => dest.Comment, src => src.Comment);
 
 			// Review -> ReviewResponse
 			config.NewConfig<Review, ReviewResponse>()
@@ -38,7 +24,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.UserProfilePictureUrl, src => src.User.ProfilePictureUrl)
 				.Map(dest => dest.OrderDetailId, src => src.OrderDetailId)
 				.Map(dest => dest.VariantId, src => src.OrderDetail.VariantId)
-				.Map(dest => dest.VariantName, src => 
+				.Map(dest => dest.VariantName, src =>
 					src.OrderDetail.ProductVariant.Product.Name + " " +
 					src.OrderDetail.ProductVariant.VolumeMl + "ml " +
 					src.OrderDetail.ProductVariant.Concentration.Name)
@@ -60,7 +46,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Quantity, src => src.OrderDetail.Quantity)
 				.Map(dest => dest.UnitPrice, src => src.OrderDetail.UnitPrice)
 				.Map(dest => dest.VariantId, src => src.OrderDetail.VariantId)
-				.Map(dest => dest.VariantName, src => 
+				.Map(dest => dest.VariantName, src =>
 					src.OrderDetail.ProductVariant.Product.Name + " " +
 					src.OrderDetail.ProductVariant.VolumeMl + "ml " +
 					src.OrderDetail.ProductVariant.Concentration.Name)
@@ -85,12 +71,12 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.UserFullName, src => src.User.FullName)
 				.Map(dest => dest.UserProfilePictureUrl, src => src.User.ProfilePictureUrl)
 				.Map(dest => dest.VariantId, src => src.OrderDetail.VariantId)
-				.Map(dest => dest.VariantName, src => 
+				.Map(dest => dest.VariantName, src =>
 					src.OrderDetail.ProductVariant.Product.Name + " " +
 					src.OrderDetail.ProductVariant.VolumeMl + "ml " +
 					src.OrderDetail.ProductVariant.Concentration.Name)
 				.Map(dest => dest.Rating, src => src.Rating)
-				.Map(dest => dest.CommentPreview, src => 
+				.Map(dest => dest.CommentPreview, src =>
 					src.Comment.Length > 100 ? src.Comment.Substring(0, 100) + "..." : src.Comment)
 				.Map(dest => dest.Status, src => src.Status)
 				.Map(dest => dest.ImageCount, src => src.ReviewImages.Count)

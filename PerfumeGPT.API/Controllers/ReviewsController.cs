@@ -49,11 +49,11 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost]
 		[Authorize(Roles = "user")]
-		[ProducesResponseType(typeof(BaseResponse<Guid>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<Guid>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<Guid>), StatusCodes.Status403Forbidden)]
-		[ProducesResponseType(typeof(BaseResponse<Guid>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<Guid>>> CreateReview([FromBody] CreateReviewRequest request)
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<Guid>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<Guid>>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<Guid>>), StatusCodes.Status403Forbidden)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<Guid>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<BulkActionResult<Guid>>>> CreateReview([FromBody] CreateReviewRequest request)
 		{
 			var validation = ValidateRequestBody<CreateReviewRequest>(request);
 			if (validation != null) return validation;
@@ -65,12 +65,12 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPut("{reviewId:guid}")]
 		[Authorize(Roles = "user")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UpdateReview(Guid reviewId, [FromBody] UpdateReviewRequest request)
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status403Forbidden)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> UpdateReview(Guid reviewId, [FromBody] UpdateReviewRequest request)
 		{
 			var validation = ValidateRequestBody<UpdateReviewRequest>(request);
 			if (validation != null) return validation;
@@ -172,10 +172,10 @@ namespace PerfumeGPT.API.Controllers
 		#region MEDIA ENDPOINTS
 		[HttpPost("images/temporary")]
 		[Authorize(Roles = "user")]
-		[ProducesResponseType(typeof(BaseResponse<List<TemporaryMediaResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<TemporaryMediaResponse>>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<List<TemporaryMediaResponse>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<List<TemporaryMediaResponse>>>> UploadTemporaryImages(
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages(
 			[FromForm] ReviewUploadMediaRequest request)
 		{
 			var userId = GetCurrentUserId();
@@ -192,7 +192,6 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _reviewService.GetReviewImagesAsync(reviewId);
 			return HandleResponse(response);
 		}
-
 		#endregion
 	}
 }

@@ -7,6 +7,7 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.API.Controllers
 {
@@ -54,10 +55,10 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpPost]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> CreateVariant([FromBody] CreateVariantRequest request)
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> CreateVariant([FromBody] CreateVariantRequest request)
 		{
 			var validation = ValidateRequestBody<CreateVariantRequest>(request);
 			if (validation != null)
@@ -70,11 +71,11 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpPut("{variantId:guid}")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UpdateVariant(Guid variantId, [FromBody] UpdateVariantRequest request)
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> UpdateVariant(Guid variantId, [FromBody] UpdateVariantRequest request)
 		{
 			var validation = ValidateRequestBody<UpdateVariantRequest>(request);
 			if (validation != null)
@@ -111,12 +112,32 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpGet("{variantId:guid}/images/primary")]
+		[ProducesResponseType(typeof(BaseResponse<MediaResponse?>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<MediaResponse?>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<MediaResponse?>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<MediaResponse?>>> GetVariantPrimaryImage(Guid variantId)
+		{
+			var response = await _mediaService.GetPrimaryMediaAsync(EntityType.ProductVariant, variantId);
+			return HandleResponse(response);
+		}
+
+		[HttpPut("images/{mediaId:guid}/set-primary")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<string>>> SetVariantPrimaryImage(Guid mediaId)
+		{
+			var response = await _mediaService.SetPrimaryMediaAsync(mediaId);
+			return HandleResponse(response);
+		}
+
 		[HttpPost("images/temporary")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<TemporaryMediaResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<TemporaryMediaResponse>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<TemporaryMediaResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<TemporaryMediaResponse>>> UploadTemporaryImage(
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages(
 			[FromForm] VariantUploadMediaRequest request)
 		{
 			var userId = GetCurrentUserId();

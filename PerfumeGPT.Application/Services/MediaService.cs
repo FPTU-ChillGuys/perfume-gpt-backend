@@ -250,18 +250,24 @@ namespace PerfumeGPT.Application.Services
 
 		// ==================== TEMPORARY MEDIA METHODS ====================
 
-		public async Task<BaseResponse<List<TemporaryMediaResponse>>> UploadTemporaryMediaAsync(Guid? userId, ReviewUploadMediaRequest request, EntityType targetEntityType = EntityType.Review)
+		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadTemporaryMediaAsync(Guid? userId, ReviewUploadMediaRequest request, EntityType targetEntityType = EntityType.Review)
 		{
+			var bulkResult = new BulkActionResponse();
 			var uploadedMedia = new List<TemporaryMediaResponse>();
-			var errors = new List<string>();
 
 			// Auto-assign display order based on list index
 			for (int i = 0; i < request.Images.Count; i++)
 			{
 				var imageFile = request.Images[i];
+				var tempId = Guid.NewGuid(); // Temporary ID for tracking before upload
 
 				if (imageFile == null || imageFile.Length == 0)
 				{
+					bulkResult.FailedItems.Add(new BulkActionError
+					{
+						Id = tempId,
+						ErrorMessage = "Empty or null image file"
+					});
 					continue;
 				}
 
@@ -270,7 +276,11 @@ namespace PerfumeGPT.Application.Services
 				var extension = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
 				if (!allowedExtensions.Contains(extension))
 				{
-					errors.Add($"Invalid image format for {imageFile.FileName}. Allowed: jpg, jpeg, png, gif, webp");
+					bulkResult.FailedItems.Add(new BulkActionError
+					{
+						Id = tempId,
+						ErrorMessage = $"Invalid image format for {imageFile.FileName}. Allowed: jpg, jpeg, png, gif, webp"
+					});
 					continue;
 				}
 
@@ -278,7 +288,11 @@ namespace PerfumeGPT.Application.Services
 				const long maxFileSize = 5 * 1024 * 1024;
 				if (imageFile.Length > maxFileSize)
 				{
-					errors.Add($"Image size must be less than 5MB for {imageFile.FileName}");
+					bulkResult.FailedItems.Add(new BulkActionError
+					{
+						Id = tempId,
+						ErrorMessage = $"Image size must be less than 5MB for {imageFile.FileName}"
+					});
 					continue;
 				}
 
@@ -290,7 +304,11 @@ namespace PerfumeGPT.Application.Services
 
 					if (string.IsNullOrEmpty(url))
 					{
-						errors.Add($"Failed to upload {imageFile.FileName}");
+						bulkResult.FailedItems.Add(new BulkActionError
+						{
+							Id = tempId,
+							ErrorMessage = $"Failed to upload {imageFile.FileName}"
+						});
 						continue;
 					}
 
@@ -313,26 +331,40 @@ namespace PerfumeGPT.Application.Services
 
 					var response = _mapper.Map<TemporaryMediaResponse>(tempMedia);
 					uploadedMedia.Add(response);
+					bulkResult.SucceededIds.Add(tempMedia.Id);
 				}
 				catch (Exception ex)
 				{
-					errors.Add($"Failed to upload {imageFile.FileName}: {ex.Message}");
+					bulkResult.FailedItems.Add(new BulkActionError
+					{
+						Id = tempId,
+						ErrorMessage = $"Failed to upload {imageFile.FileName}: {ex.Message}"
+					});
 				}
 			}
 
 			if (uploadedMedia.Count == 0)
 			{
-				return BaseResponse<List<TemporaryMediaResponse>>.Fail(
+				return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Fail(
 					"Failed to upload any images",
 					ResponseErrorType.BadRequest,
-					errors
+					bulkResult.FailedItems.Select(f => f.ErrorMessage).ToList()
 				);
 			}
 
-			return BaseResponse<List<TemporaryMediaResponse>>.Ok(
-				uploadedMedia,
-				$"Successfully uploaded {uploadedMedia.Count} temporary image(s). They will expire in 24 hours."
-			);
+			// Build metadata if there are any operations
+			var metadata = new BulkActionMetadata();
+			if (bulkResult.TotalProcessed > 0)
+			{
+				metadata.Operations.Add(BulkOperationResult.FromBulkActionResponse("Temporary Media Upload", bulkResult));
+			}
+
+			var result = new BulkActionResult<List<TemporaryMediaResponse>>(uploadedMedia, metadata.Operations.Count > 0 ? metadata : null);
+			var message = bulkResult.HasError
+				? $"Successfully uploaded {uploadedMedia.Count} temporary image(s). {bulkResult.FailedItems.Count} failed. They will expire in 24 hours."
+				: $"Successfully uploaded {uploadedMedia.Count} temporary image(s). They will expire in 24 hours.";
+
+			return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Ok(result, message);
 		}
 
 		public async Task<BaseResponse<string>> DeleteTemporaryMediaAsync(Guid temporaryMediaId)
@@ -364,15 +396,22 @@ namespace PerfumeGPT.Application.Services
 		/// <summary>
 		/// Upload temporary media for Products (with IsPrimary and DisplayOrder)
 		/// </summary>
-		public async Task<BaseResponse<List<TemporaryMediaResponse>>> UploadTemporaryProductMediaAsync(Guid? userId, ProductUploadMediaRequest request)
+		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadTemporaryProductMediaAsync(Guid? userId, ProductUploadMediaRequest request)
 		{
+			var bulkResult = new BulkActionResponse();
 			var uploadedMedia = new List<TemporaryMediaResponse>();
-			var errors = new List<string>();
 
 			foreach (var imageRequest in request.Images)
 			{
+				var tempId = Guid.NewGuid(); // Temporary ID for tracking before upload
+
 				if (imageRequest.ImageFile == null || imageRequest.ImageFile.Length == 0)
 				{
+					bulkResult.FailedItems.Add(new BulkActionError
+					{
+						Id = tempId,
+						ErrorMessage = "Empty or null image file"
+					});
 					continue;
 				}
 
@@ -381,7 +420,11 @@ namespace PerfumeGPT.Application.Services
 				var extension = Path.GetExtension(imageRequest.ImageFile.FileName).ToLowerInvariant();
 				if (!allowedExtensions.Contains(extension))
 				{
-					errors.Add($"Invalid image format for {imageRequest.ImageFile.FileName}. Allowed: jpg, jpeg, png, gif, webp");
+					bulkResult.FailedItems.Add(new BulkActionError
+					{
+						Id = tempId,
+						ErrorMessage = $"Invalid image format for {imageRequest.ImageFile.FileName}. Allowed: jpg, jpeg, png, gif, webp"
+					});
 					continue;
 				}
 
@@ -389,7 +432,11 @@ namespace PerfumeGPT.Application.Services
 				const long maxFileSize = 5 * 1024 * 1024;
 				if (imageRequest.ImageFile.Length > maxFileSize)
 				{
-					errors.Add($"Image size must be less than 5MB for {imageRequest.ImageFile.FileName}");
+					bulkResult.FailedItems.Add(new BulkActionError
+					{
+						Id = tempId,
+						ErrorMessage = $"Image size must be less than 5MB for {imageRequest.ImageFile.FileName}"
+					});
 					continue;
 				}
 
@@ -401,7 +448,11 @@ namespace PerfumeGPT.Application.Services
 
 					if (string.IsNullOrEmpty(url))
 					{
-						errors.Add($"Failed to upload {imageRequest.ImageFile.FileName}");
+						bulkResult.FailedItems.Add(new BulkActionError
+						{
+							Id = tempId,
+							ErrorMessage = $"Failed to upload {imageRequest.ImageFile.FileName}"
+						});
 						continue;
 					}
 
@@ -425,104 +476,131 @@ namespace PerfumeGPT.Application.Services
 
 					var response = _mapper.Map<TemporaryMediaResponse>(tempMedia);
 					uploadedMedia.Add(response);
+					bulkResult.SucceededIds.Add(tempMedia.Id);
 				}
 				catch (Exception ex)
 				{
-					errors.Add($"Failed to upload {imageRequest.ImageFile.FileName}: {ex.Message}");
+					bulkResult.FailedItems.Add(new BulkActionError
+					{
+						Id = tempId,
+						ErrorMessage = $"Failed to upload {imageRequest.ImageFile.FileName}: {ex.Message}"
+					});
 				}
 			}
 
 			if (uploadedMedia.Count == 0)
 			{
-				return BaseResponse<List<TemporaryMediaResponse>>.Fail(
+				return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Fail(
 					"Failed to upload any images",
 					ResponseErrorType.BadRequest,
-					errors
+					bulkResult.FailedItems.Select(f => f.ErrorMessage).ToList()
 				);
 			}
 
-			return BaseResponse<List<TemporaryMediaResponse>>.Ok(
-				uploadedMedia,
-				$"Successfully uploaded {uploadedMedia.Count} temporary image(s). They will expire in 24 hours."
-			);
+			// Build metadata if there are any operations
+			var metadata = new BulkActionMetadata();
+			if (bulkResult.TotalProcessed > 0)
+			{
+				metadata.Operations.Add(BulkOperationResult.FromBulkActionResponse("Temporary Media Upload", bulkResult));
+			}
+
+			var result = new BulkActionResult<List<TemporaryMediaResponse>>(uploadedMedia, metadata.Operations.Count > 0 ? metadata : null);
+			var message = bulkResult.HasError
+				? $"Successfully uploaded {uploadedMedia.Count} temporary image(s). {bulkResult.FailedItems.Count} failed. They will expire in 24 hours."
+				: $"Successfully uploaded {uploadedMedia.Count} temporary image(s). They will expire in 24 hours.";
+
+			return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Ok(result, message);
 		}
 
 		/// <summary>
 		/// Upload temporary media for Variant (single image only)
 		/// </summary>
-		public async Task<BaseResponse<TemporaryMediaResponse>> UploadTemporaryVariantMediaAsync(Guid? userId, VariantUploadMediaRequest request)
+		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadTemporaryVariantMediaAsync(Guid? userId, VariantUploadMediaRequest request)
 		{
-			if (request.ImageFile == null || request.ImageFile.Length == 0)
-			{
-				return BaseResponse<TemporaryMediaResponse>.Fail("Image file is required", ResponseErrorType.BadRequest);
-			}
+			var bulkResult = new BulkActionResponse();
+			var uploadedMedia = new List<TemporaryMediaResponse>();
 
-			// Validate file type
-			var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-			var extension = Path.GetExtension(request.ImageFile.FileName).ToLowerInvariant();
-			if (!allowedExtensions.Contains(extension))
+			foreach (var imageRequest in request.Images)
 			{
-				return BaseResponse<TemporaryMediaResponse>.Fail(
-					$"Invalid image format. Allowed: jpg, jpeg, png, gif, webp",
-					ResponseErrorType.BadRequest
-				);
-			}
+				var tempId = Guid.NewGuid();
 
-			// Validate file size (max 5MB)
-			const long maxFileSize = 5 * 1024 * 1024;
-			if (request.ImageFile.Length > maxFileSize)
-			{
-				return BaseResponse<TemporaryMediaResponse>.Fail(
-					"Image size must be less than 5MB",
-					ResponseErrorType.BadRequest
-				);
-			}
-
-			try
-			{
-				// Upload to temporary bucket
-				using var stream = request.ImageFile.OpenReadStream();
-				var url = await _supabaseService.UploadPreviewImageAsync(stream, request.ImageFile.FileName);
-
-				if (string.IsNullOrEmpty(url))
+				if (imageRequest.ImageFile == null || imageRequest.ImageFile.Length == 0)
 				{
-					return BaseResponse<TemporaryMediaResponse>.Fail(
-						"Failed to upload image",
-						ResponseErrorType.InternalError
-					);
+					bulkResult.FailedItems.Add(new BulkActionError { Id = tempId, ErrorMessage = "Empty or null image file" });
+					continue;
 				}
 
-				// Create temporary media record
-				var tempMedia = new TemporaryMedia
+				var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+				var extension = Path.GetExtension(imageRequest.ImageFile.FileName).ToLowerInvariant();
+				if (!allowedExtensions.Contains(extension))
 				{
-					Url = url,
-					AltText = null,
-					DisplayOrder = 0,
-					IsPrimary = true, // Variant only has one image, so it's always primary
-					PublicId = ExtractFileNameFromUrl(url),
-					FileSize = request.ImageFile.Length,
-					MimeType = GetMimeType(request.ImageFile.FileName),
-					UploadedByUserId = userId,
-					TargetEntityType = EntityType.ProductVariant,
-					ExpiresAt = DateTime.UtcNow.AddHours(24),
-				};
+					bulkResult.FailedItems.Add(new BulkActionError { Id = tempId, ErrorMessage = $"Invalid image format for {imageRequest.ImageFile.FileName}. Allowed: jpg, jpeg, png, gif, webp" });
+					continue;
+				}
 
-				await _unitOfWork.TemporaryMedia.AddAsync(tempMedia);
-				await _unitOfWork.SaveChangesAsync();
+				const long maxFileSize = 5 * 1024 * 1024;
+				if (imageRequest.ImageFile.Length > maxFileSize)
+				{
+					bulkResult.FailedItems.Add(new BulkActionError { Id = tempId, ErrorMessage = $"Image size must be less than 5MB for {imageRequest.ImageFile.FileName}" });
+					continue;
+				}
 
-				var response = _mapper.Map<TemporaryMediaResponse>(tempMedia);
-				return BaseResponse<TemporaryMediaResponse>.Ok(
-					response,
-					"Temporary image uploaded successfully. It will expire in 24 hours."
-				);
+				try
+				{
+					using var stream = imageRequest.ImageFile.OpenReadStream();
+					var url = await _supabaseService.UploadPreviewImageAsync(stream, imageRequest.ImageFile.FileName);
+
+					if (string.IsNullOrEmpty(url))
+					{
+						bulkResult.FailedItems.Add(new BulkActionError { Id = tempId, ErrorMessage = $"Failed to upload {imageRequest.ImageFile.FileName}" });
+						continue;
+					}
+
+					var tempMedia = new TemporaryMedia
+					{
+						Url = url,
+						AltText = imageRequest.AltText,
+						DisplayOrder = imageRequest.DisplayOrder,
+						IsPrimary = imageRequest.IsPrimary,
+						PublicId = ExtractFileNameFromUrl(url),
+						FileSize = imageRequest.ImageFile.Length,
+						MimeType = GetMimeType(imageRequest.ImageFile.FileName),
+						UploadedByUserId = userId,
+						TargetEntityType = EntityType.ProductVariant,
+						ExpiresAt = DateTime.UtcNow.AddHours(24),
+					};
+
+					await _unitOfWork.TemporaryMedia.AddAsync(tempMedia);
+					await _unitOfWork.SaveChangesAsync();
+
+					var response = _mapper.Map<TemporaryMediaResponse>(tempMedia);
+					uploadedMedia.Add(response);
+					bulkResult.SucceededIds.Add(tempMedia.Id);
+				}
+				catch (Exception ex)
+				{
+					bulkResult.FailedItems.Add(new BulkActionError { Id = tempId, ErrorMessage = $"Failed to upload {imageRequest.ImageFile.FileName}: {ex.Message}" });
+				}
 			}
-			catch (Exception ex)
+
+			if (uploadedMedia.Count == 0)
 			{
-				return BaseResponse<TemporaryMediaResponse>.Fail(
-					$"Failed to upload image: {ex.Message}",
-					ResponseErrorType.InternalError
-				);
+				return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Fail("Failed to upload any images", ResponseErrorType.BadRequest, bulkResult.FailedItems.Select(f => f.ErrorMessage).ToList());
 			}
+
+			var metadata = new BulkActionMetadata();
+			if (bulkResult.TotalProcessed > 0)
+			{
+				metadata.Operations.Add(BulkOperationResult.FromBulkActionResponse("Temporary Media Upload", bulkResult));
+			}
+
+			var result = new BulkActionResult<List<TemporaryMediaResponse>>(uploadedMedia, metadata.Operations.Count > 0 ? metadata : null);
+			var message = bulkResult.HasError
+				? $"Successfully uploaded {uploadedMedia.Count} temporary image(s). {bulkResult.FailedItems.Count} failed. They will expire in 24 hours."
+				: $"Successfully uploaded {uploadedMedia.Count} temporary image(s). They will expire in 24 hours.";
+
+			return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Ok(result, message);
 		}
 	}
 }
+

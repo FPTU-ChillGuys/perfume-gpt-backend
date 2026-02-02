@@ -8,9 +8,10 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface IProductService
 	{
 		Task<BaseResponse<PagedResult<ProductListItem>>> GetProductsAsync(GetPagedProductRequest request);
+		Task<BaseResponse<List<ProductLookupItem>>> GetProductLookupListAsync();
 		Task<BaseResponse<ProductResponse>> GetProductAsync(Guid productId);
-		Task<BaseResponse<string>> CreateProductAsync(CreateProductRequest request);
-		Task<BaseResponse<string>> UpdateProductAsync(Guid productId, UpdateProductRequest request);
+		Task<BaseResponse<BulkActionResult<string>>> CreateProductAsync(CreateProductRequest request);
+		Task<BaseResponse<BulkActionResult<string>>> UpdateProductAsync(Guid productId, UpdateProductRequest request);
 		Task<BaseResponse<string>> DeleteProductAsync(Guid productId);
 
 		// Get product images (for viewing/editing)

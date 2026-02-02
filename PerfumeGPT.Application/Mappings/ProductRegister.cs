@@ -19,17 +19,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Description, src => src.Description)
 				.Map(dest => dest.TopNotes, src => src.TopNotes)
 				.Map(dest => dest.MiddleNotes, src => src.MiddleNotes)
-				.Map(dest => dest.BaseNotes, src => src.BaseNotes)
-				.Ignore(dest => dest.Id)
-				.Ignore(dest => dest.IsDeleted)
-				.Ignore(dest => dest.DeletedAt)
-				.Ignore(dest => dest.CreatedAt)
-				.Ignore(dest => dest.UpdatedAt)
-				.Ignore(dest => dest.Brand)
-				.Ignore(dest => dest.Category)
-				.Ignore(dest => dest.FragranceFamily)
-				.Ignore(dest => dest.Variants)
-				.Ignore(dest => dest.Media);
+				.Map(dest => dest.BaseNotes, src => src.BaseNotes);
 
 			// UpdateProductRequest -> Product (existing instance)
 			config.NewConfig<UpdateProductRequest, Product>()
@@ -41,18 +31,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Description, src => src.Description)
 				.Map(dest => dest.TopNotes, src => src.TopNotes)
 				.Map(dest => dest.MiddleNotes, src => src.MiddleNotes)
-				.Map(dest => dest.BaseNotes, src => src.BaseNotes)
-				.Ignore(dest => dest.Id)
-				.Ignore(dest => dest.Gender)
-				.Ignore(dest => dest.IsDeleted)
-				.Ignore(dest => dest.DeletedAt)
-				.Ignore(dest => dest.CreatedAt)
-				.Ignore(dest => dest.UpdatedAt)
-				.Ignore(dest => dest.Brand)
-				.Ignore(dest => dest.Category)
-				.Ignore(dest => dest.FragranceFamily)
-				.Ignore(dest => dest.Variants)
-				.Ignore(dest => dest.Media);
+				.Map(dest => dest.BaseNotes, src => src.BaseNotes);
 
 			// Product -> ProductResponse
 			config.NewConfig<Product, ProductResponse>()
@@ -87,6 +66,13 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.TopNotes, src => src.TopNotes)
 				.Map(dest => dest.MiddleNotes, src => src.MiddleNotes)
 				.Map(dest => dest.BaseNotes, src => src.BaseNotes)
+				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary));
+
+			// Product -> ProductLookupItem
+			config.NewConfig<Product, ProductLookupItem>()
+				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.Name, src => src.Name)
+				.Map(dest => dest.BrandName, src => src.Brand.Name)
 				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary));
 		}
 	}

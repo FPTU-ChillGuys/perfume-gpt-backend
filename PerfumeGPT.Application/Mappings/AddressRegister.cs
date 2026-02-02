@@ -11,21 +11,9 @@ namespace PerfumeGPT.Application.Mappings
 		{
 			config.NewConfig<Address, AddressResponse>();
 
-			config.NewConfig<CreateAddressRequest, Address>()
-				.Ignore(dest => dest.Id)
-				.Ignore(dest => dest.UserId)
-				.Ignore(dest => dest.IsDefault)
-				.Ignore(dest => dest.CreatedAt)
-				.Ignore(dest => dest.UpdatedAt)
-				.Ignore(dest => dest.User);
+			config.NewConfig<CreateAddressRequest, Address>();
 
-			config.NewConfig<UpdateAddressRequest, Address>()
-				.Ignore(dest => dest.Id)
-				.Ignore(dest => dest.UserId)
-				.Ignore(dest => dest.IsDefault)
-				.Ignore(dest => dest.CreatedAt)
-				.Ignore(dest => dest.UpdatedAt)
-				.Ignore(dest => dest.User);
+			config.NewConfig<UpdateAddressRequest, Address>();
 		}
 	}
 }
