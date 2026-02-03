@@ -6,7 +6,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 {
 	public interface IBatchRepository : IGenericRepository<Batch>
 	{
-		Task<bool> DeductBathAsync(Guid variantId, int quantity);
+		Task<bool> DeductBatchAsync(Guid variantId, int quantity);
 		Task<bool> IsValidForDeductionAsync(Guid variantId, int requiredQuantity);
 		Task<List<Batch>> GetAvailableBatchesByVariantAsync(Guid variantId);
 		Task<(List<Batch> Batches, int TotalCount)> GetBatchesWithFiltersAsync(GetBatchesRequest request);

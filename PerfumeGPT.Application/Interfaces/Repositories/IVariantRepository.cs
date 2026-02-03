@@ -1,4 +1,5 @@
 ﻿using PerfumeGPT.Application.DTOs.Requests.Variants;
+using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Domain.Entities;
 
@@ -9,17 +10,17 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		/// <summary>
 		/// Gets a variant by barcode.
 		/// </summary>
-		Task<ProductVariant?> GetByBarcodeAsync(string barcode);
+		Task<ProductVariantResponse?> GetByBarcodeAsync(string barcode);
 
 		/// <summary>
 		/// Gets a variant with concentration details.
 		/// </summary>
-		Task<ProductVariant?> GetVariantWithDetailsAsync(Guid variantId);
+		Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId);
 
 		/// <summary>
 		/// Gets paged variants with concentration details.
 		/// </summary>
-		Task<(List<ProductVariant> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(GetPagedVariantsRequest request);
+		Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(GetPagedVariantsRequest request);
 	}
 }
 

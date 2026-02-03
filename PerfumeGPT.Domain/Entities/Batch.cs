@@ -1,5 +1,6 @@
 ﻿using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
+using System.ComponentModel.DataAnnotations;
 
 namespace PerfumeGPT.Domain.Entities
 {
@@ -14,12 +15,15 @@ namespace PerfumeGPT.Domain.Entities
 		public int RemainingQuantity { get; set; }
 		public int ReservedQuantity { get; set; }
 		public int AvailableInBatch => RemainingQuantity - ReservedQuantity;
-        // Navigation
-        public virtual ProductVariant ProductVariant { get; set; } = null!;
-        public virtual ImportDetail ImportDetail { get; set; } = null!;
-        public virtual ICollection<StockAdjustmentDetail> StockAdjustmentDetails { get; set; } = [];
-        public virtual ICollection<StockReservation> StockReservations { get; set; } = [];
-        public virtual ICollection<Notification> Notifications { get; set; } = [];
+
+		[Timestamp]
+		public byte[] RowVersion { get; set; } = null!;
+		// Navigation
+		public virtual ProductVariant ProductVariant { get; set; } = null!;
+		public virtual ImportDetail ImportDetail { get; set; } = null!;
+		public virtual ICollection<StockAdjustmentDetail> StockAdjustmentDetails { get; set; } = [];
+		public virtual ICollection<StockReservation> StockReservations { get; set; } = [];
+		public virtual ICollection<Notification> Notifications { get; set; } = [];
 
 		// Audit
 		public DateTime CreatedAt { get; set; }

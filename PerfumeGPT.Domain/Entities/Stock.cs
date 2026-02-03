@@ -1,4 +1,5 @@
 ﻿using PerfumeGPT.Domain.Commons;
+using System.ComponentModel.DataAnnotations;
 
 namespace PerfumeGPT.Domain.Entities
 {
@@ -9,6 +10,9 @@ namespace PerfumeGPT.Domain.Entities
 		public int ReservedQuantity { get; set; }
 		public int AvailableQuantity => TotalQuantity - ReservedQuantity;
 		public int LowStockThreshold { get; set; }
+
+		[Timestamp]
+		public byte[] RowVersion { get; set; } = null!;
 
 		// Navigation
 		public virtual ProductVariant ProductVariant { get; set; } = null!;

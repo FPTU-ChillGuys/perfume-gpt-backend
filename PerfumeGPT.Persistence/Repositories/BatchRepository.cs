@@ -1,55 +1,91 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using PerfumeGPT.Application.DTOs.Requests.Inventory;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Data;
 using System.Linq.Expressions;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
 	public class BatchRepository : GenericRepository<Batch>, IBatchRepository
 	{
+		private const int MaxRetryAttempts = 3;
+		private const int RetryDelayMilliseconds = 100;
+
 		public BatchRepository(PerfumeDbContext context) : base(context)
 		{
 		}
 
-		public async Task<bool> DeductBathAsync(Guid variantId, int quantity)
+		public async Task<bool> DeductBatchAsync(Guid variantId, int quantity)
 		{
-			var variantBatches = await _context.Batches
-				.Where(b => b.VariantId == variantId && b.ExpiryDate > DateTime.UtcNow && b.RemainingQuantity > 0)
-				.OrderBy(b => b.ExpiryDate)
-				.ToListAsync();
+			var strategy = _context.Database.CreateExecutionStrategy();
 
-			var remainingToDeduct = quantity;
-
-			foreach (var batch in variantBatches)
+			return await strategy.ExecuteAsync(async () =>
 			{
-				if (remainingToDeduct <= 0)
+				for (int attempt = 0; attempt < MaxRetryAttempts; attempt++)
 				{
-					break;
+					try
+					{
+						using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
+						try
+						{
+							var variantBatches = await _context.Batches
+								.Where(b => b.VariantId == variantId && b.ExpiryDate > DateTime.UtcNow && b.RemainingQuantity > 0)
+								.OrderBy(b => b.ExpiryDate)
+								.ToListAsync();
+
+							var remainingToDeduct = quantity;
+
+							foreach (var batch in variantBatches)
+							{
+								if (remainingToDeduct <= 0)
+								{
+									break;
+								}
+
+								var deductAmount = Math.Min(batch.RemainingQuantity, remainingToDeduct);
+
+								var rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
+									$"UPDATE Batches SET RemainingQuantity = RemainingQuantity - {deductAmount} WHERE Id = {batch.Id} AND RemainingQuantity >= {deductAmount}");
+
+								if (rowsAffected == 0)
+								{
+									await transaction.RollbackAsync();
+									return false;
+								}
+
+								remainingToDeduct -= deductAmount;
+							}
+
+							if (remainingToDeduct > 0)
+							{
+								await transaction.RollbackAsync();
+								return false;
+							}
+
+							await transaction.CommitAsync();
+							return true;
+						}
+						catch
+						{
+							await transaction.RollbackAsync();
+							throw;
+						}
+					}
+					catch (DbUpdateConcurrencyException) when (attempt < MaxRetryAttempts - 1)
+					{
+						await Task.Delay(RetryDelayMilliseconds * (attempt + 1));
+						continue;
+					}
 				}
 
-				if (batch.RemainingQuantity >= remainingToDeduct)
-				{
-					batch.RemainingQuantity -= remainingToDeduct;
-					remainingToDeduct = 0;
-				}
-				else
-				{
-					remainingToDeduct -= batch.RemainingQuantity;
-					batch.RemainingQuantity = 0;
-				}
-			}
-
-			if (remainingToDeduct > 0)
-			{
 				return false;
-			}
-
-			await _context.SaveChangesAsync();
-			return true;
+			});
 		}
 
 		public async Task<bool> IsValidForDeductionAsync(Guid variantId, int requiredQuantity)

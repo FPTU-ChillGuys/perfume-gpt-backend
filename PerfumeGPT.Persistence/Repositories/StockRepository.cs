@@ -1,14 +1,18 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Data;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
 	public class StockRepository : GenericRepository<Stock>, IStockRepository
 	{
+		private const int MaxRetryAttempts = 3;
+		private const int RetryDelayMilliseconds = 100;
+
 		public StockRepository(PerfumeDbContext context) : base(context)
 		{
 		}
@@ -35,17 +39,32 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<bool> UpdateStockAsync(Guid variantId)
 		{
-			var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
-			var totalQuantity = await _context.Batches
-				.Where(b => b.VariantId == variantId && b.ExpiryDate > DateTime.UtcNow)
-				.SumAsync(b => b.RemainingQuantity);
-			if (stock != null)
+			var strategy = _context.Database.CreateExecutionStrategy();
+
+			return await strategy.ExecuteAsync(async () =>
 			{
-				stock.TotalQuantity = totalQuantity;
-				await _context.SaveChangesAsync();
-				return true;
-			}
-			return false;
+				for (int attempt = 0; attempt < MaxRetryAttempts; attempt++)
+				{
+					try
+					{
+						var totalQuantity = await _context.Batches
+							.Where(b => b.VariantId == variantId && b.ExpiryDate > DateTime.UtcNow)
+							.SumAsync(b => b.RemainingQuantity);
+
+						var rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
+							$"UPDATE Stocks SET TotalQuantity = {totalQuantity} WHERE VariantId = {variantId}");
+
+						return rowsAffected > 0;
+					}
+					catch (DbUpdateConcurrencyException) when (attempt < MaxRetryAttempts - 1)
+					{
+						await Task.Delay(RetryDelayMilliseconds * (attempt + 1));
+						continue;
+					}
+				}
+
+				return false;
+			});
 		}
 
 		public async Task<(IEnumerable<Stock> Stocks, int TotalCount)> GetPagedInventoryAsync(

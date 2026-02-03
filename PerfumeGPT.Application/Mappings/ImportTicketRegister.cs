@@ -22,16 +22,16 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt)
 				.Map(dest => dest.ImportDetails, src => src.ImportDetails);
 
-		config.NewConfig<ImportTicket, ImportTicketListItem>()
-			.Map(dest => dest.Id, src => src.Id)
-			.Map(dest => dest.CreatedByName, src => src.CreatedByUser != null ? src.CreatedByUser.FullName : "Unknown")
-			.Map(dest => dest.VerifiedByName, src => src.VerifiedByUser != null ? src.VerifiedByUser.FullName : null)
-			.Map(dest => dest.SupplierName, src => src.Supplier != null ? src.Supplier.Name : "Unknown")
-			.Map(dest => dest.ImportDate, src => src.ImportDate)
-			.Map(dest => dest.TotalCost, src => src.TotalCost)
-			.Map(dest => dest.Status, src => src.Status)
-			.Map(dest => dest.TotalItems, src => src.ImportDetails.Count)
-			.Map(dest => dest.CreatedAt, src => src.CreatedAt);
+			config.NewConfig<ImportTicket, ImportTicketListItem>()
+				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.CreatedByName, src => src.CreatedByUser != null ? src.CreatedByUser.FullName : "Unknown")
+				.Map(dest => dest.VerifiedByName, src => src.VerifiedByUser != null ? src.VerifiedByUser.FullName : null)
+				.Map(dest => dest.SupplierName, src => src.Supplier != null ? src.Supplier.Name : "Unknown")
+				.Map(dest => dest.ImportDate, src => src.ImportDate)
+				.Map(dest => dest.TotalCost, src => src.TotalCost)
+				.Map(dest => dest.Status, src => src.Status)
+				.Map(dest => dest.TotalItems, src => src.ImportDetails.Count)
+				.Map(dest => dest.CreatedAt, src => src.CreatedAt);
 		}
 	}
 }

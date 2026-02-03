@@ -1,5 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Mapster;
+using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Variants;
+using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
@@ -13,43 +15,38 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
-	public async Task<ProductVariant?> GetByBarcodeAsync(string barcode)
-	{
-		return await _context.ProductVariants
-			.Include(v => v.Product)
-			.Include(v => v.Concentration)
-			.Include(v => v.Media.Where(m => !m.IsDeleted))
-			.FirstOrDefaultAsync(v => v.Barcode == barcode && !v.IsDeleted);
-	}
+		public async Task<ProductVariantResponse?> GetByBarcodeAsync(string barcode)
+		{
+			return await _context.ProductVariants
+				.Where(v => v.Barcode == barcode && !v.IsDeleted)
+				.ProjectToType<ProductVariantResponse>()
+				.FirstOrDefaultAsync();
+		}
 
-	public async Task<ProductVariant?> GetVariantWithDetailsAsync(Guid variantId)
-	{
-		return await _context.ProductVariants
-			.Include(v => v.Concentration)
-			.Include(v => v.Product)
-			.Include(v => v.Media.Where(m => !m.IsDeleted))
-			.AsNoTracking()
-			.FirstOrDefaultAsync(v => v.Id == variantId && !v.IsDeleted);
-	}
+		public async Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId)
+		{
+			return await _context.ProductVariants
+				.Where(v => v.Id == variantId && !v.IsDeleted)
+				.ProjectToType<ProductVariantResponse>()
+				.FirstOrDefaultAsync();
+		}
 
-	public async Task<(List<ProductVariant> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(GetPagedVariantsRequest request)
-	{
-		var query = _context.ProductVariants
-			.Include(v => v.Concentration)
-			.Include(v => v.Media.Where(m => !m.IsDeleted && m.IsPrimary))
-			.Where(v => !v.IsDeleted)
-			.AsNoTracking();
+		public async Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(GetPagedVariantsRequest request)
+		{
+			var query = _context.ProductVariants
+				.Where(v => !v.IsDeleted);
 
-		var totalCount = await query.CountAsync();
+			var totalCount = await query.CountAsync();
 
-		var items = await query
-			.OrderByDescending(v => v.CreatedAt)
-			.Skip((request.PageNumber - 1) * request.PageSize)
-			.Take(request.PageSize)
-			.ToListAsync();
+			var items = await query
+				.OrderByDescending(v => v.CreatedAt)
+				.Skip((request.PageNumber - 1) * request.PageSize)
+				.Take(request.PageSize)
+				.ProjectToType<VariantPagedItem>()
+				.ToListAsync();
 
-		return (items, totalCount);
-	}
+			return (items, totalCount);
+		}
 	}
 }
 
