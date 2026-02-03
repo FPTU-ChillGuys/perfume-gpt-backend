@@ -114,7 +114,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 				options.AddPolicy("AllowConfiguredOrigins", builder =>
 				{
 					builder
-						.WithOrigins(webUrl, aiBackendUrl)
+						.WithOrigins(webUrl, aiBackendUrl, webUrlHttps)
 						.AllowAnyHeader()
 						.AllowAnyMethod()
 						.AllowCredentials();

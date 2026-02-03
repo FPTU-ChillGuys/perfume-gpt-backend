@@ -6,6 +6,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Imports
 	{
 		public Guid Id { get; set; }
 		public string CreatedByName { get; set; } = null!;
+		public string? VerifiedByName { get; set; }
 		public string SupplierName { get; set; } = null!;
 		public DateTime ImportDate { get; set; }
 		public decimal TotalCost { get; set; }
