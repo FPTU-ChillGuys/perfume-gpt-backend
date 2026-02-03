@@ -78,14 +78,14 @@ namespace PerfumeGPT.Infrastructure.Extensions
 					DisableGlobalLocks = true
 				}));
 
-		services.AddHangfireServer();
+			services.AddHangfireServer();
 
-		// Register background job classes
-		services.AddScoped<StockReservationJob>();
-		services.AddScoped<TemporaryMediaCleanupJob>();
-		services.AddHostedService<StartupJobScheduler>();
+			// Register background job classes
+			services.AddScoped<StockReservationJob>();
+			services.AddScoped<TemporaryMediaCleanupJob>();
+			services.AddHostedService<StartupJobScheduler>();
 
-		// Configure ASP.NET Core Identity using the application's User entity and GUID roles
+			// Configure ASP.NET Core Identity using the application's User entity and GUID roles
 			services.AddIdentity<User, IdentityRole<Guid>>(options =>
 			{
 				// Basic password / user settings - tweak as necessary for your environment
@@ -107,6 +107,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 
 			// CORS - Allow both frontend and AI backend
 			var webUrl = configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url!!");
+			var webUrlHttps = configuration["Front-end:webUrlHttps"] ?? throw new Exception("Missing web https url!!");
 			var aiBackendUrl = configuration["Back-end:aiUrl"] ?? throw new Exception("Missing ai url!!");
 			services.AddCors(options =>
 			{
