@@ -9,5 +9,6 @@ namespace PerfumeGPT.Application.DTOs.Requests.Imports
 		public ImportStatus? Status { get; set; }
 		public DateTime? FromDate { get; set; }
 		public DateTime? ToDate { get; set; }
+		public Guid? VerifiedById { get; set; }
 	}
 }

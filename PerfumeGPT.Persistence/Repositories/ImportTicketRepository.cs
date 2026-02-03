@@ -40,6 +40,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			var query = _context.ImportTickets
 				.Include(it => it.CreatedByUser)
+				.Include(it => it.VerifiedByUser)
 				.Include(it => it.Supplier)
 				.Include(it => it.ImportDetails)
 				.AsNoTracking()
@@ -57,6 +58,9 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			if (request.ToDate.HasValue)
 				query = query.Where(it => it.ImportDate <= request.ToDate.Value);
+
+			if (request.VerifiedById.HasValue)
+				query = query.Where(it => it.VerifiedById == request.VerifiedById.Value);
 
 			// Get total count
 			var totalCount = await query.CountAsync();
