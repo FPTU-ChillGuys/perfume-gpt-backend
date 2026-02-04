@@ -134,10 +134,16 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AnyAsync(r => r.UserId == userId && r.OrderDetailId == orderDetailId && !r.IsDeleted);
 		}
 
-		public async Task<List<Review>> GetReviewsByVariantIdAsync(Guid variantId, ReviewStatus? status = null)
+	public async Task<List<Review>> GetReviewsByVariantIdAsync(Guid variantId, ReviewStatus? status = null)
 		{
 			var query = _context.Reviews
 				.Include(r => r.User)
+				.Include(r => r.OrderDetail)
+					.ThenInclude(od => od.ProductVariant)
+						.ThenInclude(v => v.Product)
+				.Include(r => r.OrderDetail)
+					.ThenInclude(od => od.ProductVariant)
+						.ThenInclude(v => v.Concentration)
 				.Include(r => r.ReviewImages.Where(m => !m.IsDeleted))
 				.Where(r => r.OrderDetail.VariantId == variantId && !r.IsDeleted);
 
