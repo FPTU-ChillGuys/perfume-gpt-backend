@@ -3,7 +3,7 @@ using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 using PerfumeGPT.Domain.Entities;
 
-namespace PerfumeGPT.Application.Services.OrderHelpers
+namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 {
 	public class OrderDetailsFactory : IOrderDetailsFactory
 	{

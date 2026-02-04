@@ -10,7 +10,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Imports
 	public class UpdateFullImportTicketRequest
 	{
 		public int SupplierId { get; set; }
-		public DateTime ImportDate { get; set; }
+		public DateTime ExpectedArrivalDate { get; set; }
 		public List<UpdateImportDetailRequest> ImportDetails { get; set; } = [];
 	}
 

@@ -39,6 +39,43 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		/// <summary>
+		/// Create a new import ticket from Excel file
+		/// </summary>
+		[HttpPost("upload-excel")]
+		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<string>>> CreateImportTicketFromExcel([FromForm] CreateImportTicketFromExcelRequest request)
+		{
+			var validation = ValidateRequestBody<CreateImportTicketFromExcelRequest>(request);
+			if (validation != null) return validation;
+
+			var userId = GetCurrentUserId();
+			var response = await _importTicketService.CreateImportTicketFromExcelAsync(request, userId);
+			return HandleResponse(response);
+		}
+
+		/// <summary>
+		/// Download Excel template for import ticket creation
+		/// </summary>
+		[HttpGet("download-template")]
+		[ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<ExcelTemplateResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<IActionResult> DownloadImportTemplate()
+		{
+			var response = await _importTicketService.GenerateImportTemplateAsync();
+			
+		if (response.Success && response.Payload != null)
+		{
+			return File(response.Payload.FileContent, response.Payload.ContentType, response.Payload.FileName);
+		}
+
+			return HandleResponse(BaseResponse<ExcelTemplateResponse>.Fail(response.Message, response.ErrorType));
+		}
+
+		/// <summary>
 		/// Verify import ticket by adding batches and updating stock
 		/// </summary>
 		[HttpPost("{ticketId:guid}/verify")]

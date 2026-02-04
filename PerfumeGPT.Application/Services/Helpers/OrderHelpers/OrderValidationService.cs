@@ -2,7 +2,7 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 using PerfumeGPT.Domain.Enums;
 
-namespace PerfumeGPT.Application.Services.OrderHelpers
+namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 {
 	public class OrderValidationService : IOrderValidationService
 	{

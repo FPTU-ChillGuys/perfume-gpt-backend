@@ -11,9 +11,8 @@ namespace PerfumeGPT.Application.Validators.Imports
 			RuleFor(x => x.SupplierId)
 				.GreaterThan(0).WithMessage("Supplier ID must be a positive integer.");
 
-			RuleFor(x => x.ImportDate)
-				.NotEmpty().WithMessage("Import date is required.")
-				.LessThanOrEqualTo(DateTime.UtcNow.AddDays(1)).WithMessage("Import date cannot be in the future.");
+			RuleFor(x => x.ExpectedArrivalDate)
+				.NotEmpty().WithMessage("Expected arrival date is required.");
 
 			RuleFor(x => x.ImportDetails)
 				.NotEmpty().WithMessage("Import details are required.")

@@ -5,13 +5,12 @@ namespace PerfumeGPT.Application.DTOs.Responses.Imports
 	public class ImportTicketResponse
 	{
 		public Guid Id { get; set; }
-		public Guid CreatedById { get; set; }
 		public string CreatedByName { get; set; } = null!;
-		public Guid? VerifiedById { get; set; }
 		public string? VerifiedByName { get; set; }
 		public int SupplierId { get; set; }
 		public string SupplierName { get; set; } = null!;
-		public DateTime ImportDate { get; set; }
+		public DateTime ExpectedArrivalDate { get; set; }
+		public DateTime? ActualImportDate { get; set; }
 		public decimal TotalCost { get; set; }
 		public ImportStatus Status { get; set; }
 		public DateTime CreatedAt { get; set; }

@@ -2,7 +2,7 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 
-namespace PerfumeGPT.Application.Services.OrderHelpers
+namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 {
 	public class OrderInventoryManager : IOrderInventoryManager
 	{
