@@ -38,6 +38,10 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Include(r => r.User)
 				.Include(r => r.OrderDetail)
 					.ThenInclude(od => od.ProductVariant)
+						.ThenInclude(v => v.Product)
+				.Include(r => r.OrderDetail)
+					.ThenInclude(od => od.ProductVariant)
+						.ThenInclude(v => v.Concentration)
 				.Include(r => r.ReviewImages.Where(m => !m.IsDeleted))
 				.Where(r => !r.IsDeleted)
 				.AsQueryable();
