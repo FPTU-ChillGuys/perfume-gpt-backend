@@ -2,6 +2,7 @@
 using Mapster;
 using MapsterMapper;
 using Microsoft.Extensions.DependencyInjection;
+using PerfumeGPT.Application.Services.Helpers;
 using System.Reflection;
 
 namespace PerfumeGPT.Application.Extensions
@@ -15,6 +16,9 @@ namespace PerfumeGPT.Application.Extensions
 
             // Register implementations that follow the convention: I{TypeName} -> {TypeName}
             RegisterServicesByConvention(services, assembly);
+
+            // Register helper classes that don't follow the interface convention
+            services.AddScoped<ExcelTemplateGenerator>();
 
             // Mapster configuration: clone global settings and scan this assembly for IRegister implementations
             var config = TypeAdapterConfig.GlobalSettings.Clone();

@@ -7,7 +7,7 @@ using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
-namespace PerfumeGPT.Application.Services.OrderHelpers
+namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 {
 	public class OrderPaymentService : IOrderPaymentService
 	{

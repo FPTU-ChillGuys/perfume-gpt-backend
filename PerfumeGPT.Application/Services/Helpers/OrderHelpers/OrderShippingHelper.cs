@@ -7,7 +7,7 @@ using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
-namespace PerfumeGPT.Application.Services.OrderHelpers
+namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 {
 	public class OrderShippingHelper : IOrderShippingHelper
 	{
@@ -170,7 +170,7 @@ namespace PerfumeGPT.Application.Services.OrderHelpers
 				}
 
 				// Create GHN shipping order request
-				var ghnRequest = new Application.DTOs.Requests.GHNs.CreateShippingOrderRequest
+				var ghnRequest = new DTOs.Requests.GHNs.CreateShippingOrderRequest
 				{
 					ToName = recipientInfo.FullName,
 					ToPhone = recipientInfo.Phone,
