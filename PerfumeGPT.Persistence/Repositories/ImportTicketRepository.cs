@@ -54,10 +54,10 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(it => it.Status == request.Status.Value);
 
 			if (request.FromDate.HasValue)
-				query = query.Where(it => it.ImportDate >= request.FromDate.Value);
+				query = query.Where(it => it.ExpectedArrivalDate >= request.FromDate.Value);
 
 			if (request.ToDate.HasValue)
-				query = query.Where(it => it.ImportDate <= request.ToDate.Value);
+				query = query.Where(it => it.ExpectedArrivalDate <= request.ToDate.Value);
 
 			if (request.VerifiedById.HasValue)
 				query = query.Where(it => it.VerifiedById == request.VerifiedById.Value);
@@ -67,8 +67,8 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			// Apply ordering
 			query = request.SortOrder?.ToLower() == "asc"
-				? query.OrderBy(it => it.ImportDate)
-				: query.OrderByDescending(it => it.ImportDate);
+				? query.OrderBy(it => it.ExpectedArrivalDate)
+				: query.OrderByDescending(it => it.ExpectedArrivalDate);
 
 			// Apply paging
 			var items = await query

@@ -6,8 +6,10 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Imports;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using ClosedXML.Excel;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -20,7 +22,9 @@ namespace PerfumeGPT.Application.Services
 		private readonly IValidator<VerifyImportTicketRequest> _verifyImportTicketValidator;
 		private readonly IValidator<UpdateImportTicketRequest> _updateImportTicketValidator;
 		private readonly IValidator<UpdateFullImportTicketRequest> _updateFullImportTicketValidator;
+		private readonly IValidator<CreateImportTicketFromExcelRequest> _createImportTicketFromExcelValidator;
 		private readonly IMapper _mapper;
+		private readonly ExcelTemplateGenerator _excelTemplateGenerator;
 
 		public ImportTicketService(
 			IUnitOfWork unitOfWork,
@@ -30,7 +34,9 @@ namespace PerfumeGPT.Application.Services
 			IValidator<CreateImportTicketRequest> createImportTicketValidator,
 			IValidator<VerifyImportTicketRequest> verifyImportTicketValidator,
 			IValidator<UpdateImportTicketRequest> updateImportTicketValidator,
-			IValidator<UpdateFullImportTicketRequest> updateFullImportTicketValidator)
+			IValidator<UpdateFullImportTicketRequest> updateFullImportTicketValidator,
+			IValidator<CreateImportTicketFromExcelRequest> createImportTicketFromExcelValidator,
+			ExcelTemplateGenerator excelTemplateGenerator)
 		{
 			_unitOfWork = unitOfWork;
 			_stockService = stockService;
@@ -40,6 +46,8 @@ namespace PerfumeGPT.Application.Services
 			_verifyImportTicketValidator = verifyImportTicketValidator;
 			_updateImportTicketValidator = updateImportTicketValidator;
 			_updateFullImportTicketValidator = updateFullImportTicketValidator;
+			_createImportTicketFromExcelValidator = createImportTicketFromExcelValidator;
+			_excelTemplateGenerator = excelTemplateGenerator;
 		}
 
 		public async Task<BaseResponse<string>> CreateImportTicketAsync(CreateImportTicketRequest request, Guid userId)
@@ -92,7 +100,7 @@ namespace PerfumeGPT.Application.Services
 					{
 						CreatedById = userId,
 						SupplierId = request.SupplierId,
-						ImportDate = request.ImportDate,
+						ExpectedArrivalDate = request.ExpectedArrivalDate,
 						TotalCost = totalCost,
 						Status = ImportStatus.Pending
 					};
@@ -120,6 +128,160 @@ namespace PerfumeGPT.Application.Services
 			catch (Exception ex)
 			{
 				return BaseResponse<string>.Fail($"Error creating import ticket: {ex.Message}", ResponseErrorType.InternalError);
+			}
+		}
+
+		public async Task<BaseResponse<string>> CreateImportTicketFromExcelAsync(CreateImportTicketFromExcelRequest request, Guid userId)
+		{
+			try
+			{
+				var validationResult = await _createImportTicketFromExcelValidator.ValidateAsync(request);
+				if (!validationResult.IsValid)
+				{
+					var validationErrors = string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage));
+					return BaseResponse<string>.Fail(validationErrors, ResponseErrorType.BadRequest);
+				}
+				// Validate Excel file
+				if (request.ExcelFile == null || request.ExcelFile.Length == 0)
+				{
+					return BaseResponse<string>.Fail("Excel file is required.", ResponseErrorType.BadRequest);
+				}
+
+				// Validate file extension
+				var fileExtension = Path.GetExtension(request.ExcelFile.FileName).ToLowerInvariant();
+				if (fileExtension != ".xlsx" && fileExtension != ".xls")
+				{
+					return BaseResponse<string>.Fail("Only .xlsx and .xls files are supported.", ResponseErrorType.BadRequest);
+				}
+
+				// Validate file size (max 10MB)
+				if (request.ExcelFile.Length > 10 * 1024 * 1024)
+				{
+					return BaseResponse<string>.Fail("File size cannot exceed 10MB.", ResponseErrorType.BadRequest);
+				}
+
+				// Parse Excel file
+				var importDetails = new List<CreateImportDetailRequest>();
+				var errors = new List<string>();
+
+				using (var stream = new MemoryStream())
+				{
+					await request.ExcelFile.CopyToAsync(stream);
+					stream.Position = 0;
+
+					using (var workbook = new XLWorkbook(stream))
+					{
+						var worksheet = workbook.Worksheet(1);
+						var rows = worksheet.RangeUsed()?.RowsUsed().Skip(1); // Skip header row
+
+						if (rows == null || !rows.Any())
+						{
+							return BaseResponse<string>.Fail("Excel file is empty or has no data rows.", ResponseErrorType.BadRequest);
+						}
+
+						int rowNumber = 2; // Start from 2 (1 is header)
+						foreach (var row in rows)
+						{
+							try
+							{
+								// Column A: SKU (required)
+								var skuCell = row.Cell(1).GetValue<string>();
+
+								// Skip empty rows (template has 1000 rows with formulas, but user may only fill a few)
+								if (string.IsNullOrWhiteSpace(skuCell))
+								{
+									rowNumber++;
+									continue; // Skip empty rows silently - don't add to errors
+								}
+
+								// Column D: Quantity (required) - Note: Columns B & C are auto-filled (Barcode, Product Name)
+								var quantityCell = row.Cell(4);
+								if (!quantityCell.TryGetValue(out int quantity) || quantity <= 0)
+								{
+									errors.Add($"Row {rowNumber}: Quantity must be a positive number (found: '{quantityCell.GetString()}').");
+									rowNumber++;
+									continue;
+								}
+
+								// Column E: Unit Price (required)
+								var unitPriceCell = row.Cell(5);
+								if (!unitPriceCell.TryGetValue(out decimal unitPrice) || unitPrice <= 0)
+								{
+									errors.Add($"Row {rowNumber}: Unit Price must be a positive number (found: '{unitPriceCell.GetString()}').");
+									rowNumber++;
+									continue;
+								}
+
+								// Find variant by SKU
+								var variant = await _unitOfWork.Variants.GetByConditionAsync(
+									predicate: v => v.Sku == skuCell.Trim());
+
+								if (variant == null)
+								{
+									errors.Add($"Row {rowNumber}: Variant with SKU '{skuCell}' not found.");
+									rowNumber++;
+									continue;
+								}
+
+								// Add to import details
+								importDetails.Add(new CreateImportDetailRequest
+								{
+									VariantId = variant.Id,
+									Quantity = quantity,
+									UnitPrice = unitPrice
+								});
+
+								rowNumber++;
+							}
+							catch (Exception ex)
+							{
+								errors.Add($"Row {rowNumber}: Error parsing row - {ex.Message}");
+								rowNumber++;
+							}
+						}
+					}
+				}
+
+				// Check if there are any errors
+				if (errors.Count != 0)
+				{
+					var errorMessage = string.Join("; ", errors);
+					return BaseResponse<string>.Fail($"Excel parsing errors: {errorMessage}", ResponseErrorType.BadRequest);
+				}
+
+				// Check if we have any details
+				if (importDetails.Count == 0)
+				{
+					return BaseResponse<string>.Fail("No valid import details found in Excel file.", ResponseErrorType.BadRequest);
+				}
+
+				// Create the import ticket request
+				var createRequest = new CreateImportTicketRequest
+				{
+					SupplierId = request.SupplierId,
+					ExpectedArrivalDate = request.ExpectedArrivalDate,
+					ImportDetails = importDetails
+				};
+
+				// Use existing CreateImportTicketAsync to create the ticket
+				return await CreateImportTicketAsync(createRequest, userId);
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<string>.Fail($"Error creating import ticket from Excel: {ex.Message}", ResponseErrorType.InternalError);
+			}
+		}
+
+		public async Task<BaseResponse<ExcelTemplateResponse>> GenerateImportTemplateAsync()
+		{
+			try
+			{
+				var response = await _excelTemplateGenerator.GenerateImportTemplateAsync();
+				return BaseResponse<ExcelTemplateResponse>.Ok(response, "Excel template generated successfully.");
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<ExcelTemplateResponse>.Fail($"Error generating Excel template: {ex.Message}", ResponseErrorType.InternalError);
 			}
 		}
 
@@ -154,6 +316,37 @@ namespace PerfumeGPT.Application.Services
 				if (request.ImportDetails.Count != importTicket.ImportDetails.Count)
 				{
 					return BaseResponse<string>.Fail("Mismatch in number of import details for verification.", ResponseErrorType.BadRequest);
+				}
+
+				// VALIDATION: Check for duplicate import detail IDs in request
+				var duplicateDetailIds = request.ImportDetails
+					.GroupBy(d => d.ImportDetailId)
+					.Where(g => g.Count() > 1)
+					.Select(g => g.Key)
+					.ToList();
+
+				if (duplicateDetailIds.Count != 0)
+				{
+					var duplicateIds = string.Join(", ", duplicateDetailIds);
+					return BaseResponse<string>.Fail($"Duplicate import detail IDs found in request: {duplicateIds}. Each import detail can only appear once.", ResponseErrorType.BadRequest);
+				}
+
+				// VALIDATION: Ensure all import details from ticket are included in request
+				var ticketDetailIds = importTicket.ImportDetails.Select(d => d.Id).ToHashSet();
+				var requestDetailIds = request.ImportDetails.Select(d => d.ImportDetailId).ToHashSet();
+
+				var missingDetailIds = ticketDetailIds.Except(requestDetailIds).ToList();
+				if (missingDetailIds.Count != 0)
+				{
+					var missingIds = string.Join(", ", missingDetailIds);
+					return BaseResponse<string>.Fail($"Missing import details in request: {missingIds}. All import details must be verified.", ResponseErrorType.BadRequest);
+				}
+
+				var extraDetailIds = requestDetailIds.Except(ticketDetailIds).ToList();
+				if (extraDetailIds.Count != 0)
+				{
+					var extraIds = string.Join(", ", extraDetailIds);
+					return BaseResponse<string>.Fail($"Unknown import detail IDs in request: {extraIds}. These details do not belong to this import ticket.", ResponseErrorType.BadRequest);
 				}
 
 				// Validate all import details exist and match request
@@ -229,6 +422,7 @@ namespace PerfumeGPT.Application.Services
 					// Update import ticket status to Completed and set verifier
 					importTicket.Status = ImportStatus.Completed;
 					importTicket.VerifiedById = verifiedByUserId;
+					importTicket.ActualImportDate = DateTime.UtcNow;
 					_unitOfWork.ImportTickets.Update(importTicket);
 
 					return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Import ticket verified successfully.");
@@ -404,7 +598,7 @@ namespace PerfumeGPT.Application.Services
 					// At this point, status must be Pending - safe to update
 					// Update import ticket fields
 					importTicket.SupplierId = request.SupplierId;
-					importTicket.ImportDate = request.ImportDate;
+					importTicket.ExpectedArrivalDate = request.ExpectedArrivalDate;
 
 					// VALIDATION: Check for duplicate variant IDs in request
 					var duplicateVariants = request.ImportDetails
@@ -571,3 +765,4 @@ namespace PerfumeGPT.Application.Services
 		}
 	}
 }
+

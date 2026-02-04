@@ -9,7 +9,8 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid CreatedById { get; set; }
 		public Guid? VerifiedById { get; set; }
 		public int SupplierId { get; set; }
-		public DateTime ImportDate { get; set; }
+		public DateTime ExpectedArrivalDate { get; set; }
+		public DateTime ActualImportDate { get; set; }
 		public decimal TotalCost { get; set; }
 		public ImportStatus Status { get; set; }
 
