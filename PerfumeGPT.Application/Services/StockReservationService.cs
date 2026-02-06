@@ -27,7 +27,7 @@ namespace PerfumeGPT.Application.Services
 				{
 					// Get available batches (FIFO: ordered by ExpiryDate)
 					var batches = await _unitOfWork.Batches
-						.GetAvailableBatchesByVariantAsync(variantId);
+						.GetAvailableBatchesByVariantIdAsync(variantId);
 
 					if (batches.Count == 0)
 					{

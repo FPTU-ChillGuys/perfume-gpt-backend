@@ -1,0 +1,53 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using PerfumeGPT.API.Controllers.Base;
+using PerfumeGPT.Application.DTOs.Requests.Inventory;
+using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Batches;
+using PerfumeGPT.Application.Interfaces.Services;
+
+namespace PerfumeGPT.API.Controllers
+{
+	[Route("api/[controller]")]
+	[ApiController]
+	public class BatchesController : BaseApiController
+	{
+		private readonly IBatchService _batchService;
+
+		public BatchesController(IBatchService batchService)
+		{
+			_batchService = batchService;
+		}
+
+		[HttpGet]
+		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<BatchDetailResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<BatchDetailResponse>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PagedResult<BatchDetailResponse>>>> GetBatches([FromQuery] GetBatchesRequest request)
+		{
+			var response = await _batchService.GetBatchesAsync(request);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("{id:guid}")]
+		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<BatchDetailResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<BatchDetailResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<BatchDetailResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<BatchDetailResponse>>> GetBatchById(Guid id)
+		{
+			var response = await _batchService.GetBatchByIdAsync(id);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("variant/{variantId:guid}")]
+		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<List<BatchDetailResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<BatchDetailResponse>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<List<BatchDetailResponse>>>> GetBatchesByVariantId(Guid variantId)
+		{
+			var response = await _batchService.GetBatchesByVariantIdAsync(variantId);
+			return HandleResponse(response);
+		}
+	}
+}

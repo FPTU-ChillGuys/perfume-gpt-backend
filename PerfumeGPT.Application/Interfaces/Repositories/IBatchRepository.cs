@@ -1,4 +1,5 @@
 ﻿using PerfumeGPT.Application.DTOs.Requests.Inventory;
+using PerfumeGPT.Application.DTOs.Responses.Batches;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Domain.Entities;
 
@@ -6,12 +7,16 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 {
 	public interface IBatchRepository : IGenericRepository<Batch>
 	{
-		Task<bool> DeductBatchAsync(Guid variantId, int quantity);
-		Task<bool> IsValidForDeductionAsync(Guid variantId, int requiredQuantity);
-		Task<List<Batch>> GetAvailableBatchesByVariantAsync(Guid variantId);
-		Task<(List<Batch> Batches, int TotalCount)> GetBatchesWithFiltersAsync(GetBatchesRequest request);
-		Task<List<Batch>> GetBatchesByVariantWithIncludesAsync(Guid variantId);
+		Task<List<Batch>> GetAvailableBatchesByVariantIdAsync(Guid variantId);
+		Task<(List<BatchDetailResponse> Batches, int TotalCount)> GetBatchesAsync(GetBatchesRequest request);
+		Task<List<BatchDetailResponse>> GetBatchesByVariantIdAsync(Guid variantId);
+		Task<BatchDetailResponse?> GetBatchByIdAsync(Guid batchId);
 		Task<Batch?> GetBatchByIdWithIncludesAsync(Guid batchId);
+
+		Task<bool> IncreaseBatchQuantityAsync(Guid batchId, int quantity);
+		Task<bool> DecreaseBatchQuantityAsync(Guid batchId, int quantity);
+
+		Task<bool> DeductBatchesByVariantIdAsync(Guid variantId, int quantity);
 	}
 }
 

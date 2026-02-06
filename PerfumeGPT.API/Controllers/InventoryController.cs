@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Inventory;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Batches;
 using PerfumeGPT.Application.DTOs.Responses.Inventory;
 using PerfumeGPT.Application.Interfaces.Services;
 
@@ -53,9 +54,9 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet("batches")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<BatchResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<BatchResponse>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PagedResult<BatchResponse>>>> GetBatches([FromQuery] GetBatchesRequest request)
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<BatchDetailResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<BatchDetailResponse>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PagedResult<BatchDetailResponse>>>> GetBatches([FromQuery] GetBatchesRequest request)
 		{
 			var response = await _batchService.GetBatchesAsync(request);
 			return HandleResponse(response);
@@ -66,9 +67,9 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet("batches/variant/{variantId:guid}")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<List<BatchResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<BatchResponse>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<List<BatchResponse>>>> GetBatchesByVariantId(Guid variantId)
+		[ProducesResponseType(typeof(BaseResponse<List<BatchDetailResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<BatchDetailResponse>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<List<BatchDetailResponse>>>> GetBatchesByVariantId(Guid variantId)
 		{
 			var response = await _batchService.GetBatchesByVariantIdAsync(variantId);
 			return HandleResponse(response);
@@ -79,10 +80,10 @@ namespace PerfumeGPT.API.Controllers
 		/// </summary>
 		[HttpGet("batches/{batchId:guid}")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<BatchResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<BatchResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<BatchResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<BatchResponse>>> GetBatchById(Guid batchId)
+		[ProducesResponseType(typeof(BaseResponse<BatchDetailResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<BatchDetailResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<BatchDetailResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<BatchDetailResponse>>> GetBatchById(Guid batchId)
 		{
 			var response = await _batchService.GetBatchByIdAsync(batchId);
 			return HandleResponse(response);

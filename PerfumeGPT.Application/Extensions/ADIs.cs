@@ -20,10 +20,12 @@ namespace PerfumeGPT.Application.Extensions
             // Register helper classes that don't follow the interface convention
             services.AddScoped<ExcelTemplateGenerator>();
 
-            // Mapster configuration: clone global settings and scan this assembly for IRegister implementations
-            var config = TypeAdapterConfig.GlobalSettings.Clone();
-            config.Scan(assembly);
-            services.AddSingleton(config);
+            // Mapster configuration: scan assembly for IRegister implementations
+            // Apply to GlobalSettings first (used by ProjectToType static method)
+            TypeAdapterConfig.GlobalSettings.Scan(assembly);
+            
+            // Create a singleton config that references GlobalSettings for consistency
+            services.AddSingleton(TypeAdapterConfig.GlobalSettings);
             services.AddScoped<IMapper, ServiceMapper>();
 
             // FluentValidation - registers all validators found in the assembly

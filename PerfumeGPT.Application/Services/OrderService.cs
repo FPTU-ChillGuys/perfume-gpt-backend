@@ -13,10 +13,6 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Services
 {
-	/// <summary>
-	/// Core order service handling checkout, status updates, and cancellations.
-	/// Fulfillment operations are delegated to IOrderFulfillmentService.
-	/// </summary>
 	public class OrderService : IOrderService
 	{
 		#region Dependencies
@@ -104,16 +100,16 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-			var order = await _unitOfWork.Orders.GetByConditionAsync(
-					o => o.Id == orderId,
-					o => o.Include(o => o.Customer)
-						  .Include(o => o.Staff)
-						  .Include(o => o.Voucher)
-						  .Include(o => o.ShippingInfo)
-						  .Include(o => o.RecipientInfo)
-						  .Include(o => o.OrderDetails)
-							  .ThenInclude(od => od.ProductVariant)
-								  .ThenInclude(v => v.Media));
+				var order = await _unitOfWork.Orders.GetByConditionAsync(
+						o => o.Id == orderId,
+						o => o.Include(o => o.Customer)
+							  .Include(o => o.Staff)
+							  .Include(o => o.Voucher)
+							  .Include(o => o.ShippingInfo)
+							  .Include(o => o.RecipientInfo)
+							  .Include(o => o.OrderDetails)
+								  .ThenInclude(od => od.ProductVariant)
+									  .ThenInclude(v => v.Media));
 
 				if (order == null)
 				{

@@ -372,7 +372,7 @@ namespace PerfumeGPT.Application.Services
 					}
 
 					// Use BatchService to validate batches against accepted quantity
-					if (acceptedQuantity > 0 && !_batchService.ValidateBatches(verifyDetail.Batches, acceptedQuantity))
+					if (acceptedQuantity > 0 && !_batchService.IsTotalQuantityValid(verifyDetail.Batches, acceptedQuantity))
 					{
 						return BaseResponse<string>.Fail(
 							$"Total batch quantity does not match accepted quantity ({acceptedQuantity}) for import detail {verifyDetail.ImportDetailId}.",

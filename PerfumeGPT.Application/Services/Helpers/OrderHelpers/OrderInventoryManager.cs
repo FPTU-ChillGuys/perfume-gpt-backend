@@ -51,7 +51,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			foreach (var item in items)
 			{
 				// Use BatchService to deduct batches (FIFO)
-				var batchDeducted = await _batchService.DeductBatchesByVariantAsync(item.VariantId, item.Quantity);
+				var batchDeducted = await _batchService.DeductBatchesByVariantIdAsync(item.VariantId, item.Quantity);
 				if (!batchDeducted)
 				{
 					return BaseResponse<bool>.Fail($"Failed to deduct batch quantity for variant {item.VariantId}.", ResponseErrorType.InternalError);

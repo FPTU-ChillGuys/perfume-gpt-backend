@@ -354,7 +354,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				else
 				{
 					// Need to find a different batch with available quantity
-					var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantAsync(variantId);
+					var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
 					var foundBatch = availableBatches
 						.Where(b => b.Id != damagedBatch.Id && b.AvailableInBatch >= quantityToSwap)
 						.OrderBy(b => b.ExpiryDate) // FEFO: First Expiry First Out
@@ -561,7 +561,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			Guid excludeBatchId,
 			DateTime? expiresAt)
 		{
-			var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantAsync(variantId);
+			var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
 
 			var newBatch = availableBatches
 				.Where(b => b.Id != excludeBatchId && b.AvailableInBatch >= quantityToSwap)
