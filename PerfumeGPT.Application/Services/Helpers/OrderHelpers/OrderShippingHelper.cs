@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
@@ -60,8 +62,11 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					OrderId = orderId,
 					FullName = customerAddress.Payload.ReceiverName,
 					Phone = customerAddress.Payload.Phone,
+					DistrictName = customerAddress.Payload.District,
 					DistrictId = customerAddress.Payload.DistrictId,
+					ProvinceName = customerAddress.Payload.City,
 					WardCode = customerAddress.Payload.WardCode,
+					WardName = customerAddress.Payload.Ward,
 					FullAddress = $"{customerAddress.Payload.Street}, {customerAddress.Payload.Ward}, {customerAddress.Payload.District}, {customerAddress.Payload.City}"
 				};
 			}
@@ -73,8 +78,11 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					FullName = recipientRequest.FullName,
 					Phone = recipientRequest.Phone,
 					DistrictId = recipientRequest.DistrictId,
+					DistrictName = recipientRequest.DistrictName,
 					WardCode = recipientRequest.WardCode,
-					FullAddress = recipientRequest.FullAddress
+					WardName = recipientRequest.WardName,
+					ProvinceName = recipientRequest.ProvinceName,
+					FullAddress = $"{recipientRequest.WardName}, {recipientRequest.DistrictName}, {recipientRequest.ProvinceName}"
 				};
 			}
 
@@ -101,6 +109,32 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				shippingFee = calculatedFee.Value;
 			}
 
+			// Get leadtime from GHN
+			var leadTimeRequest = new GetLeadTimeRequest
+			{
+				ToDistrictId = recipientInfo.DistrictId,
+				ToWardCode = recipientInfo.WardCode,
+				ServiceId = 2 // lightweight service
+			};
+
+			int? leadTimeDays = null;
+			var leadTimeResponse = await _ghnService.GetLeadTimeAsync(leadTimeRequest);
+			if (leadTimeResponse?.Data != null)
+			{
+				// Use LeadTimeOrder if available, otherwise fall back to Unix timestamp
+				if (leadTimeResponse.Data.LeadTimeOrder != null)
+				{
+					var days = (int)Math.Ceiling((leadTimeResponse.Data.LeadTimeOrder.ToEstimateDate - DateTime.UtcNow).TotalDays);
+					leadTimeDays = days > 0 ? days : null;
+				}
+				else if (leadTimeResponse.Data.LeadTime > 0)
+				{
+					var leadTimeDate = DateTimeOffset.FromUnixTimeSeconds(leadTimeResponse.Data.LeadTime).UtcDateTime;
+					var days = (int)Math.Ceiling((leadTimeDate - DateTime.UtcNow).TotalDays);
+					leadTimeDays = days > 0 ? days : null;
+				}
+			}
+
 			// Create shipping info
 			var shippingInfo = new ShippingInfo
 			{
@@ -108,7 +142,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				CarrierName = CarrierName.GHN,
 				TrackingNumber = null,
 				ShippingFee = shippingFee,
-				Status = ShippingStatus.Pending
+				Status = ShippingStatus.Pending,
+				LeadTime = leadTimeDays
 			};
 
 			await _unitOfWork.ShippingInfos.AddAsync(shippingInfo);
@@ -145,8 +180,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			try
 			{
 				// Load order details with variant information
-				var orderWithDetails = await _unitOfWork.Orders.GetByIdAsync(order.Id);
-				if (orderWithDetails?.OrderDetails == null || !orderWithDetails.OrderDetails.Any())
+				var orderWithDetails = await _unitOfWork.Orders.GetByConditionAsync(o => o.Id == order.Id, o => o.Include(o => o.OrderDetails));
+				if (orderWithDetails?.OrderDetails == null || orderWithDetails.OrderDetails.Count == 0)
 				{
 					return BaseResponse<string>.Fail(
 						"Order details not found.",
@@ -175,9 +210,9 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					ToName = recipientInfo.FullName,
 					ToPhone = recipientInfo.Phone,
 					ToAddress = recipientInfo.FullAddress,
-					ToWardName = await GetWardNameByCodeAsync(recipientInfo.WardCode),
-					ToDistrictName = await GetDistrictNameByIdAsync(recipientInfo.DistrictId),
-					ToProvinceName = await GetProvinceNameByDistrictIdAsync(recipientInfo.DistrictId),
+					ToWardName = recipientInfo.WardName,
+					ToDistrictName = recipientInfo.DistrictName,
+					ToProvinceName = recipientInfo.ProvinceName,
 					ClientOrderCode = order.Id.ToString(),
 					CodAmount = (int)order.TotalAmount,
 					Content = "Perfume Order",
@@ -186,7 +221,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					Width = maxWidth,
 					Height = totalHeight,
 					ServiceTypeId = 2, // Lightweight service
-					PaymentTypeId = 1, // Seller pays shipping fee
+					PaymentTypeId = 2, // buyer pays shipping fee
 					RequiredNote = "KHONGCHOXEMHANG",
 					InsuranceValue = (int)Math.Min(order.TotalAmount, 5000000), // Max 5M VND
 				};
@@ -218,23 +253,23 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			}
 		}
 
-		private async Task<string> GetWardNameByCodeAsync(string wardCode)
-		{
-			// This is a placeholder - you may need to implement proper ward lookup
-			// For now, return the ward code as name
-			return wardCode;
-		}
+		//private async Task<string> GetWardNameByCodeAsync(string wardCode)
+		//{
+		//	// This is a placeholder - you may need to implement proper ward lookup
+		//	// For now, return the ward code as name
+		//	return wardCode;
+		//}
 
-		private async Task<string> GetDistrictNameByIdAsync(int districtId)
-		{
-			// This is a placeholder - you may need to implement proper district lookup
-			return districtId.ToString();
-		}
+		//private async Task<string> GetDistrictNameByIdAsync(int districtId)
+		//{
+		//	// This is a placeholder - you may need to implement proper district lookup
+		//	return districtId.ToString();
+		//}
 
-		private async Task<string> GetProvinceNameByDistrictIdAsync(int districtId)
-		{
-			// This is a placeholder - you may need to implement proper province lookup
-			return "HCM"; // Default to Ho Chi Minh City
-		}
+		//private async Task<string> GetProvinceNameByDistrictIdAsync(int districtId)
+		//{
+		//	// This is a placeholder - you may need to implement proper province lookup
+		//	return "HCM"; // Default to Ho Chi Minh City
+		//}
 	}
 }
