@@ -16,6 +16,8 @@ namespace PerfumeGPT.Application.Services
 {
 	public class AuthService : IAuthService
 	{
+		#region Dependencies
+
 		private readonly IEmailTemplateService _templateService;
 		private readonly UserManager<User> _userManager;
 		private readonly IEmailService _emailService;
@@ -37,6 +39,8 @@ namespace PerfumeGPT.Application.Services
 			_profileService = profileService;
 			_loyaltyPointService = loyaltyPointService;
 		}
+
+		#endregion
 
 		private async Task TryCreateProfileAndLoyaltyPointsAsync(User user)
 		{
@@ -174,7 +178,7 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<TokenResponse>.Fail("Invalid Google token", ResponseErrorType.BadRequest);
 			}
 
-			var email = payload?.Email;
+			var email = payload.Email;
 			if (string.IsNullOrWhiteSpace(email))
 				return BaseResponse<TokenResponse>.Fail("Google token does not contain an email", ResponseErrorType.BadRequest);
 
