@@ -35,8 +35,8 @@ namespace PerfumeGPT.Application.Services
 
 			try
 			{
-				var userAddresses = await _addressRepo.GetAllAsync(filter: a => a.UserId == userId);
-				var isFirstAddress = !userAddresses.Any();
+				var userAddresses = await _addressRepo.GetUserAddresses(userId);
+				var isFirstAddress = userAddresses.Count == 0;
 
 				var address = _mapper.Map<Address>(request);
 				address.UserId = userId;
@@ -96,7 +96,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var address = await _addressRepo.GetDefaultAddressWithDetails(userId);
+				var address = await _addressRepo.GetDefaultAddress(userId);
 				if (address == null)
 				{
 					return BaseResponse<AddressResponse>.Fail("Default address not found for user", ResponseErrorType.NotFound);
@@ -115,7 +115,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var addresses = await _addressRepo.GetUserAddressesWithDetails(userId);
+				var addresses = await _addressRepo.GetUserAddresses(userId);
 				if (addresses == null || addresses.Count == 0)
 				{
 					return BaseResponse<List<AddressResponse>>.Fail("No addresses found for user", ResponseErrorType.NotFound);
@@ -189,7 +189,7 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Ok(addressId.ToString(), "Address is already the default");
 				}
 
-				var currentDefaultAddress = await _addressRepo.GetDefaultAddressWithDetails(userId);
+				var currentDefaultAddress = await _addressRepo.GetDefaultAddress(userId);
 				if (currentDefaultAddress != null)
 				{
 					var currentDefault = await _addressRepo.GetByIdAsync(currentDefaultAddress.Id);
@@ -221,7 +221,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var address = await _addressRepo.GetAddressByIdWithDetails(userId, addressId);
+				var address = await _addressRepo.GetUserAddressById(userId, addressId);
 				if (address == null)
 				{
 					return BaseResponse<AddressResponse>.Fail("Address not found", ResponseErrorType.NotFound);

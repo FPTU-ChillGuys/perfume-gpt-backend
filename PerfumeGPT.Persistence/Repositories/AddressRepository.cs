@@ -12,7 +12,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
-		public async Task<Address?> GetAddressByIdWithDetails(Guid userId, Guid addressId)
+		public async Task<Address?> GetUserAddressById(Guid userId, Guid addressId)
 		{
 			var address = await _context.Addresses
 				.Where(a => a.UserId == userId && a.Id == addressId)
@@ -21,7 +21,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			return address;
 		}
 
-		public async Task<Address?> GetDefaultAddressWithDetails(Guid userId)
+		public async Task<Address?> GetDefaultAddress(Guid userId)
 		{
 			var address = await _context.Addresses
 				.Where(a => a.UserId == userId && a.IsDefault)
@@ -30,11 +30,13 @@ namespace PerfumeGPT.Persistence.Repositories
 			return address;
 		}
 
-		public async Task<List<Address>> GetUserAddressesWithDetails(Guid userId)
+		public async Task<List<Address>> GetUserAddresses(Guid userId)
 		{
 			var addresses = await _context.Addresses
-				.Where(a => a.UserId == userId)
-				.ToListAsync();
+			.AsNoTracking()
+			.Where(a => a.UserId == userId)
+			.OrderByDescending(a => a.CreatedAt)
+			.ToListAsync();
 
 			return addresses;
 		}

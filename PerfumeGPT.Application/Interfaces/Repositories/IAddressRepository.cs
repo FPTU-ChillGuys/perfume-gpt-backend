@@ -5,8 +5,8 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 {
 	public interface IAddressRepository : IGenericRepository<Address>
 	{
-		Task<List<Address>> GetUserAddressesWithDetails(Guid userId);
-		Task<Address?> GetAddressByIdWithDetails(Guid userId, Guid addressId);
-		Task<Address?> GetDefaultAddressWithDetails(Guid userId);
+		Task<List<Address>> GetUserAddresses(Guid userId);
+		Task<Address?> GetUserAddressById(Guid userId, Guid addressId);
+		Task<Address?> GetDefaultAddress(Guid userId);
 	}
 }
