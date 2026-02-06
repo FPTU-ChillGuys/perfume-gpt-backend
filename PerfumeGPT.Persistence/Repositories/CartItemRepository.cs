@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Mapster;
+using Microsoft.EntityFrameworkCore;
+using PerfumeGPT.Application.DTOs.Responses.CartItems;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
@@ -12,19 +14,44 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
-		public async Task<List<CartItem>> GetCartItemByCartIdAsync(Guid cartId)
+		public async Task<List<GetCartItemResponse>> GetCartItemsByCartIdAsync(Guid cartId)
 		{
 			var items = await _context.CartItems
-				.Include(ci => ci.ProductVariant)
-					.ThenInclude(pv => pv.Product)
-				.Include(pv => pv.ProductVariant)
-					.ThenInclude(pv => pv.Concentration)
-				.Include(ci => ci.ProductVariant)
-					.ThenInclude(pv => pv.Media.Where(m => !m.IsDeleted && m.IsPrimary))
 				.Where(ci => ci.CartId == cartId)
+				.ProjectToType<GetCartItemResponse>()
 				.ToListAsync();
 
 			return items;
+		}
+
+		public async Task<List<CartCheckoutItemDto>> GetCartCheckoutItemsAsync(Guid cartId)
+		{
+			var items = await _context.CartItems
+				.Where(ci => ci.CartId == cartId)
+				.Select(ci => new CartCheckoutItemDto
+				{
+					VariantId = ci.VariantId,
+					Quantity = ci.Quantity
+				})
+				.ToListAsync();
+
+			return items;
+		}
+
+		public async Task<List<CartItemPriceDto>> GetCartItemPricesAsync(Guid cartId)
+		{
+			var items = await _context.CartItems
+				.Where(ci => ci.CartId == cartId)
+				.ProjectToType<CartItemPriceDto>()
+				.ToListAsync();
+
+			return items;
+		}
+
+		public async Task<bool> HasItemsInCartAsync(Guid cartId)
+		{
+			return await _context.CartItems
+				.AnyAsync(ci => ci.CartId == cartId);
 		}
 	}
 }

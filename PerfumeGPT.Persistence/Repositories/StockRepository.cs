@@ -27,14 +27,14 @@ namespace PerfumeGPT.Persistence.Repositories
 			return stock.TotalQuantity <= stock.LowStockThreshold;
 		}
 
-		public async Task<bool> IsValidToCart(Guid variantId, int requiredQuantity)
+		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
 		{
 			var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
 			if (stock == null)
 			{
 				return false;
 			}
-			return stock.TotalQuantity >= requiredQuantity;
+			return stock.AvailableQuantity >= requiredQuantity;
 		}
 
 		public async Task<bool> UpdateStockAsync(Guid variantId)

@@ -21,7 +21,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 
 		// Apply voucher logic
 		Task<BaseResponse<ApplyVoucherResponse>> ApplyVoucherToOrderAsync(Guid userId, ApplyVoucherRequest request);
-		Task<BaseResponse<bool>> ValidateToApplyVoucherAsync(Guid voucherId, Guid userId);
+		Task<BaseResponse<bool>> CanUserApplyVoucherAsync(Guid voucherId, Guid userId);
 
 		// Voucher status management
 		Task<BaseResponse<bool>> MarkVoucherAsReservedAsync(Guid userId, Guid voucherId);

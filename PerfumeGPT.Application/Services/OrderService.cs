@@ -205,7 +205,7 @@ namespace PerfumeGPT.Application.Services
 					// Validate voucher if provided
 					if (request.VoucherId.HasValue && request.VoucherId.Value != Guid.Empty)
 					{
-						var voucherValidation = await _voucherService.ValidateToApplyVoucherAsync(
+						var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(
 							request.VoucherId.Value,
 							userId);
 
@@ -218,23 +218,23 @@ namespace PerfumeGPT.Application.Services
 					}
 
 					// Get cart with items
-					var cartResponse = await _cartService.GetCartByUserIdAsync(userId, request.VoucherId);
+					var cartResponse = await _cartService.GetCartForCheckoutAsync(userId, request.VoucherId);
 					if (!cartResponse.Success || cartResponse.Payload == null)
 					{
-						return BaseResponse<string>.Fail(
-							cartResponse.Message ?? "Failed to retrieve cart.",
-							cartResponse.ErrorType);
+					return BaseResponse<string>.Fail(
+					cartResponse.Message ?? "Failed to retrieve cart.",
+					cartResponse.ErrorType);
 					}
 
 					if (cartResponse.Payload.Items.Count == 0)
 					{
-						return BaseResponse<string>.Fail("Cart is empty.", ResponseErrorType.BadRequest);
+					return BaseResponse<string>.Fail("Cart is empty.", ResponseErrorType.BadRequest);
 					}
 
 					// Create order details
 					var itemsToValidate = cartResponse.Payload.Items
-						.Select(item => (item.VariantId, item.Quantity))
-						.ToList();
+					.Select(item => (item.VariantId, item.Quantity))
+					.ToList();
 
 					var orderDetailsResult = await _orderDetailsFactory.CreateOrderDetailsAsync(itemsToValidate);
 					if (!orderDetailsResult.Success || orderDetailsResult.Payload == null)

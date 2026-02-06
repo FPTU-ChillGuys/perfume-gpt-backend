@@ -1,4 +1,5 @@
 ﻿using FluentValidation;
+using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.CartItems;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
@@ -9,25 +10,32 @@ namespace PerfumeGPT.Application.Services
 {
 	public class CartItemService : ICartItemService
 	{
+		#region Dependencies
+
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IVariantService _variantService;
 		private readonly IStockService _stockService;
 		private readonly IValidator<CreateCartItemRequest> _createCartItemValidator;
 		private readonly IValidator<UpdateCartItemRequest> _updateCartItemValidator;
+		private readonly IMapper _mapper;
 
 		public CartItemService(
 			IUnitOfWork unitOfWork,
 			IVariantService variantService,
 			IStockService stockService,
 			IValidator<CreateCartItemRequest> createCartItemValidator,
-			IValidator<UpdateCartItemRequest> updateCartItemValidator)
+			IValidator<UpdateCartItemRequest> updateCartItemValidator,
+			IMapper mapper)
 		{
 			_unitOfWork = unitOfWork;
 			_variantService = variantService;
 			_stockService = stockService;
 			_createCartItemValidator = createCartItemValidator;
 			_updateCartItemValidator = updateCartItemValidator;
+			_mapper = mapper;
 		}
+
+		#endregion
 
 		public async Task<BaseResponse<string>> AddToCartAsync(Guid userId, CreateCartItemRequest request)
 		{
@@ -41,10 +49,6 @@ namespace PerfumeGPT.Application.Services
 			try
 			{
 				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
-				if (cart == null)
-				{
-					return BaseResponse<string>.Fail("Cart not found for user", ResponseErrorType.NotFound);
-				}
 
 				var variant = await _unitOfWork.Variants.GetByIdAsync(request.VariantId);
 				if (variant == null)
@@ -63,7 +67,7 @@ namespace PerfumeGPT.Application.Services
 
 				var totalQuantity = existing != null ? existing.Quantity + request.Quantity : request.Quantity;
 
-				var hasStock = await _stockService.IsValidToCartAsync(request.VariantId, totalQuantity);
+				var hasStock = await _stockService.HasSufficientStockAsync(request.VariantId, totalQuantity);
 				if (!hasStock)
 				{
 					return BaseResponse<string>.Fail(
@@ -87,12 +91,8 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Ok(existing.Id.ToString(), "Cart item quantity updated successfully");
 				}
 
-				var cartItem = new CartItem
-				{
-					CartId = cart.Id,
-					VariantId = request.VariantId,
-					Quantity = request.Quantity
-				};
+				request.CartId = cart.Id;
+				var cartItem = _mapper.Map<CartItem>(request);
 
 				await _unitOfWork.CartItems.AddAsync(cartItem);
 				var saved = await _unitOfWork.SaveChangesAsync();
@@ -116,18 +116,9 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> RemoveFromCartAsync(Guid userId, Guid cartItemId)
 		{
-			if (cartItemId == Guid.Empty)
-			{
-				return BaseResponse<string>.Fail("Cart item ID is required", ResponseErrorType.BadRequest);
-			}
-
 			try
 			{
 				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
-				if (cart == null)
-				{
-					return BaseResponse<string>.Fail("Cart not found for user", ResponseErrorType.NotFound);
-				}
 
 				var cartItem = await _unitOfWork.CartItems.GetByIdAsync(cartItemId);
 				if (cartItem == null)
@@ -174,10 +165,6 @@ namespace PerfumeGPT.Application.Services
 			try
 			{
 				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
-				if (cart == null)
-				{
-					return BaseResponse<string>.Fail("Cart not found for user", ResponseErrorType.NotFound);
-				}
 
 				var cartItem = await _unitOfWork.CartItems.FirstOrDefaultAsync(
 					ci => ci.Id == cartItemId && ci.CartId == cart.Id);
@@ -187,7 +174,7 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Fail("Cart item not found", ResponseErrorType.NotFound);
 				}
 
-				if (request.Quantity <= 0)
+				if (request.Quantity == 0)
 				{
 					_unitOfWork.CartItems.Remove(cartItem);
 					var removed = await _unitOfWork.SaveChangesAsync();
@@ -202,7 +189,7 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Item removed from cart successfully");
 				}
 
-				var hasStock = await _stockService.IsValidToCartAsync(cartItem.VariantId, request.Quantity);
+				var hasStock = await _stockService.HasSufficientStockAsync(cartItem.VariantId, request.Quantity);
 				if (!hasStock)
 				{
 					return BaseResponse<string>.Fail(

@@ -25,7 +25,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			foreach (var item in items)
 			{
 				// Use StockService to validate stock
-				var isStockValid = await _stockService.IsValidToCartAsync(item.VariantId, item.Quantity);
+				var isStockValid = await _stockService.HasSufficientStockAsync(item.VariantId, item.Quantity);
 				if (!isStockValid)
 				{
 					var variantResponse = await _variantService.GetVariantByIdAsync(item.VariantId);

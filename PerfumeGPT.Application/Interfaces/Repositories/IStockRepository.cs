@@ -7,7 +7,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	{
 		Task<bool> UpdateStockAsync(Guid variantId);
 		Task<bool> IsLowStockAsync(Guid variantId);
-		Task<bool> IsValidToCart(Guid variantId, int requiredQuantity);
+		Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity);
 
 		/// <summary>
 		/// Gets paged inventory with filtering, sorting, and includes.

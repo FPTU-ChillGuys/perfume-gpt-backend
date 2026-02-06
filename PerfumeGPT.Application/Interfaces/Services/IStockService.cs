@@ -13,7 +13,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		/// <param name="variantId">The variant ID to check stock for</param>
 		/// <param name="requiredQuantity">The quantity required</param>
 		/// <returns>True if stock is available, false otherwise</returns>
-		Task<bool> IsValidToCartAsync(Guid variantId, int requiredQuantity);
+		Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity);
 
 		/// <summary>
 		/// Increases stock quantity for a variant when items are imported.

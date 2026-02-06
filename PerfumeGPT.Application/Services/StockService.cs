@@ -18,9 +18,9 @@ namespace PerfumeGPT.Application.Services
 			_batchRepository = batchRepository;
 		}
 
-		public async Task<bool> IsValidToCartAsync(Guid variantId, int requiredQuantity)
+		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
 		{
-			return await _stockRepository.IsValidToCart(variantId, requiredQuantity);
+			return await _stockRepository.HasSufficientStockAsync(variantId, requiredQuantity);
 		}
 
 		public async Task<bool> IncreaseStockAsync(Guid variantId, int quantity)

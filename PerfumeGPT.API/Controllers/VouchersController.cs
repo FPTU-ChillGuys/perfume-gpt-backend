@@ -173,7 +173,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<bool>>> ValidateVoucher(Guid voucherId)
 		{
 			var userId = GetCurrentUserId();
-			var response = await _voucherService.ValidateToApplyVoucherAsync(voucherId, userId);
+			var response = await _voucherService.CanUserApplyVoucherAsync(voucherId, userId);
 			return HandleResponse(response);
 		}
 

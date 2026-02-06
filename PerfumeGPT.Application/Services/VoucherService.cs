@@ -357,17 +357,8 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
-			// Check if voucher is in correct status (Available)
-			if (userVoucher.Status != UsageStatus.Available)
-			{
-				return BaseResponse<ApplyVoucherResponse>.Fail(
-					"Voucher is not available for use",
-					ResponseErrorType.BadRequest
-				);
-			}
-
 			// Calculate discount
-			decimal discountAmount = voucher.DiscountType == Domain.Enums.DiscountType.Percentage
+			decimal discountAmount = voucher.DiscountType == DiscountType.Percentage
 				? request.OrderAmount * (voucher.DiscountValue / 100m)
 				: voucher.DiscountValue;
 
@@ -390,9 +381,8 @@ namespace PerfumeGPT.Application.Services
 			);
 		}
 
-		public async Task<BaseResponse<bool>> ValidateToApplyVoucherAsync(Guid voucherId, Guid userId)
+		public async Task<BaseResponse<bool>> CanUserApplyVoucherAsync(Guid voucherId, Guid userId)
 		{
-			// Use repository method to get voucher by code
 			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
 
 			if (voucher == null)
@@ -417,15 +407,6 @@ namespace PerfumeGPT.Application.Services
 			{
 				return BaseResponse<bool>.Fail(
 					"You don't own this voucher or it has already been used",
-					ResponseErrorType.BadRequest
-				);
-			}
-
-			// Check if voucher is in correct status (Available)
-			if (userVoucher.Status != UsageStatus.Available)
-			{
-				return BaseResponse<bool>.Fail(
-					"Voucher is not available for use",
 					ResponseErrorType.BadRequest
 				);
 			}
@@ -578,7 +559,7 @@ namespace PerfumeGPT.Application.Services
 					_ => 0m
 				};
 
-				var finalPrice = totalPrice - discountAmount;
+				var finalPrice = Math.Round(totalPrice - discountAmount, 0, MidpointRounding.AwayFromZero);
 				return finalPrice < 0m ? 0m : finalPrice;
 			}
 			catch
