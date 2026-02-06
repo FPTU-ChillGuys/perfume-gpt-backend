@@ -11,5 +11,6 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		Task<List<DistrictResponse>> GetDistrictsByProvinceIdAsync(int provinceId);
 		Task<List<WardResponse>> GetWardsByDistrictIdAsync(int districtId);
 		Task<CreateShippingOrderResponse?> CreateShippingOrderAsync(CreateShippingOrderRequest request);
+		Task<GetLeadTimeResponse?> GetLeadTimeAsync(GetLeadTimeRequest request);
 	}
 }

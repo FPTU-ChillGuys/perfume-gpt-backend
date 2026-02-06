@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260204133553_Remove_ShopeeId")]
+    partial class Remove_ShopeeId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -971,10 +974,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<int>("DistrictId")
                         .HasColumnType("int");
 
-                    b.Property<string>("DistrictName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("FullAddress")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -988,15 +987,7 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<string>("Phone")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ProvinceName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("WardCode")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("WardName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
@@ -1082,9 +1073,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<string>("CarrierName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("LeadTime")
-                        .HasColumnType("int");
 
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier");

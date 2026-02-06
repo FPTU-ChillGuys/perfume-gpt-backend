@@ -10,7 +10,10 @@ namespace PerfumeGPT.Domain.Entities
 
 		// Calculate Shipping fee based on Address
 		public int DistrictId { get; set; }
+		public string DistrictName { get; set; } = null!;
 		public string WardCode { get; set; } = null!;
+		public string WardName { get; set; } = null!;
+		public string ProvinceName { get; set; } = null!;
 
 		// Recipient Full Address
 		public string FullAddress { get; set; } = null!;

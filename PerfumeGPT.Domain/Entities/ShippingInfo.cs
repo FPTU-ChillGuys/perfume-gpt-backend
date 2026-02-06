@@ -10,6 +10,7 @@ namespace PerfumeGPT.Domain.Entities
 		public string? TrackingNumber { get; set; }
 		public decimal ShippingFee { get; set; }
 		public ShippingStatus Status { get; set; }
+		public int? LeadTime { get; set; }
 
 		// Navigation
 		public virtual Order Order { get; set; } = null!;

@@ -300,17 +300,8 @@ namespace PerfumeGPT.Application.Services
 			order.PaymentStatus = PaymentStatus.Paid;
 			order.PaidAt = DateTime.UtcNow;
 
-			// Commit stock reservation for online orders (convert reserved to actual deduction)
-			if (order.Type == OrderType.Online)
-			{
-				var commitResult = await _stockReservationService.CommitReservationAsync(order.Id);
-				if (!commitResult.Success)
-				{
-					return BaseResponse<bool>.Fail(
-						commitResult.Message ?? "Failed to commit stock reservation.",
-						commitResult.ErrorType);
-				}
-			}
+			// Note: Stock reservation is committed when staff updates order to Processing status
+			// This allows staff to verify physical inventory before committing
 
 			if (order.VoucherId.HasValue)
 			{

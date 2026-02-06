@@ -255,13 +255,16 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				// Calculate total reserved quantities per variant BEFORE changing status
+				// Only count reservations that will actually be released (exclude paid orders)
 				var variantIds = expiredReservations.Select(r => r.VariantId).Distinct();
 				var reservedByVariant = new Dictionary<Guid, int>();
 
 				foreach (var variantId in variantIds)
 				{
 					var totalReserved = expiredReservations
-						.Where(r => r.VariantId == variantId && r.Status == ReservationStatus.Reserved)
+						.Where(r => r.VariantId == variantId 
+							&& r.Status == ReservationStatus.Reserved
+							&& (r.Order == null || r.Order.PaymentStatus != PaymentStatus.Paid))
 						.Sum(r => r.ReservedQuantity);
 
 					reservedByVariant[variantId] = totalReserved;
@@ -274,6 +277,12 @@ namespace PerfumeGPT.Application.Services
 				foreach (var reservation in expiredReservations)
 				{
 					if (reservation.Status != ReservationStatus.Reserved)
+					{
+						continue;
+					}
+
+					// Skip reservations for paid orders - they are waiting for staff to package
+					if (reservation.Order != null && reservation.Order.PaymentStatus == PaymentStatus.Paid)
 					{
 						continue;
 					}

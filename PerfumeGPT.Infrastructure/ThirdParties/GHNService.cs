@@ -214,5 +214,35 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<CreateShippingOrderResponse>>();
 			return result?.Data;
 		}
+
+		public async Task<GetLeadTimeResponse?> GetLeadTimeAsync(GetLeadTimeRequest request)
+		{
+			var token = _configuration["GHN:Token"];
+			var shopId = _configuration["GHN:ShopId"];
+			var leadTimeUrl = _configuration["GHN:GetLeadTimeUrl"];
+
+			var requestBody = new
+			{
+				to_district_id = request.ToDistrictId,
+				to_ward_code = request.ToWardCode,
+				service_id = request.ServiceId
+			};
+
+			using var requestMessage = new HttpRequestMessage(HttpMethod.Post, leadTimeUrl);
+			requestMessage.Headers.Add("Token", token);
+			requestMessage.Headers.Add("ShopId", shopId);
+			requestMessage.Content = JsonContent.Create(requestBody);
+
+			var response = await _httpClient.SendAsync(requestMessage);
+			if (!response.IsSuccessStatusCode)
+			{
+				var errorContent = await response.Content.ReadAsStringAsync();
+				Console.WriteLine($"Error Detail: {errorContent}");
+				return null;
+			}
+
+			var result = await response.Content.ReadFromJsonAsync<GetLeadTimeResponse>();
+			return result;
+		}
 	}
 }

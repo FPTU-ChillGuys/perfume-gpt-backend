@@ -12,7 +12,6 @@ namespace PerfumeGPT.Domain.Entities
 		public OrderStatus Status { get; set; }
 		public decimal TotalAmount { get; set; }
 		public PaymentStatus PaymentStatus { get; set; }
-		public string? ExternalShopeeId { get; set; }
 		public Guid? VoucherId { get; set; }
 		public DateTime? PaymentExpiresAt { get; set; }
 		public DateTime? PaidAt { get; set; }
