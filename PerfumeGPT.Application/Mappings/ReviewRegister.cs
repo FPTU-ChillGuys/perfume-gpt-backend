@@ -21,7 +21,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.UserId, src => src.UserId)
 				.Map(dest => dest.UserFullName, src => src.User.FullName)
-				.Map(dest => dest.UserProfilePictureUrl, src => src.User.ProfilePictureUrl)
+				.Map(dest => dest.UserProfilePictureUrl, src => src.User.ProfilePicture != null ? src.User.ProfilePicture.Url : null)
 				.Map(dest => dest.OrderDetailId, src => src.OrderDetailId)
 				.Map(dest => dest.VariantId, src => src.OrderDetail.VariantId)
 				.Map(dest => dest.VariantName, src =>
@@ -40,7 +40,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.UserId, src => src.UserId)
 				.Map(dest => dest.UserFullName, src => src.User.FullName)
-				.Map(dest => dest.UserProfilePictureUrl, src => src.User.ProfilePictureUrl)
+				.Map(dest => dest.UserProfilePictureUrl, src => src.User.ProfilePicture != null ? src.User.ProfilePicture.Url : null)
 				.Map(dest => dest.OrderDetailId, src => src.OrderDetailId)
 				.Map(dest => dest.OrderId, src => src.OrderDetail.OrderId)
 				.Map(dest => dest.Quantity, src => src.OrderDetail.Quantity)
@@ -69,7 +69,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.UserId, src => src.UserId)
 				.Map(dest => dest.UserFullName, src => src.User.FullName)
-				.Map(dest => dest.UserProfilePictureUrl, src => src.User.ProfilePictureUrl)
+				.Map(dest => dest.UserProfilePictureUrl, src => src.User.ProfilePicture != null ? src.User.ProfilePicture.Url : null)
 				.Map(dest => dest.VariantId, src => src.OrderDetail.VariantId)
 				.Map(dest => dest.VariantName, src =>
 					src.OrderDetail.ProductVariant.Product.Name + " " +

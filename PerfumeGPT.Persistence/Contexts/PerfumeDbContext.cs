@@ -532,6 +532,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(m => m.ProductVariantId)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			// Media -> User (1:1) for ProfilePicture using UserId
+			builder.Entity<User>()
+				.HasOne(u => u.ProfilePicture)
+				.WithOne(m => m.User)
+				.HasForeignKey<Media>(m => m.UserId)
+				.OnDelete(DeleteBehavior.SetNull);
+
 			// Review -> User (M:1)
 			builder.Entity<Review>()
 				.HasOne(r => r.User)
@@ -562,6 +569,9 @@ namespace PerfumeGPT.Persistence.Contexts
 
 			builder.Entity<Media>()
 				.HasIndex(m => new { m.EntityType, m.ReviewId });
+
+			builder.Entity<Media>()
+				.HasIndex(m => new { m.EntityType, m.UserId });
 
 			// Create index on IsPrimary for quick primary image lookup
 			builder.Entity<Media>()

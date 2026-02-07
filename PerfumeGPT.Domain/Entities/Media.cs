@@ -13,6 +13,7 @@ namespace PerfumeGPT.Domain.Entities
 		// Separate foreign keys for proper referential integrity
 		public Guid? ProductId { get; set; }
 		public Guid? ProductVariantId { get; set; }
+		public Guid? UserId { get; set; }
 		public Guid? ReviewId { get; set; }
 
 		// Computed property for backward compatibility
@@ -20,6 +21,7 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			EntityType.Product => ProductId ?? Guid.Empty,
 			EntityType.ProductVariant => ProductVariantId ?? Guid.Empty,
+			EntityType.User => UserId ?? Guid.Empty,
 			EntityType.Review => ReviewId ?? Guid.Empty,
 			_ => Guid.Empty
 		};
@@ -33,6 +35,7 @@ namespace PerfumeGPT.Domain.Entities
 		// Navigation properties
 		public virtual Product? Product { get; set; }
 		public virtual ProductVariant? ProductVariant { get; set; }
+		public virtual User? User { get; set; }
 		public virtual Review? Review { get; set; }
 
 		// ISoftDelete implementation
