@@ -1,7 +1,4 @@
-﻿using FluentValidation;
-using MapsterMapper;
-using PerfumeGPT.Application.DTOs.Requests.LoyaltyPoints;
-using PerfumeGPT.Application.Interfaces.Repositories;
+﻿using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
 
@@ -9,46 +6,39 @@ namespace PerfumeGPT.Application.Services
 {
 	public class LoyaltyPointService : ILoyaltyPointService
 	{
-		private readonly IValidator<CreateLoyaltyPointRequest> _createLoyaltyPointValidator;
-		private readonly ILoyaltyPointRepository _loyaltyPointRepository;
-		private readonly IMapper _mapper;
+		private readonly IUnitOfWork _unitOfWork;
 
-		public LoyaltyPointService(IValidator<CreateLoyaltyPointRequest> createLoyaltyPointValidator, ILoyaltyPointRepository loyaltyPointRepository, IMapper mapper)
+		public LoyaltyPointService(IUnitOfWork unitOfWork)
 		{
-			_createLoyaltyPointValidator = createLoyaltyPointValidator;
-			_loyaltyPointRepository = loyaltyPointRepository;
-			_mapper = mapper;
+			_unitOfWork = unitOfWork;
 		}
 
-		public async Task<string> CreateLoyaltyPointAsync(CreateLoyaltyPointRequest request)
+		public async Task<bool> CreateLoyaltyPointAsync(Guid userId, bool saveChanges = true)
 		{
-			var validationResult = await _createLoyaltyPointValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				return string.Empty;
-			}
+			if (userId == Guid.Empty)
+				return false;
 
-			// prevent duplicate loyalty point record for same user
-			var existing = await _loyaltyPointRepository.FirstOrDefaultAsync(lp => lp.UserId == request.UserId);
-			if (existing != null)
-				return existing.Id.ToString();
+			var existing = await _unitOfWork.LoyaltyPoints.AnyAsync(lp => lp.UserId == userId);
+			if (existing)
+				return false;
 
-			var entity = _mapper.Map<LoyaltyPoint>(request);
+			var entity = new LoyaltyPoint { UserId = userId };
 
-			await _loyaltyPointRepository.AddAsync(entity);
-			var saved = await _loyaltyPointRepository.SaveChangesAsync();
-			if (!saved)
-				return string.Empty;
+			await _unitOfWork.LoyaltyPoints.AddAsync(entity);
 
-			return entity.Id.ToString();
+			if (saveChanges)
+				return await _unitOfWork.SaveChangesAsync();
+
+			return true;
 		}
 
-		public async Task<int> PlusPointAsync(Guid userId, int points)
+		public async Task<bool> PlusPointAsync(Guid userId, int points, bool saveChanges = true)
 		{
-			if (userId == Guid.Empty) throw new ArgumentException("userId is required", nameof(userId));
-			if (points <= 0) return 0;
+			if (userId == Guid.Empty)
+				return false;
+			if (points <= 0) return false;
 
-			var existing = await _loyaltyPointRepository.FirstOrDefaultAsync(lp => lp.UserId == userId);
+			var existing = await _unitOfWork.LoyaltyPoints.FirstOrDefaultAsync(lp => lp.UserId == userId);
 			if (existing == null)
 			{
 				var newLp = new LoyaltyPoint
@@ -57,38 +47,43 @@ namespace PerfumeGPT.Application.Services
 					PointBalance = points
 				};
 
-				await _loyaltyPointRepository.AddAsync(newLp);
-				var saved = await _loyaltyPointRepository.SaveChangesAsync();
-				return saved ? newLp.PointBalance : 0;
+				await _unitOfWork.LoyaltyPoints.AddAsync(newLp);
+
+				if (saveChanges)
+					return await _unitOfWork.SaveChangesAsync();
+
+				return true;
 			}
 
 			existing.PointBalance += points;
-			_loyaltyPointRepository.Update(existing);
-			var ok = await _loyaltyPointRepository.SaveChangesAsync();
-			return ok ? existing.PointBalance : 0;
+			_unitOfWork.LoyaltyPoints.Update(existing);
+
+			if (saveChanges)
+				return await _unitOfWork.SaveChangesAsync();
+
+			return true;
 		}
 
-	public async Task<int> RedeemPointAsync(Guid userId, int points)
-	{
-		if (userId == Guid.Empty) throw new ArgumentException("userId is required", nameof(userId));
-		if (points <= 0) return -1; // Invalid points amount
-
-		var existing = await _loyaltyPointRepository.FirstOrDefaultAsync(lp => lp.UserId == userId);
-		if (existing == null)
+		public async Task<bool> RedeemPointAsync(Guid userId, int points, bool saveChanges = true)
 		{
-			return -1; // User has no loyalty points
-		}
+			if (userId == Guid.Empty)
+				return false;
+			if (points <= 0) return false;
 
-		if (existing.PointBalance < points)
-		{
-			return -1; // Insufficient points
-		}
+			var existing = await _unitOfWork.LoyaltyPoints.FirstOrDefaultAsync(lp => lp.UserId == userId);
+			if (existing == null)
+				return false;
 
-		existing.PointBalance -= points;
-		_loyaltyPointRepository.Update(existing);
-		var ok = await _loyaltyPointRepository.SaveChangesAsync();
-		
-		return ok ? existing.PointBalance : -1; // Return remaining balance or -1 on failure
+			if (existing.PointBalance < points)
+				return false;
+
+			existing.PointBalance -= points;
+			_unitOfWork.LoyaltyPoints.Update(existing);
+
+			if (saveChanges)
+				return await _unitOfWork.SaveChangesAsync();
+
+			return true;
+		}
 	}
-}
 }

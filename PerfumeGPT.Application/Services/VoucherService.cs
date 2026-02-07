@@ -250,8 +250,8 @@ namespace PerfumeGPT.Application.Services
 					}
 
 					// Use LoyaltyPointService to deduct points
-					var remainingPoints = await _loyaltyPointService.RedeemPointAsync(userId, (int)voucher.RequiredPoints);
-					if (remainingPoints < 0)
+					var remainingPoints = await _loyaltyPointService.RedeemPointAsync(userId, voucher.RequiredPoints, false);
+					if (!remainingPoints)
 					{
 						return BaseResponse<string>.Fail(
 							"Insufficient loyalty points",

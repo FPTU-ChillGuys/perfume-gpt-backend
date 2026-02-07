@@ -2,7 +2,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using PerfumeGPT.Application.DTOs.Requests.Auths;
-using PerfumeGPT.Application.DTOs.Requests.LoyaltyPoints;
 using PerfumeGPT.Application.DTOs.Requests.Profiles;
 using PerfumeGPT.Application.DTOs.Responses.Auths;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -53,13 +52,7 @@ namespace PerfumeGPT.Application.Services
 				var profileResult = await _profileService.CreateProfileAsync(new CreateProfileRequest { UserId = user.Id });
 				if (profileResult.Success)
 				{
-					try
-					{
-						await _loyaltyPointService.CreateLoyaltyPointAsync(new CreateLoyaltyPointRequest { UserId = user.Id });
-					}
-					catch
-					{
-					}
+					await _loyaltyPointService.CreateLoyaltyPointAsync(user.Id);
 				}
 			}
 			catch

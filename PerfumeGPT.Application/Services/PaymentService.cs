@@ -342,7 +342,7 @@ namespace PerfumeGPT.Application.Services
 					int pointsToAward = (int)(order.TotalAmount * 0.01m);
 					if (pointsToAward > 0)
 					{
-						await _loyaltyPointService.PlusPointAsync(order.CustomerId.Value, pointsToAward);
+						await _loyaltyPointService.PlusPointAsync(order.CustomerId.Value, pointsToAward, false);
 					}
 				}
 			}

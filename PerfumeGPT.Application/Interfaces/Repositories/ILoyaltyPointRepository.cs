@@ -3,7 +3,7 @@ using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Interfaces.Repositories
 {
-    public interface ILoyaltyPointRepository : IGenericRepository<LoyaltyPoint>
-    {
-    }
+	public interface ILoyaltyPointRepository : IGenericRepository<LoyaltyPoint>
+	{
+	}
 }
