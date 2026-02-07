@@ -1,6 +1,5 @@
 using FluentValidation;
 using MapsterMapper;
-using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.OrderDetails;
@@ -68,19 +67,14 @@ namespace PerfumeGPT.Application.Services
 
 		#region Query Operations
 
-		/// <inheritdoc />
 		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersAsync(GetPagedOrdersRequest request)
 		{
 			try
 			{
-				var query = BuildOrderQuery(request);
+				var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request);
 
-				var totalCount = await query.CountAsync();
-				var orders = await ApplyPagingAndSorting(query, request).ToListAsync();
-
-				var orderListItems = _mapper.Map<List<OrderListItem>>(orders);
 				var pagedResult = new PagedResult<OrderListItem>(
-					orderListItems,
+					orders,
 					request.PageNumber,
 					request.PageSize,
 					totalCount);
@@ -95,52 +89,35 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		/// <inheritdoc />
 		public async Task<BaseResponse<OrderResponse>> GetOrderByIdAsync(Guid orderId)
 		{
 			try
 			{
-				var order = await _unitOfWork.Orders.GetByConditionAsync(
-						o => o.Id == orderId,
-						o => o.Include(o => o.Customer)
-							  .Include(o => o.Staff)
-							  .Include(o => o.Voucher)
-							  .Include(o => o.ShippingInfo)
-							  .Include(o => o.RecipientInfo)
-							  .Include(o => o.OrderDetails)
-								  .ThenInclude(od => od.ProductVariant)
-									  .ThenInclude(v => v.Media));
+				var order = await _unitOfWork.Orders.GetOrderWithFullDetailsAsync(orderId);
 
 				if (order == null)
 				{
 					return BaseResponse<OrderResponse>.Fail("Order not found.", ResponseErrorType.NotFound);
 				}
 
-				var response = _mapper.Map<OrderResponse>(order);
-				return BaseResponse<OrderResponse>.Ok(response, "Order retrieved successfully.");
+				return BaseResponse<OrderResponse>.Ok(order, "Order retrieved successfully.");
 			}
 			catch (Exception ex)
 			{
 				return BaseResponse<OrderResponse>.Fail(
-					$"An error occurred while retrieving order: {ex.Message}",
-					ResponseErrorType.InternalError);
+				$"An error occurred while retrieving order: {ex.Message}",
+				ResponseErrorType.InternalError);
 			}
 		}
 
-		/// <inheritdoc />
 		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersByUserIdAsync(Guid userId, GetPagedOrdersRequest request)
 		{
 			try
 			{
-				var query = BuildOrderQuery(request)
-					.Where(o => o.CustomerId == userId);
+				var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request, userId: userId);
 
-				var totalCount = await query.CountAsync();
-				var orders = await ApplyPagingAndSorting(query, request).ToListAsync();
-
-				var orderListItems = _mapper.Map<List<OrderListItem>>(orders);
 				var pagedResult = new PagedResult<OrderListItem>(
-					orderListItems,
+					orders,
 					request.PageNumber,
 					request.PageSize,
 					totalCount);
@@ -155,20 +132,14 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		/// <inheritdoc />
 		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersByStaffIdAsync(Guid staffId, GetPagedOrdersRequest request)
 		{
 			try
 			{
-				var query = BuildOrderQuery(request)
-					.Where(o => o.StaffId == staffId);
+				var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request, staffId: staffId);
 
-				var totalCount = await query.CountAsync();
-				var orders = await ApplyPagingAndSorting(query, request).ToListAsync();
-
-				var orderListItems = _mapper.Map<List<OrderListItem>>(orders);
 				var pagedResult = new PagedResult<OrderListItem>(
-					orderListItems,
+					orders,
 					request.PageNumber,
 					request.PageSize,
 					totalCount);
@@ -187,7 +158,6 @@ namespace PerfumeGPT.Application.Services
 
 		#region Checkout Operations
 
-		/// <inheritdoc />
 		public async Task<BaseResponse<string>> Checkout(Guid userId, CreateOrderRequest request)
 		{
 			var validationResult = await _createOrderValidator.ValidateAsync(request);
@@ -221,14 +191,14 @@ namespace PerfumeGPT.Application.Services
 					var cartResponse = await _cartService.GetCartForCheckoutAsync(userId, request.VoucherId);
 					if (!cartResponse.Success || cartResponse.Payload == null)
 					{
-					return BaseResponse<string>.Fail(
-					cartResponse.Message ?? "Failed to retrieve cart.",
-					cartResponse.ErrorType);
+						return BaseResponse<string>.Fail(
+						cartResponse.Message ?? "Failed to retrieve cart.",
+						cartResponse.ErrorType);
 					}
 
 					if (cartResponse.Payload.Items.Count == 0)
 					{
-					return BaseResponse<string>.Fail("Cart is empty.", ResponseErrorType.BadRequest);
+						return BaseResponse<string>.Fail("Cart is empty.", ResponseErrorType.BadRequest);
 					}
 
 					// Create order details
@@ -311,7 +281,6 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		/// <inheritdoc />
 		public async Task<BaseResponse<string>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request)
 		{
 			if (request.OrderDetails.Count == 0)
@@ -398,7 +367,6 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		/// <inheritdoc />
 		public async Task<BaseResponse<PreviewOrderResponse>> PreviewOrder(PreviewOrderRequest request)
 		{
 			try
@@ -441,7 +409,6 @@ namespace PerfumeGPT.Application.Services
 
 		#region Order Status Management
 
-		/// <inheritdoc />
 		public async Task<BaseResponse<PickListResponse>> UpdateOrderStatusAsync(
 			Guid orderId,
 			Guid staffId,
@@ -451,9 +418,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
-					var order = await _unitOfWork.Orders.GetByConditionAsync(
-						o => o.Id == orderId,
-						o => o.Include(o => o.ShippingInfo).Include(o => o.OrderDetails));
+					var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId);
 
 					if (order == null)
 					{
@@ -517,14 +482,13 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		/// <inheritdoc />
 		public async Task<BaseResponse<string>> CancelOrderAsync(Guid orderId, Guid userId)
 		{
 			try
 			{
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
-					var order = await _unitOfWork.Orders.GetByIdAsync(orderId);
+					var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(orderId);
 					if (order == null)
 					{
 						return BaseResponse<string>.Fail("Order not found.", ResponseErrorType.NotFound);
@@ -534,24 +498,24 @@ namespace PerfumeGPT.Application.Services
 					if (order.CustomerId != userId)
 					{
 						return BaseResponse<string>.Fail(
-							"You are not authorized to cancel this order.",
-							ResponseErrorType.Forbidden);
+					"You are not authorized to cancel this order.",
+					ResponseErrorType.Forbidden);
 					}
 
 					// Validate order type
 					if (order.Type != OrderType.Online)
 					{
 						return BaseResponse<string>.Fail(
-							"Only online orders can be cancelled.",
-							ResponseErrorType.BadRequest);
+					"Only online orders can be cancelled.",
+					ResponseErrorType.BadRequest);
 					}
 
 					// Validate status
 					if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Processing)
 					{
 						return BaseResponse<string>.Fail(
-							$"Cannot cancel order with status {order.Status}. Only Pending or Processing orders can be cancelled.",
-							ResponseErrorType.BadRequest);
+					$"Cannot cancel order with status {order.Status}. Only Pending or Processing orders can be cancelled.",
+					ResponseErrorType.BadRequest);
 					}
 
 					if (order.Status == OrderStatus.Canceled)
@@ -575,8 +539,8 @@ namespace PerfumeGPT.Application.Services
 					if (!releaseResult.Success)
 					{
 						return BaseResponse<string>.Fail(
-							releaseResult.Message ?? "Failed to release stock reservation.",
-							releaseResult.ErrorType);
+					releaseResult.Message ?? "Failed to release stock reservation.",
+					releaseResult.ErrorType);
 					}
 
 					// Release voucher
@@ -597,7 +561,6 @@ namespace PerfumeGPT.Application.Services
 
 		#region Fulfillment Operations (Delegated)
 
-		/// <inheritdoc />
 		public Task<BaseResponse<string>> FulfillOrderAsync(
 			Guid orderId,
 			Guid staffId,
@@ -606,7 +569,6 @@ namespace PerfumeGPT.Application.Services
 			return _fulfillmentService.FulfillOrderAsync(orderId, staffId, request);
 		}
 
-		/// <inheritdoc />
 		public Task<BaseResponse<SwapDamagedStockResponse>> SwapDamagedStockAsync(
 			Guid orderId,
 			Guid staffId,
@@ -782,78 +744,6 @@ namespace PerfumeGPT.Application.Services
 					order.CustomerId.Value,
 					order.VoucherId.Value);
 			}
-		}
-
-		private IQueryable<Order> BuildOrderQuery(GetPagedOrdersRequest request)
-		{
-			IQueryable<Order> query = _unitOfWork.Orders.Query()
-				.Include(o => o.Customer)
-				.Include(o => o.Staff)
-				.Include(o => o.ShippingInfo)
-				.Include(o => o.OrderDetails);
-
-			// Filter by status
-			if (request.Status.HasValue)
-			{
-				query = query.Where(o => o.Status == request.Status.Value);
-			}
-
-			// Filter by type
-			if (request.Type.HasValue)
-			{
-				query = query.Where(o => o.Type == request.Type.Value);
-			}
-
-			// Filter by payment status
-			if (request.PaymentStatus.HasValue)
-			{
-				query = query.Where(o => o.PaymentStatus == request.PaymentStatus.Value);
-			}
-
-			// Filter by date range
-			if (request.FromDate.HasValue)
-			{
-				query = query.Where(o => o.CreatedAt >= request.FromDate.Value);
-			}
-
-			if (request.ToDate.HasValue)
-			{
-				query = query.Where(o => o.CreatedAt <= request.ToDate.Value);
-			}
-
-			// Search by order ID or customer name
-			if (!string.IsNullOrWhiteSpace(request.SearchTerm))
-			{
-				var searchTerm = request.SearchTerm.Trim().ToLower();
-				query = query.Where(o =>
-					o.Id.ToString().ToLower().Contains(searchTerm) ||
-					(o.Customer != null && o.Customer.FullName != null && o.Customer.FullName.ToLower().Contains(searchTerm)));
-			}
-
-			return query;
-		}
-
-		private static IQueryable<Order> ApplyPagingAndSorting(IQueryable<Order> query, GetPagedOrdersRequest request)
-		{
-			// Apply sorting
-			query = request.SortBy?.ToLower() switch
-			{
-				"createdat" => request.IsDescending
-					? query.OrderByDescending(o => o.CreatedAt)
-					: query.OrderBy(o => o.CreatedAt),
-				"totalamount" => request.IsDescending
-					? query.OrderByDescending(o => o.TotalAmount)
-					: query.OrderBy(o => o.TotalAmount),
-				"status" => request.IsDescending
-					? query.OrderByDescending(o => o.Status)
-					: query.OrderBy(o => o.Status),
-				_ => query.OrderByDescending(o => o.CreatedAt) // Default: newest first
-			};
-
-			// Apply paging
-			return query
-				.Skip((request.PageNumber - 1) * request.PageSize)
-				.Take(request.PageSize);
 		}
 
 		#endregion

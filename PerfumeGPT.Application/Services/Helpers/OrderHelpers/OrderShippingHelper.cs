@@ -156,7 +156,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				_unitOfWork.Orders.Update(orderToUpdate);
 			}
 
-			// Don't save - let transaction orchestrator handle it
 			return BaseResponse<decimal>.Ok(shippingFee);
 		}
 
@@ -165,7 +164,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			return orderStatus switch
 			{
 				OrderStatus.Processing => ShippingStatus.Pending,
-				OrderStatus.Shipped => ShippingStatus.Shipped,
+				OrderStatus.Delivering => ShippingStatus.Delivering,
 				OrderStatus.Delivered => ShippingStatus.Delivered,
 				OrderStatus.Canceled => ShippingStatus.Cancelled,
 				OrderStatus.Returned => ShippingStatus.Returned,
@@ -205,7 +204,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				}
 
 				// Create GHN shipping order request
-				var ghnRequest = new DTOs.Requests.GHNs.CreateShippingOrderRequest
+				var ghnRequest = new CreateShippingOrderRequest
 				{
 					ToName = recipientInfo.FullName,
 					ToPhone = recipientInfo.Phone,

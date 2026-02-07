@@ -8,7 +8,6 @@ namespace PerfumeGPT.Application.Mappings
 	{
 		public void Register(TypeAdapterConfig config)
 		{
-			// Media -> MediaResponse
 			config.NewConfig<Media, MediaResponse>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.Url, src => src.Url)
@@ -18,7 +17,6 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.FileSize, src => src.FileSize)
 				.Map(dest => dest.MimeType, src => src.MimeType);
 
-			// TemporaryMedia -> TemporaryMediaResponse
 			config.NewConfig<TemporaryMedia, TemporaryMediaResponse>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.Url, src => src.Url)

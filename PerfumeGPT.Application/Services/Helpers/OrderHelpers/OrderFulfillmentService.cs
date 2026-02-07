@@ -157,7 +157,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					}
 
 					// Update order status
-					order.Status = OrderStatus.Shipped;
+					order.Status = OrderStatus.Delivering;
 					order.StaffId = staffId;
 					_unitOfWork.Orders.Update(order);
 
@@ -295,7 +295,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		{
 			if (order.ShippingInfo != null)
 			{
-				order.ShippingInfo.Status = ShippingStatus.Shipped;
+				order.ShippingInfo.Status = ShippingStatus.Delivering;
 				_unitOfWork.ShippingInfos.Update(order.ShippingInfo);
 
 				var recipientInfo = await _unitOfWork.RecipientInfos.GetByOrderIdAsync(order.Id);
