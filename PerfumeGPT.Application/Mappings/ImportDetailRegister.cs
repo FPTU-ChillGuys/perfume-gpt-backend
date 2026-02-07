@@ -1,4 +1,5 @@
 ﻿using Mapster;
+using PerfumeGPT.Application.DTOs.Requests.ImportDetails;
 using PerfumeGPT.Application.DTOs.Responses.Imports;
 using PerfumeGPT.Domain.Entities;
 
@@ -19,6 +20,11 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.RejectQuantity, src => src.RejectQuantity)
 				.Map(dest => dest.Note, src => src.Note)
 				.Map(dest => dest.Batches, src => src.Batches);
+
+			config.NewConfig<CreateImportDetailRequest, ImportDetail>()
+				.Map(dest => dest.ProductVariantId, src => src.VariantId)
+				.Map(dest => dest.Quantity, src => src.Quantity)
+				.Map(dest => dest.UnitPrice, src => src.UnitPrice);
 		}
 	}
 }

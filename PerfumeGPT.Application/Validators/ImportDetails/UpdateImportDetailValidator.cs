@@ -3,18 +3,18 @@ using PerfumeGPT.Application.DTOs.Requests.ImportDetails;
 
 namespace PerfumeGPT.Application.Validators.ImportDetails
 {
-	public class CreateImportDetailValidator : AbstractValidator<CreateImportDetailRequest>
+	public class UpdateImportDetailValidator : AbstractValidator<UpdateImportDetailRequest>
 	{
-		public CreateImportDetailValidator()
+		public UpdateImportDetailValidator()
 		{
 			RuleFor(x => x.VariantId)
 				.NotEmpty().WithMessage("Variant ID is required.");
 
 			RuleFor(x => x.Quantity)
-				.GreaterThan(0).WithMessage("Quantity must be greater than 0.");
+				.GreaterThan(0).WithMessage("Quantity must be greater than zero.");
 
 			RuleFor(x => x.UnitPrice)
-				.GreaterThan(0).WithMessage("Unit price must be greater than 0.");
+				.GreaterThanOrEqualTo(0).WithMessage("Unit price must be greater than or equal to zero.");
 		}
 	}
 }

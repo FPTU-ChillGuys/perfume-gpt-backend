@@ -11,9 +11,9 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<ExcelTemplateResponse>> GenerateImportTemplateAsync();
 		Task<BaseResponse<string>> VerifyImportTicketAsync(Guid ticketId, VerifyImportTicketRequest request, Guid verifiedByUserId);
 		Task<BaseResponse<ImportTicketResponse>> GetImportTicketByIdAsync(Guid id);
-		Task<BaseResponse<PagedResult<ImportTicketListItem>>> GetPagedImportTicketsAsync(GetPagedImportTicketsRequest request);
-		Task<BaseResponse<string>> UpdateImportStatusAsync(Guid id, UpdateImportTicketRequest request);
-		Task<BaseResponse<string>> UpdateImportTicketAsync(Guid adminId, Guid id, UpdateFullImportTicketRequest request);
+		Task<BaseResponse<PagedResult<ImportTicketListItem>>> GetImportTicketsAsync(GetPagedImportTicketsRequest request);
+		Task<BaseResponse<string>> UpdateImportStatusAsync(Guid id, UpdateImportStatusRequest request);
+		Task<BaseResponse<string>> UpdateImportTicketAsync(Guid id, UpdateImportRequest request);
 		Task<BaseResponse<bool>> DeleteImportTicketAsync(Guid id);
 	}
 }

@@ -1,5 +1,7 @@
+using Mapster;
 using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Imports;
+using PerfumeGPT.Application.DTOs.Responses.Imports;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
@@ -16,19 +18,21 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<ImportTicket?> GetByIdWithDetailsAsync(Guid id)
 		{
 			return await _context.ImportTickets
-				.Include(it => it.CreatedByUser)
-				.Include(it => it.VerifiedByUser)
-				.Include(it => it.Supplier)
-				.Include(it => it.ImportDetails)
-					.ThenInclude(d => d.ProductVariant)
-						.ThenInclude(v => v.Product)
-				.Include(it => it.ImportDetails)
-					.ThenInclude(d => d.Batches)
 				.AsNoTracking()
+				.Include(it => it.ImportDetails)
 				.FirstOrDefaultAsync(it => it.Id == id);
 		}
 
-		public async Task<ImportTicket?> GetByIdWithDetailsForDeleteAsync(Guid id)
+		public async Task<ImportTicketResponse?> GetResponseByIdAsync(Guid id)
+		{
+			return await _context.ImportTickets
+			.AsNoTracking()
+			.Where(it => it.Id == id)
+			.ProjectToType<ImportTicketResponse>()
+			.FirstOrDefaultAsync();
+		}
+
+		public async Task<ImportTicket?> GetByIdWithDetailsAndBatchesAsync(Guid id)
 		{
 			return await _context.ImportTickets
 				.Include(it => it.ImportDetails)
@@ -36,17 +40,10 @@ namespace PerfumeGPT.Persistence.Repositories
 				.FirstOrDefaultAsync(it => it.Id == id);
 		}
 
-		public async Task<(IEnumerable<ImportTicket> Items, int TotalCount)> GetPagedWithDetailsAsync(GetPagedImportTicketsRequest request)
+		public async Task<(List<ImportTicketListItem> Items, int TotalCount)> GetPagedAsync(GetPagedImportTicketsRequest request)
 		{
-			var query = _context.ImportTickets
-				.Include(it => it.CreatedByUser)
-				.Include(it => it.VerifiedByUser)
-				.Include(it => it.Supplier)
-				.Include(it => it.ImportDetails)
-				.AsNoTracking()
-				.AsQueryable();
+			var query = _context.ImportTickets.AsNoTracking().AsQueryable();
 
-			// Apply filters
 			if (request.SupplierId.HasValue)
 				query = query.Where(it => it.SupplierId == request.SupplierId.Value);
 
@@ -62,18 +59,16 @@ namespace PerfumeGPT.Persistence.Repositories
 			if (request.VerifiedById.HasValue)
 				query = query.Where(it => it.VerifiedById == request.VerifiedById.Value);
 
-			// Get total count
 			var totalCount = await query.CountAsync();
 
-			// Apply ordering
 			query = request.SortOrder?.ToLower() == "asc"
 				? query.OrderBy(it => it.ExpectedArrivalDate)
 				: query.OrderByDescending(it => it.ExpectedArrivalDate);
 
-			// Apply paging
 			var items = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
+				.ProjectToType<ImportTicketListItem>()
 				.ToListAsync();
 
 			return (items, totalCount);

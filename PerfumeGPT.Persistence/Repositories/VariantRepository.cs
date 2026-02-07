@@ -23,6 +23,13 @@ namespace PerfumeGPT.Persistence.Repositories
 				.FirstOrDefaultAsync();
 		}
 
+		public async Task<ProductVariant?> GetBySkuAsync(string sku)
+		{
+			return await _context.ProductVariants
+				.Where(v => v.Sku == sku && !v.IsDeleted)
+				.FirstOrDefaultAsync();
+		}
+
 		public async Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId)
 		{
 			return await _context.ProductVariants
@@ -46,6 +53,14 @@ namespace PerfumeGPT.Persistence.Repositories
 				.ToListAsync();
 
 			return (items, totalCount);
+		}
+
+		public async Task<List<Guid>> GetExistingIdsAsync(List<Guid> ids)
+		{
+			return await _context.ProductVariants
+				.Where(v => ids.Contains(v.Id) && !v.IsDeleted)
+				.Select(v => v.Id)
+				.ToListAsync();
 		}
 	}
 }

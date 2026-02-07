@@ -1,5 +1,5 @@
 ﻿using Mapster;
-using PerfumeGPT.Application.DTOs.Requests.Imports;
+using PerfumeGPT.Application.DTOs.Requests.Batches;
 using PerfumeGPT.Application.DTOs.Responses.Batches;
 using PerfumeGPT.Domain.Entities;
 

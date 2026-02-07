@@ -1,4 +1,4 @@
-using PerfumeGPT.Application.DTOs.Requests.Imports;
+using PerfumeGPT.Application.DTOs.Requests.Batches;
 using PerfumeGPT.Application.DTOs.Requests.Inventory;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Batches;
