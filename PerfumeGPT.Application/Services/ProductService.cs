@@ -130,16 +130,15 @@ namespace PerfumeGPT.Application.Services
 				totalCount
 			);
 
-		return BaseResponse<PagedResult<ProductListItem>>.Ok(pagedResult, "Products retrieved successfully");
-	}
+			return BaseResponse<PagedResult<ProductListItem>>.Ok(pagedResult, "Products retrieved successfully");
+		}
 
-	public async Task<BaseResponse<List<ProductLookupItem>>> GetProductLookupListAsync()
-	{
-		var products = await _productRepo.GetAllAsync();
-		var lookupList = _mapper.Map<List<ProductLookupItem>>(products);
-		return BaseResponse<List<ProductLookupItem>>.Ok(lookupList, "Product lookup list retrieved successfully");
-	}
-
+		public async Task<BaseResponse<List<ProductLookupItem>>> GetProductLookupListAsync()
+		{
+			var products = await _productRepo.GetAllAsync();
+			var lookupList = _mapper.Map<List<ProductLookupItem>>(products);
+			return BaseResponse<List<ProductLookupItem>>.Ok(lookupList, "Product lookup list retrieved successfully");
+		}
 
 		public async Task<BaseResponse<BulkActionResult<string>>> UpdateProductAsync(Guid productId, UpdateProductRequest request)
 		{

@@ -19,9 +19,6 @@ namespace PerfumeGPT.API.Controllers
 			_configuration = configuration;
 		}
 
-		/// <summary>
-		/// Handle VNPay payment callback
-		/// </summary>
 		[HttpGet("vnpay-return")]
 		[ProducesResponseType(StatusCodes.Status200OK)]
 		[ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -108,9 +105,6 @@ namespace PerfumeGPT.API.Controllers
 			//return Redirect(redirectUrl);
 		}
 
-		/// <summary>
-		/// Retry a failed payment with optional new payment method
-		/// </summary>
 		[HttpPost("retry/{paymentId:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
@@ -122,9 +116,6 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Change payment method for a pending payment
-		/// </summary>
 		[HttpPut("change-method/{paymentId:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
@@ -136,9 +127,6 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Confirm payment status (success or failure)
-		/// </summary>
 		[HttpPut("confirm/{paymentId:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]

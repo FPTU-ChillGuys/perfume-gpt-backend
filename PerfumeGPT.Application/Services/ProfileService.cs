@@ -32,7 +32,6 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Validation failed", ResponseErrorType.BadRequest, errors);
 			}
 
-			// prevent duplicate profile for same user
 			var exists = await _profileRepo.AnyAsync(p => p.UserId == request.UserId);
 			if (exists)
 				return BaseResponse<string>.Fail("Profile already exists for this user", ResponseErrorType.Conflict);
@@ -49,7 +48,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateProfileAsync(Guid userId, UpdateProfileRequest request)
 		{
-			// Validate request
 			var validationResult = await _updateProfileValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 			{
@@ -61,7 +59,6 @@ namespace PerfumeGPT.Application.Services
 			if (profile == null)
 				return BaseResponse<string>.Fail("Profile not found", ResponseErrorType.NotFound);
 
-			// Map only allowed fields
 			_mapper.Map(request, profile);
 
 			_profileRepo.Update(profile);
