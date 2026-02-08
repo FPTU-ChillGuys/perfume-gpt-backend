@@ -2,8 +2,10 @@
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Address;
-using PerfumeGPT.Application.DTOs.Requests.GHNs.Address;
+using PerfumeGPT.Application.DTOs.Requests.Address.GHTKs;
 using PerfumeGPT.Application.DTOs.Responses.Address;
+using PerfumeGPT.Application.DTOs.Responses.Address.GHNs;
+using PerfumeGPT.Application.DTOs.Responses.Address.GHTKs;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
@@ -15,12 +17,14 @@ namespace PerfumeGPT.API.Controllers
 	public class AddressController : BaseApiController
 	{
 		private readonly IGHNService _ghnService;
+		private readonly IGHTKService _ghtkService;
 		private readonly IAddressService _addressService;
 
-		public AddressController(IGHNService ghnService, IAddressService addressService)
+		public AddressController(IGHNService ghnService, IAddressService addressService, IGHTKService ghtkService)
 		{
 			_ghnService = ghnService;
 			_addressService = addressService;
+			_ghtkService = ghtkService;
 		}
 
 		[HttpGet]
@@ -195,6 +199,28 @@ namespace PerfumeGPT.API.Controllers
 			{
 				var errorResponse = BaseResponse<List<WardResponse>>.Fail(
 					$"Failed to get wards: {ex.Message}",
+					ResponseErrorType.InternalError
+				);
+				return HandleResponse(errorResponse);
+			}
+		}
+
+		[HttpGet("streets")]
+		[ProducesResponseType(typeof(BaseResponse<AddressLevel4Response>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<AddressLevel4Response>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<AddressLevel4Response>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<AddressLevel4Response>>> GetStreetsAsync(
+			[FromQuery] AddressLevel4Request request)
+		{
+			try
+			{
+				var result = await _ghtkService.GetAddressLevel4Async(request);
+				return HandleResponse(BaseResponse<AddressLevel4Response>.Ok(result, "Streets retrieved successfully"));
+			}
+			catch (Exception ex)
+			{
+				var errorResponse = BaseResponse<AddressLevel4Response>.Fail(
+					$"Failed to get streets: {ex.Message}",
 					ResponseErrorType.InternalError
 				);
 				return HandleResponse(errorResponse);

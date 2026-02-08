@@ -7,20 +7,12 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 {
 	public interface IVariantRepository : IGenericRepository<ProductVariant>
 	{
-		/// <summary>
-		/// Gets a variant by barcode.
-		/// </summary>
+		Task<List<VariantLookupItem>> GetLookupList(Guid? productId = null);
 		Task<ProductVariantResponse?> GetByBarcodeAsync(string barcode);
-
-		/// <summary>
-		/// Gets a variant with concentration details.
-		/// </summary>
+		Task<ProductVariant?> GetBySkuAsync(string sku);
 		Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId);
-
-		/// <summary>
-		/// Gets paged variants with concentration details.
-		/// </summary>
 		Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(GetPagedVariantsRequest request);
+		Task<List<Guid>> GetExistingIdsAsync(List<Guid> ids);
 	}
 }
 

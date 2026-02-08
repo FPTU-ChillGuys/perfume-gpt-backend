@@ -1,3 +1,4 @@
+using PerfumeGPT.Application.DTOs.Responses.Batches;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Imports
@@ -29,16 +30,5 @@ namespace PerfumeGPT.Application.DTOs.Responses.Imports
 		public int RejectQuantity { get; set; }
 		public string? Note { get; set; }
 		public List<BatchResponse> Batches { get; set; } = [];
-	}
-
-	public class BatchResponse
-	{
-		public Guid Id { get; set; }
-		public string BatchCode { get; set; } = null!;
-		public DateTime ManufactureDate { get; set; }
-		public DateTime ExpiryDate { get; set; }
-		public int ImportQuantity { get; set; }
-		public int RemainingQuantity { get; set; }
-		public DateTime CreatedAt { get; set; }
 	}
 }

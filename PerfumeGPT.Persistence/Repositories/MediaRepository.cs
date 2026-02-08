@@ -14,14 +14,10 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
-		public async Task<List<Media>> GetMediaByEntityAsync(EntityType entityType, Guid entityId)
+		public async Task<List<Media>> GetMediaByEntityTypeAsync(EntityType entityType, Guid entityId)
 		{
 			return await _context.Media
-				.Where(m => m.EntityType == entityType
-					&& (entityType == EntityType.Product
-						? m.ProductId == entityId
-						: m.ProductVariantId == entityId)
-					&& !m.IsDeleted)
+				.WhereEntityNotDeleted(entityType, entityId)
 				.OrderBy(m => m.DisplayOrder)
 				.ToListAsync();
 		}
@@ -36,12 +32,8 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<int> DeleteAllMediaByEntityAsync(EntityType entityType, Guid entityId)
 		{
 			var mediaItems = await _context.Media
-			.Where(m => m.EntityType == entityType
-				&& (entityType == EntityType.Product
-					? m.ProductId == entityId
-					: m.ProductVariantId == entityId)
-				&& !m.IsDeleted)
-			.ToListAsync();
+				.WhereEntityNotDeleted(entityType, entityId)
+				.ToListAsync();
 
 			foreach (var media in mediaItems)
 			{

@@ -625,6 +625,9 @@ namespace PerfumeGPT.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("IsPrimary");
@@ -635,11 +638,17 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.HasIndex("ReviewId");
 
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("[UserId] IS NOT NULL");
+
                     b.HasIndex("EntityType", "ProductId");
 
                     b.HasIndex("EntityType", "ProductVariantId");
 
                     b.HasIndex("EntityType", "ReviewId");
+
+                    b.HasIndex("EntityType", "UserId");
 
                     b.ToTable("Media");
                 });
@@ -791,6 +800,9 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("FailureReason")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Method")
                         .IsRequired()
@@ -980,12 +992,14 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("FullName")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Phone")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ProvinceName")
@@ -1406,9 +1420,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
 
-                    b.Property<string>("ProfilePictureUrl")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
 
@@ -1568,8 +1579,8 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<long>("RequiredPoints")
-                        .HasColumnType("bigint");
+                    b.Property<int>("RequiredPoints")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -1773,11 +1784,18 @@ namespace PerfumeGPT.Persistence.Migrations
                         .WithMany("ReviewImages")
                         .HasForeignKey("ReviewId");
 
+                    b.HasOne("PerfumeGPT.Domain.Entities.User", "User")
+                        .WithOne("ProfilePicture")
+                        .HasForeignKey("PerfumeGPT.Domain.Entities.Media", "UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Product");
 
                     b.Navigation("ProductVariant");
 
                     b.Navigation("Review");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Notification", b =>
@@ -2239,6 +2257,8 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("Notifications");
 
                     b.Navigation("Orders");
+
+                    b.Navigation("ProfilePicture");
 
                     b.Navigation("Reviews");
 

@@ -12,6 +12,8 @@ namespace PerfumeGPT.Application.Services
 {
 	public class VoucherService : IVoucherService
 	{
+		#region Dependencies
+
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly ILoyaltyPointService _loyaltyPointService;
 		private readonly IMapper _mapper;
@@ -32,6 +34,8 @@ namespace PerfumeGPT.Application.Services
 			_updateValidator = updateValidator;
 		}
 
+		#endregion Dependencies
+
 		#region Admin Operations
 
 		public async Task<BaseResponse<string>> CreateVoucherAsync(CreateVoucherRequest request)
@@ -42,13 +46,13 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail(
 					"Validation failed",
 					ResponseErrorType.BadRequest,
-					validationResult.Errors.Select(e => e.ErrorMessage).ToList()
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]
 				);
 			}
 
 			try
 			{
-				// Use repository method to check if code exists
+				// Use repository method to check if code exist
 				var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code);
 				if (codeExists)
 				{
@@ -58,7 +62,6 @@ namespace PerfumeGPT.Application.Services
 					);
 				}
 
-				// Use mapper to create Voucher entity
 				var voucher = _mapper.Map<Voucher>(request);
 				voucher.Code = request.Code.ToUpper();
 
@@ -113,10 +116,8 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 
-				// Use mapper to update entity
 				_mapper.Map(request, voucher);
 
-				// Ensure code is uppercase if provided
 				if (request.Code != null)
 				{
 					voucher.Code = request.Code.ToUpper();
@@ -149,8 +150,15 @@ namespace PerfumeGPT.Application.Services
 					);
 				}
 
-				voucher.IsDeleted = true;
-				_unitOfWork.Vouchers.Update(voucher);
+				if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && !uv.IsUsed))
+				{
+					return BaseResponse<string>.Fail(
+						"Cannot delete voucher that has been redeemed by users",
+						ResponseErrorType.BadRequest
+					);
+				}
+
+				_unitOfWork.Vouchers.Remove(voucher);
 				await _unitOfWork.SaveChangesAsync();
 
 				return BaseResponse<string>.Ok(voucherId.ToString(), "Voucher deleted successfully");
@@ -164,7 +172,7 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<VoucherResponse>> GetVoucherAsync(Guid voucherId)
+		public async Task<BaseResponse<VoucherResponse>> GetVoucherByIdAsync(Guid voucherId)
 		{
 			var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
 				v => v.Id == voucherId && !v.IsDeleted,
@@ -179,17 +187,14 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
-			// Use mapper to convert to response DTO
 			var response = _mapper.Map<VoucherResponse>(voucher);
 			return BaseResponse<VoucherResponse>.Ok(response, "Voucher retrieved successfully");
 		}
 
-		public async Task<BaseResponse<PagedResult<VoucherResponse>>> GetVouchersAsync(GetPagedVouchersRequest request)
+		public async Task<BaseResponse<PagedResult<VoucherResponse>>> GetPagedVouchersAsync(GetPagedVouchersRequest request)
 		{
-			// Use repository method with filter logic
 			var (items, totalCount) = await _unitOfWork.Vouchers.GetPagedVouchersAsync(request);
 
-			// Use mapper to convert to response DTOs
 			var voucherList = _mapper.Map<List<VoucherResponse>>(items);
 
 			var pagedResult = new PagedResult<VoucherResponse>(
@@ -213,9 +218,6 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				// This NEEDS transaction because it does MULTIPLE operations:
-				// 1. Deduct loyalty points
-				// 2. Create user voucher
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
 					var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
@@ -250,8 +252,8 @@ namespace PerfumeGPT.Application.Services
 					}
 
 					// Use LoyaltyPointService to deduct points
-					var remainingPoints = await _loyaltyPointService.RedeemPointAsync(userId, (int)voucher.RequiredPoints);
-					if (remainingPoints < 0)
+					var remainingPoints = await _loyaltyPointService.RedeemPointAsync(userId, voucher.RequiredPoints, false);
+					if (!remainingPoints)
 					{
 						return BaseResponse<string>.Fail(
 							"Insufficient loyalty points",
@@ -269,7 +271,6 @@ namespace PerfumeGPT.Application.Services
 					};
 
 					await _unitOfWork.UserVouchers.AddAsync(userVoucher);
-					// Don't save - let transaction orchestrator handle it
 
 					return BaseResponse<string>.Ok(
 						userVoucher.Id.ToString(),
@@ -288,15 +289,13 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<UserVoucherResponse>>> GetUserVouchersAsync(
 			Guid userId,
-			GetUserVouchersRequest request)
+			GetPagedUserVouchersRequest request)
 		{
-			// Use repository method with includes, sorting, and filtering
 			var (items, totalCount) = await _unitOfWork.UserVouchers.GetPagedWithVouchersAsync(
 				userId,
 				request
 			);
 
-			// Use mapper to convert to response DTOs
 			var userVoucherList = _mapper.Map<List<UserVoucherResponse>>(items);
 
 			var pagedResult = new PagedResult<UserVoucherResponse>(
@@ -320,7 +319,6 @@ namespace PerfumeGPT.Application.Services
 			Guid userId,
 			ApplyVoucherRequest request)
 		{
-			// Use repository method to get voucher by code
 			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(request.VoucherId);
 
 			if (voucher == null)
@@ -357,17 +355,8 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
-			// Check if voucher is in correct status (Available)
-			if (userVoucher.Status != UsageStatus.Available)
-			{
-				return BaseResponse<ApplyVoucherResponse>.Fail(
-					"Voucher is not available for use",
-					ResponseErrorType.BadRequest
-				);
-			}
-
 			// Calculate discount
-			decimal discountAmount = voucher.DiscountType == Domain.Enums.DiscountType.Percentage
+			decimal discountAmount = voucher.DiscountType == DiscountType.Percentage
 				? request.OrderAmount * (voucher.DiscountValue / 100m)
 				: voucher.DiscountValue;
 
@@ -390,9 +379,8 @@ namespace PerfumeGPT.Application.Services
 			);
 		}
 
-		public async Task<BaseResponse<bool>> ValidateToApplyVoucherAsync(Guid voucherId, Guid userId)
+		public async Task<BaseResponse<bool>> CanUserApplyVoucherAsync(Guid voucherId, Guid userId)
 		{
-			// Use repository method to get voucher by code
 			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
 
 			if (voucher == null)
@@ -411,21 +399,11 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
-			// Use repository method to check if user owns unused voucher
 			var userVoucher = await _unitOfWork.UserVouchers.GetUnusedUserVoucherAsync(userId, voucher.Id);
 			if (userVoucher == null)
 			{
 				return BaseResponse<bool>.Fail(
 					"You don't own this voucher or it has already been used",
-					ResponseErrorType.BadRequest
-				);
-			}
-
-			// Check if voucher is in correct status (Available)
-			if (userVoucher.Status != UsageStatus.Available)
-			{
-				return BaseResponse<bool>.Fail(
-					"Voucher is not available for use",
 					ResponseErrorType.BadRequest
 				);
 			}
@@ -437,7 +415,6 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				// This NEEDS transaction because it's a critical state change
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
 					var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
@@ -463,7 +440,6 @@ namespace PerfumeGPT.Application.Services
 
 					userVoucher.Status = UsageStatus.Reserved;
 					_unitOfWork.UserVouchers.Update(userVoucher);
-					// Don't save - let transaction orchestrator handle it
 
 					return BaseResponse<bool>.Ok(true, "Voucher marked as reserved successfully");
 				});
@@ -481,7 +457,6 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				// This NEEDS transaction because it's a critical state change
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
 					var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
@@ -508,7 +483,6 @@ namespace PerfumeGPT.Application.Services
 					userVoucher.IsUsed = true;
 					userVoucher.Status = UsageStatus.Used;
 					_unitOfWork.UserVouchers.Update(userVoucher);
-					// Don't save - let transaction orchestrator handle it
 
 					return BaseResponse<bool>.Ok(true, "Voucher marked as used successfully");
 				});
@@ -526,7 +500,6 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				// This NEEDS transaction because it's a critical state change
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
 					var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
@@ -547,7 +520,6 @@ namespace PerfumeGPT.Application.Services
 						userVoucher.Status = UsageStatus.Available;
 						_unitOfWork.UserVouchers.Update(userVoucher);
 					}
-					// Don't save - let transaction orchestrator handle it
 
 					return BaseResponse<bool>.Ok(true, "Voucher released successfully");
 				});
@@ -578,7 +550,7 @@ namespace PerfumeGPT.Application.Services
 					_ => 0m
 				};
 
-				var finalPrice = totalPrice - discountAmount;
+				var finalPrice = Math.Round(totalPrice - discountAmount, 0, MidpointRounding.AwayFromZero);
 				return finalPrice < 0m ? 0m : finalPrice;
 			}
 			catch

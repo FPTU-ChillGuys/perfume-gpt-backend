@@ -14,13 +14,14 @@ namespace PerfumeGPT.Application.Services
 {
 	public class PaymentService : IPaymentService
 	{
+		#region Dependencies
+
 		private readonly IVnPayService _vnPayService;
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly ILoyaltyPointService _loyaltyPointService;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IVoucherService _voucherService;
 		private readonly IAuditScope _auditScope;
-		private readonly IStockReservationService _stockReservationService;
 
 		public PaymentService(
 			IVnPayService vnPayService,
@@ -28,8 +29,7 @@ namespace PerfumeGPT.Application.Services
 			ILoyaltyPointService loyaltyPointService,
 			IHttpContextAccessor httpContextAccessor,
 			IVoucherService voucherService,
-			IAuditScope auditScope,
-			IStockReservationService stockReservationService)
+			IAuditScope auditScope)
 		{
 			_vnPayService = vnPayService;
 			_unitOfWork = unitOfWork;
@@ -37,8 +37,9 @@ namespace PerfumeGPT.Application.Services
 			_httpContextAccessor = httpContextAccessor;
 			_voucherService = voucherService;
 			_auditScope = auditScope;
-			_stockReservationService = stockReservationService;
 		}
+
+		#endregion Dependencies
 
 		public async Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, bool isSuccess, string? failureReason = null)
 		{
@@ -52,7 +53,7 @@ namespace PerfumeGPT.Application.Services
 						return BaseResponse<bool>.Fail("Payment record not found.", ResponseErrorType.NotFound);
 					}
 
-					if (payment.TransactionStatus == TransactionStatus.Success)
+					if (payment.TransactionStatus != TransactionStatus.Pending)
 					{
 						return BaseResponse<bool>.Ok(true, "Payment already processed.");
 					}
@@ -235,7 +236,7 @@ namespace PerfumeGPT.Application.Services
 						return BaseResponse<string>.Fail("Order not found.", ResponseErrorType.NotFound);
 					}
 
-					// 5. Cancel any existing pending payments for this order (IMPORTANT!)
+					// 5. Cancel any existing pending payments for this order
 					var existingPendingPayments = await _unitOfWork.Payments
 						.GetAllAsync(p => p.OrderId == order.Id &&
 										  p.TransactionStatus == TransactionStatus.Pending &&
@@ -244,6 +245,7 @@ namespace PerfumeGPT.Application.Services
 					foreach (var pendingPayment in existingPendingPayments)
 					{
 						pendingPayment.TransactionStatus = TransactionStatus.Cancelled;
+						pendingPayment.FailureReason = "Superseded by new payment attempt.";
 						_unitOfWork.Payments.Update(pendingPayment);
 					}
 
@@ -251,6 +253,7 @@ namespace PerfumeGPT.Application.Services
 					if (currentPayment.TransactionStatus == TransactionStatus.Pending)
 					{
 						currentPayment.TransactionStatus = TransactionStatus.Cancelled;
+						currentPayment.FailureReason = "Superseded by new payment attempt.";
 						_unitOfWork.Payments.Update(currentPayment);
 					}
 					// If Failed, keep it as Failed for history tracking
@@ -277,7 +280,6 @@ namespace PerfumeGPT.Application.Services
 					// 9. Update order payment status
 					order.PaymentStatus = PaymentStatus.Unpaid;
 					_unitOfWork.Orders.Update(order);
-					// Don't save - let transaction orchestrator handle it
 
 					// 10. Generate response message
 					var methodChanged = currentPayment.Method != paymentMethod;
@@ -300,9 +302,6 @@ namespace PerfumeGPT.Application.Services
 			order.PaymentStatus = PaymentStatus.Paid;
 			order.PaidAt = DateTime.UtcNow;
 
-			// Note: Stock reservation is committed when staff updates order to Processing status
-			// This allows staff to verify physical inventory before committing
-
 			if (order.VoucherId.HasValue)
 			{
 				var voucherResult = await _voucherService.MarkVoucherAsUsedAsync(order.VoucherId.Value, order.Id);
@@ -317,9 +316,7 @@ namespace PerfumeGPT.Application.Services
 
 			_unitOfWork.Payments.Update(payment);
 			_unitOfWork.Orders.Update(order);
-			// Don't save - let transaction orchestrator handle it
 
-			// Create receipt if it doesn't exist
 			var existingReceipt = await _unitOfWork.Receipts.FirstOrDefaultAsync(r => r.TransactionId == payment.Id);
 			if (existingReceipt == null)
 			{
@@ -330,7 +327,6 @@ namespace PerfumeGPT.Application.Services
 				};
 
 				await _unitOfWork.Receipts.AddAsync(receipt);
-				// Don't save - let transaction orchestrator handle it
 			}
 
 			// Clear cart and award loyalty points
@@ -342,23 +338,22 @@ namespace PerfumeGPT.Application.Services
 					int pointsToAward = (int)(order.TotalAmount * 0.01m);
 					if (pointsToAward > 0)
 					{
-						await _loyaltyPointService.PlusPointAsync(order.CustomerId.Value, pointsToAward);
+						await _loyaltyPointService.PlusPointAsync(order.CustomerId.Value, pointsToAward, false);
 					}
 				}
 			}
 
-			// Don't save - let transaction orchestrator handle it
 			return BaseResponse<bool>.Ok(true, "Payment processed successfully.");
 		}
 
 		private async Task<BaseResponse<bool>> HandleFailedPayment(PaymentTransaction payment, Order order, string? reason = null)
 		{
 			payment.TransactionStatus = TransactionStatus.Failed;
+			payment.FailureReason = reason;
 			order.PaymentStatus = PaymentStatus.Unpaid;
 
 			_unitOfWork.Payments.Update(payment);
 			_unitOfWork.Orders.Update(order);
-			// Don't save - let transaction orchestrator handle it
 
 			var message = string.IsNullOrEmpty(reason) ? "Payment failed." : $"Payment failed: {reason}";
 			return BaseResponse<bool>.Fail(message, ResponseErrorType.BadRequest);

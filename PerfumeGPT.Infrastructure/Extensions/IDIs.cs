@@ -34,6 +34,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			services.AddScoped<IEmailService, EmailService>();
 			services.AddScoped<IEmailTemplateService, EmailTemplateService>();
 			services.AddHttpClient<IGHNService, GHNService>();
+			services.AddHttpClient<IGHTKService, GHTKService>();
 			services.AddSingleton<ISupabaseService, SupabaseService>();
 			services.AddScoped<IVnPayService, VnPayService>();
 

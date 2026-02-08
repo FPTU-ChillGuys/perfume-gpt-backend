@@ -84,7 +84,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<VoucherResponse>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<VoucherResponse>>> GetVoucher(Guid voucherId)
 		{
-			var response = await _voucherService.GetVoucherAsync(voucherId);
+			var response = await _voucherService.GetVoucherByIdAsync(voucherId);
 			return HandleResponse(response);
 		}
 
@@ -98,7 +98,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<PagedResult<VoucherResponse>>>> GetVouchers(
 			[FromQuery] GetPagedVouchersRequest request)
 		{
-			var response = await _voucherService.GetVouchersAsync(request);
+			var response = await _voucherService.GetPagedVouchersAsync(request);
 			return HandleResponse(response);
 		}
 
@@ -106,9 +106,6 @@ namespace PerfumeGPT.API.Controllers
 
 		#region User Endpoints
 
-		/// <summary>
-		/// Redeem a voucher using loyalty points
-		/// </summary>
 		[HttpPost("redeem")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
@@ -126,24 +123,18 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Get user's redeemed vouchers with filtering and sorting
-		/// </summary>
 		[HttpGet("my-vouchers")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<PagedResult<UserVoucherResponse>>>> GetMyVouchers(
-			[FromQuery] GetUserVouchersRequest request)
+			[FromQuery] GetPagedUserVouchersRequest request)
 		{
 			var userId = GetCurrentUserId();
 			var response = await _voucherService.GetUserVouchersAsync(userId, request);
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Apply voucher to calculate order discount
-		/// </summary>
 		[HttpPost("apply")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<ApplyVoucherResponse>), StatusCodes.Status200OK)]
@@ -158,22 +149,6 @@ namespace PerfumeGPT.API.Controllers
 
 			var userId = GetCurrentUserId();
 			var response = await _voucherService.ApplyVoucherToOrderAsync(userId, request);
-			return HandleResponse(response);
-		}
-
-		/// <summary>
-		/// Validate if a voucher can be applied
-		/// </summary>
-		[HttpGet("validate/{voucherId:guid}")]
-		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<bool>>> ValidateVoucher(Guid voucherId)
-		{
-			var userId = GetCurrentUserId();
-			var response = await _voucherService.ValidateToApplyVoucherAsync(voucherId, userId);
 			return HandleResponse(response);
 		}
 

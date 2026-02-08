@@ -11,17 +11,17 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<string>> CreateVoucherAsync(CreateVoucherRequest request);
 		Task<BaseResponse<string>> UpdateVoucherAsync(Guid voucherId, UpdateVoucherRequest request);
 		Task<BaseResponse<string>> DeleteVoucherAsync(Guid voucherId);
-		Task<BaseResponse<VoucherResponse>> GetVoucherAsync(Guid voucherId);
-		Task<BaseResponse<PagedResult<VoucherResponse>>> GetVouchersAsync(GetPagedVouchersRequest request);
+		Task<BaseResponse<VoucherResponse>> GetVoucherByIdAsync(Guid voucherId);
+		Task<BaseResponse<PagedResult<VoucherResponse>>> GetPagedVouchersAsync(GetPagedVouchersRequest request);
 
 		// User operations
 		Task<Voucher?> GetVoucherByCodeAsync(string code);
 		Task<BaseResponse<string>> RedeemVoucherAsync(Guid userId, RedeemVoucherRequest request);
-		Task<BaseResponse<PagedResult<UserVoucherResponse>>> GetUserVouchersAsync(Guid userId, GetUserVouchersRequest request);
+		Task<BaseResponse<PagedResult<UserVoucherResponse>>> GetUserVouchersAsync(Guid userId, GetPagedUserVouchersRequest request);
 
 		// Apply voucher logic
 		Task<BaseResponse<ApplyVoucherResponse>> ApplyVoucherToOrderAsync(Guid userId, ApplyVoucherRequest request);
-		Task<BaseResponse<bool>> ValidateToApplyVoucherAsync(Guid voucherId, Guid userId);
+		Task<BaseResponse<bool>> CanUserApplyVoucherAsync(Guid voucherId, Guid userId);
 
 		// Voucher status management
 		Task<BaseResponse<bool>> MarkVoucherAsReservedAsync(Guid userId, Guid voucherId);

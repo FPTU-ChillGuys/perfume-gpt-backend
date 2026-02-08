@@ -16,8 +16,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<List<ReviewResponse>>> GetUserReviewsAsync(Guid userId);
 		Task<BaseResponse<List<ReviewResponse>>> GetVariantReviewsAsync(Guid variantId);
 		Task<BaseResponse<ReviewStatisticsResponse>> GetVariantReviewStatisticsAsync(Guid variantId);
-		Task<BaseResponse<PagedResult<ReviewListItem>>> GetPendingReviewsAsync(int pageNumber = 1, int pageSize = 10);
-		Task<BaseResponse<bool>> CanUserReviewOrderDetailAsync(Guid userId, Guid orderDetailId);
 		Task<BaseResponse<List<MediaResponse>>> GetReviewImagesAsync(Guid reviewId);
 	}
 }

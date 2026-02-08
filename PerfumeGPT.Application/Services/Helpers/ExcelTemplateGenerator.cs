@@ -15,10 +15,6 @@ namespace PerfumeGPT.Application.Services.Helpers
 			_unitOfWork = unitOfWork;
 		}
 
-		/// <summary>
-		/// Generates an Excel template with dropdown lists and auto-fill formulas for import tickets.
-		/// </summary>
-		/// <returns>Excel template as byte array with filename</returns>
 		public async Task<ExcelTemplateResponse> GenerateImportTemplateAsync()
 		{
 			// Fetch all active variants from database for dropdown
@@ -29,26 +25,22 @@ namespace PerfumeGPT.Application.Services.Helpers
 					.Include(v => v.Concentration),
 				orderBy: q => q.OrderBy(v => v.Barcode));
 
-			using (var workbook = new XLWorkbook())
+			using var workbook = new XLWorkbook();
+			// Create all sheets
+			CreateMainTemplateSheet(workbook, variants);
+			CreateVariantReferenceSheet(workbook, variants);
+			CreateInstructionsSheet(workbook);
+
+			// Convert to byte array
+			using var stream = new MemoryStream();
+			workbook.SaveAs(stream);
+			var fileContent = stream.ToArray();
+
+			return new ExcelTemplateResponse
 			{
-				// Create all sheets
-				CreateMainTemplateSheet(workbook, variants);
-				CreateVariantReferenceSheet(workbook, variants);
-				CreateInstructionsSheet(workbook);
-
-				// Convert to byte array
-				using (var stream = new MemoryStream())
-				{
-					workbook.SaveAs(stream);
-					var fileContent = stream.ToArray();
-
-					return new ExcelTemplateResponse
-					{
-						FileContent = fileContent,
-						FileName = $"ImportTicket_Template_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx"
-					};
-				}
-			}
+				FileContent = fileContent,
+				FileName = $"ImportTicket_Template_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx"
+			};
 		}
 
 		/// <summary>
@@ -153,13 +145,16 @@ namespace PerfumeGPT.Application.Services.Helpers
 			// Number formatting for currency
 			worksheet.Range("E2:F1000").Style.NumberFormat.Format = "#,##0";
 
-			// Set column widths
-			worksheet.Column(1).Width = 18;  // SKU
-			worksheet.Column(2).Width = 20;  // Barcode
-			worksheet.Column(3).Width = 35;  // Product Name
-			worksheet.Column(4).Width = 12;  // Quantity
-			worksheet.Column(5).Width = 18;  // Unit Price
-			worksheet.Column(6).Width = 18;  // Subtotal
+			// Adjust column widths to fit header content, then set minimum widths
+			worksheet.Columns(1, 6).AdjustToContents(1, 1);
+
+			// Ensure minimum widths for data
+			double[] minWidths = [18, 20, 35, 12, 18, 18];
+			for (int col = 1; col <= 6; col++)
+			{
+				if (worksheet.Column(col).Width < minWidths[col - 1])
+					worksheet.Column(col).Width = minWidths[col - 1];
+			}
 
 			// Freeze the header row
 			worksheet.SheetView.FreezeRows(1);
@@ -232,7 +227,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 		/// <summary>
 		/// Creates the instructions sheet with user guide and tips.
 		/// </summary>
-		private void CreateInstructionsSheet(XLWorkbook workbook)
+		private static void CreateInstructionsSheet(XLWorkbook workbook)
 		{
 			var instructionsSheet = workbook.Worksheets.Add("Instructions");
 

@@ -2,7 +2,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using PerfumeGPT.Application.DTOs.Requests.Auths;
-using PerfumeGPT.Application.DTOs.Requests.LoyaltyPoints;
 using PerfumeGPT.Application.DTOs.Requests.Profiles;
 using PerfumeGPT.Application.DTOs.Responses.Auths;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -16,6 +15,8 @@ namespace PerfumeGPT.Application.Services
 {
 	public class AuthService : IAuthService
 	{
+		#region Dependencies
+
 		private readonly IEmailTemplateService _templateService;
 		private readonly UserManager<User> _userManager;
 		private readonly IEmailService _emailService;
@@ -38,6 +39,8 @@ namespace PerfumeGPT.Application.Services
 			_loyaltyPointService = loyaltyPointService;
 		}
 
+		#endregion
+
 		private async Task TryCreateProfileAndLoyaltyPointsAsync(User user)
 		{
 			var roles = await _userManager.GetRolesAsync(user);
@@ -49,13 +52,7 @@ namespace PerfumeGPT.Application.Services
 				var profileResult = await _profileService.CreateProfileAsync(new CreateProfileRequest { UserId = user.Id });
 				if (profileResult.Success)
 				{
-					try
-					{
-						await _loyaltyPointService.CreateLoyaltyPointAsync(new CreateLoyaltyPointRequest { UserId = user.Id });
-					}
-					catch
-					{
-					}
+					await _loyaltyPointService.CreateLoyaltyPointAsync(user.Id);
 				}
 			}
 			catch
@@ -174,7 +171,7 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<TokenResponse>.Fail("Invalid Google token", ResponseErrorType.BadRequest);
 			}
 
-			var email = payload?.Email;
+			var email = payload.Email;
 			if (string.IsNullOrWhiteSpace(email))
 				return BaseResponse<TokenResponse>.Fail("Google token does not contain an email", ResponseErrorType.BadRequest);
 

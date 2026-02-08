@@ -108,7 +108,7 @@ namespace PerfumeGPT.API.Controllers
 			[FromForm] ProductUploadMediaRequest request)
 		{
 			var userId = GetCurrentUserId();
-			var response = await _mediaService.UploadTemporaryProductMediaAsync(userId, request);
+			var response = await _mediaService.UploadProductTemporaryMediaAsync(userId, request);
 			return HandleResponse(response);
 		}
 

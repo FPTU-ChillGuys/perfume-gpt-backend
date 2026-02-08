@@ -23,6 +23,7 @@
 	IReviewRepository Reviews { get; }
 	ITemporaryMediaRepository TemporaryMedia { get; }
 	IMediaRepository Media { get; }
+	ILoyaltyPointRepository LoyaltyPoints { get; }
 
 	/// <summary>
 	/// Save changes and return true if one or more rows were affected.

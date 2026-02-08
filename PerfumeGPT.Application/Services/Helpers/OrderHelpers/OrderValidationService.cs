@@ -12,11 +12,11 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			var validTransitions = new Dictionary<OrderStatus, List<OrderStatus>>
 			{
 				{ OrderStatus.Pending, [OrderStatus.Processing, OrderStatus.Canceled] },
-				{ OrderStatus.Processing, [OrderStatus.Shipped, OrderStatus.Canceled] },
-				{ OrderStatus.Shipped, [OrderStatus.Delivered, OrderStatus.Returned] },
+				{ OrderStatus.Processing, [OrderStatus.Delivering, OrderStatus.Canceled] },
+				{ OrderStatus.Delivering, [OrderStatus.Delivered, OrderStatus.Returned] },
 				{ OrderStatus.Delivered, [OrderStatus.Returned] },
-				{ OrderStatus.Canceled, [] }, // Cannot transition from canceled
-				{ OrderStatus.Returned, [] }  // Cannot transition from returned
+				{ OrderStatus.Canceled, [] },
+				{ OrderStatus.Returned, [] }
 			};
 
 			if (currentStatus == newStatus)
@@ -24,7 +24,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				return BaseResponse<bool>.Fail("Order is already in this status.", ResponseErrorType.BadRequest);
 			}
 
-			if (!validTransitions.ContainsKey(currentStatus) || !validTransitions[currentStatus].Contains(newStatus))
+			if (!(validTransitions.ContainsKey(currentStatus) && validTransitions[currentStatus].Contains(newStatus)))
 			{
 				return BaseResponse<bool>.Fail(
 					$"Cannot change status from {currentStatus} to {newStatus}.",

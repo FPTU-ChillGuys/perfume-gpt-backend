@@ -33,7 +33,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				cart = new Cart
 				{
 					UserId = userId,
-					Items = new List<CartItem>()
+					Items = []
 				};
 				await AddAsync(cart);
 				await SaveChangesAsync();

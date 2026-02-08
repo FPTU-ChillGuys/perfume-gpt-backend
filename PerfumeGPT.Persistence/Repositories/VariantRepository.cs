@@ -4,6 +4,7 @@ using PerfumeGPT.Application.DTOs.Requests.Variants;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
 
@@ -15,11 +16,30 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
+		public async Task<List<VariantLookupItem>> GetLookupList(Guid? productId = null)
+		{
+			var variants = await _context.ProductVariants
+				.Where(v => !v.IsDeleted
+					&& v.Status != VariantStatus.Discontinued
+					&& (!productId.HasValue || v.ProductId == productId.Value))
+				.ProjectToType<VariantLookupItem>()
+				.ToListAsync();
+
+			return variants;
+		}
+
 		public async Task<ProductVariantResponse?> GetByBarcodeAsync(string barcode)
 		{
 			return await _context.ProductVariants
 				.Where(v => v.Barcode == barcode && !v.IsDeleted)
 				.ProjectToType<ProductVariantResponse>()
+				.FirstOrDefaultAsync();
+		}
+
+		public async Task<ProductVariant?> GetBySkuAsync(string sku)
+		{
+			return await _context.ProductVariants
+				.Where(v => v.Sku == sku && !v.IsDeleted)
 				.FirstOrDefaultAsync();
 		}
 
@@ -46,6 +66,14 @@ namespace PerfumeGPT.Persistence.Repositories
 				.ToListAsync();
 
 			return (items, totalCount);
+		}
+
+		public async Task<List<Guid>> GetExistingIdsAsync(List<Guid> ids)
+		{
+			return await _context.ProductVariants
+				.Where(v => ids.Contains(v.Id) && !v.IsDeleted)
+				.Select(v => v.Id)
+				.ToListAsync();
 		}
 	}
 }

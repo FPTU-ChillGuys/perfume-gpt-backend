@@ -3,9 +3,9 @@ using PerfumeGPT.Application.DTOs.Requests.Imports;
 
 namespace PerfumeGPT.Application.Validators.Imports
 {
-	public class UpdateImportTicketValidator : AbstractValidator<UpdateImportTicketRequest>
+	public class UpdateImportStatusValidator : AbstractValidator<UpdateImportStatusRequest>
 	{
-		public UpdateImportTicketValidator()
+		public UpdateImportStatusValidator()
 		{
 			RuleFor(x => x.Status)
 				.IsInEnum().WithMessage("Invalid import status.");

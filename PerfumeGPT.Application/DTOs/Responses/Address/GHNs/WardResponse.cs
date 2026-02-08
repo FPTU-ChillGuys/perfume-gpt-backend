@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace PerfumeGPT.Application.DTOs.Requests.GHNs.Address
+namespace PerfumeGPT.Application.DTOs.Responses.Address.GHNs
 {
 	public class WardResponse
 	{

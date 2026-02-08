@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
 using System.IdentityModel.Tokens.Jwt;
@@ -19,6 +20,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		private readonly PerfumeDbContext _context;
 		private readonly IConfiguration _configuration;
 		private readonly ILogger<AuthRepository> _logger;
+		private readonly IMediaService _mediaService;
 		private readonly string _secretKey;
 		private readonly string _issuer;
 		private readonly string _audience;
@@ -27,12 +29,14 @@ namespace PerfumeGPT.Persistence.Repositories
 			PerfumeDbContext context,
 			IConfiguration configuration,
 			UserManager<User> userManager,
-			ILogger<AuthRepository> logger)
+			ILogger<AuthRepository> logger,
+			IMediaService mediaService)
 		{
 			_userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
 			_context = context ?? throw new ArgumentNullException(nameof(context));
 			_configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 			_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+			_mediaService = mediaService ?? throw new ArgumentNullException(nameof(mediaService));
 
 			_secretKey = _configuration["Jwt:Key"]
 				?? throw new ArgumentNullException("Jwt:Key not found in configuration");
@@ -97,7 +101,6 @@ namespace PerfumeGPT.Persistence.Repositories
 				var existing = await _userManager.FindByEmailAsync(payload.Email);
 				if (existing != null)
 				{
-					_logger.LogInformation("User already exists for email {Email}. Returning existing user.", payload.Email);
 					return existing;
 				}
 
@@ -107,8 +110,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					UserName = payload.Email,
 					FullName = payload.Name ?? string.Empty,
 					EmailConfirmed = true,
-					IsActive = true,
-					ProfilePictureUrl = string.IsNullOrWhiteSpace(payload.Picture) ? string.Empty : payload.Picture.Trim()
+					IsActive = true
 				};
 
 				var tempPassword = GenerateTemporaryPassword(12);
@@ -142,6 +144,19 @@ namespace PerfumeGPT.Persistence.Repositories
 					}
 				}
 
+				if (!string.IsNullOrWhiteSpace(payload.Picture))
+				{
+					var avatarCreated = await _mediaService.CreateProfileAvatarFromUrlAsync(
+						newUser.Id,
+						payload.Picture,
+						$"{newUser.FullName}'s profile picture");
+
+					if (!avatarCreated)
+					{
+						_logger.LogWarning("Failed to create profile picture for user {Email}", payload.Email);
+					}
+				}
+
 				return newUser;
 			}
 			catch (Exception ex)
@@ -151,7 +166,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 		}
 
-		private string GenerateTemporaryPassword(int length = 12)
+		private static string GenerateTemporaryPassword(int length = 12)
 		{
 			if (length < 8) length = 8;
 

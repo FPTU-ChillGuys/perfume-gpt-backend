@@ -1,5 +1,5 @@
 ﻿using FluentValidation;
-using PerfumeGPT.Application.DTOs.Requests.Imports;
+using PerfumeGPT.Application.DTOs.Requests.ImportDetails;
 using PerfumeGPT.Application.Validators.Batches;
 
 namespace PerfumeGPT.Application.Validators.ImportDetails
@@ -16,10 +16,6 @@ namespace PerfumeGPT.Application.Validators.ImportDetails
 
 			RuleFor(x => x.Note)
 				.MaximumLength(500).WithMessage("Note must not exceed 500 characters.");
-
-			RuleFor(x => x.Batches)
-				.NotEmpty().WithMessage("Batches are required.")
-				.Must(batches => batches != null && batches.Count > 0).WithMessage("At least one batch is required.");
 
 			RuleForEach(x => x.Batches).SetValidator(new CreateBatchValidator());
 		}

@@ -13,6 +13,8 @@ namespace PerfumeGPT.Application.Services
 {
 	public class StockAdjustmentService : IStockAdjustmentService
 	{
+		#region Dependencies
+
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IStockService _stockService;
 		private readonly IBatchService _batchService;
@@ -39,11 +41,12 @@ namespace PerfumeGPT.Application.Services
 			_updateStatusValidator = updateStatusValidator;
 		}
 
+		#endregion Dependencies
+
 		public async Task<BaseResponse<string>> CreateStockAdjustmentAsync(CreateStockAdjustmentRequest request, Guid userId)
 		{
 			try
 			{
-				// Validate request using FluentValidation
 				var validationResult = await _createValidator.ValidateAsync(request);
 				if (!validationResult.IsValid)
 				{
@@ -51,7 +54,6 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Fail(errors, ResponseErrorType.BadRequest);
 				}
 
-				// VALIDATION: Check for duplicate variant IDs
 				var duplicateVariants = request.AdjustmentDetails
 					.GroupBy(d => d.VariantId)
 					.Where(g => g.Count() > 1)
@@ -64,7 +66,6 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Fail($"Duplicate variant IDs found: {duplicateIds}. Each variant can only appear once per adjustment.", ResponseErrorType.BadRequest);
 				}
 
-				// Validate variants and batches exist
 				foreach (var detail in request.AdjustmentDetails)
 				{
 					var variant = await _unitOfWork.Variants.GetByIdAsync(detail.VariantId);
@@ -73,24 +74,18 @@ namespace PerfumeGPT.Application.Services
 						return BaseResponse<string>.Fail($"Variant with ID {detail.VariantId} not found.", ResponseErrorType.NotFound);
 					}
 
-				if (detail.BatchId == Guid.Empty)
-				{
-					return BaseResponse<string>.Fail("Batch ID is required for stock adjustment.", ResponseErrorType.BadRequest);
+					var batch = await _unitOfWork.Batches.GetByIdAsync(detail.BatchId);
+					if (batch == null)
+					{
+						return BaseResponse<string>.Fail($"Batch with ID {detail.BatchId} not found.", ResponseErrorType.NotFound);
+					}
+
+					if (batch.VariantId != detail.VariantId)
+					{
+						return BaseResponse<string>.Fail($"Batch {detail.BatchId} does not belong to variant {detail.VariantId}.", ResponseErrorType.BadRequest);
+					}
 				}
 
-				var batch = await _unitOfWork.Batches.GetByIdAsync(detail.BatchId);
-				if (batch == null)
-						{
-					return BaseResponse<string>.Fail($"Batch with ID {detail.BatchId} not found.", ResponseErrorType.NotFound);
-				}
-
-				if (batch.VariantId != detail.VariantId)
-				{
-					return BaseResponse<string>.Fail($"Batch {detail.BatchId} does not belong to variant {detail.VariantId}.", ResponseErrorType.BadRequest);
-				}
-			}
-
-			// Execute within transaction
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
 					var stockAdjustment = new StockAdjustment
@@ -132,7 +127,6 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				// Validate request using FluentValidation
 				var validationResult = await _verifyValidator.ValidateAsync(request);
 				if (!validationResult.IsValid)
 				{
@@ -140,10 +134,7 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Fail(errors, ResponseErrorType.BadRequest);
 				}
 
-				// Validation - Entity existence and business rules
-				var stockAdjustment = await _unitOfWork.StockAdjustments.GetByConditionAsync(
-					predicate: sa => sa.Id == adjustmentId,
-					include: query => query.Include(sa => sa.AdjustmentDetails));
+				var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdWithDetailsAsync(adjustmentId);
 
 				if (stockAdjustment == null)
 				{
@@ -158,6 +149,19 @@ namespace PerfumeGPT.Application.Services
 				if (request.AdjustmentDetails.Count != stockAdjustment.AdjustmentDetails.Count)
 				{
 					return BaseResponse<string>.Fail("Mismatch in number of adjustment details for verification.", ResponseErrorType.BadRequest);
+				}
+
+				// Check for duplicate import detail IDs in request
+				var duplicateDetailIds = request.AdjustmentDetails
+					.GroupBy(d => d.DetailId)
+					.Where(g => g.Count() > 1)
+					.Select(g => g.Key)
+					.ToList();
+
+				if (duplicateDetailIds.Count != 0)
+				{
+					var duplicateIds = string.Join(", ", duplicateDetailIds);
+					return BaseResponse<string>.Fail($"Duplicate adjust detail IDs found in request: {duplicateIds}. Each import detail can only appear once.", ResponseErrorType.BadRequest);
 				}
 
 				// Validate all adjustment details exist and match request
@@ -195,7 +199,7 @@ namespace PerfumeGPT.Application.Services
 								throw new InvalidOperationException($"Failed to increase stock for variant {adjustmentDetail.ProductVariantId}");
 							}
 
-							// Update batch quantity (BatchId is required)
+							// Update batch quantity
 							await _batchService.IncreaseBatchQuantityAsync(adjustmentDetail.BatchId, verifyDetail.ApprovedQuantity);
 						}
 						else if (verifyDetail.ApprovedQuantity < 0)
@@ -210,12 +214,11 @@ namespace PerfumeGPT.Application.Services
 								throw new InvalidOperationException($"Failed to decrease stock for variant {adjustmentDetail.ProductVariantId}");
 							}
 
-							// Update batch quantity (BatchId is required)
+							// Update batch quantity
 							await _batchService.DecreaseBatchQuantityAsync(adjustmentDetail.BatchId, Math.Abs(verifyDetail.ApprovedQuantity));
 						}
 					}
 
-					// Update stock adjustment status to Completed and set verifier
 					stockAdjustment.Status = StockAdjustmentStatus.Completed;
 					stockAdjustment.VerifiedById = verifiedByUserId;
 					_unitOfWork.StockAdjustments.Update(stockAdjustment);
@@ -233,14 +236,12 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdWithDetailsAsync(id);
+				var response = await _unitOfWork.StockAdjustments.GetByIdToViewAsync(id);
 
-				if (stockAdjustment == null)
+				if (response == null)
 				{
 					return BaseResponse<StockAdjustmentResponse>.Fail("Stock adjustment not found.", ResponseErrorType.NotFound);
 				}
-
-				var response = _mapper.Map<StockAdjustmentResponse>(stockAdjustment);
 
 				return BaseResponse<StockAdjustmentResponse>.Ok(response, "Stock adjustment retrieved successfully.");
 			}
@@ -254,12 +255,10 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var (items, totalCount) = await _unitOfWork.StockAdjustments.GetPagedWithDetailsAsync(request);
-
-				var response = _mapper.Map<List<StockAdjustmentListItem>>(items);
+				var (items, totalCount) = await _unitOfWork.StockAdjustments.GetPagedAsync(request);
 
 				var pagedResult = new PagedResult<StockAdjustmentListItem>(
-					response,
+					items,
 					request.PageNumber,
 					request.PageSize,
 					totalCount
@@ -277,7 +276,6 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				// Validate request using FluentValidation
 				var validationResult = await _updateStatusValidator.ValidateAsync(request);
 				if (!validationResult.IsValid)
 				{
@@ -290,6 +288,16 @@ namespace PerfumeGPT.Application.Services
 				if (stockAdjustment == null)
 				{
 					return BaseResponse<string>.Fail("Stock adjustment not found.", ResponseErrorType.NotFound);
+				}
+
+				if (stockAdjustment.Status == StockAdjustmentStatus.Completed)
+				{
+					return BaseResponse<string>.Fail("Completed stock adjustments cannot have their status updated.", ResponseErrorType.BadRequest);
+				}
+
+				if (stockAdjustment.Status > request.Status)
+				{
+					return BaseResponse<string>.Fail("Cannot revert stock adjustment to a previous status.", ResponseErrorType.BadRequest);
 				}
 
 				stockAdjustment.Status = request.Status;
@@ -308,7 +316,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdWithDetailsForDeleteAsync(id);
+				var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdWithDetailsAsync(id);
 
 				if (stockAdjustment == null)
 				{
@@ -320,15 +328,18 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<bool>.Fail("Completed stock adjustments cannot be deleted.", ResponseErrorType.BadRequest);
 				}
 
+				if (stockAdjustment.Status == StockAdjustmentStatus.InProgress)
+				{
+					return BaseResponse<bool>.Fail("In-progress stock adjustments cannot be deleted.", ResponseErrorType.BadRequest);
+				}
+
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
-					// Delete adjustment details
 					foreach (var detail in stockAdjustment.AdjustmentDetails)
 					{
 						_unitOfWork.StockAdjustmentDetails.Remove(detail);
 					}
 
-					// Delete adjustment
 					_unitOfWork.StockAdjustments.Remove(stockAdjustment);
 
 					return BaseResponse<bool>.Ok(true, "Stock adjustment deleted successfully.");

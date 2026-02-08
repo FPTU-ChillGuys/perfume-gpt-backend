@@ -1,5 +1,6 @@
 using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.StockAdjustments;
+using PerfumeGPT.Application.Validators.AdjustmentDetails;
 
 namespace PerfumeGPT.Application.Validators.StockAdjustments
 {
@@ -23,24 +24,6 @@ namespace PerfumeGPT.Application.Validators.StockAdjustments
 
 			RuleForEach(x => x.AdjustmentDetails)
 				.SetValidator(new CreateStockAdjustmentDetailValidator());
-		}
-	}
-
-	public class CreateStockAdjustmentDetailValidator : AbstractValidator<CreateStockAdjustmentDetailRequest>
-	{
-		public CreateStockAdjustmentDetailValidator()
-		{
-			RuleFor(x => x.VariantId)
-				.NotEmpty()
-				.WithMessage("Variant ID is required.");
-
-			RuleFor(x => x.BatchId)
-				.NotEmpty()
-				.WithMessage("Batch ID is required.");
-
-			RuleFor(x => x.AdjustmentQuantity)
-				.NotEqual(0)
-				.WithMessage("Adjustment quantity cannot be zero.");
 		}
 	}
 }

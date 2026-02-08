@@ -1,4 +1,5 @@
 ﻿using Mapster;
+using PerfumeGPT.Application.DTOs.Requests.CartItems;
 using PerfumeGPT.Application.DTOs.Responses.CartItems;
 using PerfumeGPT.Domain.Entities;
 
@@ -20,7 +21,16 @@ namespace PerfumeGPT.Application.Mappings
 							: string.Empty
 					: string.Empty)
 				.Map(dest => dest.VolumeMl, src => src.ProductVariant.VolumeMl)
+				.Map(dest => dest.Type, src => src.ProductVariant.Type)
 				.Map(dest => dest.VariantPrice, src => src.ProductVariant.BasePrice)
+				.Map(dest => dest.Quantity, src => src.Quantity);
+
+			config.NewConfig<CartItem, CartItemPriceDto>()
+				.Map(dest => dest.VariantPrice, src => src.ProductVariant.BasePrice)
+				.Map(dest => dest.Quantity, src => src.Quantity);
+
+			config.NewConfig<CreateCartItemRequest, CartItem>()
+				.Map(dest => dest.VariantId, src => src.VariantId)
 				.Map(dest => dest.Quantity, src => src.Quantity);
 		}
 	}

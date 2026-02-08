@@ -9,6 +9,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Inventory
 		public int VolumeMl { get; set; }
 		public string ConcentrationName { get; set; } = null!;
 		public int TotalQuantity { get; set; }
+		public int AvailableQuantity { get; set; }
 		public int LowStockThreshold { get; set; }
 		public bool IsLowStock { get; set; }
 	}

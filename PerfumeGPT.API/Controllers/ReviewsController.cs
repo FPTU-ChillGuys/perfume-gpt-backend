@@ -36,17 +36,6 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpGet("can-review/{orderDetailId:guid}")]
-		[Authorize(Roles = "user")]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<bool>>> CanReviewOrderDetail(Guid orderDetailId)
-		{
-			var userId = GetCurrentUserId();
-			var response = await _reviewService.CanUserReviewOrderDetailAsync(userId, orderDetailId);
-			return HandleResponse(response);
-		}
-
 		[HttpPost]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<Guid>>), StatusCodes.Status200OK)]
@@ -112,19 +101,6 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _reviewService.ModerateReviewAsync(staffId, reviewId, request);
 			return HandleResponse(response);
 		}
-
-		[HttpGet("pending")]
-		[Authorize(Roles = "staff")]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<ReviewListItem>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<ReviewListItem>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PagedResult<ReviewListItem>>>> GetPendingReviews(
-			[FromQuery] int pageNumber = 1,
-			[FromQuery] int pageSize = 10)
-		{
-			var response = await _reviewService.GetPendingReviewsAsync(pageNumber, pageSize);
-			return HandleResponse(response);
-		}
-
 		#endregion
 
 		#region PUBLIC ENDPOINTS
@@ -179,7 +155,7 @@ namespace PerfumeGPT.API.Controllers
 			[FromForm] ReviewUploadMediaRequest request)
 		{
 			var userId = GetCurrentUserId();
-			var response = await _mediaService.UploadTemporaryMediaAsync(userId, request);
+			var response = await _mediaService.UploadReviewTemporaryMediaAsync(userId, request);
 			return HandleResponse(response);
 		}
 

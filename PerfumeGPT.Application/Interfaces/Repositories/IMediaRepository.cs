@@ -6,7 +6,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 {
 	public interface IMediaRepository : IGenericRepository<Media>
 	{
-		Task<List<Media>> GetMediaByEntityAsync(EntityType entityType, Guid entityId);
+		Task<List<Media>> GetMediaByEntityTypeAsync(EntityType entityType, Guid entityId);
 		Task<Media?> GetPrimaryMediaAsync(EntityType entityType, Guid entityId);
 		Task<int> DeleteAllMediaByEntityAsync(EntityType entityType, Guid entityId);
 	}

@@ -4,7 +4,7 @@
 	{
 		Pending = 1,
 		Processing,
-		Shipped,
+		Delivering,
 		Delivered,
 		Canceled,
 		Returned

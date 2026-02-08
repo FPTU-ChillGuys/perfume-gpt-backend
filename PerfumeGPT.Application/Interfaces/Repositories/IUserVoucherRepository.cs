@@ -11,7 +11,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		/// </summary>
 		Task<(List<UserVoucher> Items, int TotalCount)> GetPagedWithVouchersAsync(
 			Guid userId,
-			GetUserVouchersRequest request);
+			GetPagedUserVouchersRequest request);
 
 		/// <summary>
 		/// Checks if a user has already redeemed a specific voucher.

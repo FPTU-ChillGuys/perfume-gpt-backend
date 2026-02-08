@@ -18,14 +18,13 @@ namespace PerfumeGPT.Application.Services
 			_batchRepository = batchRepository;
 		}
 
-		public async Task<bool> IsValidToCartAsync(Guid variantId, int requiredQuantity)
+		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
 		{
-			return await _stockRepository.IsValidToCart(variantId, requiredQuantity);
+			return await _stockRepository.HasSufficientStockAsync(variantId, requiredQuantity);
 		}
 
 		public async Task<bool> IncreaseStockAsync(Guid variantId, int quantity)
 		{
-			// Validation
 			if (quantity <= 0)
 			{
 				return false;
@@ -35,7 +34,6 @@ namespace PerfumeGPT.Application.Services
 
 			if (stock == null)
 			{
-				// Create new stock record with default threshold
 				stock = new Stock
 				{
 					VariantId = variantId,
@@ -46,18 +44,15 @@ namespace PerfumeGPT.Application.Services
 			}
 			else
 			{
-				// Update existing stock
 				stock.TotalQuantity += quantity;
 				_stockRepository.Update(stock);
 			}
 
-			// Don't call SaveChanges - let the orchestrator/transaction handle it
 			return true;
 		}
 
 		public async Task<bool> DecreaseStockAsync(Guid variantId, int quantity)
 		{
-			// Validation
 			if (quantity <= 0)
 			{
 				return false;
@@ -70,7 +65,6 @@ namespace PerfumeGPT.Application.Services
 				return false;
 			}
 
-			// Update stock and ensure it doesn't go below zero
 			stock.TotalQuantity -= quantity;
 			if (stock.TotalQuantity < 0)
 			{
@@ -79,35 +73,14 @@ namespace PerfumeGPT.Application.Services
 
 			_stockRepository.Update(stock);
 
-			// Don't call SaveChanges - let the orchestrator/transaction handle it
 			return true;
 		}
 
-		public async Task<BaseResponse<PagedResult<StockResponse>>> GetInventoryAsync(GetInventoryRequest request)
+		public async Task<BaseResponse<PagedResult<StockResponse>>> GetInventoryAsync(GetPagedInventoryRequest request)
 		{
 			try
 			{
-				var (stocks, totalCount) = await _stockRepository.GetPagedInventoryAsync(
-					request.VariantId,
-					request.SearchTerm,
-					request.IsLowStock,
-					request.SortBy,
-					request.SortOrder,
-					request.PageNumber,
-					request.PageSize);
-
-				var stockResponses = stocks.Select(s => new StockResponse
-				{
-					Id = s.Id,
-					VariantId = s.VariantId,
-					VariantSku = s.ProductVariant.Sku,
-					ProductName = s.ProductVariant.Product.Name,
-					VolumeMl = s.ProductVariant.VolumeMl,
-					ConcentrationName = s.ProductVariant.Concentration.Name,
-					TotalQuantity = s.TotalQuantity,
-					LowStockThreshold = s.LowStockThreshold,
-					IsLowStock = s.TotalQuantity <= s.LowStockThreshold
-				}).ToList();
+				var (stockResponses, totalCount) = await _stockRepository.GetPagedInventoryAsync(request);
 
 				var pagedResult = new PagedResult<StockResponse>(
 					stockResponses,
@@ -131,28 +104,15 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var stock = await _stockRepository.GetStockWithDetailsByVariantIdAsync(variantId);
+				var response = await _stockRepository.GetStockWithDetailsByVariantIdAsync(variantId);
 
-				if (stock == null)
+				if (response == null)
 				{
 					return BaseResponse<StockResponse>.Fail(
 						"Stock not found for this variant",
 						ResponseErrorType.NotFound
 					);
 				}
-
-				var response = new StockResponse
-				{
-					Id = stock.Id,
-					VariantId = stock.VariantId,
-					VariantSku = stock.ProductVariant.Sku,
-					ProductName = stock.ProductVariant.Product.Name,
-					VolumeMl = stock.ProductVariant.VolumeMl,
-					ConcentrationName = stock.ProductVariant.Concentration.Name,
-					TotalQuantity = stock.TotalQuantity,
-					LowStockThreshold = stock.LowStockThreshold,
-					IsLowStock = stock.TotalQuantity <= stock.LowStockThreshold
-				};
 
 				return BaseResponse<StockResponse>.Ok(response);
 			}

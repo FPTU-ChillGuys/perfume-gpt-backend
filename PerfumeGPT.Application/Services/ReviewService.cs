@@ -6,6 +6,7 @@ using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Reviews;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
@@ -13,13 +14,15 @@ namespace PerfumeGPT.Application.Services
 {
 	public class ReviewService : IReviewService
 	{
+		#region Dependencies
+
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IMediaService _mediaService;
 		private readonly IValidator<CreateReviewRequest> _createValidator;
 		private readonly IValidator<UpdateReviewRequest> _updateValidator;
 		private readonly IValidator<ModerateReviewRequest> _moderateValidator;
-		private readonly IValidator<GetPagedReviewsRequest> _getPagedValidator;
 		private readonly IMapper _mapper;
+		private readonly MediaBulkActionHelper _helper;
 
 		public ReviewService(
 			IUnitOfWork unitOfWork,
@@ -27,21 +30,22 @@ namespace PerfumeGPT.Application.Services
 			IValidator<CreateReviewRequest> createValidator,
 			IValidator<UpdateReviewRequest> updateValidator,
 			IValidator<ModerateReviewRequest> moderateValidator,
-			IValidator<GetPagedReviewsRequest> getPagedValidator,
-			IMapper mapper)
+			IMapper mapper,
+			MediaBulkActionHelper helper)
 		{
 			_unitOfWork = unitOfWork;
 			_mediaService = mediaService;
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
 			_moderateValidator = moderateValidator;
-			_getPagedValidator = getPagedValidator;
 			_mapper = mapper;
+			_helper = helper;
 		}
+
+		#endregion Dependencies
 
 		public async Task<BaseResponse<BulkActionResult<Guid>>> CreateReviewAsync(Guid userId, CreateReviewRequest request)
 		{
-			// Validate request
 			var validationResult = await _createValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 			{
@@ -52,7 +56,6 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
-			// Check if user can review this order detail
 			var canReview = await _unitOfWork.Reviews.CanUserReviewOrderDetailAsync(userId, request.OrderDetailId);
 			if (!canReview)
 			{
@@ -62,7 +65,6 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
-			// Create review entity
 			var review = _mapper.Map<Review>(request);
 			review.UserId = userId;
 			review.Status = ReviewStatus.Pending;
@@ -105,14 +107,12 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
-			// Get review
 			var review = await _unitOfWork.Reviews.GetByIdAsync(reviewId);
 			if (review == null || review.IsDeleted)
 			{
 				return BaseResponse<BulkActionResult<string>>.Fail("Review not found", ResponseErrorType.NotFound);
 			}
 
-			// Check ownership
 			if (review.UserId != userId)
 			{
 				return BaseResponse<BulkActionResult<string>>.Fail("You can only edit your own reviews", ResponseErrorType.Forbidden);
@@ -132,7 +132,7 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			// Add new images from temporary media
-			if (request.TemporaryMediaIdsToAdd != null && request.TemporaryMediaIdsToAdd.Any())
+			if (request.TemporaryMediaIdsToAdd != null && request.TemporaryMediaIdsToAdd.Count != 0)
 			{
 				var conversionResult = await ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIdsToAdd, reviewId);
 				if (conversionResult.TotalProcessed > 0)
@@ -170,16 +170,13 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Review not found", ResponseErrorType.NotFound);
 			}
 
-			// Check ownership
 			if (review.UserId != userId)
 			{
 				return BaseResponse<string>.Fail("You can only delete your own reviews", ResponseErrorType.Forbidden);
 			}
 
-			// Soft delete
 			_unitOfWork.Reviews.Remove(review);
 
-			// Delete associated images
 			await _mediaService.DeleteAllMediaByEntityAsync(EntityType.Review, reviewId);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
@@ -193,18 +190,16 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> ModerateReviewAsync(Guid staffId, Guid reviewId, ModerateReviewRequest request)
 		{
-			// Validate request
 			var validationResult = await _moderateValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 			{
 				return BaseResponse<string>.Fail(
 					"Validation failed",
 					ResponseErrorType.BadRequest,
-					validationResult.Errors.Select(e => e.ErrorMessage).ToList()
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]
 				);
 			}
 
-			// Get review
 			var review = await _unitOfWork.Reviews.GetByIdAsync(reviewId);
 			if (review == null || review.IsDeleted)
 			{
@@ -234,20 +229,9 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<ReviewListItem>>> GetReviewsAsync(GetPagedReviewsRequest request)
 		{
-			// Validate request
-			var validationResult = await _getPagedValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				return BaseResponse<PagedResult<ReviewListItem>>.Fail(
-					"Validation failed",
-					ResponseErrorType.BadRequest,
-					validationResult.Errors.Select(e => e.ErrorMessage).ToList()
-				);
-			}
-
 			var (items, totalCount) = await _unitOfWork.Reviews.GetPagedReviewsAsync(request);
 
-			var reviewListItems = _mapper.Map<List<ReviewListItem>>(items);
+			var reviewListItems = items;
 
 			var pagedResult = new PagedResult<ReviewListItem>(
 				reviewListItems,
@@ -261,27 +245,24 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ReviewDetailResponse>> GetReviewByIdAsync(Guid reviewId)
 		{
-			var review = await _unitOfWork.Reviews.GetReviewWithDetailsAsync(reviewId);
-			if (review == null)
+			var response = await _unitOfWork.Reviews.GetReviewWithDetailsAsync(reviewId);
+			if (response == null)
 			{
 				return BaseResponse<ReviewDetailResponse>.Fail("Review not found", ResponseErrorType.NotFound);
 			}
 
-			var response = _mapper.Map<ReviewDetailResponse>(review);
 			return BaseResponse<ReviewDetailResponse>.Ok(response);
 		}
 
 		public async Task<BaseResponse<List<ReviewResponse>>> GetUserReviewsAsync(Guid userId)
 		{
-			var reviews = await _unitOfWork.Reviews.GetReviewsByUserIdAsync(userId);
-			var response = _mapper.Map<List<ReviewResponse>>(reviews);
+			var response = await _unitOfWork.Reviews.GetReviewsByUserIdAsync(userId);
 			return BaseResponse<List<ReviewResponse>>.Ok(response);
 		}
 
 		public async Task<BaseResponse<List<ReviewResponse>>> GetVariantReviewsAsync(Guid variantId)
 		{
-			var reviews = await _unitOfWork.Reviews.GetReviewsByVariantIdAsync(variantId, ReviewStatus.Approved);
-			var response = _mapper.Map<List<ReviewResponse>>(reviews);
+			var response = await _unitOfWork.Reviews.GetReviewsByVariantIdAsync(variantId, ReviewStatus.Approved);
 			return BaseResponse<List<ReviewResponse>>.Ok(response);
 		}
 
@@ -304,28 +285,6 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<ReviewStatisticsResponse>.Ok(response);
 		}
 
-		public async Task<BaseResponse<PagedResult<ReviewListItem>>> GetPendingReviewsAsync(int pageNumber = 1, int pageSize = 10)
-		{
-			var (items, totalCount) = await _unitOfWork.Reviews.GetPendingReviewsAsync(pageNumber, pageSize);
-
-			var reviewListItems = _mapper.Map<List<ReviewListItem>>(items);
-
-			var pagedResult = new PagedResult<ReviewListItem>(
-				reviewListItems,
-				pageNumber,
-				pageSize,
-				totalCount
-			);
-
-			return BaseResponse<PagedResult<ReviewListItem>>.Ok(pagedResult);
-		}
-
-		public async Task<BaseResponse<bool>> CanUserReviewOrderDetailAsync(Guid userId, Guid orderDetailId)
-		{
-			var canReview = await _unitOfWork.Reviews.CanUserReviewOrderDetailAsync(userId, orderDetailId);
-			return BaseResponse<bool>.Ok(canReview);
-		}
-
 		public async Task<BaseResponse<List<MediaResponse>>> GetReviewImagesAsync(Guid reviewId)
 		{
 			var review = await _unitOfWork.Reviews.GetByIdAsync(reviewId);
@@ -340,106 +299,19 @@ namespace PerfumeGPT.Application.Services
 
 		#region Private Methods
 
-		private async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(List<Guid> temporaryMediaIds, Guid reviewId)
+		private async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(
+			List<Guid> temporaryMediaIds,
+			Guid reviewId)
 		{
-			var response = new BulkActionResponse();
-
-			foreach (var tempMediaId in temporaryMediaIds)
-			{
-				try
-				{
-					// Get temporary media
-					var tempMedia = await _unitOfWork.TemporaryMedia.GetByIdAsync(tempMediaId);
-					if (tempMedia == null)
-					{
-						response.FailedItems.Add(new BulkActionError
-						{
-							Id = tempMediaId,
-							ErrorMessage = "Temporary media not found"
-						});
-						continue;
-					}
-
-					if (tempMedia.IsExpired)
-					{
-						response.FailedItems.Add(new BulkActionError
-						{
-							Id = tempMediaId,
-							ErrorMessage = "Temporary media has expired"
-						});
-						continue;
-					}
-
-					// Create permanent media from temporary
-					var media = new Media
-					{
-						Url = tempMedia.Url,
-						AltText = tempMedia.AltText,
-						EntityType = EntityType.Review,
-						ReviewId = reviewId,
-						DisplayOrder = tempMedia.DisplayOrder,
-						IsPrimary = false,
-						PublicId = tempMedia.PublicId,
-						FileSize = tempMedia.FileSize,
-						MimeType = tempMedia.MimeType
-					};
-
-					await _unitOfWork.Media.AddAsync(media);
-					_unitOfWork.TemporaryMedia.Remove(tempMedia);
-
-					response.SucceededIds.Add(tempMediaId);
-				}
-				catch (Exception ex)
-				{
-					response.FailedItems.Add(new BulkActionError
-					{
-						Id = tempMediaId,
-						ErrorMessage = $"Failed to convert media: {ex.Message}"
-					});
-				}
-			}
-
-			if (response.SucceededIds.Count > 0)
-			{
-				await _unitOfWork.SaveChangesAsync();
-			}
-
-			return response;
+			return await _helper.ConvertTemporaryMediaToPermanentAsync(
+				temporaryMediaIds,
+				EntityType.Review,
+				reviewId);
 		}
 
 		private async Task<BulkActionResponse> DeleteMultipleMediaAsync(List<Guid> mediaIds)
 		{
-			var response = new BulkActionResponse();
-
-			foreach (var mediaId in mediaIds)
-			{
-				try
-				{
-					var deleteResult = await _mediaService.DeleteMediaAsync(mediaId);
-					if (deleteResult.Success)
-					{
-						response.SucceededIds.Add(mediaId);
-					}
-					else
-					{
-						response.FailedItems.Add(new BulkActionError
-						{
-							Id = mediaId,
-							ErrorMessage = deleteResult.Message ?? "Unknown error"
-						});
-					}
-				}
-				catch (Exception ex)
-				{
-					response.FailedItems.Add(new BulkActionError
-					{
-						Id = mediaId,
-						ErrorMessage = $"Exception during deletion: {ex.Message}"
-					});
-				}
-			}
-
-			return response;
+			return await _helper.DeleteMultipleMediaAsync(mediaIds);
 		}
 
 		#endregion

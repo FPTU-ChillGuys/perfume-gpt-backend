@@ -6,6 +6,7 @@ using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Linq.Expressions;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -15,59 +16,78 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
-		public async Task<(List<UserVoucher> Items, int TotalCount)> GetPagedWithVouchersAsync(
-			Guid userId,
-			GetUserVouchersRequest request)
+		public async Task<(List<UserVoucher> Items, int TotalCount)> GetPagedWithVouchersAsync(Guid userId, GetPagedUserVouchersRequest request)
 		{
 			var query = _context.UserVouchers
 				.Include(uv => uv.Voucher)
 				.Where(uv => uv.UserId == userId)
 				.AsNoTracking();
 
-			// Apply filters using expression composition
+			// Build filter expression using composition
+			Expression<Func<UserVoucher, bool>>? filter = null;
+
+			// Status filter
 			if (request.Status.HasValue)
 			{
-				query = query.Where(uv => uv.Status == request.Status.Value);
+				Expression<Func<UserVoucher, bool>> statusFilter = uv => uv.Status == request.Status.Value;
+				filter = filter == null ? statusFilter : filter.AndAlso(statusFilter);
 			}
 
+			// IsUsed filter
 			if (request.IsUsed.HasValue)
 			{
-				query = query.Where(uv => uv.IsUsed == request.IsUsed.Value);
+				Expression<Func<UserVoucher, bool>> isUsedFilter = uv => uv.IsUsed == request.IsUsed.Value;
+				filter = filter == null ? isUsedFilter : filter.AndAlso(isUsedFilter);
 			}
 
+			// IsExpired filter
 			if (request.IsExpired.HasValue)
 			{
 				var now = DateTime.UtcNow;
+				Expression<Func<UserVoucher, bool>> expiredFilter;
+
 				if (request.IsExpired.Value)
 				{
-					query = query.Where(uv => uv.Voucher != null && uv.Voucher.ExpiryDate < now);
+					expiredFilter = uv => uv.Voucher != null && uv.Voucher.ExpiryDate < now;
 				}
 				else
 				{
-					query = query.Where(uv => uv.Voucher != null && uv.Voucher.ExpiryDate >= now);
+					expiredFilter = uv => uv.Voucher != null && uv.Voucher.ExpiryDate >= now;
 				}
+
+				filter = filter == null ? expiredFilter : filter.AndAlso(expiredFilter);
 			}
 
+			// Code search filter
 			if (!string.IsNullOrEmpty(request.Code))
 			{
-				// Use CollateContains for case-insensitive search
 				var codeFilter = EfCollationExtensions.CollateContains<UserVoucher>(
 					uv => uv.Voucher != null ? uv.Voucher.Code : null,
 					request.Code);
-				query = query.Where(codeFilter);
+
+				filter = filter == null ? codeFilter : filter.AndAlso(codeFilter);
 			}
 
+			// DiscountType filter
 			if (request.DiscountType.HasValue)
 			{
-				query = query.Where(uv => uv.Voucher != null && uv.Voucher.DiscountType == request.DiscountType.Value);
+				Expression<Func<UserVoucher, bool>> discountTypeFilter =
+					uv => uv.Voucher != null && uv.Voucher.DiscountType == request.DiscountType.Value;
+
+				filter = filter == null ? discountTypeFilter : filter.AndAlso(discountTypeFilter);
+			}
+
+			// Apply combined filter
+			if (filter != null)
+			{
+				query = query.Where(filter);
 			}
 
 			// Get total count before pagination
 			var totalCount = await query.CountAsync();
 
-			// Apply sorting using QueryableExtensions
-			var sortBy = MapSortFieldToProperty(request.SortBy);
-			var sortedQuery = query.ApplySorting(sortBy, request.IsDescending);
+			// Apply sorting
+			var sortedQuery = query.ApplySorting(request.SortBy, request.IsDescending);
 
 			// Apply pagination
 			var items = await sortedQuery
@@ -76,29 +96,6 @@ namespace PerfumeGPT.Persistence.Repositories
 				.ToListAsync();
 
 			return (items, totalCount);
-		}
-
-		/// <summary>
-		/// Maps user-friendly sort field names to actual property paths
-		/// </summary>
-		private static string? MapSortFieldToProperty(string? sortBy)
-		{
-			if (string.IsNullOrEmpty(sortBy))
-			{
-				return "CreatedAt"; // Default sort field
-			}
-
-			return sortBy.ToLower() switch
-			{
-				"createdat" => "CreatedAt",
-				"status" => "Status",
-				"isused" => "IsUsed",
-				"code" => "Voucher.Code",
-				"discountvalue" => "Voucher.DiscountValue",
-				"expirydate" => "Voucher.ExpiryDate",
-				"discounttype" => "Voucher.DiscountType",
-				_ => "CreatedAt" // Default fallback
-			};
 		}
 
 		public async Task<bool> HasRedeemedVoucherAsync(Guid userId, Guid voucherId)

@@ -306,6 +306,20 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 		}
 	}
 
+	public ILoyaltyPointRepository LoyaltyPoints
+	{
+		get
+		{
+			var key = typeof(ILoyaltyPointRepository);
+			if (!_repositories.TryGetValue(key, out var repo))
+			{
+				repo = new LoyaltyPointRepository(_context);
+				_repositories[key] = repo!;
+			}
+			return (ILoyaltyPointRepository)repo!;
+		}
+	}
+
 	public UnitOfWork(PerfumeDbContext context)
 		{
 			_context = context ?? throw new ArgumentNullException(nameof(context));

@@ -1,8 +1,11 @@
+using Mapster;
 using Microsoft.EntityFrameworkCore;
-using PerfumeGPT.Persistence.Extensions;
+using PerfumeGPT.Application.DTOs.Requests.Inventory;
+using PerfumeGPT.Application.DTOs.Responses.Inventory;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
+using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
 using System.Data;
 
@@ -27,79 +30,69 @@ namespace PerfumeGPT.Persistence.Repositories
 			return stock.TotalQuantity <= stock.LowStockThreshold;
 		}
 
-		public async Task<bool> IsValidToCart(Guid variantId, int requiredQuantity)
+		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
 		{
 			var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
 			if (stock == null)
 			{
 				return false;
 			}
-			return stock.TotalQuantity >= requiredQuantity;
+			return stock.AvailableQuantity >= requiredQuantity;
 		}
 
-		public async Task<bool> UpdateStockAsync(Guid variantId)
-		{
-			var strategy = _context.Database.CreateExecutionStrategy();
+		//public async Task<bool> UpdateStockAsync(Guid variantId)
+		//{
+		//	var strategy = _context.Database.CreateExecutionStrategy();
 
-			return await strategy.ExecuteAsync(async () =>
-			{
-				for (int attempt = 0; attempt < MaxRetryAttempts; attempt++)
-				{
-					try
-					{
-						var totalQuantity = await _context.Batches
-							.Where(b => b.VariantId == variantId && b.ExpiryDate > DateTime.UtcNow)
-							.SumAsync(b => b.RemainingQuantity);
+		//	return await strategy.ExecuteAsync(async () =>
+		//	{
+		//		for (int attempt = 0; attempt < MaxRetryAttempts; attempt++)
+		//		{
+		//			try
+		//			{
+		//				var totalQuantity = await _context.Batches
+		//					.Where(b => b.VariantId == variantId && b.ExpiryDate > DateTime.UtcNow)
+		//					.SumAsync(b => b.RemainingQuantity);
 
-						var rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
-							$"UPDATE Stocks SET TotalQuantity = {totalQuantity} WHERE VariantId = {variantId}");
+		//				var rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
+		//					$"UPDATE Stocks SET TotalQuantity = {totalQuantity} WHERE VariantId = {variantId}");
 
-						return rowsAffected > 0;
-					}
-					catch (DbUpdateConcurrencyException) when (attempt < MaxRetryAttempts - 1)
-					{
-						await Task.Delay(RetryDelayMilliseconds * (attempt + 1));
-						continue;
-					}
-				}
+		//				return rowsAffected > 0;
+		//			}
+		//			catch (DbUpdateConcurrencyException) when (attempt < MaxRetryAttempts - 1)
+		//			{
+		//				await Task.Delay(RetryDelayMilliseconds * (attempt + 1));
+		//				continue;
+		//			}
+		//		}
 
-				return false;
-			});
-		}
+		//		return false;
+		//	});
+		//}
 
-		public async Task<(IEnumerable<Stock> Stocks, int TotalCount)> GetPagedInventoryAsync(
-			Guid? variantId,
-			string? searchTerm,
-			bool? isLowStock,
-			string? sortBy,
-			string? sortOrder,
-			int pageNumber,
-			int pageSize)
+		public async Task<(IEnumerable<StockResponse> Stocks, int TotalCount)> GetPagedInventoryAsync(GetPagedInventoryRequest request)
 		{
 			IQueryable<Stock> query = _context.Stocks
-				.Include(s => s.ProductVariant)
-					.ThenInclude(v => v.Product)
-				.Include(s => s.ProductVariant.Concentration)
 				.AsNoTracking();
 
 			// Filter by VariantId
-			if (variantId.HasValue)
+			if (request.VariantId.HasValue)
 			{
-				query = query.Where(s => s.VariantId == variantId.Value);
+				query = query.Where(s => s.VariantId == request.VariantId.Value);
 			}
 
 			// Filter by SearchTerm (SKU or Product Name)
-			if (!string.IsNullOrEmpty(searchTerm))
+			if (!string.IsNullOrEmpty(request.SearchTerm))
 			{
 				query = query.Where(s =>
-					(s.ProductVariant.Sku != null && s.ProductVariant.Sku.Contains(searchTerm)) ||
-					(s.ProductVariant.Product.Name != null && s.ProductVariant.Product.Name.Contains(searchTerm)));
+					(s.ProductVariant.Sku != null && s.ProductVariant.Sku.Contains(request.SearchTerm)) ||
+					(s.ProductVariant.Product.Name != null && s.ProductVariant.Product.Name.Contains(request.SearchTerm)));
 			}
 
 			// Filter by IsLowStock
-			if (isLowStock.HasValue)
+			if (request.IsLowStock.HasValue)
 			{
-				if (isLowStock.Value)
+				if (request.IsLowStock.Value)
 				{
 					query = query.Where(s => s.TotalQuantity <= s.LowStockThreshold);
 				}
@@ -110,10 +103,10 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 
 			// Apply sorting
-			if (!string.IsNullOrEmpty(sortBy))
+			if (!string.IsNullOrEmpty(request.SortBy))
 			{
-				var descending = sortOrder?.ToLower() == "desc";
-				query = query.ApplySorting(sortBy, descending);
+				var descending = request.SortOrder?.ToLower() == "desc";
+				query = query.ApplySorting(request.SortBy, descending);
 			}
 			else
 			{
@@ -122,22 +115,22 @@ namespace PerfumeGPT.Persistence.Repositories
 					.ThenBy(s => s.ProductVariant.VolumeMl);
 			}
 
+			// Get total count before pagination
 			int totalCount = await query.CountAsync();
 
 			var stocks = await query
-				.Skip((pageNumber - 1) * pageSize)
-				.Take(pageSize)
+				.Skip((request.PageNumber - 1) * request.PageSize)
+				.Take(request.PageSize)
+				.ProjectToType<StockResponse>()
 				.ToListAsync();
 
 			return (stocks, totalCount);
 		}
 
-		public async Task<Stock?> GetStockWithDetailsByVariantIdAsync(Guid variantId)
+		public async Task<StockResponse?> GetStockWithDetailsByVariantIdAsync(Guid variantId)
 		{
 			return await _context.Stocks
-				.Include(s => s.ProductVariant)
-					.ThenInclude(v => v.Product)
-				.Include(s => s.ProductVariant.Concentration)
+				.ProjectToType<StockResponse>()
 				.AsNoTracking()
 				.FirstOrDefaultAsync(s => s.VariantId == variantId);
 		}
