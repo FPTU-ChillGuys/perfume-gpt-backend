@@ -1,4 +1,5 @@
 ﻿using PerfumeGPT.Application.DTOs.Requests.Products;
+using PerfumeGPT.Application.DTOs.Responses.Products;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Domain.Entities;
 
@@ -6,30 +7,24 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 {
 	public interface IProductRepository : IGenericRepository<Product>
 	{
-		/// <summary>
-		/// Gets a product with all related data (Brand, Category, Family, Variants with Concentrations).
-		/// </summary>
-		Task<Product?> GetProductWithDetailsAsync(Guid productId);
+		Task<List<ProductLookupItem>> GetProductLookupListAsync();
+		Task<ProductResponse?> GetProductResponseAsync(Guid productId);
+		Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductListItemsAsync(GetPagedProductRequest request);
 
 		/// <summary>
-		/// Gets paged products with related data (Brand, Category, Family).
+		///	Get paged products based on semantic search of the provided text.
+		///	</summary>
+		Task<(List<Product> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request);
+
+		/// <summary>
+		///	Add embeddings for all products in the database.
 		/// </summary>
-		Task<(List<Product> Items, int TotalCount)> GetPagedProductsWithDetailsAsync(GetPagedProductRequest request);
+		Task AddAllProductEmbeddingsAsync();
 
-        /// <summary>
-        ///	Get paged products based on semantic search of the provided text.
-        ///	</summary>
-        Task<(List<Product> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request);
-
-        /// <summary>
-        ///	Add embeddings for all products in the database.
-        /// </summary>
-        Task AddAllProductEmbeddingsAsync();
-
-        /// <summary>
+		/// <summary>
 		/// Add embedding for a specific product by its ID.
 		/// </summary>
-        Task AddProductEmbeddingsAsync(Guid productId);
-    }
+		Task AddProductEmbeddingsAsync(Guid productId);
+	}
 }
 

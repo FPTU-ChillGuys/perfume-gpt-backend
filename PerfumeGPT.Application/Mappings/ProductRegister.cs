@@ -9,7 +9,6 @@ namespace PerfumeGPT.Application.Mappings
 	{
 		public void Register(TypeAdapterConfig config)
 		{
-			// CreateProductRequest -> Product
 			config.NewConfig<CreateProductRequest, Product>()
 				.Map(dest => dest.Name, src => src.Name)
 				.Map(dest => dest.BrandId, src => src.BrandId)
