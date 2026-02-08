@@ -4,6 +4,7 @@ using PerfumeGPT.Application.DTOs.Requests.Variants;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
 
@@ -13,6 +14,18 @@ namespace PerfumeGPT.Persistence.Repositories
 	{
 		public VariantRepository(PerfumeDbContext context) : base(context)
 		{
+		}
+
+		public async Task<List<VariantLookupItem>> GetLookupList(Guid? productId = null)
+		{
+			var variants = await _context.ProductVariants
+				.Where(v => !v.IsDeleted
+					&& v.Status != VariantStatus.Discontinued
+					&& (!productId.HasValue || v.ProductId == productId.Value))
+				.ProjectToType<VariantLookupItem>()
+				.ToListAsync();
+
+			return variants;
 		}
 
 		public async Task<ProductVariantResponse?> GetByBarcodeAsync(string barcode)

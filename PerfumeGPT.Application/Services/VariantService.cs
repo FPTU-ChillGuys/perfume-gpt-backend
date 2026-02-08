@@ -6,7 +6,6 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories;
-using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
@@ -16,9 +15,10 @@ namespace PerfumeGPT.Application.Services
 {
 	public class VariantService : IVariantService
 	{
+		#region Dependencies
+
 		private readonly IVariantRepository _variantRepository;
 		private readonly IMediaService _mediaService;
-		private readonly IUnitOfWork _unitOfWork;
 		private readonly IValidator<CreateVariantRequest> _createVariantValidator;
 		private readonly IValidator<UpdateVariantRequest> _updateVariantValidator;
 		private readonly IMapper _mapper;
@@ -27,7 +27,6 @@ namespace PerfumeGPT.Application.Services
 		public VariantService(
 			IVariantRepository variantRepository,
 			IMediaService mediaService,
-			IUnitOfWork unitOfWork,
 			IValidator<CreateVariantRequest> createVariantValidator,
 			IValidator<UpdateVariantRequest> updateVariantValidator,
 			IMapper mapper,
@@ -35,12 +34,13 @@ namespace PerfumeGPT.Application.Services
 		{
 			_variantRepository = variantRepository;
 			_mediaService = mediaService;
-			_unitOfWork = unitOfWork;
 			_createVariantValidator = createVariantValidator;
 			_updateVariantValidator = updateVariantValidator;
 			_mapper = mapper;
 			_helper = helper;
 		}
+
+		#endregion Dependencies
 
 		public async Task<BaseResponse<BulkActionResult<string>>> CreateVariantAsync(CreateVariantRequest request)
 		{
@@ -54,7 +54,6 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
-			// Use mapper to create ProductVariant entity
 			var variant = _mapper.Map<ProductVariant>(request);
 
 			await _variantRepository.AddAsync(variant);
@@ -107,7 +106,6 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<BulkActionResult<string>>.Fail("Cannot update deleted variant", ResponseErrorType.BadRequest);
 			}
 
-			// Use mapper to update entity
 			_mapper.Map(request, variant);
 
 			_variantRepository.Update(variant);
@@ -162,7 +160,6 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Variant already deleted", ResponseErrorType.BadRequest);
 			}
 
-			// Delete all media for this variant
 			var deleteMediaResult = await _mediaService.DeleteAllMediaByEntityAsync(EntityType.ProductVariant, variantId);
 			if (!deleteMediaResult.Success)
 			{
@@ -220,19 +217,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<List<VariantLookupItem>>> GetVariantLookupListAsync(Guid? productId = null)
 		{
-			var query = await _variantRepository.GetAllAsync(
-				filter: v => !v.IsDeleted && v.Status != VariantStatus.Discontinued
-					&& (!productId.HasValue || v.ProductId == productId.Value),
-				include: q => q.Include(v => v.Concentration)
-					.Include(v => v.Product)
-					.Include(v => v.Media.Where(m => !m.IsDeleted && m.IsPrimary))
-			);
 
-			var variants = query.OrderBy(v => v.Sku).ToList();
-
-			// Use mapper to convert to VariantLookupItem
-			var lookupItems = _mapper.Map<List<VariantLookupItem>>(variants);
-
+			var lookupItems = await _variantRepository.GetLookupList(productId);
 			return BaseResponse<List<VariantLookupItem>>.Ok(lookupItems, "Variant lookup list retrieved successfully");
 		}
 
