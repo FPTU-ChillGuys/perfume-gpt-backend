@@ -1,5 +1,7 @@
+using Mapster;
 using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.StockAdjustments;
+using PerfumeGPT.Application.DTOs.Responses.StockAdjustments;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
@@ -13,32 +15,26 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
+		public async Task<StockAdjustmentResponse?> GetByIdToViewAsync(Guid id)
+		{
+			return await _context.StockAdjustments
+				.Where(sa => sa.Id == id)
+				.ProjectToType<StockAdjustmentResponse>()
+				.AsNoTracking()
+				.FirstOrDefaultAsync();
+		}
+
 		public async Task<StockAdjustment?> GetByIdWithDetailsAsync(Guid id)
 		{
 			return await _context.StockAdjustments
-				.Include(sa => sa.CreatedByUser)
-				.Include(sa => sa.VerifiedByUser)
-				.Include(sa => sa.AdjustmentDetails)
-					.ThenInclude(d => d.ProductVariant)
-						.ThenInclude(v => v.Product)
-				.Include(sa => sa.AdjustmentDetails)
-					.ThenInclude(d => d.Batch)
-				.AsNoTracking()
-				.FirstOrDefaultAsync(sa => sa.Id == id);
-		}
-
-		public async Task<StockAdjustment?> GetByIdWithDetailsForDeleteAsync(Guid id)
-		{
-			return await _context.StockAdjustments
 				.Include(sa => sa.AdjustmentDetails)
 				.FirstOrDefaultAsync(sa => sa.Id == id);
 		}
 
-		public async Task<(IEnumerable<StockAdjustment> Items, int TotalCount)> GetPagedWithDetailsAsync(GetPagedStockAdjustmentsRequest request)
+		public async Task<(IEnumerable<StockAdjustmentListItem> Items, int TotalCount)> GetPagedAsync(GetPagedStockAdjustmentsRequest request)
 		{
 			var query = _context.StockAdjustments
-				.Include(sa => sa.CreatedByUser)
-				.Include(sa => sa.AdjustmentDetails)
+				.ProjectToType<StockAdjustmentListItem>()
 				.AsNoTracking()
 				.AsQueryable();
 
