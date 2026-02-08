@@ -7,6 +7,7 @@ using PerfumeGPT.Application.DTOs.Responses.Products;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
@@ -22,6 +23,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IValidator<CreateProductRequest> _createValidator;
 		private readonly IValidator<UpdateProductRequest> _updateValidator;
 		private readonly IMapper _mapper;
+		private readonly MediaBulkActionHelper _helper;
 
 		public ProductService(
 			IProductRepository productRepo,
@@ -29,7 +31,8 @@ namespace PerfumeGPT.Application.Services
 			IUnitOfWork unitOfWork,
 			IValidator<CreateProductRequest> createValidator,
 			IValidator<UpdateProductRequest> updateValidator,
-			IMapper mapper)
+			IMapper mapper,
+			MediaBulkActionHelper helper)
 		{
 			_productRepo = productRepo;
 			_mediaService = mediaService;
@@ -37,6 +40,7 @@ namespace PerfumeGPT.Application.Services
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
 			_mapper = mapper;
+			_helper = helper;
 		}
 
 		#endregion Dependencies
@@ -252,96 +256,19 @@ namespace PerfumeGPT.Application.Services
 
 		#region Private Methods
 
-		private async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(List<Guid> temporaryMediaIds, Guid productId)
+		private async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(
+			List<Guid> temporaryMediaIds,
+			Guid productId)
 		{
-			var response = new BulkActionResponse();
-
-			foreach (var tempMediaId in temporaryMediaIds)
-			{
-				try
-				{
-					// Get temporary media
-					var tempMedia = await _unitOfWork.TemporaryMedia.GetByIdAsync(tempMediaId);
-					if (tempMedia == null)
-					{
-						response.FailedItems.Add(new BulkActionError
-						{
-							Id = tempMediaId,
-							ErrorMessage = "Temporary media not found"
-						});
-						continue;
-					}
-
-					if (tempMedia.IsExpired)
-					{
-						response.FailedItems.Add(new BulkActionError
-						{
-							Id = tempMediaId,
-							ErrorMessage = "Temporary media has expired"
-						});
-						continue;
-					}
-
-					var media = _mapper.Map<Media>(tempMedia);
-					media.EntityType = EntityType.Product;
-					media.ProductId = productId;
-
-					await _unitOfWork.Media.AddAsync(media);
-					_unitOfWork.TemporaryMedia.Remove(tempMedia);
-
-					response.SucceededIds.Add(tempMediaId);
-				}
-				catch (Exception ex)
-				{
-					response.FailedItems.Add(new BulkActionError
-					{
-						Id = tempMediaId,
-						ErrorMessage = $"Failed to convert media: {ex.Message}"
-					});
-				}
-			}
-
-			if (response.SucceededIds.Count > 0)
-			{
-				await _unitOfWork.SaveChangesAsync();
-			}
-
-			return response;
+			return await _helper.ConvertTemporaryMediaToPermanentAsync(
+				temporaryMediaIds,
+				EntityType.Product,
+				productId);
 		}
 
 		private async Task<BulkActionResponse> DeleteMultipleMediaAsync(List<Guid> mediaIds)
 		{
-			var response = new BulkActionResponse();
-
-			foreach (var mediaId in mediaIds)
-			{
-				try
-				{
-					var deleteResult = await _mediaService.DeleteMediaAsync(mediaId);
-					if (deleteResult.Success)
-					{
-						response.SucceededIds.Add(mediaId);
-					}
-					else
-					{
-						response.FailedItems.Add(new BulkActionError
-						{
-							Id = mediaId,
-							ErrorMessage = deleteResult.Message ?? "Unknown error"
-						});
-					}
-				}
-				catch (Exception ex)
-				{
-					response.FailedItems.Add(new BulkActionError
-					{
-						Id = mediaId,
-						ErrorMessage = $"Exception during deletion: {ex.Message}"
-					});
-				}
-			}
-
-			return response;
+			return await _helper.DeleteMultipleMediaAsync(mediaIds);
 		}
 
 		#endregion

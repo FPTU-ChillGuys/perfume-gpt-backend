@@ -15,5 +15,6 @@ namespace PerfumeGPT.Application.DTOs.Responses.Reviews
 		public ReviewStatus Status { get; set; }
 		public int ImageCount { get; set; }
 		public DateTime CreatedAt { get; set; }
+		public DateTime ModeratedAt { get; set; }
 	}
 }

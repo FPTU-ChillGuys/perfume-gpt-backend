@@ -1,5 +1,7 @@
+using Mapster;
 using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Reviews;
+using PerfumeGPT.Application.DTOs.Responses.Reviews;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
@@ -14,35 +16,18 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
-		public async Task<Review?> GetReviewWithDetailsAsync(Guid reviewId)
+		public async Task<ReviewDetailResponse?> GetReviewWithDetailsAsync(Guid reviewId)
 		{
 			return await _context.Reviews
-				.Include(r => r.User)
-				.Include(r => r.OrderDetail)
-					.ThenInclude(od => od.ProductVariant)
-						.ThenInclude(v => v.Product)
-				.Include(r => r.OrderDetail)
-					.ThenInclude(od => od.ProductVariant)
-						.ThenInclude(v => v.Concentration)
-				.Include(r => r.OrderDetail)
-					.ThenInclude(od => od.Order)
-				.Include(r => r.ModeratedByStaff)
-				.Include(r => r.ReviewImages.Where(m => !m.IsDeleted))
+				.Where(r => r.Id == reviewId && !r.IsDeleted)
+				.ProjectToType<ReviewDetailResponse>()
 				.AsNoTracking()
-				.FirstOrDefaultAsync(r => r.Id == reviewId && !r.IsDeleted);
+				.FirstOrDefaultAsync();
 		}
 
-		public async Task<(List<Review> Items, int TotalCount)> GetPagedReviewsAsync(GetPagedReviewsRequest request)
+		public async Task<(List<ReviewListItem> Items, int TotalCount)> GetPagedReviewsAsync(GetPagedReviewsRequest request)
 		{
 			var query = _context.Reviews
-				.Include(r => r.User)
-				.Include(r => r.OrderDetail)
-					.ThenInclude(od => od.ProductVariant)
-						.ThenInclude(v => v.Product)
-				.Include(r => r.OrderDetail)
-					.ThenInclude(od => od.ProductVariant)
-						.ThenInclude(v => v.Concentration)
-				.Include(r => r.ReviewImages.Where(m => !m.IsDeleted))
 				.Where(r => !r.IsDeleted)
 				.AsQueryable();
 
@@ -99,53 +84,18 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
+				.ProjectToType<ReviewListItem>()
 				.AsNoTracking()
 				.ToListAsync();
 
 			return (items, totalCount);
 		}
 
-		public async Task<bool> CanUserReviewOrderDetailAsync(Guid userId, Guid orderDetailId)
-		{
-			// Check if the order detail exists and belongs to the user
-			var orderDetail = await _context.OrderDetails
-				.Include(od => od.Order)
-				.FirstOrDefaultAsync(od => od.Id == orderDetailId);
-
-			if (orderDetail == null || orderDetail.Order.CustomerId != userId)
-			{
-				return false;
-			}
-
-			// Check if the order is delivered
-			if (orderDetail.Order.Status != OrderStatus.Delivered)
-			{
-				return false;
-			}
-
-			// Check if user has already reviewed this order detail
-			var hasReviewed = await HasUserReviewedOrderDetailAsync(userId, orderDetailId);
-			return !hasReviewed;
-		}
-
-		public async Task<bool> HasUserReviewedOrderDetailAsync(Guid userId, Guid orderDetailId)
-		{
-			return await _context.Reviews
-				.AnyAsync(r => r.UserId == userId && r.OrderDetailId == orderDetailId && !r.IsDeleted);
-		}
-
-	public async Task<List<Review>> GetReviewsByVariantIdAsync(Guid variantId, ReviewStatus? status = null)
+		public async Task<List<ReviewResponse>> GetReviewsByVariantIdAsync(Guid variantId, ReviewStatus? status = null)
 		{
 			var query = _context.Reviews
-				.Include(r => r.User)
-				.Include(r => r.OrderDetail)
-					.ThenInclude(od => od.ProductVariant)
-						.ThenInclude(v => v.Product)
-				.Include(r => r.OrderDetail)
-					.ThenInclude(od => od.ProductVariant)
-						.ThenInclude(v => v.Concentration)
-				.Include(r => r.ReviewImages.Where(m => !m.IsDeleted))
-				.Where(r => r.OrderDetail.VariantId == variantId && !r.IsDeleted);
+				.Where(r => r.OrderDetail.VariantId == variantId && !r.IsDeleted)
+				.ProjectToType<ReviewResponse>();
 
 			if (status.HasValue)
 			{
@@ -158,14 +108,11 @@ namespace PerfumeGPT.Persistence.Repositories
 				.ToListAsync();
 		}
 
-		public async Task<List<Review>> GetReviewsByUserIdAsync(Guid userId)
+		public async Task<List<ReviewResponse>> GetReviewsByUserIdAsync(Guid userId)
 		{
 			return await _context.Reviews
-				.Include(r => r.OrderDetail)
-					.ThenInclude(od => od.ProductVariant)
-						.ThenInclude(v => v.Product)
-				.Include(r => r.ReviewImages.Where(m => !m.IsDeleted))
 				.Where(r => r.UserId == userId && !r.IsDeleted)
+				.ProjectToType<ReviewResponse>()
 				.OrderByDescending(r => r.CreatedAt)
 				.AsNoTracking()
 				.ToListAsync();
@@ -174,13 +121,13 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<(int TotalReviews, double AverageRating, int[] StarCounts)> GetVariantReviewStatisticsAsync(Guid variantId)
 		{
 			var reviews = await _context.Reviews
-				.Where(r => r.OrderDetail.VariantId == variantId 
-					&& r.Status == ReviewStatus.Approved 
+				.Where(r => r.OrderDetail.VariantId == variantId
+					&& r.Status == ReviewStatus.Approved
 					&& !r.IsDeleted)
 				.Select(r => r.Rating)
 				.ToListAsync();
 
-			if (!reviews.Any())
+			if (reviews.Count == 0)
 			{
 				return (0, 0, new int[5]);
 			}
@@ -197,34 +144,30 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (totalReviews, averageRating, starCounts);
 		}
 
-		public async Task<(List<Review> Items, int TotalCount)> GetPendingReviewsAsync(int pageNumber, int pageSize)
+		public async Task<bool> CanUserReviewOrderDetailAsync(Guid userId, Guid orderDetailId)
 		{
-			var query = _context.Reviews
-				.Include(r => r.User)
-				.Include(r => r.OrderDetail)
-					.ThenInclude(od => od.ProductVariant)
-				.Include(r => r.ReviewImages.Where(m => !m.IsDeleted))
-				.Where(r => r.Status == ReviewStatus.Pending && !r.IsDeleted);
+			var orderDetail = await _context.OrderDetails
+				.Include(od => od.Order)
+				.FirstOrDefaultAsync(od => od.Id == orderDetailId);
 
-			var totalCount = await query.CountAsync();
+			if (orderDetail == null || orderDetail.Order.CustomerId != userId)
+			{
+				return false;
+			}
 
-			var items = await query
-				.OrderBy(r => r.CreatedAt)
-				.Skip((pageNumber - 1) * pageSize)
-				.Take(pageSize)
-				.AsNoTracking()
-				.ToListAsync();
+			if (orderDetail.Order.Status != OrderStatus.Delivered)
+			{
+				return false;
+			}
 
-			return (items, totalCount);
+			var hasReviewed = await HasUserReviewedOrderDetailAsync(userId, orderDetailId);
+			return !hasReviewed;
 		}
 
-		public async Task<bool> IsOrderDetailDeliveredToUserAsync(Guid userId, Guid orderDetailId)
+		public async Task<bool> HasUserReviewedOrderDetailAsync(Guid userId, Guid orderDetailId)
 		{
-			return await _context.OrderDetails
-				.Include(od => od.Order)
-				.AnyAsync(od => od.Id == orderDetailId 
-					&& od.Order.CustomerId == userId 
-					&& od.Order.Status == OrderStatus.Delivered);
+			return await _context.Reviews
+				.AnyAsync(r => r.UserId == userId && r.OrderDetailId == orderDetailId && !r.IsDeleted);
 		}
 	}
 }

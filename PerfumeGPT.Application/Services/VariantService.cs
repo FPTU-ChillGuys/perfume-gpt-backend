@@ -8,6 +8,7 @@ using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
@@ -21,6 +22,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IValidator<CreateVariantRequest> _createVariantValidator;
 		private readonly IValidator<UpdateVariantRequest> _updateVariantValidator;
 		private readonly IMapper _mapper;
+		private readonly MediaBulkActionHelper _helper;
 
 		public VariantService(
 			IVariantRepository variantRepository,
@@ -28,7 +30,8 @@ namespace PerfumeGPT.Application.Services
 			IUnitOfWork unitOfWork,
 			IValidator<CreateVariantRequest> createVariantValidator,
 			IValidator<UpdateVariantRequest> updateVariantValidator,
-			IMapper mapper)
+			IMapper mapper,
+			MediaBulkActionHelper helper)
 		{
 			_variantRepository = variantRepository;
 			_mediaService = mediaService;
@@ -36,6 +39,7 @@ namespace PerfumeGPT.Application.Services
 			_createVariantValidator = createVariantValidator;
 			_updateVariantValidator = updateVariantValidator;
 			_mapper = mapper;
+			_helper = helper;
 		}
 
 		public async Task<BaseResponse<BulkActionResult<string>>> CreateVariantAsync(CreateVariantRequest request)
@@ -277,109 +281,19 @@ namespace PerfumeGPT.Application.Services
 
 		#region Private Methods
 
-		/// <summary>
-		/// Converts temporary media list to permanent with error tracking (used in Create/Update)
-		/// </summary>
-		private async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(List<Guid> temporaryMediaIds, Guid variantId)
+		private async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(
+			List<Guid> temporaryMediaIds,
+			Guid variantId)
 		{
-			var response = new BulkActionResponse();
-
-			foreach (var tempMediaId in temporaryMediaIds)
-			{
-				try
-				{
-					// Get temporary media
-					var tempMedia = await _unitOfWork.TemporaryMedia.GetByIdAsync(tempMediaId);
-					if (tempMedia == null)
-					{
-						response.FailedItems.Add(new BulkActionError
-						{
-							Id = tempMediaId,
-							ErrorMessage = "Temporary media not found"
-						});
-						continue;
-					}
-
-					if (tempMedia.IsExpired)
-					{
-						response.FailedItems.Add(new BulkActionError
-						{
-							Id = tempMediaId,
-							ErrorMessage = "Temporary media has expired"
-						});
-						continue;
-					}
-
-					// Create permanent media from temporary
-					var media = new Media
-					{
-						Url = tempMedia.Url,
-						AltText = tempMedia.AltText,
-						EntityType = EntityType.ProductVariant,
-						ProductVariantId = variantId,
-						DisplayOrder = tempMedia.DisplayOrder,
-						IsPrimary = tempMedia.IsPrimary, // Use the IsPrimary from temp media
-						PublicId = tempMedia.PublicId,
-						FileSize = tempMedia.FileSize,
-						MimeType = tempMedia.MimeType,
-					};
-
-					await _unitOfWork.Media.AddAsync(media);
-					_unitOfWork.TemporaryMedia.Remove(tempMedia);
-
-					response.SucceededIds.Add(tempMediaId);
-				}
-				catch (Exception ex)
-				{
-					response.FailedItems.Add(new BulkActionError
-					{
-						Id = tempMediaId,
-						ErrorMessage = $"Failed to convert media: {ex.Message}"
-					});
-				}
-			}
-
-			if (response.SucceededIds.Count > 0)
-			{
-				await _unitOfWork.SaveChangesAsync();
-			}
-
-			return response;
+			return await _helper.ConvertTemporaryMediaToPermanentAsync(
+				temporaryMediaIds,
+				EntityType.ProductVariant,
+				variantId);
 		}
 
 		private async Task<BulkActionResponse> DeleteMultipleMediaAsync(List<Guid> mediaIds)
 		{
-			var response = new BulkActionResponse();
-
-			foreach (var mediaId in mediaIds)
-			{
-				try
-				{
-					var deleteResult = await _mediaService.DeleteMediaAsync(mediaId);
-					if (deleteResult.Success)
-					{
-						response.SucceededIds.Add(mediaId);
-					}
-					else
-					{
-						response.FailedItems.Add(new BulkActionError
-						{
-							Id = mediaId,
-							ErrorMessage = deleteResult.Message ?? "Unknown error"
-						});
-					}
-				}
-				catch (Exception ex)
-				{
-					response.FailedItems.Add(new BulkActionError
-					{
-						Id = mediaId,
-						ErrorMessage = $"Exception during deletion: {ex.Message}"
-					});
-				}
-			}
-
-			return response;
+			return await _helper.DeleteMultipleMediaAsync(mediaIds);
 		}
 
 		#endregion
