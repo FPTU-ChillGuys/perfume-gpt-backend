@@ -40,7 +40,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		/// </summary>
 		/// <param name="request">Inventory filter and pagination request</param>
 		/// <returns>Paged result of stock items</returns>
-		Task<BaseResponse<PagedResult<StockResponse>>> GetInventoryAsync(GetInventoryRequest request);
+		Task<BaseResponse<PagedResult<StockResponse>>> GetInventoryAsync(GetPagedInventoryRequest request);
 
 		/// <summary>
 		/// Gets stock details for a specific variant.
