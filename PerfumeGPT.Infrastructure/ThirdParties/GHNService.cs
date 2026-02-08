@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
-using PerfumeGPT.Application.DTOs.Requests.GHNs.Address;
+using PerfumeGPT.Application.DTOs.Responses.Address.GHNs;
 using PerfumeGPT.Application.DTOs.Responses.GHNs;
 using PerfumeGPT.Application.DTOs.Responses.GHNs.Base;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
@@ -90,7 +90,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			}
 
 			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<List<DistrictResponse>>>();
-			return result?.Data ?? new List<DistrictResponse>();
+			return result?.Data ?? [];
 		}
 
 		public async Task<List<ProvinceResponse>> GetProvincesAsync()

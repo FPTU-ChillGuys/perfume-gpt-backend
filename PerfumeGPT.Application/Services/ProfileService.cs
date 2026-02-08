@@ -2,6 +2,7 @@
 using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Profiles;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Profiles;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -67,6 +68,16 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Failed to update profile", ResponseErrorType.InternalError);
 
 			return BaseResponse<string>.Ok(profile.Id.ToString(), "Profile updated successfully");
+		}
+
+		public async Task<BaseResponse<ProfileResponse>> GetProfileAsync(Guid userId)
+		{
+			var profile = await _profileRepo.FirstOrDefaultAsync(p => p.UserId == userId);
+			if (profile == null)
+				return BaseResponse<ProfileResponse>.Fail("Profile not found", ResponseErrorType.NotFound);
+
+			var response = _mapper.Map<ProfileResponse>(profile);
+			return BaseResponse<ProfileResponse>.Ok(response, "Profile retrieved successfully");
 		}
 	}
 }

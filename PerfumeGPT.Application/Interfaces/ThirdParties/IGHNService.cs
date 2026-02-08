@@ -1,5 +1,5 @@
 ﻿using PerfumeGPT.Application.DTOs.Requests.GHNs;
-using PerfumeGPT.Application.DTOs.Requests.GHNs.Address;
+using PerfumeGPT.Application.DTOs.Responses.Address.GHNs;
 using PerfumeGPT.Application.DTOs.Responses.GHNs;
 
 namespace PerfumeGPT.Application.Interfaces.ThirdParties
