@@ -34,22 +34,5 @@ namespace PerfumeGPT.Persistence.Repositories
 					&& sr.ExpiresAt.Value <= now)
 				.ToListAsync();
 		}
-
-		public async Task<IEnumerable<StockReservation>> GetActiveReservationsByVariantIdAsync(Guid variantId)
-		{
-			return await _context.StockReservations
-				.Include(sr => sr.Batch)
-				.Where(sr => sr.VariantId == variantId
-					&& sr.Status == ReservationStatus.Reserved)
-				.ToListAsync();
-		}
-
-		public async Task<int> GetTotalReservedQuantityAsync(Guid variantId)
-		{
-			return await _context.StockReservations
-				.Where(sr => sr.VariantId == variantId
-					&& sr.Status == ReservationStatus.Reserved)
-				.SumAsync(sr => sr.ReservedQuantity);
-		}
 	}
 }

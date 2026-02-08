@@ -42,12 +42,12 @@ namespace PerfumeGPT.Application.Services
 					{
 						if (remainingToReserve <= 0) break;
 
-						var availableInBatch = batch.RemainingQuantity - batch.ReservedQuantity;
+						var availableInBatch = batch.AvailableInBatch;
+
 						if (availableInBatch <= 0) continue;
 
 						var reserveFromBatch = Math.Min(remainingToReserve, availableInBatch);
 
-						// Create stock reservation record
 						var reservation = new StockReservation
 						{
 							OrderId = orderId,
@@ -60,14 +60,12 @@ namespace PerfumeGPT.Application.Services
 
 						await _unitOfWork.StockReservations.AddAsync(reservation);
 
-						// Update batch reserved quantity
 						batch.ReservedQuantity += reserveFromBatch;
 						_unitOfWork.Batches.Update(batch);
 
 						remainingToReserve -= reserveFromBatch;
 					}
 
-					// Check if we could reserve enough
 					if (remainingToReserve > 0)
 					{
 						return BaseResponse<bool>.Fail(
@@ -75,7 +73,6 @@ namespace PerfumeGPT.Application.Services
 							ResponseErrorType.BadRequest);
 					}
 
-					// Update stock reserved quantity
 					var stock = await _unitOfWork.Stocks
 						.FirstOrDefaultAsync(s => s.VariantId == variantId);
 
@@ -86,7 +83,6 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 
-				await _unitOfWork.SaveChangesAsync();
 				return BaseResponse<bool>.Ok(true, "Stock reserved successfully.");
 			}
 			catch (Exception ex)
@@ -161,7 +157,6 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 
-				await _unitOfWork.SaveChangesAsync();
 				return BaseResponse<bool>.Ok(true, "Reservation committed successfully.");
 			}
 			catch (Exception ex)
@@ -232,7 +227,6 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 
-				await _unitOfWork.SaveChangesAsync();
 				return BaseResponse<bool>.Ok(true, "Reservation released successfully.");
 			}
 			catch (Exception ex)
@@ -262,7 +256,7 @@ namespace PerfumeGPT.Application.Services
 				foreach (var variantId in variantIds)
 				{
 					var totalReserved = expiredReservations
-						.Where(r => r.VariantId == variantId 
+						.Where(r => r.VariantId == variantId
 							&& r.Status == ReservationStatus.Reserved
 							&& (r.Order == null || r.Order.PaymentStatus != PaymentStatus.Paid))
 						.Sum(r => r.ReservedQuantity);
@@ -347,16 +341,6 @@ namespace PerfumeGPT.Application.Services
 					$"Error processing expired reservations: {ex.Message}",
 					ResponseErrorType.InternalError);
 			}
-		}
-
-		public async Task<int> GetAvailableQuantityAsync(Guid variantId)
-		{
-			var stock = await _unitOfWork.Stocks
-				.FirstOrDefaultAsync(s => s.VariantId == variantId);
-
-			if (stock == null) return 0;
-
-			return Math.Max(0, stock.TotalQuantity - stock.ReservedQuantity);
 		}
 	}
 }
