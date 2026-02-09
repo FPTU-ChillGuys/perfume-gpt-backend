@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260209021122_Product_Attributes")]
+    partial class Product_Attributes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -917,9 +920,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<Guid?>("ProductId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<int>("ValueId")
-                        .HasColumnType("int");
-
                     b.Property<Guid?>("VariantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -928,8 +928,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasIndex("AttributeId");
 
                     b.HasIndex("ProductId");
-
-                    b.HasIndex("ValueId");
 
                     b.HasIndex("VariantId");
 
@@ -1977,12 +1975,6 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade);
 
-                    b.HasOne("PerfumeGPT.Domain.Entities.AttributeValue", "Value")
-                        .WithMany("ProductAttributes")
-                        .HasForeignKey("ValueId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("PerfumeGPT.Domain.Entities.ProductVariant", "Variant")
                         .WithMany("ProductAttributes")
                         .HasForeignKey("VariantId")
@@ -1991,8 +1983,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("Attribute");
 
                     b.Navigation("Product");
-
-                    b.Navigation("Value");
 
                     b.Navigation("Variant");
                 });
@@ -2191,11 +2181,6 @@ namespace PerfumeGPT.Persistence.Migrations
                 {
                     b.Navigation("AttributeValues");
 
-                    b.Navigation("ProductAttributes");
-                });
-
-            modelBuilder.Entity("PerfumeGPT.Domain.Entities.AttributeValue", b =>
-                {
                     b.Navigation("ProductAttributes");
                 });
 

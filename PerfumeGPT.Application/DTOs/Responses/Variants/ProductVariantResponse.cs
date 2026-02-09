@@ -1,4 +1,5 @@
 ﻿using PerfumeGPT.Application.DTOs.Responses.Media;
+using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Variants
@@ -16,6 +17,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 		public VariantType Type { get; set; }
 		public decimal BasePrice { get; set; }
 		public VariantStatus Status { get; set; }
+		public List<ProductAttributeResponse>? Attributes { get; set; }
 	}
 }
 

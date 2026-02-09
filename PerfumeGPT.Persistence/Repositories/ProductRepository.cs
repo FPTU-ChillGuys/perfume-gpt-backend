@@ -21,6 +21,12 @@ namespace PerfumeGPT.Persistence.Repositories
 			this.kernel = kernel;
 		}
 
+		public async Task<Product?> GetProductByIdWithAttributesAsync(Guid productId)
+		{
+			return await _context.Products.Include(p => p.ProductAttributes)
+				.FirstOrDefaultAsync(p => p.Id == productId && !p.IsDeleted);
+		}
+
 		public async Task<List<ProductLookupItem>> GetProductLookupListAsync()
 		{
 			return await _context.Products
@@ -82,7 +88,6 @@ namespace PerfumeGPT.Persistence.Repositories
 			var topSimilarProductsQuery = productQuery
 				.Include(p => p.Brand)
 				.Include(p => p.Category)
-				.Include(p => p.FragranceFamily)
 				//.Where(p => EF.Functions.VectorDistance(metricType, p.Embedding!.Value, sqlVector) <= threshold)
 				.OrderBy(p => EF.Functions.VectorDistance(metricType, p.Embedding!.Value, sqlVector))
 				.AsNoTracking();
@@ -118,14 +123,13 @@ namespace PerfumeGPT.Persistence.Repositories
 			var products = await _context.Products
 				.Include(p => p.Brand)
 				.Include(p => p.Category)
-				.Include(p => p.FragranceFamily)
 				.Where(p => !p.IsDeleted)
 				.ToListAsync();
 
 			foreach (var product in products)
 			{
 				// Combine all relevant text fields for embedding
-				var textToEmbed = $"Name:{product?.Name} Description:{product?.Description} FragranceFamily:{product?.FragranceFamily?.Name} Cateogory:{product?.Category?.Name} Brand:{product?.Brand?.Name}";
+				var textToEmbed = $"Name:{product?.Name} Description:{product?.Description} Cateogory:{product?.Category?.Name} Brand:{product?.Brand?.Name}";
 
 				var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed ?? string.Empty);
 
@@ -143,12 +147,11 @@ namespace PerfumeGPT.Persistence.Repositories
 			var product = await _context.Products
 				.Include(p => p.Brand)
 				.Include(p => p.Category)
-				.Include(p => p.FragranceFamily)
 				.FirstOrDefaultAsync(p => p.Id == productId && !p.IsDeleted);
 			if (product != null)
 			{
 				// Combine all relevant text fields for embedding
-				var textToEmbed = $"Name:{product?.Name} Description:{product?.Description} FragranceFamily:{product?.FragranceFamily?.Name} Cateogory:{product?.Category?.Name} Brand:{product?.Brand?.Name} TopNote:{product?.TopNotes} MiddleNote:{product?.MiddleNotes} BaseNote:{product?.BaseNotes}";
+				var textToEmbed = $"Name:{product?.Name} Description:{product?.Description} Cateogory:{product?.Category?.Name} Brand:{product?.Brand?.Name}";
 				var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed ?? string.Empty);
 				product!.Embedding = new SqlVector<float>(embedding);
 				_context.Update(product);

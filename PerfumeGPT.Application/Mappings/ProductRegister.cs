@@ -13,24 +13,14 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Name, src => src.Name)
 				.Map(dest => dest.BrandId, src => src.BrandId)
 				.Map(dest => dest.CategoryId, src => src.CategoryId)
-				.Map(dest => dest.FamilyId, src => src.FamilyId)
-				.Map(dest => dest.Gender, src => src.Gender)
-				.Map(dest => dest.Description, src => src.Description)
-				.Map(dest => dest.TopNotes, src => src.TopNotes)
-				.Map(dest => dest.MiddleNotes, src => src.MiddleNotes)
-				.Map(dest => dest.BaseNotes, src => src.BaseNotes);
+				.Map(dest => dest.Description, src => src.Description);
 
-			// UpdateProductRequest -> Product (existing instance)
+			// UpdateProductRequest -> Product
 			config.NewConfig<UpdateProductRequest, Product>()
 				.Map(dest => dest.Name, src => src.Name)
 				.Map(dest => dest.BrandId, src => src.BrandId)
 				.Map(dest => dest.CategoryId, src => src.CategoryId)
-				.Map(dest => dest.FamilyId, src => src.FamilyId)
-				.Map(dest => dest.Gender, src => src.Gender)
-				.Map(dest => dest.Description, src => src.Description)
-				.Map(dest => dest.TopNotes, src => src.TopNotes)
-				.Map(dest => dest.MiddleNotes, src => src.MiddleNotes)
-				.Map(dest => dest.BaseNotes, src => src.BaseNotes);
+				.Map(dest => dest.Description, src => src.Description);
 
 			// Product -> ProductResponse
 			config.NewConfig<Product, ProductResponse>()
@@ -40,15 +30,10 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.BrandName, src => src.Brand.Name)
 				.Map(dest => dest.CategoryId, src => src.CategoryId)
 				.Map(dest => dest.CategoryName, src => src.Category.Name)
-				.Map(dest => dest.FamilyId, src => src.FamilyId)
-				.Map(dest => dest.FamilyName, src => src.FragranceFamily.Name)
-				.Map(dest => dest.Gender, src => src.Gender)
 				.Map(dest => dest.Description, src => src.Description)
-				.Map(dest => dest.TopNotes, src => src.TopNotes)
-				.Map(dest => dest.MiddleNotes, src => src.MiddleNotes)
-				.Map(dest => dest.BaseNotes, src => src.BaseNotes)
 				.Map(dest => dest.Media, src => src.Media)
-				.Map(dest => dest.Variants, src => src.Variants);
+				.Map(dest => dest.Variants, src => src.Variants)
+				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 
 			// Product -> ProductListItem
 			config.NewConfig<Product, ProductListItem>()
@@ -58,14 +43,9 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.BrandName, src => src.Brand.Name)
 				.Map(dest => dest.CategoryId, src => src.CategoryId)
 				.Map(dest => dest.CategoryName, src => src.Category.Name)
-				.Map(dest => dest.FamilyId, src => src.FamilyId)
-				.Map(dest => dest.FamilyName, src => src.FragranceFamily.Name)
-				.Map(dest => dest.Gender, src => src.Gender)
 				.Map(dest => dest.Description, src => src.Description)
-				.Map(dest => dest.TopNotes, src => src.TopNotes)
-				.Map(dest => dest.MiddleNotes, src => src.MiddleNotes)
-				.Map(dest => dest.BaseNotes, src => src.BaseNotes)
-				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary));
+				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary))
+				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 
 			// Product -> ProductLookupItem
 			config.NewConfig<Product, ProductLookupItem>()

@@ -1,4 +1,5 @@
 using MapsterMapper;
+using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using PerfumeGPT.Application.DTOs.Requests.Media;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -20,17 +21,23 @@ namespace PerfumeGPT.Application.Services
 		private readonly ISupabaseService _supabaseService;
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IMapper _mapper;
+		private readonly IValidator<ProductUploadMediaRequest> _productUploadValidator;
+		private readonly IValidator<VariantUploadMediaRequest> _variantUploadValidator;
 
 		public MediaService(
 			IMediaRepository mediaRepo,
 			ISupabaseService supabaseService,
 			IUnitOfWork unitOfWork,
-			IMapper mapper)
+			IMapper mapper,
+			IValidator<ProductUploadMediaRequest> productUploadValidator,
+			IValidator<VariantUploadMediaRequest> variantUploadValidator)
 		{
 			_mediaRepo = mediaRepo;
 			_supabaseService = supabaseService;
 			_unitOfWork = unitOfWork;
 			_mapper = mapper;
+			_productUploadValidator = productUploadValidator;
+			_variantUploadValidator = variantUploadValidator;
 		}
 
 		#endregion Dependencies
@@ -477,6 +484,18 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadProductTemporaryMediaAsync(Guid? userId, ProductUploadMediaRequest request)
 		{
+			if (_productUploadValidator != null)
+			{
+				var validationResult = await _productUploadValidator.ValidateAsync(request);
+				if (!validationResult.IsValid)
+				{
+					return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Fail(
+						"Validation failed",
+						ResponseErrorType.BadRequest,
+						[.. validationResult.Errors.Select(e => e.ErrorMessage)]
+					);
+				}
+			}
 			var bulkResult = new BulkActionResponse();
 			var uploadedMedia = new List<TemporaryMediaResponse>();
 
@@ -519,6 +538,18 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadVariantTemporaryMediaAsync(Guid? userId, VariantUploadMediaRequest request)
 		{
+			if (_productUploadValidator != null)
+			{
+				var validationResult = await _variantUploadValidator.ValidateAsync(request);
+				if (!validationResult.IsValid)
+				{
+					return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Fail(
+						"Validation failed",
+						ResponseErrorType.BadRequest,
+						[.. validationResult.Errors.Select(e => e.ErrorMessage)]
+					);
+				}
+			}
 			var bulkResult = new BulkActionResponse();
 			var uploadedMedia = new List<TemporaryMediaResponse>();
 

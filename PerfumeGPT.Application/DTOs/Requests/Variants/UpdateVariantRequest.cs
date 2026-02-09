@@ -1,4 +1,5 @@
 ﻿using PerfumeGPT.Domain.Enums;
+using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Variants
 {
@@ -14,6 +15,9 @@ namespace PerfumeGPT.Application.DTOs.Requests.Variants
 		// Upload First Pattern: Multiple images management
 		public List<Guid>? MediaIdsToDelete { get; set; }
 		public List<Guid>? TemporaryMediaIdsToAdd { get; set; }
+
+		// Attribute management for variants
+		public List<ProductAttributeDto>? Attributes { get; set; }
 	}
 }
 

@@ -10,6 +10,8 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<List<ProductLookupItem>> GetProductLookupListAsync();
 		Task<ProductResponse?> GetProductResponseAsync(Guid productId);
 		Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductListItemsAsync(GetPagedProductRequest request);
+		Task<Product?> GetProductByIdWithAttributesAsync(Guid productId);
+
 
 		/// <summary>
 		///	Get paged products based on semantic search of the provided text.

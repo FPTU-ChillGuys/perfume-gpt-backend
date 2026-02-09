@@ -23,6 +23,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IValidator<UpdateVariantRequest> _updateVariantValidator;
 		private readonly IMapper _mapper;
 		private readonly MediaBulkActionHelper _helper;
+		private readonly IProductAttributeService _productAttributeService;
 
 		public VariantService(
 			IVariantRepository variantRepository,
@@ -30,7 +31,8 @@ namespace PerfumeGPT.Application.Services
 			IValidator<CreateVariantRequest> createVariantValidator,
 			IValidator<UpdateVariantRequest> updateVariantValidator,
 			IMapper mapper,
-			MediaBulkActionHelper helper)
+			MediaBulkActionHelper helper,
+			IProductAttributeService productAttributeService)
 		{
 			_variantRepository = variantRepository;
 			_mediaService = mediaService;
@@ -38,6 +40,7 @@ namespace PerfumeGPT.Application.Services
 			_updateVariantValidator = updateVariantValidator;
 			_mapper = mapper;
 			_helper = helper;
+			_productAttributeService = productAttributeService;
 		}
 
 		#endregion Dependencies
@@ -55,6 +58,19 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			var variant = _mapper.Map<ProductVariant>(request);
+
+			// Validate variant attributes
+			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes, isForVariant: true);
+			if (attributeErrors.Count != 0)
+			{
+				return BaseResponse<BulkActionResult<string>>.Fail(
+					"Validation failed",
+					ResponseErrorType.BadRequest,
+					[.. attributeErrors]
+				);
+			}
+
+			_productAttributeService.ApplyAttributesToVariantEntity(variant, request.Attributes);
 
 			await _variantRepository.AddAsync(variant);
 			var saved = await _variantRepository.SaveChangesAsync();
@@ -108,6 +124,23 @@ namespace PerfumeGPT.Application.Services
 
 			_mapper.Map(request, variant);
 
+			// Validate variant attributes
+			var updateAttributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes, isForVariant: true);
+			if (updateAttributeErrors.Count != 0)
+			{
+				return BaseResponse<BulkActionResult<string>>.Fail(
+					"Validation failed",
+					ResponseErrorType.BadRequest,
+					updateAttributeErrors
+				);
+			}
+
+			// Replace variant attributes
+			if (request.Attributes != null)
+			{
+				await _productAttributeService.ReplaceAttributesAsync(variantId, request.Attributes, isVariant: true);
+			}
+
 			_variantRepository.Update(variant);
 			var saved = await _variantRepository.SaveChangesAsync();
 
@@ -160,12 +193,8 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Variant already deleted", ResponseErrorType.BadRequest);
 			}
 
-			var deleteMediaResult = await _mediaService.DeleteAllMediaByEntityAsync(EntityType.ProductVariant, variantId);
-			if (!deleteMediaResult.Success)
-			{
-				Console.WriteLine($"Warning: Failed to delete media for variant {variantId}: {deleteMediaResult.Message}");
-			}
-
+			await _mediaService.DeleteAllMediaByEntityAsync(EntityType.ProductVariant, variantId);
+			await _productAttributeService.RemoveAttributesByEntityIdAsync(variantId, isVariant: true);
 			_variantRepository.Remove(variant);
 			var saved = await _variantRepository.SaveChangesAsync();
 

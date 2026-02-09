@@ -5,7 +5,6 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Products;
 using PerfumeGPT.Application.Interfaces.Repositories;
-using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
@@ -19,28 +18,28 @@ namespace PerfumeGPT.Application.Services
 
 		private readonly IProductRepository _productRepo;
 		private readonly IMediaService _mediaService;
-		private readonly IUnitOfWork _unitOfWork;
 		private readonly IValidator<CreateProductRequest> _createValidator;
 		private readonly IValidator<UpdateProductRequest> _updateValidator;
 		private readonly IMapper _mapper;
 		private readonly MediaBulkActionHelper _helper;
+		private readonly IProductAttributeService _productAttributeService;
 
 		public ProductService(
 			IProductRepository productRepo,
 			IMediaService mediaService,
-			IUnitOfWork unitOfWork,
 			IValidator<CreateProductRequest> createValidator,
 			IValidator<UpdateProductRequest> updateValidator,
 			IMapper mapper,
-			MediaBulkActionHelper helper)
+			MediaBulkActionHelper helper,
+			IProductAttributeService productAttributeService)
 		{
 			_productRepo = productRepo;
 			_mediaService = mediaService;
-			_unitOfWork = unitOfWork;
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
 			_mapper = mapper;
 			_helper = helper;
+			_productAttributeService = productAttributeService;
 		}
 
 		#endregion Dependencies
@@ -57,7 +56,18 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
+			// Validate and apply attributes using ProductAttributeService
+			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes);
+			if (attributeErrors.Count != 0)
+			{
+				return BaseResponse<BulkActionResult<string>>.Fail(
+					"Validation failed",
+					ResponseErrorType.BadRequest,
+					[.. attributeErrors]
+				);
+			}
 			var product = _mapper.Map<Product>(request);
+			_productAttributeService.ApplyAttributesToProductEntity(product, request.Attributes);
 
 			await _productRepo.AddAsync(product);
 			var saved = await _productRepo.SaveChangesAsync();
@@ -109,7 +119,7 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<BulkActionResult<string>>.Fail("Cannot update deleted product", ResponseErrorType.BadRequest);
 			}
 
-			// === IMAGE MANAGEMENT ===
+			// Prepare metadata for bulk operations
 			var metadata = new BulkActionMetadata();
 
 			// Delete specified images first
@@ -132,7 +142,24 @@ namespace PerfumeGPT.Application.Services
 				}
 			}
 
+			// Validate attributes
+			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes);
+			if (attributeErrors.Count != 0)
+			{
+				return BaseResponse<BulkActionResult<string>>.Fail(
+					"Validation failed",
+					ResponseErrorType.BadRequest,
+					[.. attributeErrors]
+				);
+			}
+
 			_mapper.Map(request, product);
+
+			// Replace attributes using service (this will remove existing and add new ones)
+			if (request.Attributes != null)
+			{
+				await _productAttributeService.ReplaceAttributesAsync(productId, request.Attributes, isVariant: false);
+			}
 
 			_productRepo.Update(product);
 			var saved = await _productRepo.SaveChangesAsync();
@@ -163,8 +190,9 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Product already deleted", ResponseErrorType.BadRequest);
 			}
 
-			_productRepo.Remove(product);
+			await _productAttributeService.RemoveAttributesByEntityIdAsync(productId, isVariant: false);
 			await _mediaService.DeleteAllMediaByEntityAsync(EntityType.Product, productId);
+			_productRepo.Remove(product);
 			var saved = await _productRepo.SaveChangesAsync();
 
 			if (!saved)

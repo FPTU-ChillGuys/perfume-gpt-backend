@@ -7,6 +7,7 @@ using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
 using System.Security.Claims;
+using Attribute = PerfumeGPT.Domain.Entities.Attribute;
 
 namespace PerfumeGPT.Persistence.Contexts
 {
@@ -161,9 +162,11 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<Supplier> Suppliers { get; set; }
 		public DbSet<Product> Products { get; set; }
 		public DbSet<ProductVariant> ProductVariants { get; set; }
+		public DbSet<Attribute> Attributes { get; set; }
+		public DbSet<AttributeValue> AttributeValues { get; set; }
+		public DbSet<ProductAttribute> ProductAttributes { get; set; }
 		public DbSet<Brand> Brands { get; set; }
 		public DbSet<Category> Categories { get; set; }
-		public DbSet<FragranceFamily> FragranceFamilies { get; set; }
 		public DbSet<Concentration> Concentrations { get; set; }
 		public DbSet<Batch> Batches { get; set; }
 		public DbSet<Stock> Stocks { get; set; }
@@ -341,12 +344,6 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasMany(c => c.Products)
 				.WithOne(p => p.Category)
 				.HasForeignKey(p => p.CategoryId)
-				.OnDelete(DeleteBehavior.Restrict);
-
-			builder.Entity<FragranceFamily>()
-				.HasMany(f => f.Products)
-				.WithOne(p => p.FragranceFamily)
-				.HasForeignKey(p => p.FamilyId)
 				.OnDelete(DeleteBehavior.Restrict);
 
 			// Concentration -> Variants (1:M)
@@ -532,6 +529,41 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(m => m.ProductVariantId)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			// Attribute -> AttributeValue (1:M)
+			builder.Entity<Attribute>()
+				.HasMany(a => a.AttributeValues)
+				.WithOne(av => av.Attribute)
+				.HasForeignKey(av => av.AttributeId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// Attribute -> ProductAttribute (1:M)
+			builder.Entity<Attribute>()
+				.HasMany(a => a.ProductAttributes)
+				.WithOne(pa => pa.Attribute)
+				.HasForeignKey(pa => pa.AttributeId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// AttributeValue -> ProductAttribute (1:M)
+			builder.Entity<AttributeValue>()
+				.HasMany(av => av.ProductAttributes)
+				.WithOne(pa => pa.Value)
+				.HasForeignKey(pa => pa.ValueId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// Product -> ProductAttribute (1:M) (product-level attributes)
+			builder.Entity<Product>()
+				.HasMany(p => p.ProductAttributes)
+				.WithOne(pa => pa.Product)
+				.HasForeignKey(pa => pa.ProductId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// ProductVariant -> ProductAttribute (1:M) (variant-level attributes)
+			builder.Entity<ProductVariant>()
+				.HasMany(v => v.ProductAttributes)
+				.WithOne(pa => pa.Variant)
+				.HasForeignKey(pa => pa.VariantId)
+				.OnDelete(DeleteBehavior.Restrict);
+
 			// Media -> User (1:1) for ProfilePicture using UserId
 			builder.Entity<User>()
 				.HasOne(u => u.ProfilePicture)
@@ -631,7 +663,6 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Order>().Property(o => o.Type).HasConversion<string>();
 			builder.Entity<ImportTicket>().Property(it => it.Status).HasConversion<string>();
 			builder.Entity<Notification>().Property(n => n.Type).HasConversion<string>();
-			builder.Entity<Product>().Property(p => p.Gender).HasConversion<string>();
 			builder.Entity<ProductVariant>().Property(pv => pv.Type).HasConversion<string>();
 			builder.Entity<ProductVariant>().Property(pv => pv.Status).HasConversion<string>();
 			builder.Entity<Voucher>().Property(v => v.DiscountType).HasConversion<string>();

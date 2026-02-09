@@ -26,7 +26,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<CartItem> CartItems { get; set; } = [];
 		public virtual ICollection<OrderDetail> OrderDetails { get; set; } = [];
 		public virtual ICollection<Media> Media { get; set; } = [];
-		public virtual ICollection<Review> Reviews { get; set; } = [];
+		public virtual ICollection<ProductAttribute> ProductAttributes { get; set; } = [];
 
 		// ISoftDelete implementation
 		public bool IsDeleted { get; set; }
