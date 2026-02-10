@@ -166,6 +166,20 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 		}
 	}
 
+		public IAddressRepository Addresses
+		{
+			get
+			{
+				var key = typeof(IAddressRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new AddressRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IAddressRepository)repo!;
+			}
+		}
+
 	public IShippingInfoRepository ShippingInfos
 	{
 		get

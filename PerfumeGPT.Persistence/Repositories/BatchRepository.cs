@@ -27,7 +27,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			return await _context.Batches
 				.Where(b => b.VariantId == variantId
 					&& b.ExpiryDate > DateTime.UtcNow
-					&& b.AvailableInBatch > 0)
+					&& (b.RemainingQuantity - b.ReservedQuantity) > 0)
 				.OrderBy(b => b.ExpiryDate)
 				.ToListAsync();
 		}
@@ -150,7 +150,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					var availableBatches = await _context.Batches
 						.Where(b => b.VariantId == variantId
 							&& b.ExpiryDate > DateTime.UtcNow
-							&& b.AvailableInBatch > 0)
+							&& (b.RemainingQuantity - b.ReservedQuantity) > 0)
 						.OrderBy(b => b.ExpiryDate)
 						.ToListAsync();
 

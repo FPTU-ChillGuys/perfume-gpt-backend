@@ -14,149 +14,157 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 	public class OrderShippingHelper : IOrderShippingHelper
 	{
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IAddressService _addressService;
 		private readonly IShippingService _shippingService;
+		private readonly IRecipientService _recipientService;
 		private readonly IGHNService _ghnService;
 
 		public OrderShippingHelper(
 			IUnitOfWork unitOfWork,
-			IAddressService addressService,
 			IShippingService shippingService,
-			IGHNService ghnService)
+			IGHNService ghnService,
+			IRecipientService recipientService)
 		{
 			_unitOfWork = unitOfWork;
-			_addressService = addressService;
 			_shippingService = shippingService;
 			_ghnService = ghnService;
+			_recipientService = recipientService;
 		}
 
-		public async Task<BaseResponse<decimal>> SetupShippingInfoAsync(
-			Guid orderId,
-			RecipientInformation? recipientRequest,
-			Guid? customerId,
-			decimal? preCalculatedShippingFee = null,
-			Order? orderToUpdate = null)
+		public async Task<BaseResponse<decimal>> UpdateShippingFeeAsync(
+		ShippingInfo shippingInfo,
+		int districtId,
+		string wardCode,
+		Order order)
 		{
-			RecipientInfo recipientInfo;
+			var newShippingFee = await _shippingService.CalculateShippingFeeAsync(districtId, wardCode);
 
-			// Resolve recipient information
-			if (recipientRequest == null)
+			if (!newShippingFee.HasValue)
 			{
-				if (!customerId.HasValue)
-				{
-					return BaseResponse<decimal>.Fail(
-						"Either recipient information or customer ID must be provided.",
-						ResponseErrorType.BadRequest);
-				}
-
-				var customerAddress = await _addressService.GetDefaultAddressAsync(customerId.Value);
-				if (customerAddress == null || !customerAddress.Success || customerAddress.Payload == null)
-				{
-					return BaseResponse<decimal>.Fail(
-						"Customer default address not found. Please provide recipient information.",
-						ResponseErrorType.BadRequest);
-				}
-
-				recipientInfo = new RecipientInfo
-				{
-					OrderId = orderId,
-					FullName = customerAddress.Payload.ReceiverName,
-					Phone = customerAddress.Payload.Phone,
-					DistrictName = customerAddress.Payload.District,
-					DistrictId = customerAddress.Payload.DistrictId,
-					ProvinceName = customerAddress.Payload.City,
-					WardCode = customerAddress.Payload.WardCode,
-					WardName = customerAddress.Payload.Ward,
-					FullAddress = $"{customerAddress.Payload.Street}, {customerAddress.Payload.Ward}, {customerAddress.Payload.District}, {customerAddress.Payload.City}"
-				};
-			}
-			else
-			{
-				recipientInfo = new RecipientInfo
-				{
-					OrderId = orderId,
-					FullName = recipientRequest.FullName,
-					Phone = recipientRequest.Phone,
-					DistrictId = recipientRequest.DistrictId,
-					DistrictName = recipientRequest.DistrictName,
-					WardCode = recipientRequest.WardCode,
-					WardName = recipientRequest.WardName,
-					ProvinceName = recipientRequest.ProvinceName,
-					FullAddress = $"{recipientRequest.WardName}, {recipientRequest.DistrictName}, {recipientRequest.ProvinceName}"
-				};
+				return BaseResponse<decimal>.Fail("Failed to calculate new shipping fee.");
 			}
 
-			await _unitOfWork.RecipientInfos.AddAsync(recipientInfo);
+			var oldFee = shippingInfo.ShippingFee;
+			var feeDifference = newShippingFee.Value - oldFee;
 
-			// Calculate or use pre-calculated shipping fee
-			decimal shippingFee;
-			if (preCalculatedShippingFee.HasValue)
+			// Update shipping info
+			shippingInfo.ShippingFee = newShippingFee.Value;
+			_unitOfWork.ShippingInfos.Update(shippingInfo);
+
+			// Update order total
+			order.TotalAmount += feeDifference;
+			_unitOfWork.Orders.Update(order);
+
+			return BaseResponse<decimal>.Ok(newShippingFee.Value);
+		}
+
+
+		public async Task<BaseResponse<decimal>> SetupShippingInfoAsync(
+		Guid orderId,
+		RecipientInformation? recipientRequest,
+		Guid? customerId,
+		decimal? preCalculatedShippingFee = null,
+		Order? orderToUpdate = null)
+		{
+			// 1. Create recipient info
+			var recipientResult = await _recipientService.CreateRecipientInfoAsync(
+				orderId,
+				recipientRequest,
+				customerId);
+
+			if (!recipientResult.Success)
 			{
-				shippingFee = preCalculatedShippingFee.Value;
-			}
-			else
-			{
-				// Calculate shipping fee using ShippingService
-				var calculatedFee = await _shippingService.CalculateShippingFeeAsync(
-					recipientInfo.DistrictId,
-					recipientInfo.WardCode);
-
-				if (calculatedFee == null)
-				{
-					return BaseResponse<decimal>.Fail("Failed to calculate shipping fee.", ResponseErrorType.InternalError);
-				}
-
-				shippingFee = calculatedFee.Value;
-			}
-
-			// Get leadtime from GHN
-			var leadTimeRequest = new GetLeadTimeRequest
-			{
-				ToDistrictId = recipientInfo.DistrictId,
-				ToWardCode = recipientInfo.WardCode,
-				ServiceId = 2 // lightweight service
-			};
-
-			int? leadTimeDays = null;
-			var leadTimeResponse = await _ghnService.GetLeadTimeAsync(leadTimeRequest);
-			if (leadTimeResponse?.Data != null)
-			{
-				// Use LeadTimeOrder if available, otherwise fall back to Unix timestamp
-				if (leadTimeResponse.Data.LeadTimeOrder != null)
-				{
-					var days = (int)Math.Ceiling((leadTimeResponse.Data.LeadTimeOrder.ToEstimateDate - DateTime.UtcNow).TotalDays);
-					leadTimeDays = days > 0 ? days : null;
-				}
-				else if (leadTimeResponse.Data.LeadTime > 0)
-				{
-					var leadTimeDate = DateTimeOffset.FromUnixTimeSeconds(leadTimeResponse.Data.LeadTime).UtcDateTime;
-					var days = (int)Math.Ceiling((leadTimeDate - DateTime.UtcNow).TotalDays);
-					leadTimeDays = days > 0 ? days : null;
-				}
+				return BaseResponse<decimal>.Fail(
+					recipientResult.Errors?.FirstOrDefault() ?? recipientResult.Message,
+					recipientResult.ErrorType,
+					recipientResult.Errors);
 			}
 
-			// Create shipping info
+			var recipientInfo = recipientResult.Payload!;
+
+			// 2. Calculate shipping fee
+			var shippingFee = await CalculateOrUseShippingFeeAsync(
+				preCalculatedShippingFee,
+				recipientInfo.DistrictId,
+				recipientInfo.WardCode);
+
+			if (!shippingFee.HasValue)
+			{
+				return BaseResponse<decimal>.Fail(
+					"Failed to calculate shipping fee.",
+					ResponseErrorType.InternalError);
+			}
+
+			// 3. Get lead time
+			var leadTimeDays = await GetLeadTimeAsync(recipientInfo.DistrictId, recipientInfo.WardCode);
+
+			// 4. Create shipping info
 			var shippingInfo = new ShippingInfo
 			{
 				OrderId = orderId,
 				CarrierName = CarrierName.GHN,
 				TrackingNumber = null,
-				ShippingFee = shippingFee,
+				ShippingFee = shippingFee.Value,
 				Status = ShippingStatus.Pending,
 				LeadTime = leadTimeDays
 			};
 
 			await _unitOfWork.ShippingInfos.AddAsync(shippingInfo);
 
-			// Update order total if order instance provided
+			// 5. Update order total if needed
 			if (orderToUpdate != null)
 			{
-				var totalAmount = orderToUpdate.TotalAmount + shippingFee;
-				orderToUpdate.TotalAmount = totalAmount;
+				orderToUpdate.TotalAmount += shippingFee.Value;
 				_unitOfWork.Orders.Update(orderToUpdate);
 			}
 
-			return BaseResponse<decimal>.Ok(shippingFee);
+			return BaseResponse<decimal>.Ok(shippingFee.Value);
+		}
+
+		private async Task<decimal?> CalculateOrUseShippingFeeAsync(
+		decimal? preCalculatedFee,
+		int districtId,
+		string wardCode)
+		{
+			if (preCalculatedFee.HasValue)
+			{
+				return preCalculatedFee.Value;
+			}
+
+			return await _shippingService.CalculateShippingFeeAsync(districtId, wardCode);
+		}
+
+		private async Task<int?> GetLeadTimeAsync(int districtId, string wardCode)
+		{
+			var leadTimeRequest = new GetLeadTimeRequest
+			{
+				ToDistrictId = districtId,
+				ToWardCode = wardCode,
+				ServiceId = 2 // lightweight service
+			};
+
+			var leadTimeResponse = await _ghnService.GetLeadTimeAsync(leadTimeRequest);
+			if (leadTimeResponse?.Data == null)
+			{
+				return null;
+			}
+
+			// Use LeadTimeOrder if available
+			if (leadTimeResponse.Data.LeadTimeOrder != null)
+			{
+				var days = (int)Math.Ceiling(
+					(leadTimeResponse.Data.LeadTimeOrder.ToEstimateDate - DateTime.UtcNow).TotalDays);
+				return days > 0 ? days : null;
+			}
+
+			// Fall back to Unix timestamp
+			if (leadTimeResponse.Data.LeadTime > 0)
+			{
+				var leadTimeDate = DateTimeOffset.FromUnixTimeSeconds(leadTimeResponse.Data.LeadTime).UtcDateTime;
+				var days = (int)Math.Ceiling((leadTimeDate - DateTime.UtcNow).TotalDays);
+				return days > 0 ? days : null;
+			}
+
+			return null;
 		}
 
 		public ShippingStatus? MapOrderStatusToShippingStatus(OrderStatus orderStatus)

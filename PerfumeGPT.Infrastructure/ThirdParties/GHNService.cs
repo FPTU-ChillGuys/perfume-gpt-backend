@@ -93,6 +93,33 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			return result?.Data ?? [];
 		}
 
+		public async Task<bool> UpdateOrderCodAsync(UpdateCodRequest request)
+		{
+			var token = _configuration["GHN:Token"];
+			var updateCodUrl = _configuration["GHN:UpdateCodUrl"];
+
+			var requestBody = new
+			{
+				order_code = request.OrderCode,
+				cod_amount = request.CodAmount
+			};
+
+			using var requestMessage = new HttpRequestMessage(HttpMethod.Post, updateCodUrl);
+			requestMessage.Headers.Add("Token", token);
+			requestMessage.Content = JsonContent.Create(requestBody);
+
+			var response = await _httpClient.SendAsync(requestMessage);
+			if (!response.IsSuccessStatusCode)
+			{
+				var errorContent = await response.Content.ReadAsStringAsync();
+				Console.WriteLine($"Error Detail: {errorContent}");
+				return false;
+			}
+
+			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<object>>();
+			return result != null && result.Code == 200;
+		}
+
 		public async Task<List<ProvinceResponse>> GetProvincesAsync()
 		{
 			var token = _configuration["GHN:Token"];
@@ -215,6 +242,29 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			return result?.Data;
 		}
 
+		public async Task<bool> UpdateOrderAsync(UpdateOrderRequest request)
+		{
+			var token = _configuration["GHN:Token"];
+			var shopId = _configuration["GHN:ShopId"];
+			var updateUrl = _configuration["GHN:UpdateOrderUrl"];
+
+			using var requestMessage = new HttpRequestMessage(HttpMethod.Post, updateUrl);
+			requestMessage.Headers.Add("Token", token);
+			requestMessage.Headers.Add("ShopId", shopId);
+			requestMessage.Content = JsonContent.Create(request);
+
+			var response = await _httpClient.SendAsync(requestMessage);
+			if (!response.IsSuccessStatusCode)
+			{
+				var error = await response.Content.ReadAsStringAsync();
+				Console.WriteLine($"GHN update order failed: {error}");
+				return false;
+			}
+
+			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<object>>();
+			return result != null && result.Code == 200;
+		}
+
 		public async Task<GetLeadTimeResponse?> GetLeadTimeAsync(GetLeadTimeRequest request)
 		{
 			var token = _configuration["GHN:Token"];
@@ -243,6 +293,29 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			var result = await response.Content.ReadFromJsonAsync<GetLeadTimeResponse>();
 			return result;
+		}
+
+		public async Task<List<ShippingOrderDetailDto>?> GetOrderDetailAsync(string orderCode)
+		{
+			var token = _configuration["GHN:Token"];
+			var detailUrl = _configuration["GHN:GetOrderDetailUrl"];
+
+			var requestBody = new { order_code = orderCode };
+
+			using var requestMessage = new HttpRequestMessage(HttpMethod.Post, detailUrl);
+			requestMessage.Headers.Add("Token", token);
+			requestMessage.Content = JsonContent.Create(requestBody);
+
+			var response = await _httpClient.SendAsync(requestMessage);
+			if (!response.IsSuccessStatusCode)
+			{
+				var errorContent = await response.Content.ReadAsStringAsync();
+				Console.WriteLine($"Error Detail: {errorContent}");
+				return null;
+			}
+
+			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<List<ShippingOrderDetailDto>>>();
+			return result?.Data;
 		}
 	}
 }

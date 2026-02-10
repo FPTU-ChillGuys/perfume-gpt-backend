@@ -37,7 +37,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			{
 				return false;
 			}
-			return stock.AvailableQuantity >= requiredQuantity;
+			return (stock.TotalQuantity - stock.ReservedQuantity) >= requiredQuantity;
 		}
 
 		//public async Task<bool> UpdateStockAsync(Guid variantId)

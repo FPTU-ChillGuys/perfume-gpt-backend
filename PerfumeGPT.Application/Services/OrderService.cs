@@ -1,6 +1,6 @@
 using FluentValidation;
-using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.OrderDetails;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
@@ -29,7 +29,9 @@ namespace PerfumeGPT.Application.Services
 		private readonly IOrderDetailsFactory _orderDetailsFactory;
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IOrderFulfillmentService _fulfillmentService;
-		private readonly IMapper _mapper;
+		private readonly ILoyaltyPointService _loyaltyPointService;
+		private readonly IGHNService _ghnService;
+		private readonly IRecipientService _recipientService;
 
 		public OrderService(
 			IUnitOfWork unitOfWork,
@@ -45,7 +47,9 @@ namespace PerfumeGPT.Application.Services
 			IOrderDetailsFactory orderDetailsFactory,
 			IStockReservationService stockReservationService,
 			IOrderFulfillmentService fulfillmentService,
-			IMapper mapper)
+			ILoyaltyPointService loyaltyPointService,
+			IGHNService ghnService,
+			IRecipientService recipientService)
 		{
 			_unitOfWork = unitOfWork;
 			_cartService = cartService;
@@ -60,10 +64,142 @@ namespace PerfumeGPT.Application.Services
 			_orderDetailsFactory = orderDetailsFactory;
 			_stockReservationService = stockReservationService;
 			_fulfillmentService = fulfillmentService;
-			_mapper = mapper;
+			_loyaltyPointService = loyaltyPointService;
+			_ghnService = ghnService;
+			_recipientService = recipientService;
 		}
 
-		#endregion
+		#endregion Dependencies
+
+		private async Task<BaseResponse<string>> CreateNewShippingInfoAsync(
+		Order order,
+		RecipientInformation request,
+		Guid userId)
+		{
+			var setupResult = await _shippingHelper.SetupShippingInfoAsync(
+				order.Id,
+				request,
+				userId,
+				preCalculatedShippingFee: null,
+				orderToUpdate: order);
+
+			if (!setupResult.Success)
+			{
+				return BaseResponse<string>.Fail(
+					setupResult.Message ?? "Failed to setup shipping info.",
+					setupResult.ErrorType);
+			}
+
+			return BaseResponse<string>.Ok("Order address updated successfully.");
+		}
+
+		public async Task<BaseResponse<string>> UpdateOrderAddressAsync(
+		Guid orderId,
+		Guid userId,
+		RecipientInformation request)
+		{
+			try
+			{
+				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				{
+					// 1. Load order with related data
+					var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId);
+					if (order == null)
+					{
+						return BaseResponse<string>.Fail("Order not found.", ResponseErrorType.NotFound);
+					}
+
+					// Only allow address update before the order is delivering
+					if (order.Status >= OrderStatus.Delivering)
+					{
+						return BaseResponse<string>.Fail(
+							"Cannot update address after the order has started delivering.",
+							ResponseErrorType.BadRequest);
+					}
+
+					// 2. Get existing recipient or create new one
+					var existingRecipient = await _unitOfWork.RecipientInfos.GetByOrderIdAsync(order.Id);
+
+					if (existingRecipient == null)
+					{
+						// Create new recipient and shipping info
+						return await CreateNewShippingInfoAsync(order, request, userId);
+					}
+
+					// 3. Update existing recipient
+					var updateResult = await _recipientService.UpdateRecipientInfoAsync(
+						existingRecipient,
+						request,
+						userId);
+
+					if (!updateResult.Success)
+					{
+						return BaseResponse<string>.Fail(
+							updateResult.Message,
+							updateResult.ErrorType,
+							updateResult.Errors);
+					}
+
+					// Use the updated recipient info returned from the service as the truth source
+					var updatedRecipient = updateResult.Payload!;
+
+					// 4. Update shipping fee
+					var shippingInfo = await _unitOfWork.ShippingInfos.GetByOrderIdAsync(order.Id);
+					if (shippingInfo != null)
+					{
+						// Capture old fee before update
+						var oldFee = shippingInfo.ShippingFee;
+
+						var feeUpdateResult = await _shippingHelper.UpdateShippingFeeAsync(
+							shippingInfo,
+							updatedRecipient.DistrictId,
+							updatedRecipient.WardCode,
+							order);
+
+						if (!feeUpdateResult.Success)
+						{
+							return BaseResponse<string>.Fail(
+								feeUpdateResult.Errors?.FirstOrDefault() ?? feeUpdateResult.Message,
+								feeUpdateResult.ErrorType,
+								feeUpdateResult.Errors);
+						}
+
+						var newFee = feeUpdateResult.Payload;
+
+						if (newFee == oldFee)
+						{
+							// no-op
+						}
+						else if (newFee < oldFee && order.CustomerId.HasValue)
+						{
+							// refund to loyalty points
+							var refund = oldFee - newFee;
+							const decimal currencyPerPoint = 1000m;
+							var points = (int)Math.Floor(refund / currencyPerPoint);
+							if (points > 0)
+							{
+								await _loyaltyPointService.PlusPointAsync(order.CustomerId.Value, points);
+							}
+						}
+						else if (newFee > oldFee)
+						{
+							// increase: add difference to order as COD (rebundant -> COD)
+							var diff = newFee - oldFee;
+							order.TotalAmount += diff;
+							_unitOfWork.Orders.Update(order);
+						}
+					}
+
+					return BaseResponse<string>.Ok("Order address updated successfully.");
+				});
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<string>.Fail(
+					$"An error occurred while updating order address: {ex.Message}",
+					ResponseErrorType.InternalError);
+			}
+		}
 
 		#region Query Operations
 

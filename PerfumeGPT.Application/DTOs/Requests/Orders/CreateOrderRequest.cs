@@ -13,6 +13,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Orders
 
 	public class RecipientInformation
 	{
+		public Guid? AddressId { get; set; }
 		public string FullName { get; set; } = null!;
 		public string Phone { get; set; } = null!;
 		public int DistrictId { get; set; }

@@ -14,6 +14,12 @@ namespace PerfumeGPT.Application.Interfaces.Services.OrderHelpers
 			decimal? preCalculatedShippingFee = null,
 			Order? orderToUpdate = null);
 
+		Task<BaseResponse<decimal>> UpdateShippingFeeAsync(
+			ShippingInfo shippingInfo,
+			int districtId,
+			string wardCode,
+			Order order);
+
 		Task<BaseResponse<string>> CreateGHNShippingOrderAsync(
 			Order order,
 			RecipientInfo recipientInfo);
