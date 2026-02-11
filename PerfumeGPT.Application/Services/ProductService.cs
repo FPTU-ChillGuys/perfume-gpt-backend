@@ -66,7 +66,8 @@ namespace PerfumeGPT.Application.Services
 					[.. attributeErrors]
 				);
 			}
-			var product = _mapper.Map<Product>(request);
+		var product = _mapper.Map<Product>(request);
+
 			_productAttributeService.ApplyAttributesToProductEntity(product, request.Attributes);
 
 			await _productRepo.AddAsync(product);
@@ -87,6 +88,9 @@ namespace PerfumeGPT.Application.Services
 					metadata.Operations.Add(BulkOperationResult.FromBulkActionResponse("Media Upload", conversionResult));
 				}
 			}
+
+			// Generate embeddings after product is fully saved with attributes and media
+			await _productRepo.AddProductEmbeddingsByIdAsync(product.Id);
 
 			var result = new BulkActionResult<string>(product.Id.ToString(), metadata.Operations.Count > 0 ? metadata : null);
 			var message = metadata.HasPartialFailure
@@ -161,13 +165,16 @@ namespace PerfumeGPT.Application.Services
 				await _productAttributeService.ReplaceAttributesAsync(productId, request.Attributes, isVariant: false);
 			}
 
-			_productRepo.Update(product);
+		_productRepo.Update(product);
 			var saved = await _productRepo.SaveChangesAsync();
 
 			if (!saved)
 			{
 				return BaseResponse<BulkActionResult<string>>.Fail("Failed to update product", ResponseErrorType.InternalError);
 			}
+
+			// Regenerate embeddings after product data is fully updated
+			await _productRepo.AddProductEmbeddingsByIdAsync(productId);
 
 			var result = new BulkActionResult<string>(productId.ToString(), metadata.Operations.Count > 0 ? metadata : null);
 			var message = metadata.HasPartialFailure
@@ -276,7 +283,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse> UpdateProductEmbeddingAsync(Guid productId)
 		{
-			await _productRepo.AddProductEmbeddingsAsync(productId);
+			await _productRepo.AddProductEmbeddingsByIdAsync(productId);
 			return BaseResponse.Ok("Product embedding updated successfully");
 		}
 
