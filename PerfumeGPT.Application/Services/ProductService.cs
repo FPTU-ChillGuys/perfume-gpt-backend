@@ -264,10 +264,8 @@ namespace PerfumeGPT.Application.Services
 		{
 			var (items, totalCount) = await _productRepo.GetPagedProductsWithSemanticSearch(searchText, request);
 
-			var productList = _mapper.Map<List<ProductListItem>>(items ?? new List<Product>());
-
 			var pagedResult = new PagedResult<ProductListItem>(
-				productList,
+                items,
 				request.PageNumber,
 				request.PageSize,
 				totalCount);
