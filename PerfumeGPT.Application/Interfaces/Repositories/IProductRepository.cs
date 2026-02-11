@@ -16,7 +16,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		/// <summary>
 		///	Get paged products based on semantic search of the provided text.
 		///	</summary>
-		Task<(List<Product> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request);
+		Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request);
 
 		/// <summary>
 		///	Add embeddings for all products in the database.
@@ -26,7 +26,13 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		/// <summary>
 		/// Add embedding for a specific product by its ID.
 		/// </summary>
-		Task AddProductEmbeddingsAsync(Guid productId);
-	}
+		Task AddProductEmbeddingsByIdAsync(Guid productId);
+
+        /// <summary>
+        /// Add embedding for a specific product by passing the entire product entity. This can be useful when you already have the product data loaded and want to avoid an additional database query.
+        /// </summary>
+        Task<Product> AddProductEmbeddingsByProductAsync(Product product);
+
+    }
 }
 

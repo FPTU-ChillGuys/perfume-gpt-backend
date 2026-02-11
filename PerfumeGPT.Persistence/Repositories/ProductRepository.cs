@@ -1,4 +1,5 @@
-﻿using Mapster;
+﻿using System.Text;
+using Mapster;
 using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -66,13 +67,13 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		#region Vector Search Methods
 
-		public async Task<(List<Product> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request)
 		{
 			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
 			if (String.IsNullOrEmpty(searchText))
 			{
-				return (new List<Product>(), 0);
+				return (new List<ProductListItem>(), 0);
 			}
 
 			var searchEmbedding = await embeddingGenerator.GenerateVectorAsync(searchText);
@@ -88,6 +89,8 @@ namespace PerfumeGPT.Persistence.Repositories
 			var topSimilarProductsQuery = productQuery
 				.Include(p => p.Brand)
 				.Include(p => p.Category)
+				.Include(p => p.Variants)
+				.Include(p => p.ProductAttributes)
 				//.Where(p => EF.Functions.VectorDistance(metricType, p.Embedding!.Value, sqlVector) <= threshold)
 				.OrderBy(p => EF.Functions.VectorDistance(metricType, p.Embedding!.Value, sqlVector))
 				.AsNoTracking();
@@ -111,7 +114,8 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = await topSimilarProductsQuery
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
-				.ToListAsync();
+                .ProjectToType<ProductListItem>()
+                .ToListAsync();
 
 			return (items, totalCount);
 		}
@@ -123,43 +127,163 @@ namespace PerfumeGPT.Persistence.Repositories
 			var products = await _context.Products
 				.Include(p => p.Brand)
 				.Include(p => p.Category)
+				.Include(p => p.ProductAttributes)
+					.ThenInclude(pa => pa.Attribute)
+				.Include(p => p.ProductAttributes)
+					.ThenInclude(pa => pa.Value)
+				.Include(p => p.Variants.Where(v => !v.IsDeleted))
+					.ThenInclude(v => v.Concentration)
+				.Include(p => p.Variants.Where(v => !v.IsDeleted))
+					.ThenInclude(v => v.ProductAttributes)
+						.ThenInclude(pa => pa.Attribute)
+				.Include(p => p.Variants.Where(v => !v.IsDeleted))
+					.ThenInclude(v => v.ProductAttributes)
+						.ThenInclude(pa => pa.Value)
 				.Where(p => !p.IsDeleted)
 				.ToListAsync();
 
 			foreach (var product in products)
 			{
-				// Combine all relevant text fields for embedding
-				var textToEmbed = $"Name:{product?.Name} Description:{product?.Description} Cateogory:{product?.Category?.Name} Brand:{product?.Brand?.Name}";
+				var textToEmbed = BuildEmbeddingText(product);
 
-				var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed ?? string.Empty);
+				var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed);
 
-				product?.Embedding = new SqlVector<float>(embedding);
+				product.Embedding = new SqlVector<float>(embedding);
 
-				_context.Update(product!);
+				_context.Update(product);
 
 			}
 			await _context.SaveChangesAsync();
 		}
 
-		public async Task AddProductEmbeddingsAsync(Guid productId)
+		public async Task AddProductEmbeddingsByIdAsync(Guid productId)
 		{
 			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 			var product = await _context.Products
 				.Include(p => p.Brand)
 				.Include(p => p.Category)
+				.Include(p => p.ProductAttributes)
+					.ThenInclude(pa => pa.Attribute)
+				.Include(p => p.ProductAttributes)
+					.ThenInclude(pa => pa.Value)
+				.Include(p => p.Variants.Where(v => !v.IsDeleted))
+					.ThenInclude(v => v.Concentration)
+				.Include(p => p.Variants.Where(v => !v.IsDeleted))
+					.ThenInclude(v => v.ProductAttributes)
+						.ThenInclude(pa => pa.Attribute)
+				.Include(p => p.Variants.Where(v => !v.IsDeleted))
+					.ThenInclude(v => v.ProductAttributes)
+						.ThenInclude(pa => pa.Value)
 				.FirstOrDefaultAsync(p => p.Id == productId && !p.IsDeleted);
 			if (product != null)
 			{
-				// Combine all relevant text fields for embedding
-				var textToEmbed = $"Name:{product?.Name} Description:{product?.Description} Cateogory:{product?.Category?.Name} Brand:{product?.Brand?.Name}";
-				var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed ?? string.Empty);
-				product!.Embedding = new SqlVector<float>(embedding);
+				var textToEmbed = BuildEmbeddingText(product);
+				var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed);
+				product.Embedding = new SqlVector<float>(embedding);
 				_context.Update(product);
 				await _context.SaveChangesAsync();
 			}
 		}
 
-		#endregion Vector Search Methods
-	}
+        public async Task<Product> AddProductEmbeddingsByProductAsync(Product product)
+        {
+            IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+            if (product != null)
+            {
+                // Reload with all related data for comprehensive embedding
+                var fullProduct = await _context.Products
+                    .Include(p => p.Brand)
+                    .Include(p => p.Category)
+                    .Include(p => p.ProductAttributes)
+                        .ThenInclude(pa => pa.Attribute)
+                    .Include(p => p.ProductAttributes)
+                        .ThenInclude(pa => pa.Value)
+                    .Include(p => p.Variants.Where(v => !v.IsDeleted))
+                        .ThenInclude(v => v.Concentration)
+                    .Include(p => p.Variants.Where(v => !v.IsDeleted))
+                        .ThenInclude(v => v.ProductAttributes)
+                            .ThenInclude(pa => pa.Attribute)
+                    .Include(p => p.Variants.Where(v => !v.IsDeleted))
+                        .ThenInclude(v => v.ProductAttributes)
+                            .ThenInclude(pa => pa.Value)
+                    .FirstOrDefaultAsync(p => p.Id == product.Id && !p.IsDeleted);
+
+                if (fullProduct != null)
+                {
+                    var textToEmbed = BuildEmbeddingText(fullProduct);
+                    var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed);
+                    fullProduct.Embedding = new SqlVector<float>(embedding);
+                    _context.Update(fullProduct);
+                    await _context.SaveChangesAsync();
+                    return fullProduct;
+                }
+            }
+			return product!;
+        }
+
+        #endregion Vector Search Methods
+
+		#region Private Methods
+
+		private static string BuildEmbeddingText(Product product)
+		{
+			var sb = new StringBuilder();
+
+			sb.Append($"Name: {product.Name}.");
+			sb.Append($" Brand: {product.Brand?.Name}.");
+			sb.Append($" Category: {product.Category?.Name}.");
+
+			if (!string.IsNullOrWhiteSpace(product.Description))
+				sb.Append($" Description: {product.Description}.");
+
+			// Product-level attributes (e.g., Top Notes: Bergamot, Scent Family: Floral)
+			if (product.ProductAttributes?.Count > 0)
+			{
+				var grouped = product.ProductAttributes
+					.Where(pa => pa.Attribute != null && pa.Value != null)
+					.GroupBy(pa => pa.Attribute.Name);
+
+				foreach (var group in grouped)
+				{
+					var values = string.Join(", ", group.Select(pa => pa.Value.Value));
+					sb.Append($" {group.Key}: {values}.");
+				}
+			}
+
+			// Variants (e.g., concentration, volume, type, price, variant-level attributes)
+			if (product.Variants?.Count > 0)
+			{
+				var variantTexts = new List<string>();
+				foreach (var variant in product.Variants)
+				{
+					var parts = new List<string>();
+
+					if (variant.Concentration != null)
+						parts.Add(variant.Concentration.Name);
+
+					parts.Add($"{variant.VolumeMl}ml");
+					parts.Add(variant.Type.ToString());
+					parts.Add($"{variant.BasePrice:N0} VND");
+
+					// Variant-level attributes
+					if (variant.ProductAttributes?.Count > 0)
+					{
+						var variantAttrs = variant.ProductAttributes
+							.Where(pa => pa.Attribute != null && pa.Value != null)
+							.Select(pa => $"{pa.Attribute.Name}: {pa.Value.Value}");
+						parts.AddRange(variantAttrs);
+					}
+
+					variantTexts.Add(string.Join(", ", parts));
+				}
+
+				sb.Append($" Variants: [{string.Join("; ", variantTexts)}].");
+			}
+
+			return sb.ToString();
+		}
+
+		#endregion Private Methods
+    }
 }
 
