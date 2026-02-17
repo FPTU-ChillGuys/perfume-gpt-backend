@@ -6,5 +6,8 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface IUserService
 	{
 		Task<BaseResponse<List<StaffLookupItem>>> GetStaffLookupAsync();
-	}
+
+		Task<BaseResponse<string>> GetEmailByIdAsync(Guid userId);
+
+    }
 }
