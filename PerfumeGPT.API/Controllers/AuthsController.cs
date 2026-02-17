@@ -14,10 +14,12 @@ namespace PerfumeGPT.API.Controllers
     public class AuthsController : BaseApiController
     {
         private readonly IAuthService _authService;
+        private readonly IUserService _userService;
 
-        public AuthsController(IAuthService authService)
+        public AuthsController(IAuthService authService, IUserService userService)
         {
             _authService = authService;
+            _userService = userService;
         }
 
         [HttpPost("login")]
@@ -122,21 +124,22 @@ namespace PerfumeGPT.API.Controllers
         }
 
         [HttpPost("api-token")]
-        [Authorize(Roles = "user")]
+        [Authorize(Roles = "admin")]
         [ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<BaseResponse<TokenResponse>>> CreateApiToken([FromQuery] string email)
+        public async Task<ActionResult<BaseResponse<TokenResponse>>> CreateApiToken()
         {
-            var validation = ValidateRequestBody<string>(email);
-            if (validation != null)
-            {
-                return validation;
-            }
+            var userId = GetCurrentUserId();
+            var emailResult = await _userService.GetEmailByIdAsync(userId);
 
-            var result = await _authService.CreateApiTokenAsync(email);
-            return HandleResponse(result);
+            if (emailResult == null)
+            {
+                return HandleResponse(BaseResponse<TokenResponse>.Fail("User not found", ResponseErrorType.NotFound));
+            }
+            var tokenResult = await _authService.CreateApiTokenAsync(emailResult?.Payload!);
+            return HandleResponse(tokenResult);
         }
     }
 }
