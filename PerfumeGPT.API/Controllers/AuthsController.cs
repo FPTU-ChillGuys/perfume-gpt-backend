@@ -122,7 +122,7 @@ namespace PerfumeGPT.API.Controllers
         }
 
         [HttpPost("api-token")]
-        [Authorize(Roles = "admin")]
+        [Authorize(Roles = "user")]
         [ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status403Forbidden)]
