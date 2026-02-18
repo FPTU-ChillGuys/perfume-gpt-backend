@@ -89,10 +89,8 @@ namespace PerfumeGPT.Application.Services
             if (!user.IsActive)
                 return BaseResponse<TokenResponse>.Fail("User is inactive", ResponseErrorType.Forbidden);
 
-            return BaseResponse<TokenResponse>.Ok(new TokenResponse()
-            {
-                AccessToken = await _authRepository.GenerateJwtToken(user, "Admin")
-            });
+            var tokenResponse = await GenerateTokenResponseAsync(user);
+            return BaseResponse<TokenResponse>.Ok(tokenResponse);
         }
 
         private async Task<TokenResponse> GenerateTokenResponseAsync(User user)
