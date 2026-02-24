@@ -1,6 +1,7 @@
 ﻿using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Enums;
+using System.Text.Json.Serialization;
 
 namespace PerfumeGPT.Domain.Entities
 {
@@ -15,8 +16,9 @@ namespace PerfumeGPT.Domain.Entities
 		public decimal BasePrice { get; set; }
 		public VariantStatus Status { get; set; }
 
-		// Navigation
-		public virtual Product Product { get; set; } = null!;
+        // Navigation
+        [JsonIgnore]
+        public virtual Product Product { get; set; } = null!;
 		public virtual Concentration Concentration { get; set; } = null!;
 		public virtual ICollection<ImportDetail> ImportDetails { get; set; } = [];
 		public virtual ICollection<StockAdjustmentDetail> StockAdjustmentDetails { get; set; } = [];
