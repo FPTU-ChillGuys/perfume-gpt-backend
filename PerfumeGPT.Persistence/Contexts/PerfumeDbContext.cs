@@ -531,6 +531,9 @@ namespace PerfumeGPT.Persistence.Contexts
 
 			// Attribute -> AttributeValue (1:M)
 			builder.Entity<Attribute>()
+				.HasIndex(a => a.InternalCode)
+				.IsUnique();
+			builder.Entity<Attribute>()
 				.HasMany(a => a.AttributeValues)
 				.WithOne(av => av.Attribute)
 				.HasForeignKey(av => av.AttributeId)

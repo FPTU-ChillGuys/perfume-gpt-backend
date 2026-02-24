@@ -15,14 +15,36 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.CategoryId, src => src.CategoryId)
 				.Map(dest => dest.Description, src => src.Description);
 
-			// UpdateProductRequest -> Product
 			config.NewConfig<UpdateProductRequest, Product>()
 				.Map(dest => dest.Name, src => src.Name)
 				.Map(dest => dest.BrandId, src => src.BrandId)
 				.Map(dest => dest.CategoryId, src => src.CategoryId)
 				.Map(dest => dest.Description, src => src.Description);
 
-			// Product -> ProductResponse
+			config.NewConfig<Product, ProductInforResponse>()
+				.Map(dest => dest.ProductCode, src => src.Id.ToString())
+				.Map(dest => dest.BrandName, src => src.Brand.Name)
+				.Map(dest => dest.Origin, src => string.Join(", ", src.ProductAttributes
+					.Where(pa => pa.Attribute.InternalCode == "ORIGIN")
+					.Select(pa => pa.Value.Value)))
+				.Map(dest => dest.ReleaseYear, src => src.CreatedAt.Year)
+				.Map(dest => dest.ScentGroup, src => string.Join(", ", src.ProductAttributes
+					.Where(pa => pa.Attribute.InternalCode == "FAMILY")
+					.Select(pa => pa.Value.Value)))
+				.Map(dest => dest.Style, src => string.Join(", ", src.ProductAttributes
+					.Where(pa => pa.Attribute.InternalCode == "STYLE")
+					.Select(pa => pa.Value.Value)))
+				.Map(dest => dest.TopNotes, src => string.Join(", ", src.ProductAttributes
+					.Where(pa => pa.Attribute.InternalCode == "TOP_NOTES")
+					.Select(pa => pa.Value.Value)))
+				.Map(dest => dest.MiddleNotes, src => string.Join(", ", src.ProductAttributes
+					.Where(pa => pa.Attribute.InternalCode == "MIDDLE_NOTES")
+					.Select(pa => pa.Value.Value)))
+				.Map(dest => dest.BaseNotes, src => string.Join(", ", src.ProductAttributes
+					.Where(pa => pa.Attribute.InternalCode == "BASE_NOTES")
+					.Select(pa => pa.Value.Value)))
+				.Map(dest => dest.Description, src => src.Description);
+
 			config.NewConfig<Product, ProductResponse>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.Name, src => src.Name)
@@ -35,7 +57,6 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Variants, src => src.Variants)
 				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 
-			// Product -> ProductListItem
 			config.NewConfig<Product, ProductListItem>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.Name, src => src.Name)
@@ -47,7 +68,6 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary))
 				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 
-			// Product -> ProductLookupItem
 			config.NewConfig<Product, ProductLookupItem>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.Name, src => src.Name)

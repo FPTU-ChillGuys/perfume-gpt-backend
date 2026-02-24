@@ -1,15 +1,18 @@
-﻿using System.Text;
-using Mapster;
+﻿using Mapster;
 using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.SemanticKernel;
 using PerfumeGPT.Application.DTOs.Requests.Products;
+using PerfumeGPT.Application.DTOs.Responses.Media;
+using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
 using PerfumeGPT.Application.DTOs.Responses.Products;
+using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Text;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -53,7 +56,6 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var totalCount = await query.CountAsync();
 
-
 			var items = await query
 				.OrderByDescending(p => p.CreatedAt)
 				.Skip((request.PageNumber - 1) * request.PageSize)
@@ -63,6 +65,126 @@ namespace PerfumeGPT.Persistence.Repositories
 				.ToListAsync();
 
 			return (items, totalCount);
+		}
+
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetBestSellerProductsAsync(GetPagedProductRequest request)
+		{
+			// Best sellers: rank by total order count across all variants in the last 30 days (using Order.CreatedAt)
+			var limitDate = DateTime.UtcNow.AddDays(-30);
+			var query = _context.Products
+				.Where(p => !p.IsDeleted)
+				.Select(p => new
+				{
+					Product = p,
+					OrderCount = p.Variants
+						.Where(v => !v.IsDeleted)
+						.SelectMany(v => v.OrderDetails)
+						.Count(od => od.Order != null && od.Order.CreatedAt >= limitDate)
+				})
+				.OrderByDescending(x => x.OrderCount)
+				.Select(x => x.Product);
+
+			var totalCount = await query.CountAsync();
+			var items = await query
+				.Skip((request.PageNumber - 1) * request.PageSize)
+				.Take(request.PageSize)
+				.ProjectToType<ProductListItem>()
+				.AsNoTracking()
+				.ToListAsync();
+			return (items, totalCount);
+		}
+
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetNewArrivalProductsAsync(GetPagedProductRequest request)
+		{
+			// New arrivals by most recent CreatedAt
+			var query = _context.Products
+				.Where(p => !p.IsDeleted)
+				.OrderByDescending(p => p.CreatedAt);
+			var totalCount = await query.CountAsync();
+			var items = await query
+				.Skip((request.PageNumber - 1) * request.PageSize)
+				.Take(request.PageSize)
+				.ProjectToType<ProductListItem>()
+				.AsNoTracking()
+				.ToListAsync();
+			return (items, totalCount);
+		}
+
+		public async Task<ProductInforResponse?> GetProductInfoAsync(Guid productId)
+		{
+			return await _context.Products
+				.Where(p => p.Id == productId)
+				.ProjectToType<ProductInforResponse>()
+				.AsNoTracking()
+				.FirstOrDefaultAsync();
+		}
+
+		public async Task<ProductFastLookResponse?> GetProductFastLookAsync(Guid productId)
+		{
+			var result = await _context.Products
+				.Where(p => p.Id == productId && !p.IsDeleted)
+				.Select(p => new ProductFastLookResponse
+				{
+					Id = p.Id,
+					Name = p.Name,
+					Description = p.Description,
+					BrandName = p.Brand.Name,
+
+					// Calculate rating and review count
+					Rating = (int)Math.Round(
+						p.Variants
+							.Where(v => !v.IsDeleted)
+							.SelectMany(v => v.OrderDetails)
+							.Where(od => od.Review != null)
+							.Average(od => (double?)od.Review!.Rating) ?? 0
+					),
+
+					ReviewCount = p.Variants
+						.Where(v => !v.IsDeleted)
+						.SelectMany(v => v.OrderDetails)
+						.Count(od => od.Review != null),
+
+					// Map variants with their own media
+					Variants = p.Variants
+						.Where(v => !v.IsDeleted)
+						.Select(v => new VariantFastLookResponse
+						{
+							Id = v.Id,
+							DisplayName = $"{v.Concentration.Name} - {v.VolumeMl}ml",
+							Price = v.BasePrice,
+							Media = v.Media
+								.Where(m => m.IsPrimary)
+								.Select(m => new MediaResponse
+								{
+									Id = m.Id,
+									Url = m.Url,
+									AltText = m.AltText,
+									IsPrimary = m.IsPrimary,
+									DisplayOrder = m.DisplayOrder,
+									MimeType = m.MimeType,
+									FileSize = m.FileSize
+								})
+								.FirstOrDefault()
+						})
+						.ToList(),
+
+					// Map product-level attributes
+					Attribute = p.ProductAttributes
+						.Where(pa => pa.Attribute != null && pa.Attribute.InternalCode == "GENDER")
+						.Select(pa => new ProductAttributeResponse
+						{
+							Id = pa.Id,
+							AttributeId = pa.AttributeId,
+							Attribute = pa.Attribute.Name,
+							ValueId = pa.ValueId,
+							Value = pa.Value.Value,
+							Description = pa.Attribute.Description
+						})
+						.FirstOrDefault(),
+				})
+				.AsNoTracking()
+				.FirstOrDefaultAsync();
+			return result;
 		}
 
 		#region Vector Search Methods
@@ -114,8 +236,8 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = await topSimilarProductsQuery
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
-                .ProjectToType<ProductListItem>()
-                .ToListAsync();
+				.ProjectToType<ProductListItem>()
+				.ToListAsync();
 
 			return (items, totalCount);
 		}
@@ -185,43 +307,43 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 		}
 
-        public async Task<Product> AddProductEmbeddingsByProductAsync(Product product)
-        {
-            IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
-            if (product != null)
-            {
-                // Reload with all related data for comprehensive embedding
-                var fullProduct = await _context.Products
-                    .Include(p => p.Brand)
-                    .Include(p => p.Category)
-                    .Include(p => p.ProductAttributes)
-                        .ThenInclude(pa => pa.Attribute)
-                    .Include(p => p.ProductAttributes)
-                        .ThenInclude(pa => pa.Value)
-                    .Include(p => p.Variants.Where(v => !v.IsDeleted))
-                        .ThenInclude(v => v.Concentration)
-                    .Include(p => p.Variants.Where(v => !v.IsDeleted))
-                        .ThenInclude(v => v.ProductAttributes)
-                            .ThenInclude(pa => pa.Attribute)
-                    .Include(p => p.Variants.Where(v => !v.IsDeleted))
-                        .ThenInclude(v => v.ProductAttributes)
-                            .ThenInclude(pa => pa.Value)
-                    .FirstOrDefaultAsync(p => p.Id == product.Id && !p.IsDeleted);
+		public async Task<Product> AddProductEmbeddingsByProductAsync(Product product)
+		{
+			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+			if (product != null)
+			{
+				// Reload with all related data for comprehensive embedding
+				var fullProduct = await _context.Products
+					.Include(p => p.Brand)
+					.Include(p => p.Category)
+					.Include(p => p.ProductAttributes)
+						.ThenInclude(pa => pa.Attribute)
+					.Include(p => p.ProductAttributes)
+						.ThenInclude(pa => pa.Value)
+					.Include(p => p.Variants.Where(v => !v.IsDeleted))
+						.ThenInclude(v => v.Concentration)
+					.Include(p => p.Variants.Where(v => !v.IsDeleted))
+						.ThenInclude(v => v.ProductAttributes)
+							.ThenInclude(pa => pa.Attribute)
+					.Include(p => p.Variants.Where(v => !v.IsDeleted))
+						.ThenInclude(v => v.ProductAttributes)
+							.ThenInclude(pa => pa.Value)
+					.FirstOrDefaultAsync(p => p.Id == product.Id && !p.IsDeleted);
 
-                if (fullProduct != null)
-                {
-                    var textToEmbed = BuildEmbeddingText(fullProduct);
-                    var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed);
-                    fullProduct.Embedding = new SqlVector<float>(embedding);
-                    _context.Update(fullProduct);
-                    await _context.SaveChangesAsync();
-                    return fullProduct;
-                }
-            }
+				if (fullProduct != null)
+				{
+					var textToEmbed = BuildEmbeddingText(fullProduct);
+					var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed);
+					fullProduct.Embedding = new SqlVector<float>(embedding);
+					_context.Update(fullProduct);
+					await _context.SaveChangesAsync();
+					return fullProduct;
+				}
+			}
 			return product!;
-        }
+		}
 
-        #endregion Vector Search Methods
+		#endregion Vector Search Methods
 
 		#region Private Methods
 
@@ -284,6 +406,6 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		#endregion Private Methods
-    }
+	}
 }
 

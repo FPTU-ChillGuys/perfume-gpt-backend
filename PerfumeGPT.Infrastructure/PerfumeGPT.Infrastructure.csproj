@@ -11,13 +11,12 @@
   </ItemGroup>
 
   <ItemGroup>
-	<PackageReference Include="Hangfire.AspNetCore" Version="1.8.22" />
-	<PackageReference Include="Hangfire.SqlServer" Version="1.8.22" />
-	<PackageReference Include="MailKit" Version="4.14.1" />
-	<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
-	<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.2" />
-	<PackageReference Include="Microsoft.SemanticKernel" Version="1.70.0" />
-	<PackageReference Include="MimeKit" Version="4.14.0" />
+	<PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
+	<PackageReference Include="Hangfire.SqlServer" Version="1.8.23" />
+	<PackageReference Include="MailKit" Version="4.15.0" />
+	<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3" />
+	<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.3" />
+	<PackageReference Include="MimeKit" Version="4.15.0" />
 	<PackageReference Include="Supabase" Version="1.1.1" />
 	<PackageReference Include="Supabase.Storage" Version="2.4.1" />
   </ItemGroup>

@@ -1,4 +1,5 @@
-﻿using Google.Apis.Auth;
+﻿using FluentValidation;
+using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using PerfumeGPT.Application.DTOs.Requests.Auths;
@@ -13,212 +14,226 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Services
 {
-    public class AuthService : IAuthService
-    {
-        #region Dependencies
+	public class AuthService : IAuthService
+	{
+		#region Dependencies
 
-        private readonly IEmailTemplateService _templateService;
-        private readonly UserManager<User> _userManager;
-        private readonly IEmailService _emailService;
-        private readonly IAuthRepository _authRepository;
-        private readonly IProfileService _profileService;
-        private readonly ILoyaltyPointService _loyaltyPointService;
+		private readonly IEmailTemplateService _templateService;
+		private readonly UserManager<User> _userManager;
+		private readonly IEmailService _emailService;
+		private readonly IAuthRepository _authRepository;
+		private readonly IProfileService _profileService;
+		private readonly ILoyaltyPointService _loyaltyPointService;
+		private readonly IUserRepository _userRepository;
+		private readonly IValidator<RegisterRequest> _registerValidator;
 
-        public AuthService(IEmailTemplateService templateService,
-            UserManager<User> userManager,
-            IEmailService emailService,
-            IAuthRepository authRepository,
-            IProfileService profileService,
-            ILoyaltyPointService loyaltyPointService)
-        {
-            _templateService = templateService;
-            _userManager = userManager;
-            _emailService = emailService;
-            _authRepository = authRepository;
-            _profileService = profileService;
-            _loyaltyPointService = loyaltyPointService;
-        }
+		public AuthService(IEmailTemplateService templateService,
+			UserManager<User> userManager,
+			IEmailService emailService,
+			IAuthRepository authRepository,
+			IProfileService profileService,
+			ILoyaltyPointService loyaltyPointService,
+			IUserRepository userRepository,
+			IValidator<RegisterRequest> registerValidator)
+		{
+			_templateService = templateService;
+			_userManager = userManager;
+			_emailService = emailService;
+			_authRepository = authRepository;
+			_profileService = profileService;
+			_loyaltyPointService = loyaltyPointService;
+			_userRepository = userRepository;
+			_registerValidator = registerValidator;
+		}
 
-        #endregion
+		#endregion
 
-        private async Task TryCreateProfileAndLoyaltyPointsAsync(User user)
-        {
-            var roles = await _userManager.GetRolesAsync(user);
-            if (!roles.Any(r => r.Equals(UserRole.User.ToString().ToLower())))
-                return;
+		private async Task TryCreateProfileAndLoyaltyPointsAsync(User user)
+		{
+			var roles = await _userManager.GetRolesAsync(user);
+			if (!roles.Any(r => r.Equals(UserRole.User.ToString().ToLower())))
+				return;
 
-            try
-            {
-                var profileResult = await _profileService.CreateProfileAsync(new CreateProfileRequest { UserId = user.Id });
-                if (profileResult.Success)
-                {
-                    await _loyaltyPointService.CreateLoyaltyPointAsync(user.Id);
-                }
-            }
-            catch
-            {
-            }
-        }
+			try
+			{
+				var profileResult = await _profileService.CreateProfileAsync(new CreateProfileRequest { UserId = user.Id });
+				if (profileResult.Success)
+				{
+					await _loyaltyPointService.CreateLoyaltyPointAsync(user.Id);
+				}
+			}
+			catch
+			{
+			}
+		}
 
-        public async Task<BaseResponse<TokenResponse>> LoginAsync(LoginRequest request)
-        {
-            var user = await _userManager.FindByEmailAsync(request.Email!);
-            if (user == null)
-                return BaseResponse<TokenResponse>.Fail("User not found", ResponseErrorType.NotFound);
+		public async Task<BaseResponse<TokenResponse>> LoginAsync(LoginRequest request)
+		{
+			var user = await _userManager.FindByEmailAsync(request.Credential!) ?? await _userRepository.FindByPhoneNumberAsync(request.Credential!);
+			if (user == null)
+				return BaseResponse<TokenResponse>.Fail("User not found", ResponseErrorType.NotFound);
 
-            if (!user.IsActive)
-                return BaseResponse<TokenResponse>.Fail("User is inactive", ResponseErrorType.Forbidden);
+			if (!user.IsActive)
+				return BaseResponse<TokenResponse>.Fail("User is inactive", ResponseErrorType.Forbidden);
 
-            var isPasswordValid = await _userManager.CheckPasswordAsync(user, request.Password!);
-            if (!isPasswordValid)
-                return BaseResponse<TokenResponse>.Fail("Invalid password", ResponseErrorType.Unauthorized);
+			var isPasswordValid = await _userManager.CheckPasswordAsync(user, request.Password!);
+			if (!isPasswordValid)
+				return BaseResponse<TokenResponse>.Fail("Invalid password", ResponseErrorType.Unauthorized);
 
-            var isEmailConfirmed = await _userManager.IsEmailConfirmedAsync(user);
-            if (!isEmailConfirmed)
-                return BaseResponse<TokenResponse>.Fail("Email not confirmed", ResponseErrorType.Forbidden);
+			var isEmailConfirmed = await _userManager.IsEmailConfirmedAsync(user);
+			if (!isEmailConfirmed)
+				return BaseResponse<TokenResponse>.Fail("Email not confirmed", ResponseErrorType.Forbidden);
 
-            var tokenResponse = await GenerateTokenResponseAsync(user);
-            return BaseResponse<TokenResponse>.Ok(tokenResponse);
-        }
+			var tokenResponse = await GenerateTokenResponseAsync(user);
+			return BaseResponse<TokenResponse>.Ok(tokenResponse);
+		}
 
-        public async Task<BaseResponse<TokenResponse>> CreateApiTokenAsync(string email)
-        {
-            var user = await _userManager.FindByEmailAsync(email);
-            if (user == null)
-                return BaseResponse<TokenResponse>.Fail("User not found", ResponseErrorType.NotFound);
-            if (!user.IsActive)
-                return BaseResponse<TokenResponse>.Fail("User is inactive", ResponseErrorType.Forbidden);
+		public async Task<BaseResponse<TokenResponse>> CreateApiTokenAsync(string email)
+		{
+			var user = await _userManager.FindByEmailAsync(email);
+			if (user == null)
+				return BaseResponse<TokenResponse>.Fail("User not found", ResponseErrorType.NotFound);
+			if (!user.IsActive)
+				return BaseResponse<TokenResponse>.Fail("User is inactive", ResponseErrorType.Forbidden);
 
-            var tokenResponse = await GenerateTokenResponseAsync(user);
-            return BaseResponse<TokenResponse>.Ok(tokenResponse);
-        }
+			var tokenResponse = await GenerateTokenResponseAsync(user);
+			return BaseResponse<TokenResponse>.Ok(tokenResponse);
+		}
 
-        private async Task<TokenResponse> GenerateTokenResponseAsync(User user)
-        {
-            var roles = await _userManager.GetRolesAsync(user);
-            var role = roles.FirstOrDefault() ?? "User";
-            return new TokenResponse()
-            {
-                AccessToken = await _authRepository.GenerateJwtToken(user, role)
-            };
-        }
+		private async Task<TokenResponse> GenerateTokenResponseAsync(User user)
+		{
+			var roles = await _userManager.GetRolesAsync(user);
+			var role = roles.FirstOrDefault() ?? "User";
+			return new TokenResponse()
+			{
+				AccessToken = await _authRepository.GenerateJwtToken(user, role)
+			};
+		}
 
-        public async Task<BaseResponse<string>> RegisterAsync(RegisterRequest request, UserRole? role)
-        {
-            var existingUser = await _userManager.FindByEmailAsync(request.Email);
-            if (existingUser != null)
-                return BaseResponse<string>.Fail("Email already exists", ResponseErrorType.Conflict);
+		public async Task<BaseResponse<string>> RegisterAsync(RegisterRequest request, UserRole? role)
+		{
+			var validationResults = await _registerValidator.ValidateAsync(request);
+			if (validationResults != null)
+			{
+				var errors = validationResults.Errors.Select(e => e.ErrorMessage).ToList();
+				return BaseResponse<string>.Fail("Validation failed", ResponseErrorType.BadRequest, errors);
+			}
 
-            var user = new User
-            {
-                FullName = request.FullName,
-                Email = request.Email,
-                UserName = request.UserName,
-                IsActive = true
-            };
+			var existingUser = await _userManager.FindByEmailAsync(request.Email) ?? await _userRepository.FindByPhoneNumberAsync(request.PhoneNumber);
+			if (existingUser != null)
+				return BaseResponse<string>.Fail("Email/PhoneNumber already exists", ResponseErrorType.Conflict);
 
-            var identityResult = await _userManager.CreateAsync(user, request.Password!);
-            if (!identityResult.Succeeded)
-                return BaseResponse<string>.Fail(
-                    "Failed to create user",
-                    ResponseErrorType.BadRequest,
-                    identityResult.Errors.Select(e => e.Description).ToList()
-                );
+			var user = new User
+			{
+				FullName = request.FullName,
+				Email = request.Email,
+				PhoneNumber = request.PhoneNumber,
+				PhoneNumberConfirmed = !string.IsNullOrWhiteSpace(request.PhoneNumber),
+				IsActive = true
+			};
 
-            var roleName = role?.ToString() ?? UserRole.User.ToString();
-            var roleResult = await _userManager.AddToRoleAsync(user, roleName);
-            if (!roleResult.Succeeded)
-                return BaseResponse<string>.Fail(
-                    "Failed to assign role",
-                    ResponseErrorType.BadRequest,
-                    roleResult.Errors.Select(e => e.Description).ToList()
-                );
+			var identityResult = await _userManager.CreateAsync(user, request.Password!);
+			if (!identityResult.Succeeded)
+				return BaseResponse<string>.Fail(
+					"Failed to create user",
+					ResponseErrorType.BadRequest,
+					[.. identityResult.Errors.Select(e => e.Description)]
+				);
 
-            var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-            var verifyUrl = QueryHelpers.AddQueryString(
-                request.ClientUri!,
-                new Dictionary<string, string?>
-                {
-                    { "email", request.Email! },
-                    { "token", token }
-                }
-            );
+			var roleName = role?.ToString() ?? UserRole.User.ToString();
+			var roleResult = await _userManager.AddToRoleAsync(user, roleName);
+			if (!roleResult.Succeeded)
+				return BaseResponse<string>.Fail(
+					"Failed to assign role",
+					ResponseErrorType.BadRequest,
+					[.. roleResult.Errors.Select(e => e.Description)]
+				);
 
-            var emailContent = _templateService.GetRegisterTemplate(
-                request.FullName ?? request.Email,
-                verifyUrl
-            );
+			var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+			var verifyUrl = QueryHelpers.AddQueryString(
+				request.ClientUri!,
+				new Dictionary<string, string?>
+				{
+					{ "email", request.Email! },
+					{ "token", token }
+				}
+			);
 
-            await _emailService.SendEmailAsync(request.Email!, "Email Confirmation", emailContent);
+			var emailContent = _templateService.GetRegisterTemplate(
+				request.FullName ?? request.Email,
+				verifyUrl
+			);
 
-            return BaseResponse<string>.Ok(token, "User registered successfully, Please check your email to verify!");
-        }
+			await _emailService.SendEmailAsync(request.Email!, "Email Confirmation", emailContent);
 
-        public async Task<BaseResponse<string>> VerifyEmailAsync(string email, string token)
-        {
-            var user = await _userManager.FindByEmailAsync(email);
-            if (user == null)
-                return BaseResponse<string>.Fail("User not found", ResponseErrorType.NotFound);
+			return BaseResponse<string>.Ok(token, "User registered successfully, Please check your email to verify!");
+		}
 
-            var result = await _userManager.ConfirmEmailAsync(user, token);
-            if (!result.Succeeded)
-                return BaseResponse<string>.Fail("failed to verify", ResponseErrorType.InternalError);
+		public async Task<BaseResponse<string>> VerifyEmailAsync(string email, string token)
+		{
+			var user = await _userManager.FindByEmailAsync(email);
+			if (user == null)
+				return BaseResponse<string>.Fail("User not found", ResponseErrorType.NotFound);
 
-            await TryCreateProfileAndLoyaltyPointsAsync(user);
-            return BaseResponse<string>.Ok("Success");
-        }
+			var result = await _userManager.ConfirmEmailAsync(user, token);
+			if (!result.Succeeded)
+				return BaseResponse<string>.Fail("failed to verify", ResponseErrorType.InternalError);
 
-        public async Task<BaseResponse<TokenResponse>> LoginWithGoogleAsync(GoogleLoginRequest request)
-        {
-            if (request is null || string.IsNullOrWhiteSpace(request.IdToken))
-                return BaseResponse<TokenResponse>.Fail("Invalid request", ResponseErrorType.BadRequest);
+			await TryCreateProfileAndLoyaltyPointsAsync(user);
+			return BaseResponse<string>.Ok("Success");
+		}
 
-            GoogleJsonWebSignature.Payload payload;
-            try
-            {
-                payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken);
-            }
-            catch
-            {
-                return BaseResponse<TokenResponse>.Fail("Invalid Google token", ResponseErrorType.BadRequest);
-            }
+		public async Task<BaseResponse<TokenResponse>> LoginWithGoogleAsync(GoogleLoginRequest request)
+		{
+			if (request is null || string.IsNullOrWhiteSpace(request.IdToken))
+				return BaseResponse<TokenResponse>.Fail("Invalid request", ResponseErrorType.BadRequest);
 
-            var email = payload.Email;
-            if (string.IsNullOrWhiteSpace(email))
-                return BaseResponse<TokenResponse>.Fail("Google token does not contain an email", ResponseErrorType.BadRequest);
+			GoogleJsonWebSignature.Payload payload;
+			try
+			{
+				payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken);
+			}
+			catch
+			{
+				return BaseResponse<TokenResponse>.Fail("Invalid Google token", ResponseErrorType.BadRequest);
+			}
 
-            var user = await _userManager.FindByEmailAsync(email);
-            var isNewRegistration = false;
+			var email = payload.Email;
+			if (string.IsNullOrWhiteSpace(email))
+				return BaseResponse<TokenResponse>.Fail("Google token does not contain an email", ResponseErrorType.BadRequest);
 
-            if (user is null)
-            {
-                try
-                {
-                    user = await _authRepository.RegisterViaGoogleAsync(payload);
-                    if (user is null)
-                        return BaseResponse<TokenResponse>.Fail("Failed to create user account from Google payload", ResponseErrorType.InternalError);
+			var user = await _userManager.FindByEmailAsync(email);
+			var isNewRegistration = false;
 
-                    isNewRegistration = true;
-                }
-                catch (Exception ex)
-                {
-                    return BaseResponse<TokenResponse>.Fail("Google registration failed: " + ex.Message, ResponseErrorType.InternalError);
-                }
-            }
+			if (user is null)
+			{
+				try
+				{
+					user = await _authRepository.RegisterViaGoogleAsync(payload);
+					if (user is null)
+						return BaseResponse<TokenResponse>.Fail("Failed to create user account from Google payload", ResponseErrorType.InternalError);
 
-            if (!user.IsActive)
-                return BaseResponse<TokenResponse>.Fail("Your account is inactive.", ResponseErrorType.Forbidden);
+					isNewRegistration = true;
+				}
+				catch (Exception ex)
+				{
+					return BaseResponse<TokenResponse>.Fail("Google registration failed: " + ex.Message, ResponseErrorType.InternalError);
+				}
+			}
 
-            if (!user.EmailConfirmed)
-                await _authRepository.ConfirmEmailAsync(user);
+			if (!user.IsActive)
+				return BaseResponse<TokenResponse>.Fail("Your account is inactive.", ResponseErrorType.Forbidden);
 
-            if (isNewRegistration)
-                await TryCreateProfileAndLoyaltyPointsAsync(user);
+			if (!user.EmailConfirmed)
+				await _authRepository.ConfirmEmailAsync(user);
 
-            var tokenResponse = await GenerateTokenResponseAsync(user);
-            var message = isNewRegistration ? "Google registration and login successful" : "Google login successful";
+			if (isNewRegistration)
+				await TryCreateProfileAndLoyaltyPointsAsync(user);
 
-            return BaseResponse<TokenResponse>.Ok(tokenResponse, message);
-        }
-    }
+			var tokenResponse = await GenerateTokenResponseAsync(user);
+			var message = isNewRegistration ? "Google registration and login successful" : "Google login successful";
+
+			return BaseResponse<TokenResponse>.Ok(tokenResponse, message);
+		}
+	}
 }

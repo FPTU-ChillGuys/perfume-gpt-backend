@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.LoyaltyPoints;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.LoyaltyPoints;
 using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.API.Controllers
@@ -16,6 +17,17 @@ namespace PerfumeGPT.API.Controllers
 		public LoyaltyPointsController(ILoyaltyPointService loyaltyPointService)
 		{
 			_loyaltyPointService = loyaltyPointService;
+		}
+
+		[HttpGet("me")]
+		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<LoyaltyPointResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<LoyaltyPointResponse>), StatusCodes.Status400BadRequest)]
+		public async Task<ActionResult<BaseResponse<LoyaltyPointResponse>>> GetCurrentUserLoyaltyPoints()
+		{
+			var userId = GetCurrentUserId();
+			var response = await _loyaltyPointService.GetLoyaltyPointsAsync(userId);
+			return HandleResponse(response);
 		}
 
 		#region Admin Endpoints

@@ -1,4 +1,7 @@
-﻿using PerfumeGPT.Application.Interfaces.Repositories.Commons;
+﻿using MapsterMapper;
+using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.LoyaltyPoints;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
 
@@ -7,10 +10,12 @@ namespace PerfumeGPT.Application.Services
 	public class LoyaltyPointService : ILoyaltyPointService
 	{
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IMapper _mapper;
 
-		public LoyaltyPointService(IUnitOfWork unitOfWork)
+		public LoyaltyPointService(IUnitOfWork unitOfWork, IMapper mapper)
 		{
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
 
 		public async Task<bool> CreateLoyaltyPointAsync(Guid userId, bool saveChanges = true)
@@ -30,6 +35,15 @@ namespace PerfumeGPT.Application.Services
 				return await _unitOfWork.SaveChangesAsync();
 
 			return true;
+		}
+
+		public async Task<BaseResponse<LoyaltyPointResponse>> GetLoyaltyPointsAsync(Guid userId)
+		{
+			var existing = await _unitOfWork.LoyaltyPoints.FirstOrDefaultAsync(lp => lp.UserId == userId);
+			if (existing == null)
+				return BaseResponse<LoyaltyPointResponse>.Fail("Loyalty points not found for this user.", ResponseErrorType.NotFound);
+			var response = _mapper.Map<LoyaltyPointResponse>(existing);
+			return BaseResponse<LoyaltyPointResponse>.Ok(response);
 		}
 
 		public async Task<bool> PlusPointAsync(Guid userId, int points, bool saveChanges = true)

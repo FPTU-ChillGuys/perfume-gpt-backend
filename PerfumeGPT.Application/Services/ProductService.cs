@@ -66,7 +66,7 @@ namespace PerfumeGPT.Application.Services
 					[.. attributeErrors]
 				);
 			}
-		var product = _mapper.Map<Product>(request);
+			var product = _mapper.Map<Product>(request);
 
 			_productAttributeService.ApplyAttributesToProductEntity(product, request.Attributes);
 
@@ -165,7 +165,7 @@ namespace PerfumeGPT.Application.Services
 				await _productAttributeService.ReplaceAttributesAsync(productId, request.Attributes, isVariant: false);
 			}
 
-		_productRepo.Update(product);
+			_productRepo.Update(product);
 			var saved = await _productRepo.SaveChangesAsync();
 
 			if (!saved)
@@ -242,6 +242,48 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<List<ProductLookupItem>>.Ok(lookupList, "Product lookup list retrieved successfully");
 		}
 
+		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetBestSellerProductsAsync(GetPagedProductRequest request)
+		{
+			var (items, totalCount) = await _productRepo.GetBestSellerProductsAsync(request);
+			var pagedResult = new PagedResult<ProductListItem>(
+				items,
+				request.PageNumber,
+				request.PageSize,
+				totalCount);
+			return BaseResponse<PagedResult<ProductListItem>>.Ok(pagedResult, "Best seller products retrieved successfully");
+		}
+
+		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetNewArrivalProductsAsync(GetPagedProductRequest request)
+		{
+			var (items, totalCount) = await _productRepo.GetNewArrivalProductsAsync(request);
+			var pagedResult = new PagedResult<ProductListItem>(
+				items,
+				request.PageNumber,
+				request.PageSize,
+				totalCount);
+			return BaseResponse<PagedResult<ProductListItem>>.Ok(pagedResult, "New arrival products retrieved successfully");
+		}
+
+		public async Task<BaseResponse<ProductInforResponse>> GetProductInforAsync(Guid productId)
+		{
+			var response = await _productRepo.GetProductInfoAsync(productId);
+			if (response == null)
+			{
+				return BaseResponse<ProductInforResponse>.Fail("Product not found", ResponseErrorType.NotFound);
+			}
+			return BaseResponse<ProductInforResponse>.Ok(response, "Product information retrieved successfully");
+		}
+
+		public async Task<BaseResponse<ProductFastLookResponse>> GetProductFastLookAsync(Guid productId)
+		{
+			var response = await _productRepo.GetProductFastLookAsync(productId);
+			if (response == null)
+			{
+				return BaseResponse<ProductFastLookResponse>.Fail("Product not found", ResponseErrorType.NotFound);
+			}
+			return BaseResponse<ProductFastLookResponse>.Ok(response, "Product fast look retrieved successfully");
+		}
+
 		#region Media Management
 
 		public async Task<BaseResponse<List<MediaResponse>>> GetProductImagesAsync(Guid productId)
@@ -265,7 +307,7 @@ namespace PerfumeGPT.Application.Services
 			var (items, totalCount) = await _productRepo.GetPagedProductsWithSemanticSearch(searchText, request);
 
 			var pagedResult = new PagedResult<ProductListItem>(
-                items,
+				items,
 				request.PageNumber,
 				request.PageSize,
 				totalCount);

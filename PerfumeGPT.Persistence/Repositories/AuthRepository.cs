@@ -48,7 +48,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task ConfirmEmailAsync(User user)
 		{
-			if (user == null) throw new ArgumentNullException(nameof(user));
+			ArgumentNullException.ThrowIfNull(user);
 			user.EmailConfirmed = true;
 			await _userManager.UpdateAsync(user);
 		}
@@ -62,6 +62,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			{
 				new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
 				new Claim("id", user.Id.ToString()),
+				new Claim("phoneNumber", user.PhoneNumber ?? string.Empty),
 				new Claim("email", user.Email ?? string.Empty),
 				new Claim("role", role),
 				new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
@@ -193,9 +194,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			for (int i = arr.Length - 1; i > 0; i--)
 			{
 				int j = RandomNumberGenerator.GetInt32(i + 1);
-				var tmp = arr[i];
-				arr[i] = arr[j];
-				arr[j] = tmp;
+				(arr[j], arr[i]) = (arr[i], arr[j]);
 			}
 
 			return new string(arr);

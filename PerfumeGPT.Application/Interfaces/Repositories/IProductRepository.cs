@@ -11,7 +11,10 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<ProductResponse?> GetProductResponseAsync(Guid productId);
 		Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductListItemsAsync(GetPagedProductRequest request);
 		Task<Product?> GetProductByIdWithAttributesAsync(Guid productId);
-
+		Task<(List<ProductListItem> Items, int TotalCount)> GetBestSellerProductsAsync(GetPagedProductRequest request);
+		Task<(List<ProductListItem> Items, int TotalCount)> GetNewArrivalProductsAsync(GetPagedProductRequest request);
+		Task<ProductInforResponse?> GetProductInfoAsync(Guid productId);
+		Task<ProductFastLookResponse?> GetProductFastLookAsync(Guid productId);
 
 		/// <summary>
 		///	Get paged products based on semantic search of the provided text.
@@ -28,11 +31,11 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		/// </summary>
 		Task AddProductEmbeddingsByIdAsync(Guid productId);
 
-        /// <summary>
-        /// Add embedding for a specific product by passing the entire product entity. This can be useful when you already have the product data loaded and want to avoid an additional database query.
-        /// </summary>
-        Task<Product> AddProductEmbeddingsByProductAsync(Product product);
+		/// <summary>
+		/// Add embedding for a specific product by passing the entire product entity. This can be useful when you already have the product data loaded and want to avoid an additional database query.
+		/// </summary>
+		Task<Product> AddProductEmbeddingsByProductAsync(Product product);
 
-    }
+	}
 }
 

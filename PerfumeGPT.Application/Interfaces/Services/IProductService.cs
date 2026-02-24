@@ -10,6 +10,11 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<PagedResult<ProductListItem>>> GetProductsAsync(GetPagedProductRequest request);
 		Task<BaseResponse<List<ProductLookupItem>>> GetProductLookupListAsync();
 		Task<BaseResponse<ProductResponse>> GetProductAsync(Guid productId);
+		Task<BaseResponse<PagedResult<ProductListItem>>> GetNewArrivalProductsAsync(GetPagedProductRequest request);
+		Task<BaseResponse<PagedResult<ProductListItem>>> GetBestSellerProductsAsync(GetPagedProductRequest request);
+		Task<BaseResponse<ProductInforResponse>> GetProductInforAsync(Guid productId);
+		Task<BaseResponse<ProductFastLookResponse>> GetProductFastLookAsync(Guid productId);
+
 		Task<BaseResponse<BulkActionResult<string>>> CreateProductAsync(CreateProductRequest request);
 		Task<BaseResponse<BulkActionResult<string>>> UpdateProductAsync(Guid productId, UpdateProductRequest request);
 		Task<BaseResponse<string>> DeleteProductAsync(Guid productId);

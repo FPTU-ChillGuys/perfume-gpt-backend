@@ -25,6 +25,24 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		#region CRUD Endpoints
+		[HttpGet("{productId:guid}/information")]
+		[ProducesResponseType(typeof(BaseResponse<ProductInforResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<ProductInforResponse>), StatusCodes.Status404NotFound)]
+		public async Task<ActionResult<BaseResponse<ProductInforResponse>>> GetProductDetail([FromRoute] Guid productId)
+		{
+			var result = await _productService.GetProductInforAsync(productId);
+			return HandleResponse(result);
+		}
+
+		[HttpGet("{productId:guid}/fast-look")]
+		[ProducesResponseType(typeof(BaseResponse<ProductFastLookResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<ProductFastLookResponse>), StatusCodes.Status404NotFound)]
+		public async Task<ActionResult<BaseResponse<ProductFastLookResponse>>> GetProductFastLook([FromRoute] Guid productId)
+		{
+			var result = await _productService.GetProductFastLookAsync(productId);
+			return HandleResponse(result);
+		}
+
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ProductListItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ProductListItem>>), StatusCodes.Status500InternalServerError)]
@@ -162,6 +180,26 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<PagedResult<ProductListItem>>>> GetSemanticSearchProducts([FromQuery] string searchText, [FromQuery] GetPagedProductRequest request)
 		{
 			var response = await _productService.GetSemanticSearchProductAsync(searchText, request);
+			return HandleResponse(response);
+		}
+		#endregion
+
+		#region Best Seller & New Arrival Endpoints
+		[HttpGet("best-sellers")]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<ProductListItem>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<ProductListItem>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PagedResult<ProductListItem>>>> GetBestSellerProducts([FromQuery] GetPagedProductRequest request)
+		{
+			var response = await _productService.GetBestSellerProductsAsync(request);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("new-arrivals")]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<ProductListItem>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<ProductListItem>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PagedResult<ProductListItem>>>> GetNewArrivalProducts([FromQuery] GetPagedProductRequest request)
+		{
+			var response = await _productService.GetNewArrivalProductsAsync(request);
 			return HandleResponse(response);
 		}
 		#endregion

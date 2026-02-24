@@ -1,6 +1,5 @@
 using FluentValidation;
 using MapsterMapper;
-using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Variants;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
@@ -107,7 +106,7 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<BulkActionResult<string>>.Fail(
 					"Validation failed",
 					ResponseErrorType.BadRequest,
-					validationResult.Errors.Select(e => e.ErrorMessage).ToList()
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]
 				);
 			}
 
