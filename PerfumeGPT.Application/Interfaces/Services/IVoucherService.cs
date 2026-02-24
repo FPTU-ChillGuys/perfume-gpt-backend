@@ -1,7 +1,6 @@
 ﻿using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
-using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Interfaces.Services
 {
@@ -15,27 +14,20 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<PagedResult<VoucherResponse>>> GetPagedVouchersAsync(GetPagedVouchersRequest request);
 
 		// User operations
-		Task<Voucher?> GetVoucherByCodeAsync(string code);
+		Task<VoucherResponse?> GetVoucherByCodeAsync(string code);
 		Task<BaseResponse<string>> RedeemVoucherAsync(Guid userId, RedeemVoucherRequest request);
 		Task<BaseResponse<PagedResult<UserVoucherResponse>>> GetUserVouchersAsync(Guid userId, GetPagedUserVouchersRequest request);
 
 		// Apply voucher logic
 		Task<BaseResponse<ApplyVoucherResponse>> ApplyVoucherToOrderAsync(Guid userId, ApplyVoucherRequest request);
-		Task<BaseResponse<bool>> CanUserApplyVoucherAsync(Guid voucherId, Guid userId);
+		Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid userId);
 
 		// Voucher status management
 		Task<BaseResponse<bool>> MarkVoucherAsReservedAsync(Guid userId, Guid voucherId);
 		Task<BaseResponse<bool>> MarkVoucherAsUsedAsync(Guid userId, Guid voucherId);
 		Task<BaseResponse<bool>> ReleaseReservedVoucherAsync(Guid userId, Guid voucherId);
 
-		/// <summary>
-		/// Calculates the discount amount for a voucher given the total price.
-		/// Returns the final price after discount is applied.
-		/// </summary>
-		/// <param name="voucherId">The voucher ID to apply</param>
-		/// <param name="totalPrice">The total price before discount</param>
-		/// <returns>The final price after discount, or original price if voucher is invalid</returns>
-		Task<decimal> CalculateVoucherDiscountAsync(Guid voucherId, decimal totalPrice);
+		Task<decimal> CalculateVoucherDiscountAsync(string voucherCode, decimal totalPrice);
 	}
 }
 

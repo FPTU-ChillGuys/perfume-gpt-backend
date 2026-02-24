@@ -17,9 +17,6 @@ namespace PerfumeGPT.API.Controllers
 			_supplierService = supplierService;
 		}
 
-		/// <summary>
-		/// Get supplier lookup list
-		/// </summary>
 		[HttpGet("lookup")]
 		[ProducesResponseType(typeof(BaseResponse<List<SupplierLookupItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<List<SupplierLookupItem>>), StatusCodes.Status500InternalServerError)]

@@ -1,3 +1,4 @@
+using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Carts;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
@@ -28,7 +29,7 @@ namespace PerfumeGPT.Application.Services
 
 		#endregion Dependencies
 
-		public async Task<BaseResponse<CartCheckoutResponse>> GetCartForCheckoutAsync(Guid userId, Guid? voucherId)
+		public async Task<BaseResponse<CartCheckoutResponse>> GetCartForCheckoutAsync(Guid userId, GetCartTotalRequest request)
 		{
 			try
 			{
@@ -49,7 +50,7 @@ namespace PerfumeGPT.Application.Services
 					}, "Cart is empty");
 				}
 
-				var totalResult = await GetCartTotalAsync(userId, voucherId);
+				var totalResult = await GetCartTotalAsync(userId, request);
 				if (!totalResult.Success || totalResult.Payload == null)
 				{
 					return BaseResponse<CartCheckoutResponse>.Fail(totalResult.Message, totalResult.ErrorType);
@@ -102,7 +103,7 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, Guid? voucherId)
+		public async Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, GetCartTotalRequest request)
 		{
 			try
 			{
@@ -145,9 +146,9 @@ namespace PerfumeGPT.Application.Services
 				var subtotal = items.Sum(item => item.SubTotal);
 				var totalPrice = subtotal + shippingFee.Value;
 
-				if (voucherId.HasValue)
+				if (!string.IsNullOrEmpty(request.VoucherCode))
 				{
-					var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(voucherId.Value, userId);
+					var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(request.VoucherCode, userId);
 					if (!voucherValidation.Success)
 					{
 						return BaseResponse<GetCartTotalResponse>.Fail(
@@ -155,7 +156,7 @@ namespace PerfumeGPT.Application.Services
 							voucherValidation.ErrorType);
 					}
 
-					totalPrice = await _voucherService.CalculateVoucherDiscountAsync(voucherId.Value, totalPrice);
+					totalPrice = await _voucherService.CalculateVoucherDiscountAsync(request.VoucherCode, totalPrice);
 				}
 
 				var response = new GetCartTotalResponse

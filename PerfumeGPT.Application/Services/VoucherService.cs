@@ -319,7 +319,7 @@ namespace PerfumeGPT.Application.Services
 			Guid userId,
 			ApplyVoucherRequest request)
 		{
-			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(request.VoucherId);
+			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(request.VoucherCode);
 
 			if (voucher == null)
 			{
@@ -379,9 +379,9 @@ namespace PerfumeGPT.Application.Services
 			);
 		}
 
-		public async Task<BaseResponse<bool>> CanUserApplyVoucherAsync(Guid voucherId, Guid userId)
+		public async Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid userId)
 		{
-			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
+			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode);
 
 			if (voucher == null)
 			{
@@ -533,11 +533,11 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<decimal> CalculateVoucherDiscountAsync(Guid voucherId, decimal totalPrice)
+		public async Task<decimal> CalculateVoucherDiscountAsync(string voucherCode, decimal totalPrice)
 		{
 			try
 			{
-				var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
+				var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode);
 				if (voucher == null)
 				{
 					return totalPrice;
@@ -559,12 +559,9 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<Voucher?> GetVoucherByCodeAsync(string code)
+		public async Task<VoucherResponse?> GetVoucherByCodeAsync(string code)
 		{
-			return await _unitOfWork.Vouchers.FirstOrDefaultAsync(
-				v => v.Code.ToUpper() == code.ToUpper() && !v.IsDeleted,
-				asNoTracking: true
-			);
+			return await _unitOfWork.Vouchers.GetByCodeAsync(code);
 		}
 
 		#endregion

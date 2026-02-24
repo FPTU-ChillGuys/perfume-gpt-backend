@@ -31,7 +31,7 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpGet("{orderId}")]
+		[HttpGet("{orderId:guid}")]
 		[Authorize(Roles = "staff,admin")]
 		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status404NotFound)]
@@ -124,11 +124,11 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		#endregion
+		#endregion Checkout Operations
 
 		#region Order Status Management
 
-		[HttpPut("{orderId}/status")]
+		[HttpPut("{orderId:guid}/status")]
 		[Authorize(Roles = "staff")]
 		[ProducesResponseType(typeof(BaseResponse<PickListResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PickListResponse>), StatusCodes.Status400BadRequest)]
@@ -146,7 +146,7 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpPost("{orderId}/cancel")]
+		[HttpPost("{orderId:guid}/cancel")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
@@ -160,16 +160,16 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpPut("{orderId}/address")]
+		[HttpPut("{orderId:guid}/address")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<BaseResponse<string>>> UpdateOrderAddress([FromRoute] Guid orderId, [FromBody] RecipientInformation request)
+		public async Task<ActionResult<BaseResponse<string>>> UpdateOrderAddress([FromRoute] Guid orderId, [FromBody] RecipientInformation request)
 		{
-            var validation = ValidateRequestBody<RecipientInformation>(request);
+			var validation = ValidateRequestBody<RecipientInformation>(request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
@@ -181,7 +181,7 @@ namespace PerfumeGPT.API.Controllers
 
 		#region Order Fulfillment (Warehouse Operations)
 
-		[HttpPost("{orderId}/fulfill")]
+		[HttpPost("{orderId:guid}/fulfill")]
 		[Authorize(Roles = "staff")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
@@ -199,7 +199,7 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpPost("{orderId}/swap-damaged")]
+		[HttpPost("{orderId:guid}/swap-damaged")]
 		[Authorize(Roles = "staff")]
 		[ProducesResponseType(typeof(BaseResponse<SwapDamagedStockResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<SwapDamagedStockResponse>), StatusCodes.Status400BadRequest)]

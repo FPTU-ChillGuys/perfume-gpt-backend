@@ -11,7 +11,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 		public async Task SendEmailAsync(string to, string subject, string htmlBody)
 		{
 			var email = new MimeMessage();
-			email.From.Add(new MailboxAddress("PerfumeGPT", configuration["EmailAccount:SmtpUser"]));
+			email.From.Add(new MailboxAddress("PerfumeGPT", configuration["EmailAccount:SmtpUser"] ?? throw new ArgumentNullException("Missing smtp user!")));
 			email.To.Add(MailboxAddress.Parse(to));
 			email.Subject = subject;
 			email.Body = new TextPart(TextFormat.Html) { Text = htmlBody };
