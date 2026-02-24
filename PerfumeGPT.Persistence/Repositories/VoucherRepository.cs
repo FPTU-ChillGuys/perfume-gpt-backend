@@ -1,5 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Mapster;
+using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Vouchers;
+using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
@@ -24,6 +26,15 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 
 			return await query.AnyAsync();
+		}
+
+		public async Task<VoucherResponse?> GetByCodeAsync(string code)
+		{
+			return await _context.Vouchers
+				.Where(v => v.Code.Equals(code, StringComparison.CurrentCultureIgnoreCase) && !v.IsDeleted)
+				.ProjectToType<VoucherResponse>()
+				.AsNoTracking()
+				.FirstOrDefaultAsync();
 		}
 
 		public async Task<(List<Voucher> Items, int TotalCount)> GetPagedVouchersAsync(GetPagedVouchersRequest request)

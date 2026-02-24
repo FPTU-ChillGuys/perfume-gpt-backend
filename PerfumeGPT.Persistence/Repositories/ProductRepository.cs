@@ -54,6 +54,15 @@ namespace PerfumeGPT.Persistence.Repositories
 			var query = _context.Products
 				.Where(p => !p.IsDeleted);
 
+			if (request.GenderValueId.HasValue)
+			{
+				query = query.Where(p => p.ProductAttributes.Any(pa =>
+					pa.Attribute != null &&
+					pa.Attribute.InternalCode == "GENDER" &&
+					pa.ValueId == request.GenderValueId.Value
+				));
+			}
+
 			var totalCount = await query.CountAsync();
 
 			var items = await query

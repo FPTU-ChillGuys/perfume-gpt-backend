@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
+using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Carts;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -35,10 +36,10 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<GetCartTotalResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<GetCartTotalResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<GetCartTotalResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<GetCartTotalResponse>>> GetCartTotal([FromQuery] Guid? voucherId)
+		public async Task<ActionResult<BaseResponse<GetCartTotalResponse>>> GetCartTotal([FromQuery] GetCartTotalRequest request)
 		{
 			var userId = GetCurrentUserId();
-			var result = await _cartService.GetCartTotalAsync(userId, voucherId);
+			var result = await _cartService.GetCartTotalAsync(userId, request);
 			return HandleResponse(result);
 		}
 

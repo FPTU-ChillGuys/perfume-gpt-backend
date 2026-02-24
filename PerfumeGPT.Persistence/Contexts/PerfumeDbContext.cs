@@ -188,7 +188,6 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<Review> Reviews { get; set; }
 		public DbSet<TemporaryMedia> TemporaryMedia { get; set; }
 
-
 		protected override void OnModelCreating(ModelBuilder builder)
 		{
 			base.OnModelCreating(builder);
@@ -489,6 +488,10 @@ namespace PerfumeGPT.Persistence.Contexts
 				.WithOne(uv => uv.Voucher)
 				.HasForeignKey(uv => uv.VoucherId)
 				.OnDelete(DeleteBehavior.Cascade);
+
+			builder.Entity<Voucher>()
+				.HasIndex(v => v.Code)
+				.IsUnique();
 
 			// Stock/Order/Voucher/Batch -> Notification relations
 			builder.Entity<Stock>()

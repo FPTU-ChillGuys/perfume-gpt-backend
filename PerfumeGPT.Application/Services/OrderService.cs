@@ -1,9 +1,9 @@
-using FluentValidation;
+using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
-using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.OrderDetails;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
+using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
@@ -21,7 +21,6 @@ namespace PerfumeGPT.Application.Services
 		private readonly IVariantService _variantService;
 		private readonly IVoucherService _voucherService;
 		private readonly IShippingService _shippingService;
-		private readonly IValidator<CreateOrderRequest> _createOrderValidator;
 		private readonly IOrderPaymentService _orderPaymentService;
 		private readonly IOrderInventoryManager _inventoryManager;
 		private readonly IOrderShippingHelper _shippingHelper;
@@ -30,7 +29,6 @@ namespace PerfumeGPT.Application.Services
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IOrderFulfillmentService _fulfillmentService;
 		private readonly ILoyaltyPointService _loyaltyPointService;
-		private readonly IGHNService _ghnService;
 		private readonly IRecipientService _recipientService;
 
 		public OrderService(
@@ -39,7 +37,6 @@ namespace PerfumeGPT.Application.Services
 			IVariantService variantService,
 			IVoucherService voucherService,
 			IShippingService shippingService,
-			IValidator<CreateOrderRequest> createOrderValidator,
 			IOrderPaymentService orderPaymentService,
 			IOrderInventoryManager inventoryManager,
 			IOrderShippingHelper shippingHelper,
@@ -48,7 +45,6 @@ namespace PerfumeGPT.Application.Services
 			IStockReservationService stockReservationService,
 			IOrderFulfillmentService fulfillmentService,
 			ILoyaltyPointService loyaltyPointService,
-			IGHNService ghnService,
 			IRecipientService recipientService)
 		{
 			_unitOfWork = unitOfWork;
@@ -56,7 +52,6 @@ namespace PerfumeGPT.Application.Services
 			_variantService = variantService;
 			_voucherService = voucherService;
 			_shippingService = shippingService;
-			_createOrderValidator = createOrderValidator;
 			_orderPaymentService = orderPaymentService;
 			_inventoryManager = inventoryManager;
 			_shippingHelper = shippingHelper;
@@ -65,7 +60,6 @@ namespace PerfumeGPT.Application.Services
 			_stockReservationService = stockReservationService;
 			_fulfillmentService = fulfillmentService;
 			_loyaltyPointService = loyaltyPointService;
-			_ghnService = ghnService;
 			_recipientService = recipientService;
 		}
 
@@ -296,35 +290,33 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> Checkout(Guid userId, CreateOrderRequest request)
 		{
-			var validationResult = await _createOrderValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				return BaseResponse<string>.Fail(
-					string.Join(", ", validationResult.Errors.Select(e => e.ErrorMessage)),
-					ResponseErrorType.BadRequest);
-			}
-
 			try
 			{
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
 					// Validate voucher if provided
-					if (request.VoucherId.HasValue && request.VoucherId.Value != Guid.Empty)
+					VoucherResponse? voucher = null;
+					if (!string.IsNullOrEmpty(request.VoucherCode))
 					{
-						var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(
-							request.VoucherId.Value,
-							userId);
-
-						if (!voucherValidation.Success)
+						var voucherResult = await ValidateAndGetVoucherAsync(request.VoucherCode, userId);
+						if (!voucherResult.Success)
 						{
 							return BaseResponse<string>.Fail(
-								voucherValidation.Message ?? "Voucher validation failed.",
-								voucherValidation.ErrorType);
+								voucherResult.Message ?? "Voucher validation failed.",
+								voucherResult.ErrorType);
 						}
+						voucher = voucherResult.Payload;
 					}
 
 					// Get cart with items
-					var cartResponse = await _cartService.GetCartForCheckoutAsync(userId, request.VoucherId);
+					var getCartTotalRequest = new GetCartTotalRequest
+					{
+						VoucherCode = request.VoucherCode,
+						DistrictId = request.Recipient?.DistrictId,
+						WardCode = request.Recipient?.WardCode
+					};
+
+					var cartResponse = await _cartService.GetCartForCheckoutAsync(userId, getCartTotalRequest);
 					if (!cartResponse.Success || cartResponse.Payload == null)
 					{
 						return BaseResponse<string>.Fail(
@@ -354,7 +346,7 @@ namespace PerfumeGPT.Application.Services
 					var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
 
 					// Create order
-					var order = CreateOnlineOrder(userId, request.VoucherId, cartResponse.Payload.TotalPrice, paymentExpiresAt, orderDetailsResult.Payload);
+					var order = CreateOnlineOrder(userId, voucher?.Id, cartResponse.Payload.TotalPrice, paymentExpiresAt, orderDetailsResult.Payload);
 					await _unitOfWork.Orders.AddAsync(order);
 
 					// Setup shipping if not pickup
@@ -388,11 +380,11 @@ namespace PerfumeGPT.Application.Services
 					}
 
 					// Mark voucher as reserved
-					if (request.VoucherId.HasValue && request.VoucherId.Value != Guid.Empty)
+					if (voucher != null)
 					{
 						var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(
 							userId,
-							request.VoucherId.Value);
+							voucher.Id);
 
 						if (!markVoucherResult.Success)
 						{
@@ -429,7 +421,7 @@ namespace PerfumeGPT.Application.Services
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
 					// Resolve voucher if provided
-					var (voucherId, discount) = await ResolveVoucherAsync(request.VoucherCode);
+					var (voucherCode, voucherId, discount) = await ResolveVoucherAsync(request.VoucherCode);
 
 					// Create order details
 					var itemsToValidate = request.OrderDetails
@@ -448,9 +440,9 @@ namespace PerfumeGPT.Application.Services
 					decimal subtotal = orderDetailsResult.Payload.Sum(od => od.UnitPrice * od.Quantity);
 					decimal totalAmount = subtotal;
 
-					if (voucherId.HasValue)
+					if (!string.IsNullOrEmpty(voucherCode))
 					{
-						var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(voucherId.Value, subtotal);
+						var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(voucherCode, subtotal);
 						discount = subtotal - discountedTotal;
 						totalAmount = discountedTotal;
 					}
@@ -541,7 +533,7 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		#endregion
+		#endregion Checkout Operations
 
 		#region Order Status Management
 
@@ -763,25 +755,22 @@ namespace PerfumeGPT.Application.Services
 			};
 		}
 
-		private async Task<(Guid? VoucherId, decimal Discount)> ResolveVoucherAsync(string? voucherCode)
+		private async Task<(string? VoucherCode, Guid? VoucherId, decimal Discount)> ResolveVoucherAsync(string? voucherCode)
 		{
 			if (string.IsNullOrEmpty(voucherCode))
 			{
-				return (null, 0m);
+				return (null, null, 0m);
 			}
 
-			var voucher = await _voucherService.GetVoucherByCodeAsync(voucherCode);
-			if (voucher == null)
-			{
-				throw new InvalidOperationException("Invalid voucher code.");
-			}
+			var voucher = await _voucherService.GetVoucherByCodeAsync(voucherCode)
+				?? throw new InvalidOperationException("Invalid voucher code.");
 
 			if (voucher.ExpiryDate < DateTime.UtcNow)
 			{
 				throw new InvalidOperationException("Voucher has expired.");
 			}
 
-			return (voucher.Id, 0m);
+			return (voucher.Code, voucher.Id, 0m);
 		}
 
 		private async Task<BaseResponse<List<OrderDetailListItems>>> BuildPreviewItemsAsync(List<string> barCodes)
@@ -838,7 +827,7 @@ namespace PerfumeGPT.Application.Services
 				return 0;
 			}
 
-			var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(voucherResponse.Id, subtotal);
+			var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(voucherResponse.Code, subtotal);
 			return subtotal - discountedTotal;
 		}
 
@@ -880,6 +869,29 @@ namespace PerfumeGPT.Application.Services
 					order.CustomerId.Value,
 					order.VoucherId.Value);
 			}
+		}
+
+		private async Task<BaseResponse<VoucherResponse>> ValidateAndGetVoucherAsync(string voucherCode, Guid userId)
+		{
+			// Validate voucher eligibility
+			var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(voucherCode, userId);
+			if (!voucherValidation.Success)
+			{
+				return BaseResponse<VoucherResponse>.Fail(
+					voucherValidation.Message ?? "Voucher validation failed.",
+					voucherValidation.ErrorType);
+			}
+
+			// Get voucher details
+			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode);
+			if (voucher == null)
+			{
+				return BaseResponse<VoucherResponse>.Fail(
+					"Voucher not found.",
+					ResponseErrorType.NotFound);
+			}
+
+			return BaseResponse<VoucherResponse>.Ok(voucher);
 		}
 
 		#endregion
