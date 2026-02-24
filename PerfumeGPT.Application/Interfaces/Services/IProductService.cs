@@ -26,6 +26,10 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse> UpdateAllProductsEmbeddingAsync();
 		Task<BaseResponse> UpdateProductEmbeddingAsync(Guid productId);
 		Task<BaseResponse<PagedResult<ProductListItem>>> GetSemanticSearchProductAsync(string searchText, GetPagedProductRequest request);
-	}
+
+        // Get product with variants
+		Task<BaseResponse<List<Object>>> GetAllProductWithVariantsAsync(); // Test
+
+    }
 }
 

@@ -203,6 +203,15 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 		#endregion
+
+		[HttpGet("with-variants")]
+		[ProducesResponseType(typeof(BaseResponse<List<Object>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<Object>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<List<Object>>>> GetAllProductWithVariants()
+		{
+			var response = await _productService.GetAllProductWithVariantsAsync();
+			return HandleResponse(response);
+		}
 	}
 }
 

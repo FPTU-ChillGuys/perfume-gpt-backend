@@ -36,6 +36,8 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		/// </summary>
 		Task<Product> AddProductEmbeddingsByProductAsync(Product product);
 
-	}
+		Task<List<Object>> GetAllProductWithVariantsAsync();
+
+    }
 }
 
