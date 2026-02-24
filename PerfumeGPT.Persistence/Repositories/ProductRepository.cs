@@ -189,13 +189,13 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		#region Vector Search Methods
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request)
+		public async Task<(List<ProductListItemWithVariants> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request)
 		{
 			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
 			if (String.IsNullOrEmpty(searchText))
 			{
-				return (new List<ProductListItem>(), 0);
+				return (new List<ProductListItemWithVariants>(), 0);
 			}
 
 			var searchEmbedding = await embeddingGenerator.GenerateVectorAsync(searchText);
@@ -211,8 +211,10 @@ namespace PerfumeGPT.Persistence.Repositories
 			var topSimilarProductsQuery = productQuery
 				.Include(p => p.Brand)
 				.Include(p => p.Category)
-				.Include(p => p.Variants)
+				.Include(p => p.Media)
 				.Include(p => p.ProductAttributes)
+				.Include(p => p.Variants.Where(v => !v.IsDeleted))
+					.ThenInclude(v => v.Concentration)
 				//.Where(p => EF.Functions.VectorDistance(metricType, p.Embedding!.Value, sqlVector) <= threshold)
 				.OrderBy(p => EF.Functions.VectorDistance(metricType, p.Embedding!.Value, sqlVector))
 				.AsNoTracking();
@@ -236,7 +238,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = await topSimilarProductsQuery
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
-				.ProjectToType<ProductListItem>()
+				.ProjectToType<ProductListItemWithVariants>()
 				.ToListAsync();
 
 			return (items, totalCount);

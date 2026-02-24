@@ -19,7 +19,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		/// <summary>
 		///	Get paged products based on semantic search of the provided text.
 		///	</summary>
-		Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request);
+		Task<(List<ProductListItemWithVariants> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request);
 
 		/// <summary>
 		///	Add embeddings for all products in the database.

@@ -302,17 +302,17 @@ namespace PerfumeGPT.Application.Services
 
 		#region Semantic Search
 
-		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetSemanticSearchProductAsync(string searchText, GetPagedProductRequest request)
+		public async Task<BaseResponse<PagedResult<ProductListItemWithVariants>>> GetSemanticSearchProductAsync(string searchText, GetPagedProductRequest request)
 		{
 			var (items, totalCount) = await _productRepo.GetPagedProductsWithSemanticSearch(searchText, request);
 
-			var pagedResult = new PagedResult<ProductListItem>(
+			var pagedResult = new PagedResult<ProductListItemWithVariants>(
 				items,
 				request.PageNumber,
 				request.PageSize,
 				totalCount);
 
-			return BaseResponse<PagedResult<ProductListItem>>.Ok(pagedResult, "Semantic search products retrieved successfully");
+			return BaseResponse<PagedResult<ProductListItemWithVariants>>.Ok(pagedResult, "Semantic search products retrieved successfully");
 		}
 
 		public async Task<BaseResponse> UpdateAllProductsEmbeddingAsync()

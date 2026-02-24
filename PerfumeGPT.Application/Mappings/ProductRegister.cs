@@ -1,6 +1,7 @@
 using Mapster;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Products;
+using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Mappings
@@ -57,6 +58,10 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Variants, src => src.Variants)
 				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 
+			config.NewConfig<ProductVariant, VariantSummaryItem>()
+				.Map(dest => dest.DisplayName, src => $"{src.Concentration.Name} - {src.VolumeMl}ml")
+				.Map(dest => dest.ConcentrationName, src => src.Concentration.Name);
+
 			config.NewConfig<Product, ProductListItem>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.Name, src => src.Name)
@@ -67,6 +72,18 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Description, src => src.Description)
 				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary))
 				.Map(dest => dest.Attributes, src => src.ProductAttributes);
+
+			config.NewConfig<Product, ProductListItemWithVariants>()
+				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.Name, src => src.Name)
+				.Map(dest => dest.BrandId, src => src.BrandId)
+				.Map(dest => dest.BrandName, src => src.Brand.Name)
+				.Map(dest => dest.CategoryId, src => src.CategoryId)
+				.Map(dest => dest.CategoryName, src => src.Category.Name)
+				.Map(dest => dest.Description, src => src.Description)
+				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary))
+				.Map(dest => dest.Attributes, src => src.ProductAttributes)
+				.Map(dest => dest.Variants, src => src.Variants.Where(v => !v.IsDeleted));
 
 			config.NewConfig<Product, ProductLookupItem>()
 				.Map(dest => dest.Id, src => src.Id)
