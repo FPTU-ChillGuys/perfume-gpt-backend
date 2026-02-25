@@ -107,71 +107,93 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
+				// 1. Get cart
 				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
 				if (cart == null)
 				{
-					return BaseResponse<GetCartTotalResponse>.Fail("Cart not found", ResponseErrorType.NotFound);
-				}
-
-				var items = await _unitOfWork.CartItems.GetCartItemPricesAsync(cart.Id);
-				if (items == null || items.Count == 0)
-				{
-					return BaseResponse<GetCartTotalResponse>.Ok(new GetCartTotalResponse
-					{
-						Subtotal = 0m,
-						ShippingFee = 0m,
-						TotalPrice = 0m
-					}, "Cart is empty");
-				}
-
-				var addressResponse = await _addressService.GetDefaultAddressAsync(userId);
-				if (!addressResponse.Success || addressResponse.Payload == null)
-				{
 					return BaseResponse<GetCartTotalResponse>.Fail(
-						"Default address not found. Please set a default address to calculate shipping.",
+						"Cart not found",
 						ResponseErrorType.NotFound);
 				}
 
-				var shippingFee = await _shippingService.CalculateShippingFeeAsync(
-					addressResponse.Payload.DistrictId,
-					addressResponse.Payload.WardCode);
-
-				if (shippingFee == null)
+				// 2. Get cart items
+				var items = await _unitOfWork.CartItems.GetCartItemPricesAsync(cart.Id);
+				if (items == null || items.Count == 0)
 				{
-					return BaseResponse<GetCartTotalResponse>.Fail(
-						"Failed to calculate shipping fee",
-						ResponseErrorType.InternalError);
+					return BaseResponse<GetCartTotalResponse>.Ok(
+						new GetCartTotalResponse
+						{
+							Subtotal = 0m,
+							ShippingFee = 0m,
+							TotalPrice = 0m
+						},
+						"Cart is empty");
 				}
 
+				// 3. Calculate subtotal
 				var subtotal = items.Sum(item => item.SubTotal);
-				var totalPrice = subtotal + shippingFee.Value;
 
-				if (!string.IsNullOrEmpty(request.VoucherCode))
+				// 4. Calculate shipping fee if district and ward provided
+				decimal shippingFee = 0m;
+				if (request.DistrictId != null && request.DistrictId > 0 &&
+					!string.IsNullOrWhiteSpace(request.WardCode))
 				{
-					var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(request.VoucherCode, userId);
+					var calculatedFee = await _shippingService.CalculateShippingFeeAsync(
+						request.DistrictId.Value,
+						request.WardCode);
+
+					if (calculatedFee == null)
+					{
+						return BaseResponse<GetCartTotalResponse>.Fail(
+							"Failed to calculate shipping fee",
+							ResponseErrorType.InternalError);
+					}
+
+					shippingFee = calculatedFee.Value;
+				}
+
+				// 5. Calculate total before discount
+				var totalPrice = subtotal + shippingFee;
+
+				// 6. Apply voucher discount if provided
+				decimal discountAmount = 0m;
+				if (!string.IsNullOrWhiteSpace(request.VoucherCode))
+				{
+					var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(
+						request.VoucherCode,
+						userId);
+
 					if (!voucherValidation.Success)
 					{
 						return BaseResponse<GetCartTotalResponse>.Fail(
-							voucherValidation.Message,
+							voucherValidation.Message ?? "Voucher validation failed",
 							voucherValidation.ErrorType);
 					}
 
-					totalPrice = await _voucherService.CalculateVoucherDiscountAsync(request.VoucherCode, totalPrice);
+					var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(
+						request.VoucherCode,
+						totalPrice);
+
+					discountAmount = totalPrice - discountedTotal;
+					totalPrice = discountedTotal;
 				}
 
+				// 7. Build response
 				var response = new GetCartTotalResponse
 				{
 					Subtotal = subtotal,
-					ShippingFee = shippingFee.Value,
+					ShippingFee = shippingFee,
 					TotalPrice = totalPrice
 				};
 
-				return BaseResponse<GetCartTotalResponse>.Ok(response, "Cart total calculated successfully");
+				return BaseResponse<GetCartTotalResponse>.Ok(
+					response,
+					"Cart total calculated successfully");
 			}
-			catch (Exception ex)
+			catch (Exception)
 			{
 				return BaseResponse<GetCartTotalResponse>.Fail(
-					$"Error calculating cart total: {ex.Message}",
+					"An error occurred while calculating cart total",
 					ResponseErrorType.InternalError);
 			}
 		}
