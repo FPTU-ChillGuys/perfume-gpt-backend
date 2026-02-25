@@ -109,18 +109,11 @@ namespace PerfumeGPT.Application.Services
 						SupplierId = request.SupplierId,
 						ExpectedArrivalDate = request.ExpectedArrivalDate,
 						TotalCost = totalCost,
-						Status = ImportStatus.Pending
+						Status = ImportStatus.Pending,
+						ImportDetails = [.. request.ImportDetails.Select(d => _mapper.Map<ImportDetail>(d))]
 					};
 
 					await _unitOfWork.ImportTickets.AddAsync(importTicket);
-
-					foreach (var detailRequest in request.ImportDetails)
-					{
-						detailRequest.TicketId = importTicket.Id;
-						var importDetail = _mapper.Map<ImportDetail>(detailRequest);
-
-						await _unitOfWork.ImportDetails.AddAsync(importDetail);
-					}
 
 					return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Import ticket created successfully.");
 				});
@@ -468,7 +461,6 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<PagedResult<ImportTicketListItem>>.Fail($"Error retrieving import tickets: {ex.Message}", ResponseErrorType.InternalError);
 			}
 		}
-
 
 		public async Task<BaseResponse<string>> UpdateImportStatusAsync(Guid id, UpdateImportStatusRequest request)
 		{
