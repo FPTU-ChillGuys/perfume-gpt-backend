@@ -30,6 +30,22 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.RecipientInfo, src => src.RecipientInfo)
 				.Map(dest => dest.OrderDetails, src => src.OrderDetails);
 
+			config.NewConfig<Order, UserOrderResponse>()
+				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.Type, src => src.Type)
+				.Map(dest => dest.Status, src => src.Status)
+				.Map(dest => dest.PaymentStatus, src => src.PaymentStatus)
+				.Map(dest => dest.TotalAmount, src => src.TotalAmount)
+				.Map(dest => dest.VoucherCode, src => src.Voucher != null ? src.Voucher.Code : null)
+				.Map(dest => dest.PaymentExpiresAt, src => src.PaymentExpiresAt)
+				.Map(dest => dest.PaidAt, src => src.PaidAt)
+				.Map(dest => dest.CreatedAt, src => src.CreatedAt)
+				.Map(dest => dest.UpdatedAt, src => src.UpdatedAt)
+				.Map(dest => dest.ShippingInfo, src => src.ShippingInfo)
+				.Map(dest => dest.RecipientInfo, src => src.RecipientInfo)
+				.Map(dest => dest.OrderDetails, src => src.OrderDetails);
+
 			config.NewConfig<Order, OrderListItem>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.CustomerId, src => src.CustomerId)

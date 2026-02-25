@@ -240,6 +240,23 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
+		public async Task<BaseResponse<UserOrderResponse>> GetUserOrderByIdAsync(Guid orderId, Guid userId)
+		{
+			try
+			{
+				var order = await _unitOfWork.Orders.GetUserOrderWithFullDetailsAsync(orderId, userId);
+				if (order == null)
+				{
+					return BaseResponse<UserOrderResponse>.Fail("Order not found or does not belong to user.", ResponseErrorType.NotFound);
+				}
+				return BaseResponse<UserOrderResponse>.Ok(order, "Order retrieved successfully.");
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<UserOrderResponse>.Fail($"An error occurred while retrieving order: {ex.Message}", ResponseErrorType.InternalError);
+			}
+		}
+
 		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersByUserIdAsync(Guid userId, GetPagedOrdersRequest request)
 		{
 			try

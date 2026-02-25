@@ -93,6 +93,14 @@ namespace PerfumeGPT.Persistence.Repositories
 				.FirstOrDefaultAsync();
 		}
 
+		public async Task<UserOrderResponse?> GetUserOrderWithFullDetailsAsync(Guid orderId, Guid userId)
+		{
+			return await _context.Orders
+				.Where(o => o.Id == orderId && o.CustomerId == userId)
+				.ProjectToType<UserOrderResponse>()
+				.FirstOrDefaultAsync();
+		}
+
 		public async Task<Order?> GetOrderForStatusUpdateAsync(Guid orderId)
 		{
 			return await _context.Orders

@@ -10,6 +10,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 
 		Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersAsync(GetPagedOrdersRequest request);
 		Task<BaseResponse<OrderResponse>> GetOrderByIdAsync(Guid orderId);
+		Task<BaseResponse<UserOrderResponse>> GetUserOrderByIdAsync(Guid orderId, Guid userId);
 		Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersByUserIdAsync(Guid userId, GetPagedOrdersRequest request);
 		Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersByStaffIdAsync(Guid staffId, GetPagedOrdersRequest request);
 
