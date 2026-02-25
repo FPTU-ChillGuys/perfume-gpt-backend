@@ -177,7 +177,7 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpGet("search/semantic")]
-		public async Task<ActionResult<BaseResponse<PagedResult<ProductListItem>>>> GetSemanticSearchProducts([FromQuery] string searchText, [FromQuery] GetPagedProductRequest request)
+		public async Task<ActionResult<BaseResponse<PagedResult<ProductListItemWithVariants>>>> GetSemanticSearchProducts([FromQuery] string searchText, [FromQuery] GetPagedProductRequest request)
 		{
 			var response = await _productService.GetSemanticSearchProductAsync(searchText, request);
 			return HandleResponse(response);

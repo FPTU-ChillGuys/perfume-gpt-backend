@@ -17,3 +17,4 @@ namespace PerfumeGPT.Application.DTOs.Responses.Products
 	}
 }
 
+
