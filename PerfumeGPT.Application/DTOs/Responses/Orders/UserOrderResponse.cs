@@ -1,4 +1,3 @@
-using PerfumeGPT.Application.DTOs.Responses.OrderDetails;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Orders
@@ -15,6 +14,9 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public DateTime? PaidAt { get; set; }
 		public DateTime CreatedAt { get; set; }
 		public DateTime? UpdatedAt { get; set; }
+
+		// Payment Info
+		public List<PaymentInfoResponse>? PaymentTransactions { get; set; }
 
 		// Shipping Info
 		public ShippingInfoResponse? ShippingInfo { get; set; }

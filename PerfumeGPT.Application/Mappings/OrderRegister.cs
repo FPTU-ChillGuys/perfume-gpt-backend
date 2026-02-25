@@ -26,6 +26,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.PaidAt, src => src.PaidAt)
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt)
 				.Map(dest => dest.UpdatedAt, src => src.UpdatedAt)
+				.Map(dest => dest.PaymentTransactions, src => src.PaymentTransactions)
 				.Map(dest => dest.ShippingInfo, src => src.ShippingInfo)
 				.Map(dest => dest.RecipientInfo, src => src.RecipientInfo)
 				.Map(dest => dest.OrderDetails, src => src.OrderDetails);
@@ -42,6 +43,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.PaidAt, src => src.PaidAt)
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt)
 				.Map(dest => dest.UpdatedAt, src => src.UpdatedAt)
+				.Map(dest => dest.PaymentTransactions, src => src.PaymentTransactions)
 				.Map(dest => dest.ShippingInfo, src => src.ShippingInfo)
 				.Map(dest => dest.RecipientInfo, src => src.RecipientInfo)
 				.Map(dest => dest.OrderDetails, src => src.OrderDetails);

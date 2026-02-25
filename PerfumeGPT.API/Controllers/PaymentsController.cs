@@ -53,6 +53,7 @@ namespace PerfumeGPT.API.Controllers
 					isSuccess ? "success" : "failure",
 					Request.Query,
 					result?.Payload?.OrderId,
+					result?.Payload?.PaymentId,
 					isSuccess ? null : result?.Message);
 
 				return Redirect(redirectUrl);
@@ -102,6 +103,7 @@ namespace PerfumeGPT.API.Controllers
 			string status,
 			IQueryCollection vnpayQuery,
 			Guid? orderId = null,
+			Guid? paymentId = null,
 			string? errorMessage = null)
 		{
 			// Parameters to forward to frontend
@@ -132,6 +134,11 @@ namespace PerfumeGPT.API.Controllers
 			if (orderId.HasValue && orderId.Value != Guid.Empty)
 			{
 				queryParams.Add($"orderId={orderId.Value}");
+			}
+
+			if (paymentId.HasValue && paymentId.Value != Guid.Empty)
+			{
+				queryParams.Add($"paymentId={paymentId.Value}");
 			}
 
 			// Add error message for failure

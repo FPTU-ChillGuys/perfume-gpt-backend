@@ -1,4 +1,3 @@
-using PerfumeGPT.Application.DTOs.Responses.OrderDetails;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Orders
@@ -22,6 +21,9 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public DateTime CreatedAt { get; set; }
 		public DateTime? UpdatedAt { get; set; }
 
+		// payment Info
+		public List<PaymentInfoResponse>? PaymentTransactions { set; get; }
+
 		// Shipping Info
 		public ShippingInfoResponse? ShippingInfo { get; set; }
 
@@ -30,6 +32,15 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 
 		// Order Details
 		public List<OrderDetailResponse> OrderDetails { get; set; } = [];
+	}
+
+	public class PaymentInfoResponse
+	{
+		public Guid Id { get; set; }
+		public TransactionStatus Status { get; set; }
+		public PaymentMethod PaymentMethod { get; set; }
+		public string? FailureReason { get; set; }
+		public decimal TotalAmount { get; set; }
 	}
 
 	public class ShippingInfoResponse
