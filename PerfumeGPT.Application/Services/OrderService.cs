@@ -333,6 +333,16 @@ namespace PerfumeGPT.Application.Services
 						WardCode = request.Recipient?.WardCode
 					};
 
+					if (request.Recipient != null && request.Recipient.AddressId != Guid.Empty)
+					{
+						var address = await _unitOfWork.Addresses.GetByIdAsync(request.Recipient.AddressId);
+						if (address != null)
+						{
+							getCartTotalRequest.DistrictId = address.DistrictId;
+							getCartTotalRequest.WardCode = address.WardCode;
+						}
+					}
+
 					var cartResponse = await _cartService.GetCartForCheckoutAsync(userId, getCartTotalRequest);
 					if (!cartResponse.Success || cartResponse.Payload == null)
 					{
