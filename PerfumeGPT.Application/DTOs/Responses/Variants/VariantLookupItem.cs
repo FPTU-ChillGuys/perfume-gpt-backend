@@ -5,6 +5,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 	public class VariantLookupItem
 	{
 		public Guid Id { get; set; }
+		public string Barcode { get; set; } = null!;
 		public string Sku { get; set; } = null!;
 		public string DisplayName { get; set; } = null!;
 		public int VolumeMl { get; set; }

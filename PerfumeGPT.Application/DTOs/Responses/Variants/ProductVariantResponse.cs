@@ -10,6 +10,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 		public Guid ProductId { get; set; }
 		public string ProductName { get; set; } = null!;
 		public List<MediaResponse> Media { get; set; } = [];
+		public string Barcode { get; set; } = null!;
 		public string Sku { get; set; } = null!;
 		public int VolumeMl { get; set; } // (30ml / 50ml / 100ml / etc.)
 		public int ConcentrationId { get; set; } // (Eau de Parfum / Eau de Toilette / etc.)
