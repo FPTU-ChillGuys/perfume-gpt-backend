@@ -21,5 +21,21 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsNoTracking()
 				.ToListAsync();
 		}
+
+		public async Task<List<BrandResponse>> GetAllBrandsAsync()
+		{
+			return await _context.Brands
+				.ProjectToType<BrandResponse>()
+				.AsNoTracking()
+				.ToListAsync();
+		}
+
+		public async Task<BrandResponse?> GetBrandByIdAsync(int id)
+		{
+			return await _context.Brands
+				.Where(b => b.Id == id)
+				.ProjectToType<BrandResponse>()
+				.FirstOrDefaultAsync();
+		}
 	}
 }

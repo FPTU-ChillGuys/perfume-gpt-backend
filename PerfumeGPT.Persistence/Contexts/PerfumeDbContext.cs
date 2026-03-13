@@ -682,6 +682,16 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<StockReservation>().Property(sr => sr.Status).HasConversion<string>();
 			builder.Entity<Review>().Property(r => r.Status).HasConversion<string>();
 
+			// Configure NVarchar for string properties to avoid default max length issues
+			builder.Entity<Product>().Property(p => p.Description)
+				.HasColumnType("nvarchar(max)");
+			builder.Entity<Review>().Property(r => r.Comment)
+				.HasColumnType("nvarchar(max)");
+			builder.Entity<Notification>().Property(n => n.Message)
+				.HasColumnType("nvarchar(max)");
+			builder.Entity<Attribute>().Property(a => a.Description)
+				.HasColumnType("nvarchar(max)");
+
 			// Seed roles
 			builder.Entity<IdentityRole<Guid>>().HasData(PerfumeDbContextSeed.SeedingRoles());
 			// Seed users

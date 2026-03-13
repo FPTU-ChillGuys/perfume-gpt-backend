@@ -20,5 +20,21 @@ namespace PerfumeGPT.Persistence.Repositories
 				.ProjectToType<CategoriesLookupItem>()
 				.ToListAsync();
 		}
+
+		public async Task<List<CategoryResponse>> GetAllCategoriesAsync()
+		{
+			return await _context.Categories
+				.AsNoTracking()
+				.ProjectToType<CategoryResponse>()
+				.ToListAsync();
+		}
+
+		public async Task<CategoryResponse?> GetCategoryByIdAsync(int id)
+		{
+			return await _context.Categories
+				.Where(c => c.Id == id)
+				.ProjectToType<CategoryResponse>()
+				.FirstOrDefaultAsync();
+		}
 	}
 }

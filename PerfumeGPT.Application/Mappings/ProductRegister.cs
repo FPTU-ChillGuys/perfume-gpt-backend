@@ -55,7 +55,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.CategoryName, src => src.Category.Name)
 				.Map(dest => dest.Description, src => src.Description)
 				.Map(dest => dest.Media, src => src.Media.Where(m => !m.IsDeleted))
-				.Map(dest => dest.Variants, src => src.Variants)
+				.Map(dest => dest.Variants, src => src.Variants.Where(v => !v.IsDeleted))
 				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 
 			config.NewConfig<ProductVariant, VariantSummaryItem>()

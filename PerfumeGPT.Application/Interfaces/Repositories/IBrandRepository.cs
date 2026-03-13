@@ -7,5 +7,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	public interface IBrandRepository : IGenericRepository<Brand>
 	{
 		Task<List<BrandLookupItem>> GetBrandLookupAsync();
+		Task<List<BrandResponse>> GetAllBrandsAsync();
+		Task<BrandResponse?> GetBrandByIdAsync(int id);
 	}
 }

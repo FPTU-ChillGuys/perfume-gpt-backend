@@ -18,5 +18,21 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			return await _context.Concentrations.ProjectToType<ConcentrationLookupDto>().ToListAsync();
 		}
+
+		public async Task<List<ConcentrationResponse>> GetAllConcentrationsAsync()
+		{
+			return await _context.Concentrations
+				.AsNoTracking()
+				.ProjectToType<ConcentrationResponse>()
+				.ToListAsync();
+		}
+
+		public async Task<ConcentrationResponse?> GetConcentrationByIdAsync(int id)
+		{
+			return await _context.Concentrations
+				.Where(c => c.Id == id)
+				.ProjectToType<ConcentrationResponse>()
+				.FirstOrDefaultAsync();
+		}
 	}
 }
