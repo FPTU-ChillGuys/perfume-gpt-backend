@@ -27,11 +27,13 @@ namespace PerfumeGPT.Application.Validators.Vouchers
 			RuleFor(x => x.ExpiryDate)
 				.GreaterThan(DateTime.UtcNow).WithMessage("Expiry date must be in the future.");
 
-			// Additional validation: Percentage discount should not exceed 100
 			RuleFor(x => x.DiscountValue)
 				.LessThanOrEqualTo(100)
 				.When(x => x.DiscountType == Domain.Enums.DiscountType.Percentage)
 				.WithMessage("Percentage discount cannot exceed 100%.");
+
+			RuleFor(x => x.TotalQuantity)
+				.GreaterThan(0).WithMessage("Total quantity must be greater than 0.");
 		}
 	}
 }

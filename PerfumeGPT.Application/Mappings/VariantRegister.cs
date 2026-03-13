@@ -31,7 +31,7 @@ namespace PerfumeGPT.Application.Mappings
 			config.NewConfig<ProductVariant, VariantPagedItem>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.ProductId, src => src.ProductId)
-				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary))
+				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary && !m.IsDeleted))
 				.Map(dest => dest.Barcode, src => src.Barcode)
 				.Map(dest => dest.Sku, src => src.Sku)
 				.Map(dest => dest.VolumeMl, src => src.VolumeMl)
@@ -46,7 +46,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.ProductId, src => src.ProductId)
 				.Map(dest => dest.ProductName, src => src.Product.Name)
-				.Map(dest => dest.Media, src => src.Media)
+				.Map(dest => dest.Media, src => src.Media.Where(m => !m.IsDeleted))
 				.Map(dest => dest.Barcode, src => src.Barcode)
 				.Map(dest => dest.Sku, src => src.Sku)
 				.Map(dest => dest.VolumeMl, src => src.VolumeMl)
@@ -65,7 +65,12 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.VolumeMl, src => src.VolumeMl)
 				.Map(dest => dest.ConcentrationName, src => src.Concentration.Name)
 				.Map(dest => dest.BasePrice, src => src.BasePrice)
-				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary));
+				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary && !m.IsDeleted));
+
+			config.NewConfig<ProductVariant, VariantCreateOrder>()
+				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.UnitPrice, src => src.BasePrice)
+				.Map(dest => dest.Snapshot, src => $"{src.Product.Name} - {src.VolumeMl}ml - {src.Concentration.Name} - {src.Type}");
 		}
 	}
 }

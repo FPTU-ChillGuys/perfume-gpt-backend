@@ -115,5 +115,12 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Include(o => o.ShippingInfo)
 				.FirstOrDefaultAsync(o => o.Id == orderId);
 		}
+
+		public async Task<Order?> GetOrderForMarkUsedVoucherAsync(Guid orderId)
+		{
+			return await _context.Orders
+				.Include(o => o.UserVoucher)
+				.FirstOrDefaultAsync(o => o.Id == orderId);
+		}
 	}
 }

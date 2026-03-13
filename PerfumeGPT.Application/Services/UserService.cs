@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Users;
-using PerfumeGPT.Application.Interfaces.Repositories.Commons;
+using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
 
@@ -11,14 +11,24 @@ namespace PerfumeGPT.Application.Services
 	public class UserService : IUserService
 	{
 		private readonly UserManager<User> _userManager;
-		private readonly IGenericRepository<User> _userRepository;
+		private readonly IUserRepository _userRepository;
 		private readonly IMapper _mapper;
 
-		public UserService(UserManager<User> userManager, IGenericRepository<User> userRepository, IMapper mapper)
+		public UserService(UserManager<User> userManager, IUserRepository userRepository, IMapper mapper)
 		{
 			_userManager = userManager;
 			_userRepository = userRepository;
 			_mapper = mapper;
+		}
+
+		public async Task<User?> GetByPhoneOrEmailAsync(string phoneOrEmail)
+		{
+			var user = await _userRepository.FindByPhoneOrEmailAsync(phoneOrEmail);
+			if (user == null)
+			{
+				return null;
+			}
+			return user;
 		}
 
 		public async Task<BaseResponse<List<StaffLookupItem>>> GetStaffLookupAsync()

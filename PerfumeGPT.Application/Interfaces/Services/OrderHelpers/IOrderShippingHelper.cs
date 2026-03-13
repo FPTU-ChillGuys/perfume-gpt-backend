@@ -11,6 +11,7 @@ namespace PerfumeGPT.Application.Interfaces.Services.OrderHelpers
 			Guid orderId,
 			RecipientInformation? recipientRequest,
 			Guid? customerId,
+			Guid? savedAddressId,
 			decimal? preCalculatedShippingFee = null,
 			Order? orderToUpdate = null);
 

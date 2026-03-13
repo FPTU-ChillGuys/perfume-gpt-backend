@@ -13,30 +13,34 @@ namespace PerfumeGPT.Application.Validators.Vouchers
 				.When(x => !string.IsNullOrEmpty(x.Code));
 
 			RuleFor(x => x.DiscountValue)
-				.GreaterThan(0).WithMessage("Discount value must be greater than 0.")
-				.When(x => x.DiscountValue.HasValue);
+				.GreaterThan(0).WithMessage("Discount value must be greater than 0.");
 
 			RuleFor(x => x.DiscountType)
-				.IsInEnum().WithMessage("Invalid discount type.")
-				.When(x => x.DiscountType.HasValue);
+				.IsInEnum().WithMessage("Invalid discount type.");
 
 			RuleFor(x => x.RequiredPoints)
-				.GreaterThanOrEqualTo(0).WithMessage("Required points must be greater than or equal to 0.")
-				.When(x => x.RequiredPoints.HasValue);
+				.GreaterThanOrEqualTo(0).WithMessage("Required points must be greater than or equal to 0.");
 
 			RuleFor(x => x.MinOrderValue)
-				.GreaterThanOrEqualTo(0).WithMessage("Minimum order value must be greater than or equal to 0.")
-				.When(x => x.MinOrderValue.HasValue);
+				.GreaterThanOrEqualTo(0).WithMessage("Minimum order value must be greater than or equal to 0.");
 
 			RuleFor(x => x.ExpiryDate)
-				.GreaterThan(DateTime.UtcNow).WithMessage("Expiry date must be in the future.")
-				.When(x => x.ExpiryDate.HasValue);
+				.GreaterThan(DateTime.UtcNow).WithMessage("Expiry date must be in the future.");
 
-			// Percentage discount should not exceed 100
 			RuleFor(x => x.DiscountValue)
 				.LessThanOrEqualTo(100)
-				.When(x => x.DiscountValue.HasValue && x.DiscountType.HasValue && x.DiscountType.Value == Domain.Enums.DiscountType.Percentage)
+				.When(x => x.DiscountType == Domain.Enums.DiscountType.Percentage)
 				.WithMessage("Percentage discount cannot exceed 100%.");
+
+			RuleFor(x => x.TotalQuantity)
+				.GreaterThan(0).WithMessage("Total quantity must be greater than 0.");
+
+			RuleFor(x => x.RemainingQuantity)
+				.GreaterThanOrEqualTo(0).WithMessage("Remaining quantity must be greater than or equal to 0.");
+
+			RuleFor(x => x)
+				.Must(x => x.RemainingQuantity <= x.TotalQuantity)
+				.WithMessage("Remaining quantity cannot exceed total quantity.");
 		}
 	}
 }

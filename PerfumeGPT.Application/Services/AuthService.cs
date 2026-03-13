@@ -26,6 +26,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly ILoyaltyPointService _loyaltyPointService;
 		private readonly IUserRepository _userRepository;
 		private readonly IValidator<RegisterRequest> _registerValidator;
+		private readonly IUserVoucherRepository _userVoucherRepository;
 
 		public AuthService(IEmailTemplateService templateService,
 			UserManager<User> userManager,
@@ -34,7 +35,8 @@ namespace PerfumeGPT.Application.Services
 			IProfileService profileService,
 			ILoyaltyPointService loyaltyPointService,
 			IUserRepository userRepository,
-			IValidator<RegisterRequest> registerValidator)
+			IValidator<RegisterRequest> registerValidator,
+			IUserVoucherRepository userVoucherRepository)
 		{
 			_templateService = templateService;
 			_userManager = userManager;
@@ -44,9 +46,21 @@ namespace PerfumeGPT.Application.Services
 			_loyaltyPointService = loyaltyPointService;
 			_userRepository = userRepository;
 			_registerValidator = registerValidator;
+			_userVoucherRepository = userVoucherRepository;
 		}
 
 		#endregion
+
+		private async Task SyncVouchersToUserAsync(User user)
+		{
+			try
+			{
+				await _userVoucherRepository.MigrateGuestVouchersAsync(user.Id, user.Email!, user.PhoneNumber!);
+			}
+			catch
+			{
+			}
+		}
 
 		private async Task TryCreateProfileAndLoyaltyPointsAsync(User user)
 		{
@@ -180,6 +194,7 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("failed to verify", ResponseErrorType.InternalError);
 
 			await TryCreateProfileAndLoyaltyPointsAsync(user);
+			await SyncVouchersToUserAsync(user);
 			return BaseResponse<string>.Ok("Success");
 		}
 
@@ -228,7 +243,16 @@ namespace PerfumeGPT.Application.Services
 				await _authRepository.ConfirmEmailAsync(user);
 
 			if (isNewRegistration)
-				await TryCreateProfileAndLoyaltyPointsAsync(user);
+			{
+				try
+				{
+					await TryCreateProfileAndLoyaltyPointsAsync(user);
+					await SyncVouchersToUserAsync(user);
+				}
+				catch
+				{
+				}
+			}
 
 			var tokenResponse = await GenerateTokenResponseAsync(user);
 			var message = isNewRegistration ? "Google registration and login successful" : "Google login successful";

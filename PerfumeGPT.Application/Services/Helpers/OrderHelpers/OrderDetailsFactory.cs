@@ -31,21 +31,20 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			var orderDetails = new List<OrderDetail>();
 			foreach (var item in items)
 			{
-				var variantResponse = await _variantService.GetVariantByIdAsync(item.VariantId);
-				if (!variantResponse.Success || variantResponse.Payload == null)
+				var variant = await _variantService.GetVariantForCreateOrderAsync(item.VariantId);
+				if (variant == null)
 				{
 					return BaseResponse<List<OrderDetail>>.Fail(
 						$"Product variant {item.VariantId} not found.",
 						ResponseErrorType.NotFound);
 				}
 
-				var variant = variantResponse.Payload;
 				var orderDetail = new OrderDetail
 				{
 					VariantId = item.VariantId,
 					Quantity = item.Quantity,
-					UnitPrice = variant.BasePrice,
-					Snapshot = $"{variant.ProductName} - {variant.VolumeMl}ml - {variant.ConcentrationName} - {variant.Type}"
+					UnitPrice = variant.UnitPrice,
+					Snapshot = variant.Snapshot,
 				};
 
 				orderDetails.Add(orderDetail);

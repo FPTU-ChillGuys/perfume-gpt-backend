@@ -292,6 +292,15 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(o => o.StaffId)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			builder.Entity<UserVoucher>()
+				.HasIndex(uv => uv.OrderId)
+				.IsUnique();
+
+			builder.Entity<Order>()
+				.HasOne(o => o.UserVoucher)
+				.WithOne(uv => uv.Order)
+				.HasForeignKey<UserVoucher>(uv => uv.OrderId);
+
 			// Supplier -> ImportTickets (1:M)
 			builder.Entity<Supplier>()
 				.HasMany(s => s.ImportTickets)
@@ -461,13 +470,6 @@ namespace PerfumeGPT.Persistence.Contexts
 				.WithOne(r => r.PaymentTransaction)
 				.HasForeignKey<Receipt>(r => r.TransactionId)
 				.OnDelete(DeleteBehavior.Cascade);
-
-			// Order -> Voucher (M:1)
-			builder.Entity<Order>()
-				.HasOne(o => o.Voucher)
-				.WithMany(v => v.Orders)
-				.HasForeignKey(o => o.VoucherId)
-				.OnDelete(DeleteBehavior.SetNull);
 
 			// Order -> ShippingInfo, RecipientInfo (1:1)
 			builder.Entity<Order>()

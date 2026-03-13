@@ -5,15 +5,15 @@ namespace PerfumeGPT.Application.DTOs.Requests.Orders
 	public class CreateOrderRequest
 	{
 		public string? VoucherCode { get; set; }
-		public bool IsPickupInStore { get; set; } = false;
-
+		public DeliveryMethod DeliveryMethod { get; set; }
+		public string? GuestEmail { get; set; }
+		public Guid? SavedAddressId { get; set; }
 		public RecipientInformation? Recipient { get; set; }
 		public PaymentInformation Payment { get; set; } = new PaymentInformation();
 	}
 
 	public class RecipientInformation
 	{
-		public Guid? AddressId { get; set; }
 		public string FullName { get; set; } = null!;
 		public string Phone { get; set; } = null!;
 		public int DistrictId { get; set; }

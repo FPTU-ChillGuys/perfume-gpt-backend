@@ -231,6 +231,11 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<ProductVariantResponse>.Ok(variant, "Variant retrieved successfully");
 		}
 
+		public async Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId)
+		{
+			return await _variantRepository.GetVariantForCreateOrderAsync(variantId);
+		}
+
 		public async Task<BaseResponse<ProductVariantResponse>> GetVariantByBarcodeAsync(string barcode)
 		{
 			var variant = await _variantRepository.GetByBarcodeAsync(barcode);

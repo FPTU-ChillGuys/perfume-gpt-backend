@@ -1,6 +1,7 @@
 ﻿using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
+using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Interfaces.Services
 {
@@ -19,13 +20,12 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<PagedResult<UserVoucherResponse>>> GetUserVouchersAsync(Guid userId, GetPagedUserVouchersRequest request);
 
 		// Apply voucher logic
-		Task<BaseResponse<ApplyVoucherResponse>> ApplyVoucherToOrderAsync(Guid userId, ApplyVoucherRequest request);
-		Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid userId);
+		Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null);
 
 		// Voucher status management
-		Task<BaseResponse<bool>> MarkVoucherAsReservedAsync(Guid userId, Guid voucherId);
-		Task<BaseResponse<bool>> MarkVoucherAsUsedAsync(Guid userId, Guid voucherId);
-		Task<BaseResponse<bool>> ReleaseReservedVoucherAsync(Guid userId, Guid voucherId);
+		Task<BaseResponse<UserVoucher>> MarkVoucherAsReservedAsync(Guid? userId, string? emailOrPhone, Guid voucherId, Guid orderId);
+		Task<BaseResponse<bool>> MarkVoucherAsUsedAsync(Guid orderId);
+		Task<BaseResponse<bool>> ReleaseReservedVoucherAsync(Guid orderId);
 
 		Task<decimal> CalculateVoucherDiscountAsync(string voucherCode, decimal totalPrice);
 	}

@@ -21,11 +21,8 @@ namespace PerfumeGPT.API.Controllers
 
 		#region Admin Endpoints
 
-		/// <summary>
-		/// Create a new voucher (Admin only)
-		/// </summary>
 		[HttpPost]
-		//[Authorize(Roles = "Admin")]
+		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status409Conflict)]
@@ -39,11 +36,8 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Update an existing voucher (Admin only)
-		/// </summary>
 		[HttpPut("{voucherId}")]
-		//[Authorize(Roles = "Admin")]
+		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
@@ -60,11 +54,8 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Delete a voucher (Admin only)
-		/// </summary>
 		[HttpDelete("{voucherId}")]
-		//[Authorize(Roles = "Admin")]
+		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
@@ -74,11 +65,8 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Get voucher by ID (Admin only)
-		/// </summary>
 		[HttpGet("{voucherId}")]
-		//[Authorize(Roles = "Admin")]
+		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<VoucherResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<VoucherResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<VoucherResponse>), StatusCodes.Status500InternalServerError)]
@@ -88,11 +76,8 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Get paginated list of vouchers (Admin only)
-		/// </summary>
 		[HttpGet]
-		//[Authorize(Roles = "Admin")]
+		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<VoucherResponse>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<VoucherResponse>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<PagedResult<VoucherResponse>>>> GetVouchers(
@@ -132,23 +117,6 @@ namespace PerfumeGPT.API.Controllers
 		{
 			var userId = GetCurrentUserId();
 			var response = await _voucherService.GetUserVouchersAsync(userId, request);
-			return HandleResponse(response);
-		}
-
-		[HttpPost("apply")]
-		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<ApplyVoucherResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ApplyVoucherResponse>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<ApplyVoucherResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<ApplyVoucherResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<ApplyVoucherResponse>>> ApplyVoucher(
-			[FromBody] ApplyVoucherRequest request)
-		{
-			var validation = ValidateRequestBody<ApplyVoucherRequest>(request);
-			if (validation != null) return validation;
-
-			var userId = GetCurrentUserId();
-			var response = await _voucherService.ApplyVoucherToOrderAsync(userId, request);
 			return HandleResponse(response);
 		}
 

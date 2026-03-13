@@ -54,7 +54,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.CategoryId, src => src.CategoryId)
 				.Map(dest => dest.CategoryName, src => src.Category.Name)
 				.Map(dest => dest.Description, src => src.Description)
-				.Map(dest => dest.Media, src => src.Media)
+				.Map(dest => dest.Media, src => src.Media.Where(m => !m.IsDeleted))
 				.Map(dest => dest.Variants, src => src.Variants)
 				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 
@@ -70,7 +70,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.CategoryId, src => src.CategoryId)
 				.Map(dest => dest.CategoryName, src => src.Category.Name)
 				.Map(dest => dest.Description, src => src.Description)
-				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary))
+				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary && !m.IsDeleted))
 				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 
 			config.NewConfig<Product, ProductListItemWithVariants>()
@@ -81,7 +81,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.CategoryId, src => src.CategoryId)
 				.Map(dest => dest.CategoryName, src => src.Category.Name)
 				.Map(dest => dest.Description, src => src.Description)
-				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary))
+				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary && !m.IsDeleted))
 				.Map(dest => dest.Attributes, src => src.ProductAttributes)
 				.Map(dest => dest.Variants, src => src.Variants.Where(v => !v.IsDeleted));
 
@@ -89,7 +89,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.Name, src => src.Name)
 				.Map(dest => dest.BrandName, src => src.Brand.Name)
-				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary));
+				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary && !m.IsDeleted));
 		}
 	}
 }

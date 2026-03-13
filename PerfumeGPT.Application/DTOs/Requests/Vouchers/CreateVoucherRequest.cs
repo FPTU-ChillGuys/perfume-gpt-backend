@@ -10,5 +10,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Vouchers
 		public long RequiredPoints { get; set; }
 		public decimal MinOrderValue { get; set; }
 		public DateTime ExpiryDate { get; set; }
+		public int TotalQuantity { get; set; }
+		public bool IsPublic { get; set; }
 	}
 }

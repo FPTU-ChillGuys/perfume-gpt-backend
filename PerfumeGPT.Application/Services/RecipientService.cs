@@ -24,18 +24,19 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		public async Task<BaseResponse<RecipientInformation>> ResolveRecipientDataAsync(
-			RecipientInformation? request,
+			RecipientInformation? recipientInfo,
+			Guid? savedAddressId,
 			Guid? customerId)
 		{
 			// 1) If request includes AddressId -> must have customerId and we load saved address
-			if (request?.AddressId.HasValue == true)
+			if (savedAddressId.HasValue == true)
 			{
 				if (!customerId.HasValue)
 				{
 					return BaseResponse<RecipientInformation>.Fail("Customer ID required when using saved address.", ResponseErrorType.BadRequest);
 				}
 
-				var savedAddress = await _unitOfWork.Addresses.GetUserAddressById(customerId.Value, request.AddressId.Value);
+				var savedAddress = await _unitOfWork.Addresses.GetUserAddressById(customerId.Value, savedAddressId.Value);
 				if (savedAddress == null)
 				{
 					return BaseResponse<RecipientInformation>.Fail("Saved address not found.", ResponseErrorType.NotFound);
@@ -45,9 +46,9 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			// 2) If request provided without AddressId -> validate and use it
-			if (request != null)
+			if (recipientInfo != null)
 			{
-				var validationResult = await _validator.ValidateAsync(request);
+				var validationResult = await _validator.ValidateAsync(recipientInfo);
 				if (!validationResult.IsValid)
 				{
 					var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
@@ -57,7 +58,7 @@ namespace PerfumeGPT.Application.Services
 						errors);
 				}
 
-				return BaseResponse<RecipientInformation>.Ok(request);
+				return BaseResponse<RecipientInformation>.Ok(recipientInfo);
 			}
 
 			// 3) No request -> try customer's default address if available
@@ -83,10 +84,11 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<RecipientInfo>> CreateRecipientInfoAsync(
 			Guid orderId,
-			RecipientInformation request,
+			RecipientInformation? request,
+			Guid? savedAddressId = null,
 			Guid? customerId = null)
 		{
-			var resolvedData = await ResolveRecipientDataAsync(request, customerId);
+			var resolvedData = await ResolveRecipientDataAsync(request, savedAddressId, customerId);
 			if (!resolvedData.Success)
 			{
 				return BaseResponse<RecipientInfo>.Fail(resolvedData.Message, resolvedData.ErrorType, resolvedData.Errors);
@@ -112,10 +114,11 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<RecipientInfo>> UpdateRecipientInfoAsync(
 			RecipientInfo existingRecipient,
-			RecipientInformation request,
+			RecipientInformation? request,
+			Guid? savedAddressId,
 			Guid userId)
 		{
-			var resolvedData = await ResolveRecipientDataAsync(request, userId);
+			var resolvedData = await ResolveRecipientDataAsync(request, savedAddressId, userId);
 			if (!resolvedData.Success)
 			{
 				return BaseResponse<RecipientInfo>.Fail(resolvedData.Message, resolvedData.ErrorType, resolvedData.Errors);

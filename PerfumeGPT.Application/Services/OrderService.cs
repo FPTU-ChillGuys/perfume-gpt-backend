@@ -65,32 +65,10 @@ namespace PerfumeGPT.Application.Services
 
 		#endregion Dependencies
 
-		private async Task<BaseResponse<string>> CreateNewShippingInfoAsync(
-		Order order,
-		RecipientInformation request,
-		Guid userId)
-		{
-			var setupResult = await _shippingHelper.SetupShippingInfoAsync(
-				order.Id,
-				request,
-				userId,
-				preCalculatedShippingFee: null,
-				orderToUpdate: order);
-
-			if (!setupResult.Success)
-			{
-				return BaseResponse<string>.Fail(
-					setupResult.Message ?? "Failed to setup shipping info.",
-					setupResult.ErrorType);
-			}
-
-			return BaseResponse<string>.Ok("Order address updated successfully.");
-		}
-
 		public async Task<BaseResponse<string>> UpdateOrderAddressAsync(
 		Guid orderId,
 		Guid userId,
-		RecipientInformation request)
+		UpdateOrderAddressRequest request)
 		{
 			try
 			{
@@ -116,14 +94,29 @@ namespace PerfumeGPT.Application.Services
 
 					if (existingRecipient == null)
 					{
-						// Create new recipient and shipping info
-						return await CreateNewShippingInfoAsync(order, request, userId);
+						var setupResult = await _shippingHelper.SetupShippingInfoAsync(
+							order.Id,
+							request.RecipientInformation,
+							userId,
+							request.SavedAddressId,
+							preCalculatedShippingFee: null,
+							orderToUpdate: order);
+
+						if (!setupResult.Success)
+						{
+							return BaseResponse<string>.Fail(
+								setupResult.Message ?? "Failed to setup shipping info.",
+								setupResult.ErrorType);
+						}
+
+						return BaseResponse<string>.Ok("Order address updated successfully.");
 					}
 
 					// 3. Update existing recipient
 					var updateResult = await _recipientService.UpdateRecipientInfoAsync(
 						existingRecipient,
-						request,
+						request.RecipientInformation,
+						request.SavedAddressId,
 						userId);
 
 					if (!updateResult.Success)
@@ -311,37 +304,13 @@ namespace PerfumeGPT.Application.Services
 			{
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
-					// Validate voucher if provided
-					VoucherResponse? voucher = null;
-					if (!string.IsNullOrEmpty(request.VoucherCode))
-					{
-						var voucherResult = await ValidateAndGetVoucherAsync(request.VoucherCode, userId);
-						if (!voucherResult.Success)
-						{
-							return BaseResponse<string>.Fail(
-								voucherResult.Message ?? "Voucher validation failed.",
-								voucherResult.ErrorType);
-						}
-						voucher = voucherResult.Payload;
-					}
-
 					// Get cart with items
 					var getCartTotalRequest = new GetCartTotalRequest
 					{
 						VoucherCode = request.VoucherCode,
-						DistrictId = request.Recipient?.DistrictId,
-						WardCode = request.Recipient?.WardCode
+						SavedAddressId = request.SavedAddressId,
+						Recipient = request.Recipient
 					};
-
-					if (request.Recipient != null && request.Recipient.AddressId != Guid.Empty)
-					{
-						var address = await _unitOfWork.Addresses.GetByIdAsync(request.Recipient.AddressId);
-						if (address != null)
-						{
-							getCartTotalRequest.DistrictId = address.DistrictId;
-							getCartTotalRequest.WardCode = address.WardCode;
-						}
-					}
 
 					var cartResponse = await _cartService.GetCartForCheckoutAsync(userId, getCartTotalRequest);
 					if (!cartResponse.Success || cartResponse.Payload == null)
@@ -349,6 +318,20 @@ namespace PerfumeGPT.Application.Services
 						return BaseResponse<string>.Fail(
 						cartResponse.Message ?? "Failed to retrieve cart.",
 						cartResponse.ErrorType);
+					}
+
+					// Validate voucher if provided
+					VoucherResponse? voucher = null;
+					if (!string.IsNullOrEmpty(request.VoucherCode))
+					{
+						var voucherResult = await ValidateAndGetVoucherAsync(request.VoucherCode, userId, null, cartResponse.Payload.TotalPrice);
+						if (!voucherResult.Success)
+						{
+							return BaseResponse<string>.Fail(
+								voucherResult.Message ?? "Voucher validation failed.",
+								voucherResult.ErrorType);
+						}
+						voucher = voucherResult.Payload;
 					}
 
 					if (cartResponse.Payload.Items.Count == 0)
@@ -373,16 +356,17 @@ namespace PerfumeGPT.Application.Services
 					var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
 
 					// Create order
-					var order = CreateOnlineOrder(userId, voucher?.Id, cartResponse.Payload.TotalPrice, paymentExpiresAt, orderDetailsResult.Payload);
+					var order = CreateOnlineOrder(userId, null, cartResponse.Payload.TotalPrice, paymentExpiresAt, orderDetailsResult.Payload);
 					await _unitOfWork.Orders.AddAsync(order);
 
 					// Setup shipping if not pickup
-					if (!request.IsPickupInStore)
+					if (request.DeliveryMethod == DeliveryMethod.Delivery)
 					{
 						var shippingResult = await _shippingHelper.SetupShippingInfoAsync(
 							order.Id,
 							request.Recipient,
 							userId,
+							request.SavedAddressId,
 							cartResponse.Payload.ShippingFee);
 
 						if (!shippingResult.Success)
@@ -411,13 +395,21 @@ namespace PerfumeGPT.Application.Services
 					{
 						var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(
 							userId,
-							voucher.Id);
+							null,
+							voucher.Id,
+							order.Id);
 
 						if (!markVoucherResult.Success)
 						{
 							return BaseResponse<string>.Fail(
 								markVoucherResult.Message ?? "Failed to mark voucher as used.",
 								markVoucherResult.ErrorType);
+						}
+
+						if (markVoucherResult.Payload != null)
+						{
+							order.UserVoucherId = markVoucherResult.Payload.Id;
+							order.UserVoucher = markVoucherResult.Payload;
 						}
 					}
 
@@ -475,8 +467,32 @@ namespace PerfumeGPT.Application.Services
 					}
 
 					// Create order
-					var order = CreateOfflineOrder(staffId, voucherId, totalAmount, orderDetailsResult.Payload);
+					var order = CreateOfflineOrder(staffId, null, totalAmount, orderDetailsResult.Payload);
 					await _unitOfWork.Orders.AddAsync(order);
+
+					// Mark voucher as reserved and link UserVoucher to order
+					if (!string.IsNullOrEmpty(voucherCode) && voucherId.HasValue)
+					{
+						var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(
+							null,
+							null,
+							voucherId.Value,
+							order.Id);
+
+						if (markVoucherResult.Success)
+						{
+							var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
+								uv => uv.VoucherId == voucherId.Value && uv.OrderId == order.Id,
+								asNoTracking: false);
+
+							if (userVoucher != null)
+							{
+								order.UserVoucherId = userVoucher.Id;
+								order.UserVoucher = userVoucher;
+								_unitOfWork.Orders.Update(order);
+							}
+						}
+					}
 
 					// Setup shipping if needed
 					if (!request.IsPickupInStore && request.Recipient != null)
@@ -484,6 +500,7 @@ namespace PerfumeGPT.Application.Services
 						var shippingResult = await _shippingHelper.SetupShippingInfoAsync(
 							order.Id,
 							request.Recipient,
+							null,
 							null,
 							null,
 							order);
@@ -745,7 +762,7 @@ namespace PerfumeGPT.Application.Services
 
 		private static Order CreateOnlineOrder(
 			Guid customerId,
-			Guid? voucherId,
+			Guid? userVoucherId,
 			decimal totalAmount,
 			DateTime paymentExpiresAt,
 			List<OrderDetail> orderDetails)
@@ -756,7 +773,7 @@ namespace PerfumeGPT.Application.Services
 				Type = OrderType.Online,
 				Status = OrderStatus.Pending,
 				PaymentStatus = PaymentStatus.Unpaid,
-				VoucherId = voucherId,
+				UserVoucherId = userVoucherId,
 				TotalAmount = totalAmount,
 				PaymentExpiresAt = paymentExpiresAt,
 				OrderDetails = orderDetails
@@ -765,7 +782,7 @@ namespace PerfumeGPT.Application.Services
 
 		private static Order CreateOfflineOrder(
 			Guid staffId,
-			Guid? voucherId,
+			Guid? userVoucherId,
 			decimal totalAmount,
 			List<OrderDetail> orderDetails)
 		{
@@ -776,7 +793,7 @@ namespace PerfumeGPT.Application.Services
 				Type = OrderType.Offline,
 				Status = OrderStatus.Pending,
 				PaymentStatus = PaymentStatus.Unpaid,
-				VoucherId = voucherId,
+				UserVoucherId = userVoucherId,
 				TotalAmount = totalAmount,
 				OrderDetails = orderDetails
 			};
@@ -890,18 +907,20 @@ namespace PerfumeGPT.Application.Services
 
 		private async Task ReleaseVoucherIfUsedAsync(Order order)
 		{
-			if (order.VoucherId.HasValue && order.CustomerId.HasValue)
-			{
-				await _voucherService.ReleaseReservedVoucherAsync(
-					order.CustomerId.Value,
-					order.VoucherId.Value);
-			}
+			if (!order.UserVoucherId.HasValue || !order.CustomerId.HasValue) return;
+
+			var userVoucher = order.UserVoucher
+				?? await _unitOfWork.UserVouchers.GetByIdAsync(order.UserVoucherId.Value);
+
+			if (userVoucher == null) return;
+
+			await _voucherService.ReleaseReservedVoucherAsync(order.Id);
 		}
 
-		private async Task<BaseResponse<VoucherResponse>> ValidateAndGetVoucherAsync(string voucherCode, Guid userId)
+		private async Task<BaseResponse<VoucherResponse>> ValidateAndGetVoucherAsync(string voucherCode, Guid userId, string? phoneNumber, decimal totalPrice)
 		{
 			// Validate voucher eligibility
-			var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(voucherCode, userId);
+			var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(voucherCode, userId, totalPrice, phoneNumber);
 			if (!voucherValidation.Success)
 			{
 				return BaseResponse<VoucherResponse>.Fail(

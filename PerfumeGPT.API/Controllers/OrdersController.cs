@@ -179,7 +179,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UpdateOrderAddress([FromRoute] Guid orderId, [FromBody] RecipientInformation request)
+		public async Task<ActionResult<BaseResponse<string>>> UpdateOrderAddress([FromRoute] Guid orderId, [FromBody] UpdateOrderAddressRequest request)
 		{
 			var validation = ValidateRequestBody<RecipientInformation>(request);
 			if (validation != null) return validation;

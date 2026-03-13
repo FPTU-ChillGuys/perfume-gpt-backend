@@ -18,7 +18,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<bool> CodeExistsAsync(string code, Guid? excludeVoucherId = null)
 		{
 			var query = _context.Vouchers
-				.Where(v => v.Code.Equals(code, StringComparison.CurrentCultureIgnoreCase) && !v.IsDeleted);
+				.Where(v => v.Code.ToLower() == code.ToLower() && !v.IsDeleted);
 
 			if (excludeVoucherId.HasValue)
 			{
@@ -30,10 +30,8 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<VoucherResponse?> GetByCodeAsync(string code)
 		{
-			var normalizedCode = code.ToLower();
-
 			return await _context.Vouchers
-				.Where(v => v.Code.ToLower() == normalizedCode && !v.IsDeleted)
+				.Where(v => v.Code.ToLower() == code.ToLower() && !v.IsDeleted)
 				.ProjectToType<VoucherResponse>()
 				.AsNoTracking()
 				.FirstOrDefaultAsync();

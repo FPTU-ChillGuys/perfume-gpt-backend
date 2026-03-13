@@ -133,14 +133,20 @@ namespace PerfumeGPT.Application.Services
 				// 3. Calculate subtotal
 				var subtotal = items.Sum(item => item.SubTotal);
 
-				// 4. Calculate shipping fee if district and ward provided
+				// 4. Calculate shipping fee 
 				decimal shippingFee = 0m;
-				if (request.DistrictId != null && request.DistrictId > 0 &&
-					!string.IsNullOrWhiteSpace(request.WardCode))
+				if (request.SavedAddressId != null)
 				{
+					var addressResult = await _addressService.GetAddressByIdAsync(userId, request.SavedAddressId.Value);
+					if (!addressResult.Success || addressResult.Payload == null)
+					{
+						return BaseResponse<GetCartTotalResponse>.Fail(
+							"Saved address not found",
+							ResponseErrorType.NotFound);
+					}
 					var calculatedFee = await _shippingService.CalculateShippingFeeAsync(
-						request.DistrictId.Value,
-						request.WardCode);
+						addressResult.Payload.DistrictId,
+						addressResult.Payload.WardCode);
 
 					if (calculatedFee == null)
 					{
@@ -151,17 +157,38 @@ namespace PerfumeGPT.Application.Services
 
 					shippingFee = calculatedFee.Value;
 				}
+				else if (request.Recipient != null)
+				{
+					var calculatedFee = await _shippingService.CalculateShippingFeeAsync(
+						request.Recipient.DistrictId,
+						request.Recipient.WardCode);
+					if (calculatedFee == null)
+					{
+						return BaseResponse<GetCartTotalResponse>.Fail(
+							"Failed to calculate shipping fee",
+							ResponseErrorType.InternalError);
+					}
+					shippingFee = calculatedFee.Value;
+				}
 
-				// 5. Calculate total before discount
-				var totalPrice = subtotal + shippingFee;
-
-				// 6. Apply voucher discount if provided
-				decimal discountAmount = 0m;
+				// 5. Apply voucher discount if provided
+				decimal finalAmount = subtotal;
 				if (!string.IsNullOrWhiteSpace(request.VoucherCode))
 				{
+
+					var voucher = await _voucherService.GetVoucherByCodeAsync(request.VoucherCode);
+					if (voucher == null)
+					{
+						return BaseResponse<GetCartTotalResponse>.Fail(
+							"Voucher not found",
+							ResponseErrorType.NotFound);
+					}
+
 					var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(
 						request.VoucherCode,
-						userId);
+						userId,
+						subtotal,
+						null); // Cart for signined-in users, not guests
 
 					if (!voucherValidation.Success)
 					{
@@ -170,20 +197,18 @@ namespace PerfumeGPT.Application.Services
 							voucherValidation.ErrorType);
 					}
 
-					var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(
+					finalAmount = await _voucherService.CalculateVoucherDiscountAsync(
 						request.VoucherCode,
-						totalPrice);
-
-					discountAmount = totalPrice - discountedTotal;
-					totalPrice = discountedTotal;
+						subtotal);
 				}
 
-				// 7. Build response
+				// 6. Build response
 				var response = new GetCartTotalResponse
 				{
 					Subtotal = subtotal,
 					ShippingFee = shippingFee,
-					TotalPrice = totalPrice
+					Discount = subtotal - finalAmount,
+					TotalPrice = finalAmount + shippingFee
 				};
 
 				return BaseResponse<GetCartTotalResponse>.Ok(

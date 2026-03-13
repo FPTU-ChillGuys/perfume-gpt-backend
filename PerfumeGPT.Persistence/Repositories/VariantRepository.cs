@@ -48,6 +48,15 @@ namespace PerfumeGPT.Persistence.Repositories
 			return await _context.ProductVariants
 				.Where(v => v.Id == variantId && !v.IsDeleted)
 				.ProjectToType<ProductVariantResponse>()
+				.AsSplitQuery()
+				.FirstOrDefaultAsync();
+		}
+
+		public async Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId)
+		{
+			return await _context.ProductVariants
+				.Where(v => v.Id == variantId && !v.IsDeleted)
+				.ProjectToType<VariantCreateOrder>()
 				.FirstOrDefaultAsync();
 		}
 

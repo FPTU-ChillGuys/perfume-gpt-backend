@@ -13,6 +13,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId);
 		Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(GetPagedVariantsRequest request);
 		Task<List<Guid>> GetExistingIdsAsync(List<Guid> ids);
+		Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId);
 	}
 }
 

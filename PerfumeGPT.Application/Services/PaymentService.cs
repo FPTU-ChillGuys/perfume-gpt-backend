@@ -156,7 +156,7 @@ namespace PerfumeGPT.Application.Services
 						return BaseResponse<bool>.Fail("Payment amount mismatch.", ResponseErrorType.BadRequest);
 					}
 
-					var order = await _unitOfWork.Orders.GetByIdAsync(payment.OrderId);
+					var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId);
 					if (order == null)
 					{
 						return BaseResponse<bool>.Fail("Order not found.", ResponseErrorType.NotFound);
@@ -302,9 +302,9 @@ namespace PerfumeGPT.Application.Services
 			order.PaymentStatus = PaymentStatus.Paid;
 			order.PaidAt = DateTime.UtcNow;
 
-			if (order.VoucherId.HasValue)
+			if (order.UserVoucher != null)
 			{
-				var voucherResult = await _voucherService.MarkVoucherAsUsedAsync(order.VoucherId.Value, order.Id);
+				await _voucherService.MarkVoucherAsUsedAsync(order.Id);
 			}
 
 			if (payment.Method == PaymentMethod.CashInStore)

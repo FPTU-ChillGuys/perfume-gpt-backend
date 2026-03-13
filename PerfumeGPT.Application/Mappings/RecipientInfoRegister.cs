@@ -20,7 +20,6 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.FullAddress, src => src.FullAddress);
 
 			config.NewConfig<Address, RecipientInformation>()
-				.Map(dest => dest.AddressId, src => src.Id)
 				.Map(dest => dest.FullName, src => src.ReceiverName)
 				.Map(dest => dest.Phone, src => src.Phone)
 				.Map(dest => dest.DistrictId, src => src.DistrictId)
@@ -32,7 +31,6 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.FullAddress, src => src.Street + ", " + src.Ward + ", " + src.District + ", " + src.City);
 
 			config.NewConfig<AddressResponse, RecipientInformation>()
-				.Map(dest => dest.AddressId, src => src.Id)
 				.Map(dest => dest.FullName, src => src.ReceiverName)
 				.Map(dest => dest.Phone, src => src.Phone)
 				.Map(dest => dest.DistrictId, src => src.DistrictId)

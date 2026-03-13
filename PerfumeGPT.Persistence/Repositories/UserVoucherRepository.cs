@@ -16,6 +16,24 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
+		public async Task MigrateGuestVouchersAsync(Guid userId, string email, string phoneNumber)
+		{
+			var guestVouchers = await _context.UserVouchers
+				.Where(uv =>
+					uv.UserId == null &&
+					((!string.IsNullOrEmpty(email) && uv.GuestEmailOrPhone == email) ||
+					 (!string.IsNullOrEmpty(phoneNumber) && uv.GuestEmailOrPhone == phoneNumber))
+				)
+				.ToListAsync();
+
+			foreach (var voucher in guestVouchers)
+			{
+				voucher.UserId = userId;
+			}
+
+			await _context.SaveChangesAsync();
+		}
+
 		public async Task<(List<UserVoucher> Items, int TotalCount)> GetPagedWithVouchersAsync(Guid userId, GetPagedUserVouchersRequest request)
 		{
 			var query = _context.UserVouchers
@@ -98,22 +116,28 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
-		public async Task<bool> HasRedeemedVoucherAsync(Guid userId, Guid voucherId)
+		public async Task<bool> HasRedeemedVoucherAsync(Guid userId, Guid voucherId, string? guestEmailOrPhone)
 		{
 			return await _context.UserVouchers
 				.AsNoTracking()
-				.AnyAsync(uv => uv.UserId == userId && uv.VoucherId == voucherId);
+				.AnyAsync(uv =>
+					(uv.UserId == userId && uv.VoucherId == voucherId) ||
+					(uv.GuestEmailOrPhone == guestEmailOrPhone && uv.VoucherId == voucherId)
+				);
 		}
 
 		public async Task<UserVoucher?> GetUnusedUserVoucherAsync(Guid userId, Guid voucherId)
 		{
+			var now = DateTime.UtcNow;
 			return await _context.UserVouchers
+				.Include(uv => uv.Voucher)
 				.AsNoTracking()
 				.FirstOrDefaultAsync(uv =>
 					uv.UserId == userId &&
 					uv.VoucherId == voucherId &&
 					!uv.IsUsed &&
-					uv.Status == UsageStatus.Available);
+					uv.Status == UsageStatus.Available &&
+					!uv.Voucher.IsDeleted);
 		}
 	}
 }

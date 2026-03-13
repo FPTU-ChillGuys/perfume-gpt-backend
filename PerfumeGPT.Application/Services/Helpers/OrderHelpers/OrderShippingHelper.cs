@@ -62,6 +62,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		Guid orderId,
 		RecipientInformation? recipientRequest,
 		Guid? customerId,
+		Guid? savedAddressId,
 		decimal? preCalculatedShippingFee = null,
 		Order? orderToUpdate = null)
 		{
@@ -69,6 +70,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			var recipientResult = await _recipientService.CreateRecipientInfoAsync(
 				orderId,
 				recipientRequest,
+				savedAddressId,
 				customerId);
 
 			if (!recipientResult.Success)

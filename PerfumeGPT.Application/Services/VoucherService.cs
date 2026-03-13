@@ -15,6 +15,7 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IUserService _userService;
 		private readonly ILoyaltyPointService _loyaltyPointService;
 		private readonly IMapper _mapper;
 		private readonly IValidator<CreateVoucherRequest> _createValidator;
@@ -25,13 +26,15 @@ namespace PerfumeGPT.Application.Services
 			ILoyaltyPointService loyaltyPointService,
 			IMapper mapper,
 			IValidator<CreateVoucherRequest> createValidator,
-			IValidator<UpdateVoucherRequest> updateValidator)
+			IValidator<UpdateVoucherRequest> updateValidator,
+			IUserService userService)
 		{
 			_unitOfWork = unitOfWork;
 			_loyaltyPointService = loyaltyPointService;
 			_mapper = mapper;
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
+			_userService = userService;
 		}
 
 		#endregion Dependencies
@@ -52,7 +55,6 @@ namespace PerfumeGPT.Application.Services
 
 			try
 			{
-				// Use repository method to check if code exist
 				var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code);
 				if (codeExists)
 				{
@@ -63,7 +65,6 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				var voucher = _mapper.Map<Voucher>(request);
-				voucher.Code = request.Code.ToUpper();
 
 				await _unitOfWork.Vouchers.AddAsync(voucher);
 				await _unitOfWork.SaveChangesAsync();
@@ -102,10 +103,8 @@ namespace PerfumeGPT.Application.Services
 					);
 				}
 
-				// Check if code is being updated and already exists
 				if (request.Code != null && request.Code != voucher.Code)
 				{
-					// Use repository method to check code existence (excluding current voucher)
 					var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code, voucherId);
 					if (codeExists)
 					{
@@ -117,11 +116,6 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				_mapper.Map(request, voucher);
-
-				if (request.Code != null)
-				{
-					voucher.Code = request.Code.ToUpper();
-				}
 
 				_unitOfWork.Vouchers.Update(voucher);
 				await _unitOfWork.SaveChangesAsync();
@@ -222,7 +216,7 @@ namespace PerfumeGPT.Application.Services
 				{
 					var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
 						v => v.Id == request.VoucherId && !v.IsDeleted,
-						asNoTracking: true
+						asNoTracking: false
 					);
 
 					if (voucher == null)
@@ -241,8 +235,16 @@ namespace PerfumeGPT.Application.Services
 						);
 					}
 
+					if (voucher.RemainingQuantity <= 0)
+					{
+						return BaseResponse<string>.Fail(
+							"Voucher is out of stock",
+							ResponseErrorType.BadRequest
+						);
+					}
+
 					// Use repository method to check if user already redeemed this voucher
-					var hasRedeemed = await _unitOfWork.UserVouchers.HasRedeemedVoucherAsync(userId, request.VoucherId);
+					var hasRedeemed = await _unitOfWork.UserVouchers.HasRedeemedVoucherAsync(userId, request.VoucherId, request.ReceiverEmailOrPhone);
 					if (hasRedeemed)
 					{
 						return BaseResponse<string>.Fail(
@@ -261,16 +263,35 @@ namespace PerfumeGPT.Application.Services
 						);
 					}
 
-					// Create user voucher
+					Guid? finalOwnerId = userId;
+					if (!string.IsNullOrEmpty(request.ReceiverEmailOrPhone))
+					{
+						var receiver = await _userService.GetByPhoneOrEmailAsync(request.ReceiverEmailOrPhone);
+						if (receiver != null) finalOwnerId = receiver.Id;
+						else
+						{
+							// If receiver not found, treat as guest redemption (voucher will be associated with email/phone instead of userId)
+							finalOwnerId = null;
+						}
+					}
+
 					var userVoucher = new UserVoucher
 					{
-						UserId = userId,
+						UserId = finalOwnerId,
 						VoucherId = request.VoucherId,
 						IsUsed = false,
+						GuestEmailOrPhone = request.ReceiverEmailOrPhone ?? null,
 						Status = UsageStatus.Available
 					};
 
+					// Decrement voucher remaining quantity
+					voucher.RemainingQuantity -= 1;
+					if (voucher.RemainingQuantity < 0) voucher.RemainingQuantity = 0;
+					_unitOfWork.Vouchers.Update(voucher);
+
 					await _unitOfWork.UserVouchers.AddAsync(userVoucher);
+
+					// Notification logic can be added here if needed
 
 					return BaseResponse<string>.Ok(
 						userVoucher.Id.ToString(),
@@ -287,14 +308,9 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<PagedResult<UserVoucherResponse>>> GetUserVouchersAsync(
-			Guid userId,
-			GetPagedUserVouchersRequest request)
+		public async Task<BaseResponse<PagedResult<UserVoucherResponse>>> GetUserVouchersAsync(Guid userId, GetPagedUserVouchersRequest request)
 		{
-			var (items, totalCount) = await _unitOfWork.UserVouchers.GetPagedWithVouchersAsync(
-				userId,
-				request
-			);
+			var (items, totalCount) = await _unitOfWork.UserVouchers.GetPagedWithVouchersAsync(userId, request);
 
 			var userVoucherList = _mapper.Map<List<UserVoucherResponse>>(items);
 
@@ -315,74 +331,10 @@ namespace PerfumeGPT.Application.Services
 
 		#region Apply Voucher Logic
 
-		public async Task<BaseResponse<ApplyVoucherResponse>> ApplyVoucherToOrderAsync(
-			Guid userId,
-			ApplyVoucherRequest request)
+		public async Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null)
 		{
-			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(request.VoucherCode);
-
-			if (voucher == null)
-			{
-				return BaseResponse<ApplyVoucherResponse>.Fail(
-					"Invalid voucher code",
-					ResponseErrorType.NotFound
-				);
-			}
-
-			if (voucher.ExpiryDate < DateTime.UtcNow)
-			{
-				return BaseResponse<ApplyVoucherResponse>.Fail(
-					"Voucher has expired",
-					ResponseErrorType.BadRequest
-				);
-			}
-
-			if (request.OrderAmount < voucher.MinOrderValue)
-			{
-				return BaseResponse<ApplyVoucherResponse>.Fail(
-					$"Minimum order value is {voucher.MinOrderValue:C}",
-					ResponseErrorType.BadRequest
-				);
-			}
-
-			// Use repository method to check if user owns this voucher
-			var userVoucher = await _unitOfWork.UserVouchers.GetUnusedUserVoucherAsync(userId, voucher.Id);
-			if (userVoucher == null)
-			{
-				return BaseResponse<ApplyVoucherResponse>.Fail(
-					"You don't own this voucher or it has already been used",
-					ResponseErrorType.BadRequest
-				);
-			}
-
-			// Calculate discount
-			decimal discountAmount = voucher.DiscountType == DiscountType.Percentage
-				? request.OrderAmount * (voucher.DiscountValue / 100m)
-				: voucher.DiscountValue;
-
-			// Ensure discount doesn't exceed order amount
-			discountAmount = Math.Min(discountAmount, request.OrderAmount);
-			var finalAmount = request.OrderAmount - discountAmount;
-
-			var response = new ApplyVoucherResponse
-			{
-				VoucherId = voucher.Id,
-				Code = voucher.Code,
-				DiscountAmount = discountAmount,
-				FinalAmount = finalAmount,
-				DiscountType = voucher.DiscountType.ToString()
-			};
-
-			return BaseResponse<ApplyVoucherResponse>.Ok(
-				response,
-				"Voucher applied successfully"
-			);
-		}
-
-		public async Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid userId)
-		{
+			// 1. Validate voucher existence
 			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode);
-
 			if (voucher == null)
 			{
 				return BaseResponse<bool>.Fail(
@@ -391,6 +343,7 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
+			// 2. Check expiry
 			if (voucher.ExpiryDate < DateTime.UtcNow)
 			{
 				return BaseResponse<bool>.Fail(
@@ -399,93 +352,240 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
-			var userVoucher = await _unitOfWork.UserVouchers.GetUnusedUserVoucherAsync(userId, voucher.Id);
-			if (userVoucher == null)
+			// 3. Check minimum order value
+			if (orderAmount < voucher.MinOrderValue)
 			{
 				return BaseResponse<bool>.Fail(
-					"You don't own this voucher or it has already been used",
+					$"Order amount must be at least {voucher.MinOrderValue:C} to use this voucher",
 					ResponseErrorType.BadRequest
 				);
 			}
 
-			return BaseResponse<bool>.Ok(true, "Voucher is valid");
-		}
+			// 4. Determine user type and effective userId
+			var (effectiveUserId, isGuest, isAnonymousGuest) = await ResolveEffectiveUserAsync(userId, emailOrPhone);
 
-		public async Task<BaseResponse<bool>> MarkVoucherAsReservedAsync(Guid userId, Guid voucherId)
-		{
-			try
+			// 5. Check ownership and usage
+			if (voucher.IsPublic)
 			{
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				// PUBLIC VOUCHER - Anyone can use
+				if (isAnonymousGuest)
 				{
-					var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
-						uv => uv.UserId == userId && uv.VoucherId == voucherId && !uv.IsUsed,
-						asNoTracking: false
-					);
-
-					if (userVoucher == null)
+					if (voucher.RemainingQuantity <= 0)
 					{
 						return BaseResponse<bool>.Fail(
-							"User voucher not found or already used",
-							ResponseErrorType.NotFound
+							"Voucher is out of stock",
+							ResponseErrorType.BadRequest
 						);
 					}
+				}
+				else
+				{
+					// Check if already used by this user/guest
+					bool alreadyUsed = await _unitOfWork.UserVouchers.AnyAsync(uv =>
+						uv.VoucherId == voucher.Id &&
+						(uv.IsUsed || uv.Status != UsageStatus.Available) &&
+						(
+							(effectiveUserId.HasValue && uv.UserId == effectiveUserId.Value) ||
+							(!string.IsNullOrEmpty(emailOrPhone) && uv.GuestEmailOrPhone == emailOrPhone)
+						)
+					);
 
-					if (userVoucher.Status != UsageStatus.Available)
+					if (alreadyUsed)
 					{
 						return BaseResponse<bool>.Fail(
-							"Voucher is not available to reserve",
+							"You have already used this voucher",
 							ResponseErrorType.BadRequest
 						);
 					}
 
+					// Check remaining quantity
+					if (voucher.RemainingQuantity <= 0)
+					{
+						return BaseResponse<bool>.Fail(
+							"Voucher is out of stock",
+							ResponseErrorType.BadRequest
+						);
+					}
+				}
+			}
+			else
+			{
+				// PRIVATE VOUCHER - Must own first
+
+				if (isAnonymousGuest)
+				{
+					return BaseResponse<bool>.Fail(
+						"This voucher requires you to log in or provide contact information",
+						ResponseErrorType.Unauthorized
+					);
+				}
+
+				var ownedVoucher = await FindUserVoucherAsync(
+					voucher.Id,
+					effectiveUserId,
+					emailOrPhone,
+					isGuest,
+					UsageStatus.Available);
+
+				if (ownedVoucher == null)
+				{
+					return BaseResponse<bool>.Fail(
+						"You don't own this voucher, it has already been used, or it is currently reserved",
+						ResponseErrorType.Forbidden
+					);
+				}
+			}
+
+			return BaseResponse<bool>.Ok(true, "Voucher is valid and can be applied");
+		}
+
+
+		public async Task<BaseResponse<UserVoucher>> MarkVoucherAsReservedAsync(Guid? userId, string? emailOrPhone, Guid voucherId, Guid orderId)
+		{
+			try
+			{
+				var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
+				if (voucher == null || voucher.IsDeleted)
+				{
+					return BaseResponse<UserVoucher>.Fail(
+						"Voucher not found",
+						ResponseErrorType.NotFound
+					);
+				}
+
+				var (effectiveUserId, isGuest, isAnonymousGuest) = await ResolveEffectiveUserAsync(userId, emailOrPhone);
+				UserVoucher actionedUserVoucher = null!;
+
+				if (voucher.IsPublic)
+				{
+					// ====== PUBLIC VOUCHER ======
+
+					// Check stock
+					if (voucher.RemainingQuantity <= 0)
+					{
+						return BaseResponse<UserVoucher>.Fail(
+							"Voucher is out of stock",
+							ResponseErrorType.BadRequest
+						);
+					}
+
+					// Check duplicate usage/reservation cho identified users
+					if (!isAnonymousGuest)
+					{
+						bool alreadyExists = await _unitOfWork.UserVouchers.AnyAsync(uv =>
+							uv.VoucherId == voucherId &&
+							(
+								(effectiveUserId.HasValue && uv.UserId == effectiveUserId.Value) ||
+								(!string.IsNullOrEmpty(emailOrPhone) && uv.GuestEmailOrPhone == emailOrPhone)
+							)
+						);
+
+						if (alreadyExists)
+						{
+							return BaseResponse<UserVoucher>.Fail(
+								"You have already reserved or used this voucher",
+								ResponseErrorType.BadRequest
+							);
+						}
+					}
+
+					// Create new UserVoucher and reserve
+					var publicUserVoucher = new UserVoucher
+					{
+						UserId = effectiveUserId,
+						VoucherId = voucherId,
+						OrderId = orderId,
+						GuestEmailOrPhone = isAnonymousGuest ? null : emailOrPhone,
+						IsUsed = false,
+						Status = UsageStatus.Reserved
+					};
+
+					await _unitOfWork.UserVouchers.AddAsync(publicUserVoucher);
+
+					// Decrement quantity
+					voucher.RemainingQuantity -= 1;
+					if (voucher.RemainingQuantity < 0) voucher.RemainingQuantity = 0;
+					_unitOfWork.Vouchers.Update(voucher);
+
+					actionedUserVoucher = publicUserVoucher;
+				}
+				else
+				{
+					// ====== PRIVATE VOUCHER ======
+
+					if (isAnonymousGuest)
+					{
+						return BaseResponse<UserVoucher>.Fail(
+							"This voucher requires you to log in or provide contact information",
+							ResponseErrorType.Unauthorized
+						);
+					}
+
+					var userVoucher = await FindUserVoucherAsync(
+						voucherId,
+						effectiveUserId,
+						emailOrPhone,
+						isGuest,
+						UsageStatus.Available);
+
+					if (userVoucher == null)
+					{
+						return BaseResponse<UserVoucher>.Fail(
+							"You don't own this voucher, it has already been used, or it is currently reserved",
+							ResponseErrorType.Forbidden
+						);
+					}
+
+					// Mark as reserved
 					userVoucher.Status = UsageStatus.Reserved;
+					userVoucher.OrderId = orderId;
 					_unitOfWork.UserVouchers.Update(userVoucher);
 
-					return BaseResponse<bool>.Ok(true, "Voucher marked as reserved successfully");
-				});
+					actionedUserVoucher = userVoucher;
+				}
+
+				return BaseResponse<UserVoucher>.Ok(actionedUserVoucher, "Voucher marked as reserved successfully");
 			}
 			catch (Exception ex)
 			{
-				return BaseResponse<bool>.Fail(
+				return BaseResponse<UserVoucher>.Fail(
 					$"Error marking voucher as reserved: {ex.Message}",
 					ResponseErrorType.InternalError
 				);
 			}
 		}
 
-		public async Task<BaseResponse<bool>> MarkVoucherAsUsedAsync(Guid userId, Guid voucherId)
+		public async Task<BaseResponse<bool>> MarkVoucherAsUsedAsync(Guid orderId)
 		{
 			try
 			{
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
+					uv => uv.OrderId == orderId && !uv.IsUsed,
+					asNoTracking: false
+				);
+
+				if (userVoucher == null)
 				{
-					var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
-						uv => uv.UserId == userId && uv.VoucherId == voucherId && !uv.IsUsed,
-						asNoTracking: false
+					return BaseResponse<bool>.Fail(
+						"User voucher not found or already used",
+						ResponseErrorType.NotFound
 					);
+				}
 
-					if (userVoucher == null)
-					{
-						return BaseResponse<bool>.Fail(
-							"User voucher not found or already used",
-							ResponseErrorType.NotFound
-						);
-					}
+				if (userVoucher.Status != UsageStatus.Reserved)
+				{
+					return BaseResponse<bool>.Fail(
+						"Voucher must be reserved before marking as used",
+						ResponseErrorType.BadRequest
+					);
+				}
 
-					if (userVoucher.Status != UsageStatus.Reserved)
-					{
-						return BaseResponse<bool>.Fail(
-							"Voucher must be reserved before marking as used",
-							ResponseErrorType.BadRequest
-						);
-					}
+				userVoucher.OrderId = orderId;
+				userVoucher.IsUsed = true;
+				userVoucher.Status = UsageStatus.Used;
+				_unitOfWork.UserVouchers.Update(userVoucher);
 
-					userVoucher.IsUsed = true;
-					userVoucher.Status = UsageStatus.Used;
-					_unitOfWork.UserVouchers.Update(userVoucher);
-
-					return BaseResponse<bool>.Ok(true, "Voucher marked as used successfully");
-				});
+				return BaseResponse<bool>.Ok(true, "Voucher marked as used successfully");
 			}
 			catch (Exception ex)
 			{
@@ -496,33 +596,53 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<bool>> ReleaseReservedVoucherAsync(Guid userId, Guid voucherId)
+		public async Task<BaseResponse<bool>> ReleaseReservedVoucherAsync(Guid orderId)
 		{
 			try
 			{
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
+					uv => uv.OrderId == orderId && !uv.IsUsed,
+					asNoTracking: false
+				);
+
+				if (userVoucher == null)
 				{
-					var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
-						uv => uv.UserId == userId && uv.VoucherId == voucherId && !uv.IsUsed,
-						asNoTracking: false
+					return BaseResponse<bool>.Fail(
+						"Voucher not reserved or already used",
+						ResponseErrorType.NotFound
 					);
+				}
 
-					if (userVoucher == null)
-					{
-						return BaseResponse<bool>.Fail(
-							"User voucher not found or already used",
-							ResponseErrorType.NotFound
-						);
-					}
+				if (userVoucher.Status != UsageStatus.Reserved)
+				{
+					return BaseResponse<bool>.Ok(true, "Voucher was not reserved, no action needed");
+				}
 
-					if (userVoucher.Status == UsageStatus.Reserved)
-					{
-						userVoucher.Status = UsageStatus.Available;
-						_unitOfWork.UserVouchers.Update(userVoucher);
-					}
+				var voucher = await _unitOfWork.Vouchers.GetByIdAsync(userVoucher.VoucherId);
+				if (voucher == null)
+				{
+					return BaseResponse<bool>.Fail(
+						"Voucher not found",
+						ResponseErrorType.NotFound
+					);
+				}
 
-					return BaseResponse<bool>.Ok(true, "Voucher released successfully");
-				});
+				if (voucher.IsPublic)
+				{
+					// Public voucher: remove the UserVoucher record and restore quantity
+					_unitOfWork.UserVouchers.Remove(userVoucher);
+					voucher.RemainingQuantity += 1;
+					_unitOfWork.Vouchers.Update(voucher);
+				}
+				else
+				{
+					// Private voucher: reset status to Available so user can reuse
+					userVoucher.Status = UsageStatus.Available;
+					userVoucher.OrderId = null;
+					_unitOfWork.UserVouchers.Update(userVoucher);
+				}
+
+				return BaseResponse<bool>.Ok(true, "Voucher released successfully");
 			}
 			catch (Exception ex)
 			{
@@ -564,6 +684,58 @@ namespace PerfumeGPT.Application.Services
 			return await _unitOfWork.Vouchers.GetByCodeAsync(code);
 		}
 
-		#endregion
+		#endregion Apply Voucher Logic
+
+		#region Private Helper Methods
+
+		private async Task<(Guid? EffectiveUserId, bool IsGuest, bool IsAnonymousGuest)> ResolveEffectiveUserAsync(Guid? userId, string? emailOrPhone)
+		{
+			bool isGuest = !userId.HasValue;
+			Guid? effectiveUserId = userId;
+			bool isAnonymousGuest = false;
+
+			if (isGuest && !string.IsNullOrEmpty(emailOrPhone))
+			{
+				var user = await _userService.GetByPhoneOrEmailAsync(emailOrPhone);
+				if (user != null)
+				{
+					effectiveUserId = user.Id;
+					isGuest = false;
+				}
+			}
+			else if (isGuest && string.IsNullOrEmpty(emailOrPhone))
+			{
+				isAnonymousGuest = true;
+			}
+
+			return (effectiveUserId, isGuest, isAnonymousGuest);
+		}
+
+		private async Task<UserVoucher?> FindUserVoucherAsync(Guid voucherId, Guid? effectiveUserId, string? emailOrPhone, bool isGuest, UsageStatus? requiredStatus = null)
+		{
+			if (isGuest)
+			{
+				return await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
+					uv => uv.VoucherId == voucherId &&
+						  uv.UserId == null &&
+						  uv.GuestEmailOrPhone == emailOrPhone &&
+						  !uv.IsUsed &&
+						  (requiredStatus == null || uv.Status == requiredStatus),
+					asNoTracking: false
+				);
+			}
+			else
+			{
+				return await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
+					uv => uv.VoucherId == voucherId &&
+						  uv.UserId == effectiveUserId!.Value &&
+						  !uv.IsUsed &&
+						  (requiredStatus == null || uv.Status == requiredStatus),
+					asNoTracking: false
+				);
+			}
+		}
+
+		#endregion Private Helper Methods
 	}
 }

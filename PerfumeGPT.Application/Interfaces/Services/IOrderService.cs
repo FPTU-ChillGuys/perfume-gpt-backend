@@ -18,7 +18,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 
 		#region Address Management
 
-		Task<BaseResponse<string>> UpdateOrderAddressAsync(Guid orderId, Guid userId, RecipientInformation request);
+		Task<BaseResponse<string>> UpdateOrderAddressAsync(Guid orderId, Guid userId, UpdateOrderAddressRequest request);
 
 		#endregion
 
