@@ -1,6 +1,5 @@
 using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
-using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Domain.Entities
 {
@@ -10,7 +9,6 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid OrderDetailId { get; set; }
 		public int Rating { get; set; } // 1-5 stars
 		public string Comment { get; set; } = string.Empty;
-		public ReviewStatus Status { get; set; } = ReviewStatus.Pending;
 
 		// Moderation
 		public Guid? ModeratedByStaffId { get; set; }

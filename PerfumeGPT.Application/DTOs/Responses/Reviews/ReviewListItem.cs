@@ -1,5 +1,3 @@
-using PerfumeGPT.Domain.Enums;
-
 namespace PerfumeGPT.Application.DTOs.Responses.Reviews
 {
 	public class ReviewListItem
@@ -12,7 +10,6 @@ namespace PerfumeGPT.Application.DTOs.Responses.Reviews
 		public string VariantName { get; set; } = null!;
 		public int Rating { get; set; }
 		public string CommentPreview { get; set; } = string.Empty;
-		public ReviewStatus Status { get; set; }
 		public int ImageCount { get; set; }
 		public DateTime CreatedAt { get; set; }
 		public DateTime ModeratedAt { get; set; }

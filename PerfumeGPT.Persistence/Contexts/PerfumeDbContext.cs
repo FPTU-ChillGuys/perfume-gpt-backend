@@ -626,9 +626,6 @@ namespace PerfumeGPT.Persistence.Contexts
 				.IsUnique();
 
 			builder.Entity<Review>()
-				.HasIndex(r => r.Status);
-
-			builder.Entity<Review>()
 				.HasIndex(r => r.Rating);
 
 			// TemporaryMedia -> User (M:1, nullable)
@@ -680,7 +677,6 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<StockAdjustment>().Property(sa => sa.Status).HasConversion<string>();
 			builder.Entity<StockAdjustment>().Property(sa => sa.Reason).HasConversion<string>();
 			builder.Entity<StockReservation>().Property(sr => sr.Status).HasConversion<string>();
-			builder.Entity<Review>().Property(r => r.Status).HasConversion<string>();
 
 			// Configure NVarchar for string properties to avoid default max length issues
 			builder.Entity<Product>().Property(p => p.Description)

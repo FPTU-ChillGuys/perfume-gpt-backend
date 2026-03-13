@@ -20,7 +20,6 @@ namespace PerfumeGPT.Application.Services
 		private readonly IMediaService _mediaService;
 		private readonly IValidator<CreateReviewRequest> _createValidator;
 		private readonly IValidator<UpdateReviewRequest> _updateValidator;
-		private readonly IValidator<ModerateReviewRequest> _moderateValidator;
 		private readonly IMapper _mapper;
 		private readonly MediaBulkActionHelper _helper;
 
@@ -29,7 +28,6 @@ namespace PerfumeGPT.Application.Services
 			IMediaService mediaService,
 			IValidator<CreateReviewRequest> createValidator,
 			IValidator<UpdateReviewRequest> updateValidator,
-			IValidator<ModerateReviewRequest> moderateValidator,
 			IMapper mapper,
 			MediaBulkActionHelper helper)
 		{
@@ -37,7 +35,6 @@ namespace PerfumeGPT.Application.Services
 			_mediaService = mediaService;
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
-			_moderateValidator = moderateValidator;
 			_mapper = mapper;
 			_helper = helper;
 		}
@@ -67,7 +64,6 @@ namespace PerfumeGPT.Application.Services
 
 			var review = _mapper.Map<Review>(request);
 			review.UserId = userId;
-			review.Status = ReviewStatus.Pending;
 
 			await _unitOfWork.Reviews.AddAsync(review);
 			var saved = await _unitOfWork.SaveChangesAsync();
@@ -89,8 +85,8 @@ namespace PerfumeGPT.Application.Services
 
 			var result = new BulkActionResult<Guid>(review.Id, metadata.Operations.Count > 0 ? metadata : null);
 			var message = metadata.HasPartialFailure
-				? $"Review submitted successfully with {metadata.TotalFailed} media upload failure(s). It will be published after moderation."
-				: "Review submitted successfully. It will be published after moderation.";
+				? $"Review submitted successfully with {metadata.TotalFailed} media upload failure(s)."
+				: "Review submitted successfully.";
 
 			return BaseResponse<BulkActionResult<Guid>>.Ok(result, message);
 		}
@@ -144,7 +140,6 @@ namespace PerfumeGPT.Application.Services
 			// === UPDATE REVIEW DATA ===
 			review.Rating = request.Rating;
 			review.Comment = request.Comment;
-			review.Status = ReviewStatus.Pending; // Reset to pending after edit
 
 			_unitOfWork.Reviews.Update(review);
 
@@ -156,8 +151,8 @@ namespace PerfumeGPT.Application.Services
 
 			var result = new BulkActionResult<string>("Review updated successfully", metadata.Operations.Count > 0 ? metadata : null);
 			var message = metadata.HasPartialFailure
-				? $"Review updated with {metadata.TotalFailed} media operation failure(s). It will be re-moderated."
-				: "Review updated successfully. It will be re-moderated.";
+				? $"Review updated with {metadata.TotalFailed} media operation failure(s)."
+				: "Review updated successfully.";
 
 			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
 		}
@@ -186,45 +181,6 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			return BaseResponse<string>.Ok("Review deleted successfully");
-		}
-
-		public async Task<BaseResponse<string>> ModerateReviewAsync(Guid staffId, Guid reviewId, ModerateReviewRequest request)
-		{
-			var validationResult = await _moderateValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				return BaseResponse<string>.Fail(
-					"Validation failed",
-					ResponseErrorType.BadRequest,
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]
-				);
-			}
-
-			var review = await _unitOfWork.Reviews.GetByIdAsync(reviewId);
-			if (review == null || review.IsDeleted)
-			{
-				return BaseResponse<string>.Fail("Review not found", ResponseErrorType.NotFound);
-			}
-
-			// Update moderation fields
-			review.Status = request.Status;
-			review.ModeratedByStaffId = staffId;
-			review.ModeratedAt = DateTime.UtcNow;
-			review.ModerationReason = request.ModerationReason;
-
-			_unitOfWork.Reviews.Update(review);
-			var saved = await _unitOfWork.SaveChangesAsync();
-
-			if (!saved)
-			{
-				return BaseResponse<string>.Fail("Failed to moderate review", ResponseErrorType.InternalError);
-			}
-
-			var message = request.Status == ReviewStatus.Approved
-				? "Review approved successfully"
-				: "Review rejected successfully";
-
-			return BaseResponse<string>.Ok(message);
 		}
 
 		public async Task<BaseResponse<PagedResult<ReviewListItem>>> GetReviewsAsync(GetPagedReviewsRequest request)
@@ -262,7 +218,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<List<ReviewResponse>>> GetVariantReviewsAsync(Guid variantId)
 		{
-			var response = await _unitOfWork.Reviews.GetReviewsByVariantIdAsync(variantId, ReviewStatus.Approved);
+			var response = await _unitOfWork.Reviews.GetReviewsByVariantIdAsync(variantId);
 			return BaseResponse<List<ReviewResponse>>.Ok(response);
 		}
 

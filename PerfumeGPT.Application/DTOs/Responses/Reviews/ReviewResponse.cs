@@ -1,5 +1,4 @@
 using PerfumeGPT.Application.DTOs.Responses.Media;
-using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Reviews
 {
@@ -14,7 +13,6 @@ namespace PerfumeGPT.Application.DTOs.Responses.Reviews
 		public string VariantName { get; set; } = null!;
 		public int Rating { get; set; }
 		public string Comment { get; set; } = string.Empty;
-		public ReviewStatus Status { get; set; }
 		public List<MediaResponse> Images { get; set; } = [];
 		public DateTime CreatedAt { get; set; }
 		public DateTime? UpdatedAt { get; set; }

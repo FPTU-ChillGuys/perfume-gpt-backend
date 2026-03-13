@@ -84,25 +84,6 @@ namespace PerfumeGPT.API.Controllers
 
 		#endregion
 
-		#region STAFF ENDPOINTS
-
-		[HttpPost("{reviewId:guid}/moderate")]
-		[Authorize(Roles = "staff")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> ModerateReview(Guid reviewId, [FromBody] ModerateReviewRequest request)
-		{
-			var validation = ValidateRequestBody<ModerateReviewRequest>(request);
-			if (validation != null) return validation;
-
-			var staffId = GetCurrentUserId();
-			var response = await _reviewService.ModerateReviewAsync(staffId, reviewId, request);
-			return HandleResponse(response);
-		}
-		#endregion
-
 		#region PUBLIC ENDPOINTS
 
 		[HttpGet]

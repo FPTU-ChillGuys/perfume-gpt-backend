@@ -42,11 +42,6 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(r => r.UserId == request.UserId.Value);
 			}
 
-			if (request.Status.HasValue)
-			{
-				query = query.Where(r => r.Status == request.Status.Value);
-			}
-
 			if (request.MinRating.HasValue)
 			{
 				query = query.Where(r => r.Rating >= request.MinRating.Value);
@@ -91,16 +86,11 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
-		public async Task<List<ReviewResponse>> GetReviewsByVariantIdAsync(Guid variantId, ReviewStatus? status = null)
+		public async Task<List<ReviewResponse>> GetReviewsByVariantIdAsync(Guid variantId)
 		{
 			var query = _context.Reviews
 				.Where(r => r.OrderDetail.VariantId == variantId && !r.IsDeleted)
 				.ProjectToType<ReviewResponse>();
-
-			if (status.HasValue)
-			{
-				query = query.Where(r => r.Status == status.Value);
-			}
 
 			return await query
 				.OrderByDescending(r => r.CreatedAt)
@@ -122,7 +112,6 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			var reviews = await _context.Reviews
 				.Where(r => r.OrderDetail.VariantId == variantId
-					&& r.Status == ReviewStatus.Approved
 					&& !r.IsDeleted)
 				.Select(r => r.Rating)
 				.ToListAsync();

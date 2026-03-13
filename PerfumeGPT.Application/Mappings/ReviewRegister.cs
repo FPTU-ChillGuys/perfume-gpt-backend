@@ -23,7 +23,6 @@ namespace PerfumeGPT.Application.Mappings
 					src.OrderDetail.ProductVariant.Concentration.Name)
 				.Map(dest => dest.Rating, src => src.Rating)
 				.Map(dest => dest.Comment, src => src.Comment)
-				.Map(dest => dest.Status, src => src.Status)
 				.Map(dest => dest.Images, src => src.ReviewImages.Where(ri => !ri.IsDeleted))
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt)
 				.Map(dest => dest.UpdatedAt, src => src.UpdatedAt);
@@ -48,7 +47,6 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ConcentrationName, src => src.OrderDetail.ProductVariant.Concentration.Name)
 				.Map(dest => dest.Rating, src => src.Rating)
 				.Map(dest => dest.Comment, src => src.Comment)
-				.Map(dest => dest.Status, src => src.Status)
 				.Map(dest => dest.Images, src => src.ReviewImages.Where(ri => !ri.IsDeleted))
 				.Map(dest => dest.ModeratedByStaffId, src => src.ModeratedByStaffId)
 				.Map(dest => dest.ModeratedByStaffName, src => src.ModeratedByStaff != null ? src.ModeratedByStaff.FullName : null)
@@ -71,7 +69,6 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Rating, src => src.Rating)
 				.Map(dest => dest.CommentPreview, src =>
 					src.Comment.Length > 100 ? $"{src.Comment.Substring(0, 100)}..." : src.Comment)
-				.Map(dest => dest.Status, src => src.Status)
 				.Map(dest => dest.ImageCount, src => src.ReviewImages.Count(ri => !ri.IsDeleted))
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt)
 				.Map(dest => dest.ModeratedAt, src => src.ModeratedAt);

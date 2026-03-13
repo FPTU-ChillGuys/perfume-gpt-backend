@@ -2,7 +2,6 @@ using PerfumeGPT.Application.DTOs.Requests.Reviews;
 using PerfumeGPT.Application.DTOs.Responses.Reviews;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Domain.Entities;
-using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Interfaces.Repositories
 {
@@ -10,7 +9,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	{
 		Task<ReviewDetailResponse?> GetReviewWithDetailsAsync(Guid reviewId);
 		Task<(List<ReviewListItem> Items, int TotalCount)> GetPagedReviewsAsync(GetPagedReviewsRequest request);
-		Task<List<ReviewResponse>> GetReviewsByVariantIdAsync(Guid variantId, ReviewStatus? status = null);
+		Task<List<ReviewResponse>> GetReviewsByVariantIdAsync(Guid variantId);
 		Task<List<ReviewResponse>> GetReviewsByUserIdAsync(Guid userId);
 
 		/// <summary>

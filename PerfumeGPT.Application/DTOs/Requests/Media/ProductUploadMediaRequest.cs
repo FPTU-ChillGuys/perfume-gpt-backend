@@ -2,9 +2,6 @@ using Microsoft.AspNetCore.Http;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Media
 {
-	/// <summary>
-	/// Request for uploading product images with metadata
-	/// </summary>
 	public class ProductUploadMediaRequest
 	{
 		public List<ProductImageUploadItem> Images { get; set; } = [];
