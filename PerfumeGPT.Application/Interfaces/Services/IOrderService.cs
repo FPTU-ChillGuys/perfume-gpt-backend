@@ -39,6 +39,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 
 		#region Fulfillment Operations (delegated to IOrderFulfillmentService)
 
+		Task<BaseResponse<PickListResponse>> GetOrderPickListAsync(Guid orderId);
 		Task<BaseResponse<string>> FulfillOrderAsync(Guid orderId, Guid staffId, FulfillOrderRequest request);
 		Task<BaseResponse<SwapDamagedStockResponse>> SwapDamagedStockAsync(Guid orderId, Guid staffId, SwapDamagedStockRequest request);
 

@@ -733,6 +733,11 @@ namespace PerfumeGPT.Application.Services
 
 		#region Fulfillment Operations (Delegated)
 
+		public Task<BaseResponse<PickListResponse>> GetOrderPickListAsync(Guid orderId)
+		{
+			return _fulfillmentService.GetPickListAsync(orderId);
+		}
+
 		public Task<BaseResponse<string>> FulfillOrderAsync(
 			Guid orderId,
 			Guid staffId,

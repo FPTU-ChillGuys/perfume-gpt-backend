@@ -19,7 +19,16 @@ namespace PerfumeGPT.Application.Mappings
 					: null)
 				.Map(dest => dest.Quantity, src => src.Quantity)
 				.Map(dest => dest.UnitPrice, src => src.UnitPrice)
-				.Map(dest => dest.Total, src => src.UnitPrice * src.Quantity);
+				.Map(dest => dest.Total, src => src.UnitPrice * src.Quantity)
+				.Map(dest => dest.ReservedBatches, src => src.Order != null
+					? src.Order.StockReservations.Where(sr => sr.VariantId == src.VariantId).Select(sr => new ReservedBatchResponse
+					{
+						BatchId = sr.BatchId,
+						BatchCode = sr.Batch.BatchCode,
+						ReservedQuantity = sr.ReservedQuantity,
+						ExpiryDate = sr.Batch.ExpiryDate
+					})
+					: null);
 		}
 	}
 }

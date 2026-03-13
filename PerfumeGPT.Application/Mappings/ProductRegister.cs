@@ -56,7 +56,8 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Description, src => src.Description)
 				.Map(dest => dest.Media, src => src.Media.Where(m => !m.IsDeleted))
 				.Map(dest => dest.Variants, src => src.Variants.Where(v => !v.IsDeleted))
-				.Map(dest => dest.Attributes, src => src.ProductAttributes);
+				.Map(dest => dest.Attributes, src => src.ProductAttributes)
+				.Map(dest => dest.NumberOfVariants, src => src.Variants.Count());
 
 			config.NewConfig<ProductVariant, VariantSummaryItem>()
 				.Map(dest => dest.DisplayName, src => $"{src.Concentration.Name} - {src.VolumeMl}ml")
@@ -70,6 +71,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.CategoryId, src => src.CategoryId)
 				.Map(dest => dest.CategoryName, src => src.Category.Name)
 				.Map(dest => dest.Description, src => src.Description)
+				.Map(dest => dest.NumberOfVariants, src => src.Variants.Count())
 				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary && !m.IsDeleted))
 				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 

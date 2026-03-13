@@ -11,12 +11,13 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 		public MediaResponse? PrimaryImage { get; set; }
 		public string Barcode { get; set; } = null!;
 		public string Sku { get; set; } = null!;
-		public int VolumeMl { get; set; } // (30ml / 50ml / 100ml / etc.)
-		public int ConcentrationId { get; set; } // (Eau de Parfum / Eau de Toilette / etc.)
+		public int VolumeMl { get; set; }
+		public int ConcentrationId { get; set; }
 		public string ConcentrationName { get; set; } = null!;
 		public VariantType Type { get; set; }
 		public decimal BasePrice { get; set; }
 		public VariantStatus Status { get; set; }
+		public int StockQuantity { get; set; }
 		public List<ProductAttributeResponse>? Attributes { get; set; }
 	}
 }

@@ -21,7 +21,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public Guid ReservationId { get; set; }
 		public Guid BatchId { get; set; }
 		public string BatchCode { get; set; } = null!;
-		public string? Location { get; set; }
+		public string? Note { get; set; }
 		public int ReservedQuantity { get; set; }
 		public DateTime ExpiryDate { get; set; }
 	}

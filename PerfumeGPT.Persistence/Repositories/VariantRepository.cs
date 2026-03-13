@@ -62,8 +62,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(GetPagedVariantsRequest request)
 		{
-			var query = _context.ProductVariants
-				.Where(v => !v.IsDeleted);
+			var query = _context.ProductVariants.Where(v => !v.IsDeleted);
 
 			var totalCount = await query.CountAsync();
 

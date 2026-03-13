@@ -40,6 +40,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Type, src => src.Type)
 				.Map(dest => dest.BasePrice, src => src.BasePrice)
 				.Map(dest => dest.Status, src => src.Status)
+				.Map(dest => dest.StockQuantity, src => src.Stock.TotalQuantity - src.Stock.ReservedQuantity)
 				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 
 			config.NewConfig<ProductVariant, ProductVariantResponse>()
@@ -55,6 +56,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Type, src => src.Type)
 				.Map(dest => dest.BasePrice, src => src.BasePrice)
 				.Map(dest => dest.Status, src => src.Status)
+				.Map(dest => dest.StockQuantity, src => src.Stock.TotalQuantity - src.Stock.ReservedQuantity)
 				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 
 			config.NewConfig<ProductVariant, VariantLookupItem>()

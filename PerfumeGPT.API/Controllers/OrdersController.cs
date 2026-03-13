@@ -19,28 +19,7 @@ namespace PerfumeGPT.API.Controllers
 			_orderService = orderService;
 		}
 
-		#region Query Operations
-
-		[HttpGet]
-		[Authorize(Roles = "staff,admin")]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PagedResult<OrderListItem>>>> GetOrders([FromQuery] GetPagedOrdersRequest request)
-		{
-			var response = await _orderService.GetOrdersAsync(request);
-			return HandleResponse(response);
-		}
-
-		[HttpGet("{orderId:guid}")]
-		[Authorize(Roles = "staff,admin")]
-		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<OrderResponse>>> GetOrderById([FromRoute] Guid orderId)
-		{
-			var response = await _orderService.GetOrderByIdAsync(orderId);
-			return HandleResponse(response);
-		}
+		#region User Query Operations
 
 		[HttpGet("my-orders")]
 		[Authorize(Roles = "user")]
@@ -77,6 +56,30 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		#endregion
+
+		#region Staff/Admin Query Operations
+		[HttpGet]
+		[Authorize(Roles = "staff,admin")]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PagedResult<OrderListItem>>>> GetOrders([FromQuery] GetPagedOrdersRequest request)
+		{
+			var response = await _orderService.GetOrdersAsync(request);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("{orderId:guid}")]
+		[Authorize(Roles = "staff,admin")]
+		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<OrderResponse>>> GetOrderById([FromRoute] Guid orderId)
+		{
+			var response = await _orderService.GetOrderByIdAsync(orderId);
+			return HandleResponse(response);
+		}
+
 		[HttpGet("staff/{staffId}")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]
@@ -88,8 +91,7 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _orderService.GetOrdersByStaffIdAsync(staffId, request);
 			return HandleResponse(response);
 		}
-
-		#endregion
+		#endregion Staff/Admin Query Operations
 
 		#region Checkout Operations
 
@@ -192,6 +194,18 @@ namespace PerfumeGPT.API.Controllers
 		#endregion
 
 		#region Order Fulfillment (Warehouse Operations)
+
+		[HttpGet("{orderId:guid}/picklist")]
+		[Authorize(Roles = "staff")]
+		[ProducesResponseType(typeof(BaseResponse<PickListResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PickListResponse>>> GetOrderPickList([FromRoute] Guid orderId)
+		{
+			var response = await _orderService.GetOrderPickListAsync(orderId);
+			return HandleResponse(response);
+		}
 
 		[HttpPost("{orderId:guid}/fulfill")]
 		[Authorize(Roles = "staff")]

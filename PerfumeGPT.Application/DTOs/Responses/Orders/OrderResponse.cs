@@ -73,5 +73,14 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public int Quantity { get; set; }
 		public decimal UnitPrice { get; set; }
 		public decimal Total { get; set; }
+		public List<ReservedBatchResponse> ReservedBatches { get; set; } = [];
+	}
+
+	public class ReservedBatchResponse
+	{
+		public Guid BatchId { get; set; }
+		public string BatchCode { get; set; } = null!;
+		public int ReservedQuantity { get; set; }
+		public DateTime ExpiryDate { get; set; }
 	}
 }

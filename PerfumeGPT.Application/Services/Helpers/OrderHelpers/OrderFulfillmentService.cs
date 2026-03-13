@@ -28,7 +28,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 		#region Pick List Generation
 
-		/// <inheritdoc />
 		public async Task<BaseResponse<PickListResponse>> GetPickListAsync(Guid orderId)
 		{
 			try
@@ -50,6 +49,14 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				}
 
 				var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(order.Id);
+
+				if (reservations.Any(r => r.Status != ReservationStatus.Reserved))
+				{
+					return BaseResponse<PickListResponse>.Fail(
+						"Pick list can only be generated for orders with active reservations.",
+						ResponseErrorType.BadRequest);
+				}
+
 				var pickListItems = await BuildPickListItemsAsync(order.OrderDetails, reservations);
 
 				var pickListResponse = new PickListResponse
@@ -99,7 +106,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 								ReservationId = reservation.Id,
 								BatchId = batch.Id,
 								BatchCode = batch.BatchCode,
-								Location = batch.ImportDetail?.Note,
+								Note = batch.ImportDetail?.Note,
 								ReservedQuantity = reservation.ReservedQuantity,
 								ExpiryDate = batch.ExpiryDate
 							});

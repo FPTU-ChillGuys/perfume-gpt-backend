@@ -90,6 +90,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			return await _context.Orders
 				.Where(o => o.Id == orderId)
 				.ProjectToType<OrderResponse>()
+				.AsSplitQuery()
 				.FirstOrDefaultAsync();
 		}
 
