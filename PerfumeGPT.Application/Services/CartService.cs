@@ -39,7 +39,7 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<CartCheckoutResponse>.Fail("Cart not found", ResponseErrorType.NotFound);
 				}
 
-				var items = await _unitOfWork.CartItems.GetCartCheckoutItemsAsync(cart.Id);
+				var items = await _unitOfWork.CartItems.GetCartCheckoutItemsAsync(cart.Id, request.ItemIds);
 				if (items == null || items.Count == 0)
 				{
 					return BaseResponse<CartCheckoutResponse>.Ok(new CartCheckoutResponse
@@ -73,27 +73,29 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<GetCartItemsResponse>> GetCartItemsAsync(Guid userId)
+		public async Task<BaseResponse<GetCartItemsResponse>> GetCartItemsAsync(Guid userId, List<Guid>? itemIds = null)
 		{
 			try
 			{
 				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
-
-				var items = await _unitOfWork.CartItems.GetCartItemsByCartIdAsync(cart.Id);
-				if (items == null || items.Count == 0)
+				if (cart == null)
 				{
-					return BaseResponse<GetCartItemsResponse>.Ok(new GetCartItemsResponse
-					{
-						Items = []
-					}, "Cart is empty");
+					return BaseResponse<GetCartItemsResponse>.Fail(
+						"Cart not found",
+						ResponseErrorType.NotFound);
 				}
 
-				var response = new GetCartItemsResponse
+				var items = await _unitOfWork.CartItems.GetCartItemsByCartIdAsync(cart.Id, itemIds);
+				if (items == null || items.Count == 0)
 				{
-					Items = items
-				};
+					return BaseResponse<GetCartItemsResponse>.Ok(
+						new GetCartItemsResponse { Items = [] },
+						"Cart is empty");
+				}
 
-				return BaseResponse<GetCartItemsResponse>.Ok(response, "Cart items retrieved successfully");
+				return BaseResponse<GetCartItemsResponse>.Ok(
+					new GetCartItemsResponse { Items = items },
+					"Cart items retrieved successfully");
 			}
 			catch (Exception ex)
 			{
@@ -117,7 +119,7 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				// 2. Get cart items
-				var items = await _unitOfWork.CartItems.GetCartItemPricesAsync(cart.Id);
+				var items = await _unitOfWork.CartItems.GetCartItemPricesAsync(cart.Id, request.ItemIds);
 				if (items == null || items.Count == 0)
 				{
 					return BaseResponse<GetCartTotalResponse>.Ok(

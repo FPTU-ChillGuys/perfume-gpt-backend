@@ -14,38 +14,44 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 		}
 
-		public async Task<List<GetCartItemResponse>> GetCartItemsByCartIdAsync(Guid cartId)
+		public async Task<List<GetCartItemResponse>> GetCartItemsByCartIdAsync(Guid cartId, List<Guid>? itemIds = null)
 		{
-			var items = await _context.CartItems
-				.Where(ci => ci.CartId == cartId)
+			var query = _context.CartItems.Where(ci => ci.CartId == cartId);
+
+			if (itemIds != null && itemIds.Count > 0)
+				query = query.Where(ci => itemIds.Contains(ci.Id) && ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0);
+
+			return await query
 				.ProjectToType<GetCartItemResponse>()
 				.ToListAsync();
-
-			return items;
 		}
 
-		public async Task<List<CartCheckoutItemDto>> GetCartCheckoutItemsAsync(Guid cartId)
+		public async Task<List<CartCheckoutItemDto>> GetCartCheckoutItemsAsync(Guid cartId, List<Guid>? itemIds = null)
 		{
-			var items = await _context.CartItems
-				.Where(ci => ci.CartId == cartId)
+			var query = _context.CartItems.Where(ci => ci.CartId == cartId);
+
+			if (itemIds != null && itemIds.Count > 0)
+				query = query.Where(ci => itemIds.Contains(ci.Id) && ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0);
+
+			return await query
 				.Select(ci => new CartCheckoutItemDto
 				{
 					VariantId = ci.VariantId,
 					Quantity = ci.Quantity
 				})
 				.ToListAsync();
-
-			return items;
 		}
 
-		public async Task<List<CartItemPriceDto>> GetCartItemPricesAsync(Guid cartId)
+		public async Task<List<CartItemPriceDto>> GetCartItemPricesAsync(Guid cartId, List<Guid>? itemIds)
 		{
-			var items = await _context.CartItems
-				.Where(ci => ci.CartId == cartId)
+			var query = _context.CartItems.Where(ci => ci.CartId == cartId);
+
+			if (itemIds != null && itemIds.Count > 0)
+				query = query.Where(ci => itemIds.Contains(ci.Id) && ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0);
+
+			return await query
 				.ProjectToType<CartItemPriceDto>()
 				.ToListAsync();
-
-			return items;
 		}
 
 		public async Task<bool> HasItemsInCartAsync(Guid cartId)

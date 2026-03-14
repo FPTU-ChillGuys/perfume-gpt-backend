@@ -308,6 +308,7 @@ namespace PerfumeGPT.Application.Services
 					var getCartTotalRequest = new GetCartTotalRequest
 					{
 						VoucherCode = request.VoucherCode,
+						ItemIds = request.ItemIds,
 						SavedAddressId = request.SavedAddressId,
 						Recipient = request.Recipient
 					};

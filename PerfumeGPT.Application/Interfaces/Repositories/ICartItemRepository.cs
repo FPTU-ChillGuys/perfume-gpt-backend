@@ -6,10 +6,9 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 {
 	public interface ICartItemRepository : IGenericRepository<CartItem>
 	{
-		Task<List<GetCartItemResponse>> GetCartItemsByCartIdAsync(Guid cartId);
-		Task<List<CartCheckoutItemDto>> GetCartCheckoutItemsAsync(Guid cartId);
-		Task<List<CartItemPriceDto>> GetCartItemPricesAsync(Guid cartId);
-
+		Task<List<GetCartItemResponse>> GetCartItemsByCartIdAsync(Guid cartId, List<Guid>? itemIds = null);
+		Task<List<CartCheckoutItemDto>> GetCartCheckoutItemsAsync(Guid cartId, List<Guid>? itemIds = null);
+		Task<List<CartItemPriceDto>> GetCartItemPricesAsync(Guid cartId, List<Guid>? cartItemIds);
 		Task<bool> HasItemsInCartAsync(Guid cartId);
 	}
 }

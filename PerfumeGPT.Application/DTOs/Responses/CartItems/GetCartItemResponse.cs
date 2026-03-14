@@ -2,9 +2,6 @@
 
 namespace PerfumeGPT.Application.DTOs.Responses.CartItems
 {
-	/// <summary>
-	/// Full cart item details for display purposes.
-	/// </summary>
 	public class GetCartItemResponse
 	{
 		public Guid CartItemId { get; set; }
@@ -15,6 +12,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.CartItems
 		public VariantType Type { get; set; }
 		public decimal VariantPrice { get; set; }
 		public int Quantity { get; set; }
+		public bool IsAvailable { get; set; }
 		public decimal SubTotal => VariantPrice * Quantity;
 	}
 }

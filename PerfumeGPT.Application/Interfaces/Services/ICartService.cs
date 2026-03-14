@@ -7,7 +7,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface ICartService
 	{
 		Task<BaseResponse<CartCheckoutResponse>> GetCartForCheckoutAsync(Guid userId, GetCartTotalRequest request);
-		Task<BaseResponse<GetCartItemsResponse>> GetCartItemsAsync(Guid userId);
+		Task<BaseResponse<GetCartItemsResponse>> GetCartItemsAsync(Guid userId, List<Guid>? itemIds = null);
 		Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, GetCartTotalRequest request);
 		Task<BaseResponse<string>> ClearCartAsync(Guid userId);
 	}

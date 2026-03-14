@@ -5,6 +5,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Orders
 	public class CreateOrderRequest
 	{
 		public string? VoucherCode { get; set; }
+		public List<Guid> ItemIds { get; set; } = [];
 		public DeliveryMethod DeliveryMethod { get; set; }
 		public string? GuestEmail { get; set; }
 		public Guid? SavedAddressId { get; set; }
