@@ -14,8 +14,6 @@ namespace PerfumeGPT.Application.Validators.Products
 				.GreaterThan(0).WithMessage("BrandId must be a positive integer.");
 			RuleFor(x => x.CategoryId)
 				.GreaterThan(0).WithMessage("CategoryId must be a positive integer.");
-			RuleFor(x => x.Description)
-				.MaximumLength(1000).WithMessage("Description must not exceed 1000 characters.");
 		}
 	}
 }

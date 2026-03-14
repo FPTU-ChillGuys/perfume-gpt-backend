@@ -13,6 +13,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Variants
 		public VariantType Type { get; set; }
 		public decimal BasePrice { get; set; }
 		public VariantStatus Status { get; set; }
+		public int LowStockThreshold { get; set; }
 
 		// Attribute management for variants
 		public List<ProductAttributeDto>? Attributes { get; set; }

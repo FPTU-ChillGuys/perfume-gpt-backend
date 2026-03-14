@@ -7,6 +7,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 		public Guid Id { get; set; }
 		public string DisplayName { get; set; } = null!;
 		public decimal Price { get; set; }
+		public int StockQuantity { get; set; }
 		public MediaResponse? Media { get; set; }
 	}
 }

@@ -11,10 +11,6 @@ namespace PerfumeGPT.Application.DTOs.Responses.Products
 		public string BrandName { get; set; } = null!;
 		public List<VariantFastLookResponse> Variants { get; set; } = [];
 		public ProductAttributeResponse? Attribute { get; set; }
-
-		//public bool IsNew { get; set; }
-		//public bool IsBestSeller { get; set; }
-
 		public int Rating { get; set; }
 		public int ReviewCount { get; set; }
 	}

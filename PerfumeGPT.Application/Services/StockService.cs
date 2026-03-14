@@ -158,5 +158,20 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 		}
+
+		public async Task<bool> InitStock(Guid variantId, int initialQuantity, int lowThreshold)
+		{
+			var stock = await _stockRepository.FirstOrDefaultAsync(s => s.VariantId == variantId);
+			if (stock != null) return false;
+
+			await _stockRepository.AddAsync(new Stock
+			{
+				VariantId = variantId,
+				TotalQuantity = initialQuantity,
+				LowStockThreshold = lowThreshold
+			});
+
+			return true;
+		}
 	}
 }

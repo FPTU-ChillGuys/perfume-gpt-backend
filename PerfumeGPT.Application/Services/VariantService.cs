@@ -5,6 +5,7 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
@@ -17,6 +18,8 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 
 		private readonly IVariantRepository _variantRepository;
+		private readonly IUnitOfWork _unitOfWork;
+		private readonly IStockService _stockServcie;
 		private readonly IMediaService _mediaService;
 		private readonly IValidator<CreateVariantRequest> _createVariantValidator;
 		private readonly IValidator<UpdateVariantRequest> _updateVariantValidator;
@@ -31,7 +34,9 @@ namespace PerfumeGPT.Application.Services
 			IValidator<UpdateVariantRequest> updateVariantValidator,
 			IMapper mapper,
 			MediaBulkActionHelper helper,
-			IProductAttributeService productAttributeService)
+			IProductAttributeService productAttributeService,
+			IStockService stockServcie,
+			IUnitOfWork unitOfWork)
 		{
 			_variantRepository = variantRepository;
 			_mediaService = mediaService;
@@ -40,62 +45,73 @@ namespace PerfumeGPT.Application.Services
 			_mapper = mapper;
 			_helper = helper;
 			_productAttributeService = productAttributeService;
+			_stockServcie = stockServcie;
+			_unitOfWork = unitOfWork;
 		}
 
 		#endregion Dependencies
 
 		public async Task<BaseResponse<BulkActionResult<string>>> CreateVariantAsync(CreateVariantRequest request)
 		{
-			var validationResult = await _createVariantValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
+			try
 			{
-				return BaseResponse<BulkActionResult<string>>.Fail(
-					"Validation failed",
-					ResponseErrorType.BadRequest,
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]
-				);
-			}
-
-			var variant = _mapper.Map<ProductVariant>(request);
-
-			// Validate variant attributes
-			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes, isForVariant: true);
-			if (attributeErrors.Count != 0)
-			{
-				return BaseResponse<BulkActionResult<string>>.Fail(
-					"Validation failed",
-					ResponseErrorType.BadRequest,
-					[.. attributeErrors]
-				);
-			}
-
-			_productAttributeService.ApplyAttributesToVariantEntity(variant, request.Attributes);
-
-			await _variantRepository.AddAsync(variant);
-			var saved = await _variantRepository.SaveChangesAsync();
-
-			if (!saved)
-			{
-				return BaseResponse<BulkActionResult<string>>.Fail("Failed to create variant", ResponseErrorType.InternalError);
-			}
-
-			var metadata = new BulkActionMetadata();
-			// Convert temporary media to permanent if provided
-			if (request.TemporaryMediaIds != null && request.TemporaryMediaIds.Count != 0)
-			{
-				var uploadResult = await ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIds, variant.Id);
-				if (uploadResult.TotalProcessed > 0)
+				var validationResult = await _createVariantValidator.ValidateAsync(request);
+				if (!validationResult.IsValid)
 				{
-					metadata.Operations.Add(BulkOperationResult.FromBulkActionResponse("Media Upload", uploadResult));
+					return BaseResponse<BulkActionResult<string>>.Fail(
+						"Validation failed",
+						ResponseErrorType.BadRequest,
+						[.. validationResult.Errors.Select(e => e.ErrorMessage)]
+					);
 				}
+
+				var variant = _mapper.Map<ProductVariant>(request);
+
+				// Validate variant attributes
+				var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes, isForVariant: true);
+				if (attributeErrors.Count != 0)
+				{
+					return BaseResponse<BulkActionResult<string>>.Fail(
+						"Validation failed",
+						ResponseErrorType.BadRequest,
+						[.. attributeErrors]
+					);
+				}
+
+				_productAttributeService.ApplyAttributesToVariantEntity(variant, request.Attributes);
+
+				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				{
+					await _variantRepository.AddAsync(variant);
+					var stockInitResult = await _stockServcie.InitStock(variant.Id, 0, request.LowStockThreshold);
+					if (!stockInitResult)
+					{
+						return BaseResponse<BulkActionResult<string>>.Fail("Failed to initialize stock for the variant", ResponseErrorType.InternalError);
+					}
+
+					var metadata = new BulkActionMetadata();
+					// Convert temporary media to permanent if provided
+					if (request.TemporaryMediaIds != null && request.TemporaryMediaIds.Count != 0)
+					{
+						var uploadResult = await ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIds, variant.Id);
+						if (uploadResult.TotalProcessed > 0)
+						{
+							metadata.Operations.Add(BulkOperationResult.FromBulkActionResponse("Media Upload", uploadResult));
+						}
+					}
+
+					var result = new BulkActionResult<string>(variant.Id.ToString(), metadata.Operations.Count > 0 ? metadata : null);
+					var message = metadata.HasPartialFailure
+						? $"Variant created successfully with {metadata.TotalFailed} media upload failure(s)."
+						: "Variant created successfully";
+
+					return BaseResponse<BulkActionResult<string>>.Ok(result, message);
+				});
 			}
-
-			var result = new BulkActionResult<string>(variant.Id.ToString(), metadata.Operations.Count > 0 ? metadata : null);
-			var message = metadata.HasPartialFailure
-				? $"Variant created successfully with {metadata.TotalFailed} media upload failure(s)."
-				: "Variant created successfully";
-
-			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
+			catch (Exception ex)
+			{
+				return BaseResponse<BulkActionResult<string>>.Fail($"An unexpected error occurred: {ex.Message}", ResponseErrorType.InternalError);
+			}
 		}
 
 		public async Task<BaseResponse<BulkActionResult<string>>> UpdateVariantAsync(Guid variantId, UpdateVariantRequest request)

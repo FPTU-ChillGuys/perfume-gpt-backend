@@ -63,6 +63,14 @@ namespace PerfumeGPT.Persistence.Repositories
 				));
 			}
 
+			if (request.IsAvailable.HasValue)
+			{
+				if (request.IsAvailable.Value)
+				{
+					query = query.Where(p => p.Variants.Any(v => !v.IsDeleted && (v.Stock.TotalQuantity - v.Stock.ReservedQuantity) > 0));
+				}
+			}
+
 			var totalCount = await query.CountAsync();
 
 			var items = await query
@@ -86,7 +94,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				{
 					Product = p,
 					OrderCount = p.Variants
-						.Where(v => !v.IsDeleted)
+						.Where(v => !v.IsDeleted && p.Variants.Any(v => !v.IsDeleted && (v.Stock.TotalQuantity - v.Stock.ReservedQuantity) > 0))
 						.SelectMany(v => v.OrderDetails)
 						.Count(od => od.Order != null && od.Order.CreatedAt >= limitDate)
 				})
@@ -107,7 +115,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			// New arrivals by most recent CreatedAt
 			var query = _context.Products
-				.Where(p => !p.IsDeleted)
+				.Where(p => !p.IsDeleted && p.Variants.Any(v => !v.IsDeleted && (v.Stock.TotalQuantity - v.Stock.ReservedQuantity) > 0))
 				.OrderByDescending(p => p.CreatedAt);
 			var totalCount = await query.CountAsync();
 			var items = await query
@@ -161,6 +169,7 @@ namespace PerfumeGPT.Persistence.Repositories
 							Id = v.Id,
 							DisplayName = $"{v.Concentration.Name} - {v.VolumeMl}ml",
 							Price = v.BasePrice,
+							StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
 							Media = v.Media
 								.Where(m => m.IsPrimary)
 								.Select(m => new MediaResponse

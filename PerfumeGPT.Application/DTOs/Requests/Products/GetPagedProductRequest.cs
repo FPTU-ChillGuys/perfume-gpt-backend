@@ -5,5 +5,6 @@ namespace PerfumeGPT.Application.DTOs.Requests.Products
 	public class GetPagedProductRequest : PagingAndSortingQuery
 	{
 		public int? GenderValueId { get; set; }
+		public bool? IsAvailable { get; set; }
 	}
 }
