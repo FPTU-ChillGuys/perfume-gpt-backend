@@ -331,6 +331,22 @@ namespace PerfumeGPT.Application.Services
 
 		#region Apply Voucher Logic
 
+		public async Task<BaseResponse<PagedResult<AvailableVoucherResponse>>> GetAvailableVouchersAsync(Guid userId, GetPagedAvailableVouchersRequest request)
+		{
+			var (items, totalCount) = await _unitOfWork.UserVouchers.GetPagedAvailableVouchersAsync(userId, request);
+			var pagedResult = new PagedResult<AvailableVoucherResponse>(
+				items,
+				request.PageNumber,
+				request.PageSize,
+				totalCount
+			);
+
+			return BaseResponse<PagedResult<AvailableVoucherResponse>>.Ok(
+				pagedResult,
+				"Available vouchers retrieved successfully"
+			);
+		}
+
 		public async Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null)
 		{
 			// 1. Validate voucher existence

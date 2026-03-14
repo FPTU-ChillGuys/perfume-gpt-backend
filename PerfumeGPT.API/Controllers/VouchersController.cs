@@ -108,6 +108,17 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpGet("available")]
+		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<AvailableVoucherResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<AvailableVoucherResponse>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PagedResult<AvailableVoucherResponse>>>> GetAvailableVouchers([FromQuery] GetPagedAvailableVouchersRequest request)
+		{
+			var userId = GetCurrentUserId();
+			var response = await _voucherService.GetAvailableVouchersAsync(userId, request);
+			return HandleResponse(response);
+		}
+
 		[HttpGet("my-vouchers")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status200OK)]

@@ -1,5 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Mapster;
+using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Vouchers;
+using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
@@ -138,6 +140,30 @@ namespace PerfumeGPT.Persistence.Repositories
 					!uv.IsUsed &&
 					uv.Status == UsageStatus.Available &&
 					!uv.Voucher.IsDeleted);
+		}
+
+		public async Task<(List<AvailableVoucherResponse> Items, int TotalCount)> GetPagedAvailableVouchersAsync(Guid userId, GetPagedAvailableVouchersRequest request)
+		{
+			var query = _context.UserVouchers
+				.Where(uv =>
+					(uv.UserId == userId && uv.Status == UsageStatus.Available && !uv.IsUsed)
+					||
+					(uv.Voucher.IsPublic
+						&& uv.Voucher.ExpiryDate > DateTime.Now
+						&& !uv.Voucher.IsDeleted
+						&& uv.Voucher.RemainingQuantity > 0
+						&& !_context.UserVouchers.Any(used =>
+							used.UserId == userId && used.VoucherId == uv.VoucherId)))
+				.ProjectToType<AvailableVoucherResponse>()
+				.AsNoTracking();
+
+			var totalCount = await query.CountAsync();
+			var items = await query
+				.Skip((request.PageNumber - 1) * request.PageSize)
+				.Take(request.PageSize)
+				.ToListAsync();
+
+			return (items, totalCount);
 		}
 	}
 }

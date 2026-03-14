@@ -12,10 +12,8 @@ namespace PerfumeGPT.Domain.Entities
 		public int RequiredPoints { get; set; }
 		public decimal MinOrderValue { get; set; }
 		public DateTime ExpiryDate { get; set; }
-
-		// newwly added properties
-		public int TotalQuantity { get; set; }
 		public int RemainingQuantity { get; set; }
+		public int TotalQuantity { get; set; }
 		public bool IsPublic { get; set; }
 
 		// Navigation
