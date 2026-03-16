@@ -5,8 +5,8 @@ namespace PerfumeGPT.Domain.Entities
 	public class RecipientInfo : BaseEntity<Guid>
 	{
 		public Guid OrderId { get; set; }
-		public string FullName { get; set; } = null!;
-		public string Phone { get; set; } = null!;
+		public string RecipientName { get; set; } = null!;
+		public string RecipientPhoneNumber { get; set; } = null!;
 
 		// Calculate Shipping fee based on Address
 		public int DistrictId { get; set; }

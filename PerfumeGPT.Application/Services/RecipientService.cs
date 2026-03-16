@@ -98,8 +98,8 @@ namespace PerfumeGPT.Application.Services
 			var recipientInfo = new RecipientInfo
 			{
 				OrderId = orderId,
-				FullName = recipientData.FullName,
-				Phone = recipientData.Phone,
+				RecipientName = recipientData.RecipientName,
+				RecipientPhoneNumber = recipientData.RecipientPhoneNumber,
 				DistrictId = recipientData.DistrictId,
 				DistrictName = recipientData.DistrictName,
 				WardCode = recipientData.WardCode,
@@ -126,8 +126,8 @@ namespace PerfumeGPT.Application.Services
 
 			var recipientData = resolvedData.Payload!;
 
-			existingRecipient.FullName = recipientData.FullName;
-			existingRecipient.Phone = recipientData.Phone;
+			existingRecipient.RecipientName = recipientData.RecipientName;
+			existingRecipient.RecipientPhoneNumber = recipientData.RecipientPhoneNumber;
 			existingRecipient.DistrictId = recipientData.DistrictId;
 			existingRecipient.DistrictName = recipientData.DistrictName;
 			existingRecipient.WardCode = recipientData.WardCode;

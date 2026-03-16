@@ -56,8 +56,8 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 	public class RecipientInfoResponse
 	{
 		public Guid Id { get; set; }
-		public string? FullName { get; set; }
-		public string? Phone { get; set; }
+		public string? RecipientName { get; set; }
+		public string? RecipientPhoneNumber { get; set; }
 		public string DistrictName { get; set; } = null!;
 		public string WardName { get; set; } = null!;
 		public string ProvinceName { get; set; } = null!;

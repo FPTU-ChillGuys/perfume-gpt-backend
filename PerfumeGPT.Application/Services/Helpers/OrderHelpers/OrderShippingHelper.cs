@@ -216,8 +216,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				// Create GHN shipping order request
 				var ghnRequest = new CreateShippingOrderRequest
 				{
-					ToName = recipientInfo.FullName,
-					ToPhone = recipientInfo.Phone,
+					ToName = recipientInfo.RecipientName,
+					ToPhone = recipientInfo.RecipientPhoneNumber,
 					ToAddress = recipientInfo.FullAddress,
 					ToWardName = recipientInfo.WardName,
 					ToDistrictName = recipientInfo.DistrictName,

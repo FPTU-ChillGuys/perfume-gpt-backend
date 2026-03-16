@@ -3,6 +3,8 @@
 	public class AddressResponse
 	{
 		public Guid Id { get; set; }
+		public string RecipientName { get; set; } = string.Empty;
+		public string RecipientPhoneNumber { get; set; } = string.Empty;
 
 		// Address details
 		public string Street { get; set; } = string.Empty;

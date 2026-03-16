@@ -7,11 +7,11 @@ namespace PerfumeGPT.Application.Validators.RecipientInfos
 	{
 		public RecipientInformationValidator()
 		{
-			RuleFor(r => r.FullName)
+			RuleFor(r => r.RecipientName)
 				.NotEmpty()
 				.WithMessage("FullName is required");
 
-			RuleFor(r => r.Phone)
+			RuleFor(r => r.RecipientPhoneNumber)
 				.NotEmpty()
 				.WithMessage("Phone is required");
 
