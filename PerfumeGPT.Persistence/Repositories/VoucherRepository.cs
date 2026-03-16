@@ -37,6 +37,24 @@ namespace PerfumeGPT.Persistence.Repositories
 				.FirstOrDefaultAsync();
 		}
 
+		public async Task<(List<RedeemableVoucherResponse> Items, int TotalCount)> GetPagedRedeemableVouchersAsync(GetPagedRedeemableVouchersRequest request)
+		{
+			var query = _context.Vouchers
+				.Where(v => !v.IsDeleted && v.ExpiryDate >= DateTime.UtcNow && v.IsPublic && v.RequiredPoints > 0 && v.RemainingQuantity > 0)
+				.AsNoTracking();
+
+			var totalCount = await query.CountAsync();
+
+			var items = await query
+				.OrderByDescending(v => v.CreatedAt)
+				.Skip((request.PageNumber - 1) * request.PageSize)
+				.Take(request.PageSize)
+				.ProjectToType<RedeemableVoucherResponse>()
+				.ToListAsync();
+
+			return (items, totalCount);
+		}
+
 		public async Task<(List<Voucher> Items, int TotalCount)> GetPagedVouchersAsync(GetPagedVouchersRequest request)
 		{
 			var now = DateTime.UtcNow;

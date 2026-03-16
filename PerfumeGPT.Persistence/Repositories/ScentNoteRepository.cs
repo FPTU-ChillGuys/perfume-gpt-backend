@@ -19,5 +19,15 @@ namespace PerfumeGPT.Persistence.Repositories
 			var scentNotes = await _context.ScentNotes.ProjectToType<ScentNoteLookupResponse>().ToListAsync();
 			return scentNotes;
 		}
+
+		public async Task<List<ScentNoteResponse>> GetAllScentNotesAsync()
+		{
+			return await _context.ScentNotes.ProjectToType<ScentNoteResponse>().ToListAsync();
+		}
+
+		public async Task<ScentNoteResponse?> GetScentNoteByIdAsync(int id)
+		{
+			return await _context.ScentNotes.Where(x => x.Id == id).ProjectToType<ScentNoteResponse>().FirstOrDefaultAsync();
+		}
 	}
 }

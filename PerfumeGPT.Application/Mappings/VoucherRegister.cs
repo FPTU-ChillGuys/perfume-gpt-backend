@@ -57,6 +57,17 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Status, src => src.Status.ToString())
 				.Map(dest => dest.IsExpired, src => src.Voucher.ExpiryDate < DateTime.UtcNow)
 				.Map(dest => dest.RedeemedAt, src => src.CreatedAt);
+
+			config.NewConfig<Voucher, RedeemableVoucherResponse>()
+				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.Code, src => src.Code)
+				.Map(dest => dest.DiscountValue, src => src.DiscountValue)
+				.Map(dest => dest.DiscountType, src => src.DiscountType.ToString())
+				.Map(dest => dest.RequiredPoints, src => src.RequiredPoints)
+				.Map(dest => dest.MinOrderValue, src => src.MinOrderValue)
+				.Map(dest => dest.ExpiryDate, src => src.ExpiryDate)
+				.Map(dest => dest.IsExpired, src => src.ExpiryDate < DateTime.UtcNow)
+				.Map(dest => dest.RemainingQuantity, src => src.RemainingQuantity);
 		}
 	}
 }

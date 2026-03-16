@@ -7,5 +7,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	public interface IScentNoteRepository : IGenericRepository<ScentNote>
 	{
 		Task<List<ScentNoteLookupResponse>> GetScentNoteLookupListAsync();
+		Task<List<ScentNoteResponse>> GetAllScentNotesAsync();
+		Task<ScentNoteResponse?> GetScentNoteByIdAsync(int id);
 	}
 }

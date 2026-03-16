@@ -261,24 +261,5 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					ResponseErrorType.InternalError);
 			}
 		}
-
-		//private async Task<string> GetWardNameByCodeAsync(string wardCode)
-		//{
-		//	// This is a placeholder - you may need to implement proper ward lookup
-		//	// For now, return the ward code as name
-		//	return wardCode;
-		//}
-
-		//private async Task<string> GetDistrictNameByIdAsync(int districtId)
-		//{
-		//	// This is a placeholder - you may need to implement proper district lookup
-		//	return districtId.ToString();
-		//}
-
-		//private async Task<string> GetProvinceNameByDistrictIdAsync(int districtId)
-		//{
-		//	// This is a placeholder - you may need to implement proper province lookup
-		//	return "HCM"; // Default to Ho Chi Minh City
-		//}
 	}
 }

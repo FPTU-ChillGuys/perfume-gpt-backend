@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -126,7 +127,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					return null!;
 				}
 
-				const string defaultRole = "User";
+				string defaultRole = UserRole.user.ToString();
 				var roleExists = await _context.Roles.AnyAsync(r => r.Name == defaultRole);
 				if (!roleExists)
 				{

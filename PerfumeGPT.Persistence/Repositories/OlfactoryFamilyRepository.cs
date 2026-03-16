@@ -20,5 +20,15 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			return olfactoryFamilies;
 		}
+
+		public async Task<List<OlfactoryFamilyResponse>> GetAllOlfactoryFamiliesAsync()
+		{
+			return await _context.OlfactoryFamilies.ProjectToType<OlfactoryFamilyResponse>().ToListAsync();
+		}
+
+		public async Task<OlfactoryFamilyResponse?> GetOlfactoryFamilyByIdAsync(int id)
+		{
+			return await _context.OlfactoryFamilies.Where(x => x.Id == id).ProjectToType<OlfactoryFamilyResponse>().FirstOrDefaultAsync();
+		}
 	}
 }

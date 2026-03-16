@@ -7,5 +7,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	public interface IOlfactoryFamilyRepository : IGenericRepository<OlfactoryFamily>
 	{
 		Task<List<OlfactoryLookupResponse>> GetOlfactoryFamilyLookupListAsync();
+		Task<List<OlfactoryFamilyResponse>> GetAllOlfactoryFamiliesAsync();
+		Task<OlfactoryFamilyResponse?> GetOlfactoryFamilyByIdAsync(int id);
 	}
 }

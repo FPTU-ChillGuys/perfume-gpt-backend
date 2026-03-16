@@ -77,7 +77,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 			worksheet.Cell(1, 1).Value = "SKU";
 			worksheet.Cell(1, 2).Value = "Barcode (Auto-filled)";
 			worksheet.Cell(1, 3).Value = "Product Name (Auto-filled)";
-			worksheet.Cell(1, 4).Value = "Quantity";
+			worksheet.Cell(1, 4).Value = "ExpectedQuantity";
 			worksheet.Cell(1, 5).Value = "Unit Price (VND)";
 			worksheet.Cell(1, 6).Value = "Subtotal (Auto-calculated)";
 
@@ -268,7 +268,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 
 			sheet.Cell(4, 1).Value = "1. Select a SKU from the DROPDOWN in Column A (don't type manually!)";
 			sheet.Cell(5, 1).Value = "2. Barcode and Product Name will auto-fill (Columns B & C)";
-			sheet.Cell(6, 1).Value = "3. Enter the Quantity (Column D)";
+			sheet.Cell(6, 1).Value = "3. Enter the Expected Quantity (Column D)";
 			sheet.Cell(7, 1).Value = "4. Enter the Unit Price in VND (Column E)";
 			sheet.Cell(8, 1).Value = "5. Subtotal will calculate automatically (Column F)";
 			sheet.Cell(9, 1).Value = "6. Total will be shown at the bottom";
@@ -287,7 +287,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 			sheet.Cell(13, 1).Value = "Column A - SKU: Use DROPDOWN to select (Required) - More readable than barcodes!";
 			sheet.Cell(14, 1).Value = "Column B - Barcode: Auto-filled from database (Read-only)";
 			sheet.Cell(15, 1).Value = "Column C - Product Name: Auto-filled from database (Read-only)";
-			sheet.Cell(16, 1).Value = "Column D - Quantity: Enter number of units (Required, > 0)";
+			sheet.Cell(16, 1).Value = "Column D - Expected Quantity: Enter number of units (Required, > 0)";
 			sheet.Cell(17, 1).Value = "Column E - Unit Price: Enter price per unit in VND (Required, > 0)";
 			sheet.Cell(18, 1).Value = "Column F - Subtotal: Auto-calculated (Read-only)";
 		}
@@ -304,7 +304,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 
 			sheet.Cell(21, 1).Value = "✓ Always use the DROPDOWN for SKUs - don't type manually!";
 			sheet.Cell(22, 1).Value = "✓ Each SKU can only appear once in the file";
-			sheet.Cell(23, 1).Value = "✓ Quantity must be a positive whole number";
+			sheet.Cell(23, 1).Value = "✓ Expected Quantity must be a positive whole number";
 			sheet.Cell(24, 1).Value = "✓ Unit Price must be a positive number";
 			sheet.Cell(25, 1).Value = "✓ Gray columns are auto-filled - don't edit them";
 			sheet.Cell(26, 1).Value = "✓ Maximum file size: 10MB";

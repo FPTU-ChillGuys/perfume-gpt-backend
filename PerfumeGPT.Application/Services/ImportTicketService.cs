@@ -191,7 +191,7 @@ namespace PerfumeGPT.Application.Services
 							var quantityCell = row.Cell(4);
 							if (!quantityCell.TryGetValue(out int quantity) || quantity <= 0)
 							{
-								errors.Add($"Row {rowNumber}: Quantity must be a positive number (found: '{quantityCell.GetString()}').");
+								errors.Add($"Row {rowNumber}: Expected Quantity must be a positive number (found: '{quantityCell.GetString()}').");
 								rowNumber++;
 								continue;
 							}

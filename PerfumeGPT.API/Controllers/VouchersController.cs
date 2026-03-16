@@ -91,6 +91,13 @@ namespace PerfumeGPT.API.Controllers
 
 		#region User Endpoints
 
+		[HttpGet("redeemable-list")]
+		public async Task<ActionResult<BaseResponse<List<RedeemableVoucherResponse>>>> GetRedeemableVouchers([FromQuery] GetPagedRedeemableVouchersRequest request)
+		{
+			var response = await _voucherService.GetRedeemableVouchersAsync(request);
+			return HandleResponse(response);
+		}
+
 		[HttpPost("redeem")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
