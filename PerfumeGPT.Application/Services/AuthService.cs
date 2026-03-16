@@ -22,7 +22,6 @@ namespace PerfumeGPT.Application.Services
 		private readonly IEmailService _emailService;
 		private readonly IAuthRepository _authRepository;
 		private readonly IProfileService _profileService;
-		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IUserRepository _userRepository;
 		private readonly IValidator<RegisterRequest> _registerValidator;
 		private readonly IUserVoucherRepository _userVoucherRepository;
@@ -34,8 +33,7 @@ namespace PerfumeGPT.Application.Services
 			IProfileService profileService,
 			IUserRepository userRepository,
 			IValidator<RegisterRequest> registerValidator,
-			IUserVoucherRepository userVoucherRepository,
-			ILoyaltyTransactionService loyaltyTransactionService)
+			IUserVoucherRepository userVoucherRepository)
 		{
 			_templateService = templateService;
 			_userManager = userManager;
@@ -45,7 +43,6 @@ namespace PerfumeGPT.Application.Services
 			_userRepository = userRepository;
 			_registerValidator = registerValidator;
 			_userVoucherRepository = userVoucherRepository;
-			_loyaltyTransactionService = loyaltyTransactionService;
 		}
 
 		#endregion
@@ -56,9 +53,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				await _userVoucherRepository.MigrateGuestVouchersAsync(user.Id, user.Email!, user.PhoneNumber!);
 			}
-			catch
-			{
-			}
+			catch { }
 		}
 
 		private async Task TryCreateProfileAsync(User user)
@@ -71,9 +66,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				var profileResult = await _profileService.CreateProfileAsync(user.Id);
 			}
-			catch
-			{
-			}
+			catch { }
 		}
 
 		public async Task<BaseResponse<TokenResponse>> LoginAsync(LoginRequest request)
@@ -122,7 +115,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> RegisterAsync(RegisterRequest request, UserRole? role)
 		{
 			var validationResults = await _registerValidator.ValidateAsync(request);
-			if (validationResults != null)
+			if (!validationResults.IsValid)
 			{
 				var errors = validationResults.Errors.Select(e => e.ErrorMessage).ToList();
 				return BaseResponse<string>.Fail("Validation failed", ResponseErrorType.BadRequest, errors);

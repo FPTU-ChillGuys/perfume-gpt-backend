@@ -12,7 +12,7 @@ namespace PerfumeGPT.Application.Validators.Auths
 				.EmailAddress().WithMessage("Invalid email format.");
 			RuleFor(x => x.PhoneNumber)
 				.NotEmpty().WithMessage("Phone number is required.")
-				.Matches(@"^\+?[1-9]\d{1,14}$").WithMessage("Invalid phone number format.");
+				.Matches(@"^(0)(3[2-9]|5[6789]|7[06789]|8[0-9]|9[0-9])[0-9]{7}$").WithMessage("Invalid phone number format.");
 		}
 	}
 }

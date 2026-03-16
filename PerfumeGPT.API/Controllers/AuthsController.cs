@@ -150,6 +150,11 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<string>>> ForgotPassword([FromBody] ForgotPasswordRequest request)
 		{
 			var validation = ValidateRequestBody<string>(request);
+			if (validation != null)
+			{
+				return validation;
+			}
+
 			var result = await _authService.ForgotPasswordAsync(request);
 			return HandleResponse(result);
 		}
@@ -159,6 +164,16 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		public async Task<ActionResult<BaseResponse<string>>> ResetPassword([FromBody] ResetPasswordRequest request)
-			=> await _authService.ResetPasswordAsync(request);
+		{
+			var validation = ValidateRequestBody<string>(request);
+			if (validation != null)
+			{
+				return validation;
+			}
+
+			var result = await _authService.ResetPasswordAsync(request);
+			return HandleResponse(result);
+		}
+
 	}
 }

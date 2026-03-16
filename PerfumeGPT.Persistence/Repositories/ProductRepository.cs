@@ -123,6 +123,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Take(request.PageSize)
 				.ProjectToType<ProductListItem>()
 				.AsNoTracking()
+				.AsSplitQuery()
 				.ToListAsync();
 			return (items, totalCount);
 		}
@@ -139,6 +140,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Take(request.PageSize)
 				.ProjectToType<ProductListItem>()
 				.AsNoTracking()
+				.AsSplitQuery()
 				.ToListAsync();
 			return (items, totalCount);
 		}
