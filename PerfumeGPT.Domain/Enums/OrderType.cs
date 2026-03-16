@@ -3,7 +3,6 @@
 	public enum OrderType
 	{
 		Online = 1,
-		Offline,
-		Shoppe,
+		Offline
 	}
 }

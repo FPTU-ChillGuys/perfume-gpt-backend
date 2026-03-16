@@ -1,5 +1,5 @@
 ﻿using Mapster;
-using PerfumeGPT.Application.DTOs.Requests.CartItems;
+using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Responses.CartItems;
 using PerfumeGPT.Domain.Entities;
 

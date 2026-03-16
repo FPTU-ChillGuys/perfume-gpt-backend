@@ -6,9 +6,9 @@ namespace PerfumeGPT.Domain.Entities
 	{
 		public Guid ImportId { get; set; }
 		public Guid ProductVariantId { get; set; }
-		public int Quantity { get; set; }
+		public int ExpectedQuantity { get; set; }
 		public decimal UnitPrice { get; set; }
-		public int RejectQuantity { get; set; } = 0;
+		public int RejectedQuantity { get; set; } = 0;
 		public string? Note { get; set; }
 
 		// Navigation

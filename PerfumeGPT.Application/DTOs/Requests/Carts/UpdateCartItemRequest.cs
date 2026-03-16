@@ -1,4 +1,4 @@
-﻿namespace PerfumeGPT.Application.DTOs.Requests.CartItems
+﻿namespace PerfumeGPT.Application.DTOs.Requests.Carts
 {
 	public class UpdateCartItemRequest
 	{

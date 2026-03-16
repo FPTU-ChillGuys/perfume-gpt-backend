@@ -18,6 +18,7 @@ namespace PerfumeGPT.Domain.Entities
 
 		[Timestamp]
 		public byte[] RowVersion { get; set; } = null!;
+
 		// Navigation
 		public virtual ProductVariant ProductVariant { get; set; } = null!;
 		public virtual ImportDetail ImportDetail { get; set; } = null!;

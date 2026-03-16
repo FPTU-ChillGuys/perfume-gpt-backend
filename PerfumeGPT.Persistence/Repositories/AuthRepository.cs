@@ -64,7 +64,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				new Claim("id", user.Id.ToString()),
 				new Claim("phoneNumber", user.PhoneNumber ?? string.Empty),
 				new Claim("email", user.Email ?? string.Empty),
-				new Claim("role", role),
+				new Claim("role", role.ToLower()),
 				new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
 			};
 

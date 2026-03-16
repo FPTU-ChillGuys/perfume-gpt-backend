@@ -40,20 +40,6 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			}
 		}
 
-		public ICartRepository Carts
-		{
-			get
-			{
-				var key = typeof(ICartRepository);
-				if (!_repositories.TryGetValue(key, out var repo))
-				{
-					repo = new CartRepository(_context);
-					_repositories[key] = repo!;
-				}
-				return (ICartRepository)repo!;
-			}
-		}
-
 		public ICartItemRepository CartItems
 		{
 			get
@@ -82,89 +68,89 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			}
 		}
 
-	public IStockRepository Stocks
-	{
-		get
+		public IStockRepository Stocks
 		{
-			var key = typeof(IStockRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new StockRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IStockRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new StockRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IStockRepository)repo!;
 			}
-			return (IStockRepository)repo!;
 		}
-	}
 
-	public IImportTicketRepository ImportTickets
-	{
-		get
+		public IImportTicketRepository ImportTickets
 		{
-			var key = typeof(IImportTicketRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new ImportTicketRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IImportTicketRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new ImportTicketRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IImportTicketRepository)repo!;
 			}
-			return (IImportTicketRepository)repo!;
 		}
-	}
 
-	public IImportDetailRepository ImportDetails
-	{
-		get
+		public IImportDetailRepository ImportDetails
 		{
-			var key = typeof(IImportDetailRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new ImportDetailRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IImportDetailRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new ImportDetailRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IImportDetailRepository)repo!;
 			}
-			return (IImportDetailRepository)repo!;
 		}
-	}
 
-	public ISupplierRepository Suppliers
-	{
-		get
+		public ISupplierRepository Suppliers
 		{
-			var key = typeof(ISupplierRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new SupplierRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(ISupplierRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new SupplierRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (ISupplierRepository)repo!;
 			}
-			return (ISupplierRepository)repo!;
 		}
-	}
 
-	public IBatchRepository Batches
-	{
-		get
+		public IBatchRepository Batches
 		{
-			var key = typeof(IBatchRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new BatchRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IBatchRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new BatchRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IBatchRepository)repo!;
 			}
-			return (IBatchRepository)repo!;
 		}
-	}
 
-	public IRecipientInfoRepository RecipientInfos
-	{
-		get
+		public IRecipientInfoRepository RecipientInfos
 		{
-			var key = typeof(IRecipientInfoRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new RecipientInfoRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IRecipientInfoRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new RecipientInfoRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IRecipientInfoRepository)repo!;
 			}
-			return (IRecipientInfoRepository)repo!;
 		}
-	}
 
 		public IAddressRepository Addresses
 		{
@@ -180,161 +166,161 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			}
 		}
 
-	public IShippingInfoRepository ShippingInfos
-	{
-		get
+		public IShippingInfoRepository ShippingInfos
 		{
-			var key = typeof(IShippingInfoRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new ShippingInfoRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IShippingInfoRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new ShippingInfoRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IShippingInfoRepository)repo!;
 			}
-			return (IShippingInfoRepository)repo!;
 		}
-	}
 
-	public IReceiptRepository Receipts
-	{
-		get
+		public IReceiptRepository Receipts
 		{
-			var key = typeof(IReceiptRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new ReceiptRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IReceiptRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new ReceiptRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IReceiptRepository)repo!;
 			}
-			return (IReceiptRepository)repo!;
 		}
-	}
 
-	public IVoucherRepository Vouchers
-	{
-		get
+		public IVoucherRepository Vouchers
 		{
-			var key = typeof(IVoucherRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new VoucherRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IVoucherRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new VoucherRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IVoucherRepository)repo!;
 			}
-			return (IVoucherRepository)repo!;
 		}
-	}
 
-	public IUserVoucherRepository UserVouchers
-	{
-		get
+		public IUserVoucherRepository UserVouchers
 		{
-			var key = typeof(IUserVoucherRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new UserVoucherRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IUserVoucherRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new UserVoucherRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IUserVoucherRepository)repo!;
 			}
-			return (IUserVoucherRepository)repo!;
 		}
-	}
 
-	public IStockAdjustmentRepository StockAdjustments
-	{
-		get
+		public IStockAdjustmentRepository StockAdjustments
 		{
-			var key = typeof(IStockAdjustmentRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new StockAdjustmentRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IStockAdjustmentRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new StockAdjustmentRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IStockAdjustmentRepository)repo!;
 			}
-			return (IStockAdjustmentRepository)repo!;
 		}
-	}
 
-	public IStockAdjustmentDetailRepository StockAdjustmentDetails
-	{
-		get
+		public IStockAdjustmentDetailRepository StockAdjustmentDetails
 		{
-			var key = typeof(IStockAdjustmentDetailRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new StockAdjustmentDetailRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IStockAdjustmentDetailRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new StockAdjustmentDetailRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IStockAdjustmentDetailRepository)repo!;
 			}
-			return (IStockAdjustmentDetailRepository)repo!;
 		}
-	}
 
-	public IStockReservationRepository StockReservations
-	{
-		get
+		public IStockReservationRepository StockReservations
 		{
-			var key = typeof(IStockReservationRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new StockReservationRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IStockReservationRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new StockReservationRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IStockReservationRepository)repo!;
 			}
-			return (IStockReservationRepository)repo!;
-	}
-}
-
-	public IReviewRepository Reviews
-	{
-		get
-		{
-			var key = typeof(IReviewRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
-			{
-				repo = new ReviewRepository(_context);
-				_repositories[key] = repo!;
-			}
-			return (IReviewRepository)repo!;
 		}
-	}
 
-	public ITemporaryMediaRepository TemporaryMedia
-	{
-		get
+		public IReviewRepository Reviews
 		{
-			var key = typeof(ITemporaryMediaRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new TemporaryMediaRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IReviewRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new ReviewRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IReviewRepository)repo!;
 			}
-			return (ITemporaryMediaRepository)repo!;
 		}
-	}
 
-	public IMediaRepository Media
-	{
-		get
+		public ITemporaryMediaRepository TemporaryMedia
 		{
-			var key = typeof(IMediaRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new MediaRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(ITemporaryMediaRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new TemporaryMediaRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (ITemporaryMediaRepository)repo!;
 			}
-			return (IMediaRepository)repo!;
 		}
-	}
 
-	public ILoyaltyPointRepository LoyaltyPoints
-	{
-		get
+		public IMediaRepository Media
 		{
-			var key = typeof(ILoyaltyPointRepository);
-			if (!_repositories.TryGetValue(key, out var repo))
+			get
 			{
-				repo = new LoyaltyPointRepository(_context);
-				_repositories[key] = repo!;
+				var key = typeof(IMediaRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new MediaRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IMediaRepository)repo!;
 			}
-			return (ILoyaltyPointRepository)repo!;
 		}
-	}
 
-	public UnitOfWork(PerfumeDbContext context)
+		public ILoyaltyTransactionRepository LoyaltyTransactions
+		{
+			get
+			{
+				var key = typeof(ILoyaltyTransactionRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new LoyaltyTransactionRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (ILoyaltyTransactionRepository)repo!;
+			}
+		}
+
+		public UnitOfWork(PerfumeDbContext context)
 		{
 			_context = context ?? throw new ArgumentNullException(nameof(context));
 		}

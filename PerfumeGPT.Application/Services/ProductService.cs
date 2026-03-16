@@ -9,6 +9,7 @@ using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -112,7 +113,10 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
-			var product = await _productRepo.GetByIdAsync(productId);
+			var product = await _productRepo.FirstOrDefaultAsync(
+				p => p.Id == productId,
+				include: q => q.Include(x => x.ProductFamilyMaps).Include(x => x.ProductScentMaps)
+			);
 			if (product == null)
 			{
 				return BaseResponse<BulkActionResult<string>>.Fail("Product not found", ResponseErrorType.NotFound);
@@ -158,6 +162,24 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			_mapper.Map(request, product);
+
+			if (request.OlfactoryFamilyIds != null)
+			{
+				product.ProductFamilyMaps.Clear();
+				foreach (var familyId in request.OlfactoryFamilyIds)
+				{
+					product.ProductFamilyMaps.Add(new ProductFamilyMap { OlfactoryFamilyId = familyId });
+				}
+			}
+
+			if (request.ScentNotes != null)
+			{
+				product.ProductScentMaps.Clear();
+				foreach (var note in request.ScentNotes)
+				{
+					product.ProductScentMaps.Add(new ProductNoteMap { ScentNoteId = note.NoteId, NoteType = note.Type });
+				}
+			}
 
 			// Replace attributes using service (this will remove existing and add new ones)
 			if (request.Attributes != null)

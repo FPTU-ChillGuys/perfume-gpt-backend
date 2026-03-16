@@ -3,9 +3,8 @@ using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Interfaces.Repositories
 {
-	public interface ICartRepository : IGenericRepository<Cart>
+	public interface ILoyaltyTransactionRepository : IGenericRepository<LoyaltyTransaction>
 	{
-		Task<Cart> GetByUserIdAsync(Guid userId);
-		Task<bool> ClearCartByUserIdAsync(Guid userId);
+		Task<int> GetPointBalanceAsync(Guid userId);
 	}
 }

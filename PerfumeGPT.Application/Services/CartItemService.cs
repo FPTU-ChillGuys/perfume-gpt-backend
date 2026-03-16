@@ -1,6 +1,6 @@
 ﻿using FluentValidation;
 using MapsterMapper;
-using PerfumeGPT.Application.DTOs.Requests.CartItems;
+using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -48,8 +48,6 @@ namespace PerfumeGPT.Application.Services
 
 			try
 			{
-				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
-
 				var variant = await _unitOfWork.Variants.GetByIdAsync(request.VariantId);
 				if (variant == null)
 				{
@@ -63,7 +61,7 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				var existing = await _unitOfWork.CartItems.FirstOrDefaultAsync(
-					ci => ci.CartId == cart.Id && ci.VariantId == request.VariantId);
+					ci => ci.UserId == userId && ci.VariantId == request.VariantId);
 
 				var totalQuantity = existing != null ? existing.Quantity + request.Quantity : request.Quantity;
 
@@ -91,8 +89,8 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Ok(existing.Id.ToString(), "Cart item quantity updated successfully");
 				}
 
-				request.CartId = cart.Id;
 				var cartItem = _mapper.Map<CartItem>(request);
+				cartItem.UserId = userId;
 
 				await _unitOfWork.CartItems.AddAsync(cartItem);
 				var saved = await _unitOfWork.SaveChangesAsync();
@@ -118,15 +116,13 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
-
 				var cartItem = await _unitOfWork.CartItems.GetByIdAsync(cartItemId);
 				if (cartItem == null)
 				{
 					return BaseResponse<string>.Fail("Cart item not found", ResponseErrorType.NotFound);
 				}
 
-				if (cartItem.CartId != cart.Id)
+				if (cartItem.UserId != userId)
 				{
 					return BaseResponse<string>.Fail(
 						"Cart item does not belong to user",
@@ -164,10 +160,8 @@ namespace PerfumeGPT.Application.Services
 
 			try
 			{
-				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
-
 				var cartItem = await _unitOfWork.CartItems.FirstOrDefaultAsync(
-					ci => ci.Id == cartItemId && ci.CartId == cart.Id);
+					ci => ci.Id == cartItemId && ci.UserId == userId);
 
 				if (cartItem == null)
 				{

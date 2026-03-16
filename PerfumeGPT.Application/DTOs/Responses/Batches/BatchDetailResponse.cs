@@ -1,9 +1,5 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Responses.Batches
 {
-	/// <summary>
-	/// Extended batch response with variant and expiry details.
-	/// Used for inventory batch queries.
-	/// </summary>
 	public class BatchDetailResponse : BatchResponse
 	{
 		public Guid VariantId { get; set; }

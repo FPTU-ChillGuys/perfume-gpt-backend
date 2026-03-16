@@ -6,7 +6,6 @@ using PerfumeGPT.Application.DTOs.Responses.VNPays;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
-using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
@@ -18,25 +17,22 @@ namespace PerfumeGPT.Application.Services
 
 		private readonly IVnPayService _vnPayService;
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly ILoyaltyPointService _loyaltyPointService;
+		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IVoucherService _voucherService;
-		private readonly IAuditScope _auditScope;
 
 		public PaymentService(
 			IVnPayService vnPayService,
 			IUnitOfWork unitOfWork,
-			ILoyaltyPointService loyaltyPointService,
 			IHttpContextAccessor httpContextAccessor,
 			IVoucherService voucherService,
-			IAuditScope auditScope)
+			ILoyaltyTransactionService loyaltyTransactionService)
 		{
 			_vnPayService = vnPayService;
 			_unitOfWork = unitOfWork;
-			_loyaltyPointService = loyaltyPointService;
 			_httpContextAccessor = httpContextAccessor;
 			_voucherService = voucherService;
-			_auditScope = auditScope;
+			_loyaltyTransactionService = loyaltyTransactionService;
 		}
 
 		#endregion Dependencies
@@ -179,10 +175,7 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		// private methods
-		private async Task<BaseResponse<string>> ProcessPaymentRetryAsync(
-			Guid paymentId,
-			PaymentInformation? newMethod = null,
-			bool requirePending = false)
+		private async Task<BaseResponse<string>> ProcessPaymentRetryAsync(Guid paymentId, PaymentInformation? newMethod = null, bool requirePending = false)
 		{
 			try
 			{
@@ -327,20 +320,6 @@ namespace PerfumeGPT.Application.Services
 				};
 
 				await _unitOfWork.Receipts.AddAsync(receipt);
-			}
-
-			// Clear cart and award loyalty points
-			if (order.CustomerId.HasValue)
-			{
-				await _unitOfWork.Carts.ClearCartByUserIdAsync(order.CustomerId.Value);
-				using (_auditScope.BeginSystemAction())
-				{
-					int pointsToAward = (int)(order.TotalAmount * 0.01m);
-					if (pointsToAward > 0)
-					{
-						await _loyaltyPointService.PlusPointAsync(order.CustomerId.Value, pointsToAward, false);
-					}
-				}
 			}
 
 			return BaseResponse<bool>.Ok(true, "Payment processed successfully.");

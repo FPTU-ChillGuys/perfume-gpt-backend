@@ -33,7 +33,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			try
 			{
 				var order = await _unitOfWork.Orders.GetByConditionAsync(
-					o => o.Id == orderId,
+					o => o.Id == orderId && o.PaymentStatus == PaymentStatus.Paid,
 					o => o.Include(o => o.OrderDetails));
 
 				if (order == null)
@@ -62,7 +62,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				var pickListResponse = new PickListResponse
 				{
 					OrderId = order.Id,
-					OrderCode = order.Id.ToString("N")[..8].ToUpper(),
 					Items = pickListItems
 				};
 

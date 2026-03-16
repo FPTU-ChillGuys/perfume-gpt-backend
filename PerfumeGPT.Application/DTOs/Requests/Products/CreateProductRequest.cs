@@ -1,4 +1,6 @@
 ﻿using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
+using PerfumeGPT.Application.DTOs.Requests.Products.ScentNotes;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Products
 {
@@ -7,12 +9,13 @@ namespace PerfumeGPT.Application.DTOs.Requests.Products
 		public string? Name { get; set; }
 		public int BrandId { get; set; }
 		public int CategoryId { get; set; }
+		public Gender Gender { get; set; }
+		public string Origin { get; set; } = null!;
+		public int ReleaseYear { get; set; }
 		public string? Description { get; set; }
-
-		// Upload First Pattern: Images uploaded to temporary storage first
+		public List<int> OlfactoryFamilyIds { get; set; } = [];
 		public List<Guid>? TemporaryMediaIds { get; set; }
-
-		// Product attributes
+		public List<ScentNoteDto> ScentNotes { get; set; } = [];
 		public List<ProductAttributeDto>? Attributes { get; set; }
 	}
 }

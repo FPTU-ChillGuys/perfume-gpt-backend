@@ -1,5 +1,5 @@
 ﻿using FluentValidation;
-using PerfumeGPT.Application.DTOs.Requests.CartItems;
+using PerfumeGPT.Application.DTOs.Requests.Carts;
 
 namespace PerfumeGPT.Application.Validators.CartItems
 {

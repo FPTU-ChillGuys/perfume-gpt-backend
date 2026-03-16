@@ -7,6 +7,7 @@ using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
+using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
@@ -28,8 +29,9 @@ namespace PerfumeGPT.Application.Services
 		private readonly IOrderDetailsFactory _orderDetailsFactory;
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IOrderFulfillmentService _fulfillmentService;
-		private readonly ILoyaltyPointService _loyaltyPointService;
+		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IRecipientService _recipientService;
+		private readonly IAuditScope _auditScope;
 
 		public OrderService(
 			IUnitOfWork unitOfWork,
@@ -44,8 +46,9 @@ namespace PerfumeGPT.Application.Services
 			IOrderDetailsFactory orderDetailsFactory,
 			IStockReservationService stockReservationService,
 			IOrderFulfillmentService fulfillmentService,
-			ILoyaltyPointService loyaltyPointService,
-			IRecipientService recipientService)
+			IRecipientService recipientService,
+			IAuditScope auditScope,
+			ILoyaltyTransactionService loyaltyTransactionService)
 		{
 			_unitOfWork = unitOfWork;
 			_cartService = cartService;
@@ -59,16 +62,14 @@ namespace PerfumeGPT.Application.Services
 			_orderDetailsFactory = orderDetailsFactory;
 			_stockReservationService = stockReservationService;
 			_fulfillmentService = fulfillmentService;
-			_loyaltyPointService = loyaltyPointService;
 			_recipientService = recipientService;
+			_auditScope = auditScope;
+			_loyaltyTransactionService = loyaltyTransactionService;
 		}
 
 		#endregion Dependencies
 
-		public async Task<BaseResponse<string>> UpdateOrderAddressAsync(
-		Guid orderId,
-		Guid userId,
-		UpdateOrderAddressRequest request)
+		public async Task<BaseResponse<string>> UpdateOrderAddressAsync(Guid orderId, Guid userId, UpdateOrderAddressRequest request)
 		{
 			try
 			{
@@ -165,7 +166,7 @@ namespace PerfumeGPT.Application.Services
 							var points = (int)Math.Floor(refund / currencyPerPoint);
 							if (points > 0)
 							{
-								await _loyaltyPointService.PlusPointAsync(order.CustomerId.Value, points);
+								await _loyaltyTransactionService.PlusPointAsync(order.CustomerId.Value, points, orderId, false);
 							}
 						}
 						else if (newFee > oldFee)
@@ -233,6 +234,32 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
+		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersByStaffIdAsync(Guid staffId, GetPagedOrdersRequest request)
+		{
+			try
+			{
+				var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request, staffId: staffId);
+
+				var pagedResult = new PagedResult<OrderListItem>(
+					orders,
+					request.PageNumber,
+					request.PageSize,
+					totalCount);
+
+				return BaseResponse<PagedResult<OrderListItem>>.Ok(pagedResult, "Staff orders retrieved successfully.");
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<PagedResult<OrderListItem>>.Fail(
+					$"An error occurred while retrieving staff orders: {ex.Message}",
+					ResponseErrorType.InternalError);
+			}
+		}
+
+		#endregion Query Operations
+
+		#region User Query Operations
+
 		public async Task<BaseResponse<UserOrderResponse>> GetUserOrderByIdAsync(Guid orderId, Guid userId)
 		{
 			try
@@ -272,29 +299,7 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersByStaffIdAsync(Guid staffId, GetPagedOrdersRequest request)
-		{
-			try
-			{
-				var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request, staffId: staffId);
-
-				var pagedResult = new PagedResult<OrderListItem>(
-					orders,
-					request.PageNumber,
-					request.PageSize,
-					totalCount);
-
-				return BaseResponse<PagedResult<OrderListItem>>.Ok(pagedResult, "Staff orders retrieved successfully.");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<PagedResult<OrderListItem>>.Fail(
-					$"An error occurred while retrieving staff orders: {ex.Message}",
-					ResponseErrorType.InternalError);
-			}
-		}
-
-		#endregion
+		#endregion User Query Operations
 
 		#region Checkout Operations
 
@@ -413,6 +418,9 @@ namespace PerfumeGPT.Application.Services
 							order.UserVoucher = markVoucherResult.Payload;
 						}
 					}
+
+					// Clear cart Items
+					await _cartService.ClearCartAsync(userId, request.ItemIds);
 
 					return await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(
 						order.Id,
@@ -582,10 +590,7 @@ namespace PerfumeGPT.Application.Services
 
 		#region Order Status Management
 
-		public async Task<BaseResponse<PickListResponse>> UpdateOrderStatusAsync(
-			Guid orderId,
-			Guid staffId,
-			UpdateOrderStatusRequest request)
+		public async Task<BaseResponse<PickListResponse>> UpdateOrderStatusAsync(Guid orderId, Guid staffId, UpdateOrderStatusRequest request)
 		{
 			try
 			{
@@ -639,6 +644,23 @@ namespace PerfumeGPT.Application.Services
 					if (request.Status == OrderStatus.Canceled)
 					{
 						await HandleOrderCancellationAsync(order);
+					}
+
+					// Handle delivery completion - update loyalty points
+					if (request.Status == OrderStatus.Delivered)
+					{
+						// Award loyalty points
+						if (order.CustomerId.HasValue)
+						{
+							using (_auditScope.BeginSystemAction())
+							{
+								int pointsToAward = (int)(order.TotalAmount * 0.01m);
+								if (pointsToAward > 0)
+								{
+									await _loyaltyTransactionService.PlusPointAsync(order.CustomerId.Value, pointsToAward, orderId, false);
+								}
+							}
+						}
 					}
 
 					var orderTypeText = order.Type == OrderType.Online ? "online" : "in-store";
@@ -739,18 +761,12 @@ namespace PerfumeGPT.Application.Services
 			return _fulfillmentService.GetPickListAsync(orderId);
 		}
 
-		public Task<BaseResponse<string>> FulfillOrderAsync(
-			Guid orderId,
-			Guid staffId,
-			FulfillOrderRequest request)
+		public Task<BaseResponse<string>> FulfillOrderAsync(Guid orderId, Guid staffId, FulfillOrderRequest request)
 		{
 			return _fulfillmentService.FulfillOrderAsync(orderId, staffId, request);
 		}
 
-		public Task<BaseResponse<SwapDamagedStockResponse>> SwapDamagedStockAsync(
-			Guid orderId,
-			Guid staffId,
-			SwapDamagedStockRequest request)
+		public Task<BaseResponse<SwapDamagedStockResponse>> SwapDamagedStockAsync(Guid orderId, Guid staffId, SwapDamagedStockRequest request)
 		{
 			return _fulfillmentService.SwapDamagedStockAsync(orderId, staffId, request);
 		}
@@ -766,12 +782,7 @@ namespace PerfumeGPT.Application.Services
 				: DateTime.UtcNow.AddDays(1);
 		}
 
-		private static Order CreateOnlineOrder(
-			Guid customerId,
-			Guid? userVoucherId,
-			decimal totalAmount,
-			DateTime paymentExpiresAt,
-			List<OrderDetail> orderDetails)
+		private static Order CreateOnlineOrder(Guid customerId, Guid? userVoucherId, decimal totalAmount, DateTime paymentExpiresAt, List<OrderDetail> orderDetails)
 		{
 			return new Order
 			{
@@ -786,11 +797,7 @@ namespace PerfumeGPT.Application.Services
 			};
 		}
 
-		private static Order CreateOfflineOrder(
-			Guid staffId,
-			Guid? userVoucherId,
-			decimal totalAmount,
-			List<OrderDetail> orderDetails)
+		private static Order CreateOfflineOrder(Guid staffId, Guid? userVoucherId, decimal totalAmount, List<OrderDetail> orderDetails)
 		{
 			return new Order
 			{

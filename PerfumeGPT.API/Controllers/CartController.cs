@@ -48,10 +48,10 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> ClearCart()
+		public async Task<ActionResult<BaseResponse<string>>> ClearCart([FromQuery] List<Guid>? itemIds)
 		{
 			var userId = GetCurrentUserId();
-			var result = await _cartService.ClearCartAsync(userId);
+			var result = await _cartService.ClearCartAsync(userId, itemIds);
 			return HandleResponse(result);
 		}
 	}

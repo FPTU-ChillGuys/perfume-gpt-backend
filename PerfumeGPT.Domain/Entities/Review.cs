@@ -7,7 +7,7 @@ namespace PerfumeGPT.Domain.Entities
 	{
 		public Guid UserId { get; set; }
 		public Guid OrderDetailId { get; set; }
-		public int Rating { get; set; } // 1-5 stars
+		public int Rating { get; set; }
 		public string Comment { get; set; } = string.Empty;
 
 		// Moderation

@@ -1,4 +1,4 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.CartItems;
+﻿using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 
 namespace PerfumeGPT.Application.Interfaces.Services

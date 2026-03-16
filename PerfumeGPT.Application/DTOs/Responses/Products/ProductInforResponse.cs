@@ -9,7 +9,7 @@
 		public string ScentGroup { get; set; } = string.Empty;
 		public string Style { get; set; } = string.Empty;
 		public string TopNotes { get; set; } = string.Empty;
-		public string MiddleNotes { get; set; } = string.Empty;
+		public string HeartNotes { get; set; } = string.Empty;
 		public string BaseNotes { get; set; } = string.Empty;
 		public string Description { get; set; } = string.Empty;
 	}

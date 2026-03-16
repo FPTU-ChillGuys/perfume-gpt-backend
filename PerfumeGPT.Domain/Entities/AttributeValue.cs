@@ -10,5 +10,6 @@ namespace PerfumeGPT.Domain.Entities
 		// Navigation properties
 		public virtual Attribute Attribute { get; set; } = null!;
 		public virtual ICollection<ProductAttribute> ProductAttributes { get; set; } = [];
+		public virtual ICollection<CustomerAttributePreference> CustomerAttributePreferences { get; set; } = [];
 	}
 }

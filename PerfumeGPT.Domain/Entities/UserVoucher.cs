@@ -9,7 +9,7 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid? UserId { get; set; }
 		public Guid VoucherId { get; set; }
 		public Guid? OrderId { get; set; }
-		public string? GuestEmailOrPhone { get; set; } // For guest users
+		public string? GuestEmailOrPhone { get; set; }
 		public bool IsUsed { get; set; }
 		public UsageStatus Status { get; set; }
 

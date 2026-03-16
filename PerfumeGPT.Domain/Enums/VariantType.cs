@@ -2,8 +2,9 @@
 {
 	public enum VariantType
 	{
-		FullBox = 1,
+		Standard = 1,
+		FullBox,
 		Tester,
-		Mini
+		Mini,
 	}
 }

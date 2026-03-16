@@ -155,7 +155,7 @@ namespace PerfumeGPT.Persistence.Contexts
 
 		// DbSets
 		public DbSet<CustomerProfile> CustomerProfiles { get; set; }
-		public DbSet<LoyaltyPoint> LoyaltyPoints { get; set; }
+		public DbSet<LoyaltyTransaction> LoyaltyTransactions { get; set; }
 		public DbSet<Address> Addresses { get; set; }
 		public DbSet<ImportTicket> ImportTickets { get; set; }
 		public DbSet<ImportDetail> ImportDetails { get; set; }
@@ -173,7 +173,6 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<Order> Orders { get; set; }
 		public DbSet<OrderDetail> OrderDetails { get; set; }
 		public DbSet<Notification> Notifications { get; set; }
-		public DbSet<Cart> Carts { get; set; }
 		public DbSet<CartItem> CartItems { get; set; }
 		public DbSet<PaymentTransaction> PaymentTransactions { get; set; }
 		public DbSet<Receipt> Receipts { get; set; }
@@ -187,10 +186,24 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<StockReservation> StockReservations { get; set; }
 		public DbSet<Review> Reviews { get; set; }
 		public DbSet<TemporaryMedia> TemporaryMedia { get; set; }
+		public DbSet<OlfactoryFamily> OlfactoryFamilies { get; set; }
+		public DbSet<ScentNote> ScentNotes { get; set; }
+		public DbSet<ProductNoteMap> ProductNoteMaps { get; set; }
+		public DbSet<ProductFamilyMap> ProductFamilyMaps { get; set; }
+		public DbSet<CustomerNotePreference> CustomerNotePreferences { get; set; }
+		public DbSet<CustomerFamilyPreference> CustomerFamilyPreferences { get; set; }
+		public DbSet<CustomerAttributePreference> CustomerAttributePreferences { get; set; }
 
 		protected override void OnModelCreating(ModelBuilder builder)
 		{
 			base.OnModelCreating(builder);
+
+
+			// Configure BaseEntity primary keys
+			builder.Model.GetEntityTypes()
+				.Where(t => typeof(BaseEntity<Guid>).IsAssignableFrom(t.ClrType))
+				.ToList()
+				.ForEach(t => builder.Entity(t.ClrType).HasKey("Id"));
 
 			// User -> CustomerProfile (1:1)
 			builder.Entity<User>()
@@ -203,22 +216,33 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasIndex(cp => cp.UserId)
 				.IsUnique();
 
-			// Configure BaseEntity primary keys
-			builder.Model.GetEntityTypes()
-				.Where(t => typeof(BaseEntity<Guid>).IsAssignableFrom(t.ClrType))
-				.ToList()
-				.ForEach(t => builder.Entity(t.ClrType).HasKey("Id"));
-
-			// User -> LoyaltyPoint (1:1)
-			builder.Entity<User>()
-				.HasOne(u => u.LoyaltyPoint)
-				.WithOne(lp => lp.User)
-				.HasForeignKey<LoyaltyPoint>(lp => lp.UserId)
+			// CustomerProfile -> CustomerNotes (1:M)
+			builder.Entity<CustomerProfile>()
+				.HasMany(cp => cp.NotePreferences)
+				.WithOne(cn => cn.Profile)
+				.HasForeignKey(cn => cn.ProfileId)
 				.OnDelete(DeleteBehavior.Cascade);
 
-			builder.Entity<LoyaltyPoint>()
-				.HasIndex(lp => lp.UserId)
-				.IsUnique();
+			// CustomerProfile -> CustomerFamilies (1:M)
+			builder.Entity<CustomerProfile>()
+				.HasMany(cp => cp.FamilyPreferences)
+				.WithOne(cf => cf.Profile)
+				.HasForeignKey(cf => cf.ProfileId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// CustomerProfile -> CustomerAttributes (1:M)
+			builder.Entity<CustomerProfile>()
+				.HasMany(cp => cp.AttributePreferences)
+				.WithOne(ca => ca.Profile)
+				.HasForeignKey(ca => ca.ProfileId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// User -> LoyaltyTransactions (1:M)
+			builder.Entity<User>()
+				.HasMany(u => u.LoyaltyTransactions)
+				.WithOne(lt => lt.User)
+				.HasForeignKey(lt => lt.UserId)
+				.OnDelete(DeleteBehavior.Cascade);
 
 			// User -> Addresses (1:M)
 			builder.Entity<User>()
@@ -269,11 +293,11 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(uv => uv.UserId)
 				.OnDelete(DeleteBehavior.Cascade);
 
-			// User -> Cart (1:1)
+			// User -> CartItems (1:M)
 			builder.Entity<User>()
-				.HasOne(u => u.Cart)
-				.WithOne(c => c.User)
-				.HasForeignKey<Cart>(c => c.UserId)
+				.HasMany(u => u.CartItems)
+				.WithOne(ci => ci.User)
+				.HasForeignKey(ci => ci.UserId)
 				.OnDelete(DeleteBehavior.Cascade);
 
 			// User -> Orders (1:M) as Customer
@@ -336,7 +360,49 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(v => v.ProductId)
 				.OnDelete(DeleteBehavior.Cascade);
 
-			// Brand/Category/FragranceFamily -> Product (1:M)
+			// Product -> ProductScentMap (1:M)
+			builder.Entity<Product>()
+				.HasMany(p => p.ProductScentMaps)
+				.WithOne(psm => psm.Product)
+				.HasForeignKey(psm => psm.ProductId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// ScentNote -> ProductScentMap (1:M)
+			builder.Entity<ScentNote>()
+				.HasMany(sn => sn.ProductScentNoteMaps)
+				.WithOne(psm => psm.ScentNote)
+				.HasForeignKey(psm => psm.ScentNoteId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// ScentNote -> CustomerNotePreference (1:M)
+			builder.Entity<ScentNote>()
+				.HasMany(sn => sn.CustomerScentNotePreferences)
+				.WithOne(cnp => cnp.ScentNote)
+				.HasForeignKey(cnp => cnp.NoteId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// OlfactoryFamily -> ProductOlfactoryMap (1:M)
+			builder.Entity<OlfactoryFamily>()
+				.HasMany(of => of.ProductFamilyMaps)
+				.WithOne(pom => pom.OlfactoryFamily)
+				.HasForeignKey(pom => pom.OlfactoryFamilyId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// OlfactoryFamily -> CustomerFamilyPreference (1:M)
+			builder.Entity<OlfactoryFamily>()
+				.HasMany(of => of.CustomerFamilyPreferences)
+				.WithOne(cfp => cfp.Family)
+				.HasForeignKey(cfp => cfp.FamilyId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// Product -> ProductOlfactoryMap (1:M)
+			builder.Entity<Product>()
+				.HasMany(p => p.ProductFamilyMaps)
+				.WithOne(pom => pom.Product)
+				.HasForeignKey(pom => pom.ProductId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// Brand/Category -> Product (1:M)
 			builder.Entity<Brand>()
 				.HasMany(b => b.Products)
 				.WithOne(p => p.Brand)
@@ -409,13 +475,6 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(d => d.BatchId)
 				.OnDelete(DeleteBehavior.Restrict);
 
-			// Cart -> CartItems (1:M)
-			builder.Entity<Cart>()
-				.HasMany(c => c.Items)
-				.WithOne(i => i.Cart)
-				.HasForeignKey(i => i.CartId)
-				.OnDelete(DeleteBehavior.Cascade);
-
 			// Order -> OrderDetails (1:M)
 			builder.Entity<Order>()
 				.HasMany(o => o.OrderDetails)
@@ -428,6 +487,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasMany(o => o.StockReservations)
 				.WithOne(sr => sr.Order)
 				.HasForeignKey(sr => sr.OrderId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// Order -> LoyaltyTransactions (1:M)
+			builder.Entity<Order>()
+				.HasMany(o => o.LoyaltyTransactions)
+				.WithOne(lt => lt.Order)
+				.HasForeignKey(lt => lt.OrderId)
 				.OnDelete(DeleteBehavior.Cascade);
 
 			// Batch -> StockReservations (1:M)
@@ -495,6 +561,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasIndex(v => v.Code)
 				.IsUnique();
 
+			// Voucher -> LoyaltyTransaction (1:M)
+			builder.Entity<Voucher>()
+				.HasMany(v => v.LoyaltyTransactions)
+				.WithOne(lt => lt.Voucher)
+				.HasForeignKey(lt => lt.VoucherId)
+				.OnDelete(DeleteBehavior.Cascade);
+
 			// Stock/Order/Voucher/Batch -> Notification relations
 			builder.Entity<Stock>()
 				.HasMany(s => s.Notifications)
@@ -538,6 +611,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Attribute>()
 				.HasIndex(a => a.InternalCode)
 				.IsUnique();
+
 			builder.Entity<Attribute>()
 				.HasMany(a => a.AttributeValues)
 				.WithOne(av => av.Attribute)
@@ -556,6 +630,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasMany(av => av.ProductAttributes)
 				.WithOne(pa => pa.Value)
 				.HasForeignKey(pa => pa.ValueId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// AttributeValue -> CustomerAttributePreference (1:M)
+			builder.Entity<AttributeValue>()
+				.HasMany(av => av.CustomerAttributePreferences)
+				.WithOne(cap => cap.AttributeValue)
+				.HasForeignKey(cap => cap.AttributeValueId)
 				.OnDelete(DeleteBehavior.Restrict);
 
 			// Product -> ProductAttribute (1:M) (product-level attributes)
@@ -677,6 +758,9 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<StockAdjustment>().Property(sa => sa.Status).HasConversion<string>();
 			builder.Entity<StockAdjustment>().Property(sa => sa.Reason).HasConversion<string>();
 			builder.Entity<StockReservation>().Property(sr => sr.Status).HasConversion<string>();
+			builder.Entity<Product>().Property(p => p.Gender).HasConversion<string>();
+			builder.Entity<ProductNoteMap>().Property(s => s.NoteType).HasConversion<string>();
+			builder.Entity<LoyaltyTransaction>().Property(lt => lt.TransactionType).HasConversion<string>();
 
 			// Configure NVarchar for string properties to avoid default max length issues
 			builder.Entity<Product>().Property(p => p.Description)

@@ -16,25 +16,25 @@ namespace PerfumeGPT.Application.Services
 
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IUserService _userService;
-		private readonly ILoyaltyPointService _loyaltyPointService;
+		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IMapper _mapper;
 		private readonly IValidator<CreateVoucherRequest> _createValidator;
 		private readonly IValidator<UpdateVoucherRequest> _updateValidator;
 
 		public VoucherService(
 			IUnitOfWork unitOfWork,
-			ILoyaltyPointService loyaltyPointService,
 			IMapper mapper,
 			IValidator<CreateVoucherRequest> createValidator,
 			IValidator<UpdateVoucherRequest> updateValidator,
-			IUserService userService)
+			IUserService userService,
+			ILoyaltyTransactionService loyaltyTransactionService)
 		{
 			_unitOfWork = unitOfWork;
-			_loyaltyPointService = loyaltyPointService;
 			_mapper = mapper;
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
 			_userService = userService;
+			_loyaltyTransactionService = loyaltyTransactionService;
 		}
 
 		#endregion Dependencies
@@ -254,7 +254,7 @@ namespace PerfumeGPT.Application.Services
 					}
 
 					// Use LoyaltyPointService to deduct points
-					var remainingPoints = await _loyaltyPointService.RedeemPointAsync(userId, voucher.RequiredPoints, false);
+					var remainingPoints = await _loyaltyTransactionService.RedeemPointAsync(userId, voucher.RequiredPoints, voucher.Id, null, false);
 					if (!remainingPoints)
 					{
 						return BaseResponse<string>.Fail(

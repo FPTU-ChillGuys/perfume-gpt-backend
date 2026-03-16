@@ -1,6 +1,7 @@
 ﻿using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
 using Microsoft.Data.SqlTypes;
+using PerfumeGPT.Domain.Enums;
 
 
 namespace PerfumeGPT.Domain.Entities
@@ -11,6 +12,9 @@ namespace PerfumeGPT.Domain.Entities
 		public int BrandId { get; set; }
 		public int CategoryId { get; set; }
 		public string? Description { get; set; }
+		public string Origin { get; set; } = null!;
+		public Gender Gender { get; set; }
+		public int ReleaseYear { get; set; }
 
 		// Navigation
 		public virtual Brand Brand { get; set; } = null!;
@@ -18,6 +22,8 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<ProductVariant> Variants { get; set; } = [];
 		public virtual ICollection<Media> Media { get; set; } = [];
 		public virtual ICollection<ProductAttribute> ProductAttributes { get; set; } = [];
+		public virtual ICollection<ProductNoteMap> ProductScentMaps { get; set; } = [];
+		public virtual ICollection<ProductFamilyMap> ProductFamilyMaps { get; set; } = [];
 
 		// ISoftDelete implementation
 		public bool IsDeleted { get; set; }

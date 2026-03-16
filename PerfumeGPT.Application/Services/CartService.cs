@@ -33,13 +33,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
-				if (cart == null)
-				{
-					return BaseResponse<CartCheckoutResponse>.Fail("Cart not found", ResponseErrorType.NotFound);
-				}
-
-				var items = await _unitOfWork.CartItems.GetCartCheckoutItemsAsync(cart.Id, request.ItemIds);
+				var items = await _unitOfWork.CartItems.GetCartCheckoutItemsAsync(userId, request.ItemIds);
 				if (items == null || items.Count == 0)
 				{
 					return BaseResponse<CartCheckoutResponse>.Ok(new CartCheckoutResponse
@@ -77,15 +71,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
-				if (cart == null)
-				{
-					return BaseResponse<GetCartItemsResponse>.Fail(
-						"Cart not found",
-						ResponseErrorType.NotFound);
-				}
-
-				var items = await _unitOfWork.CartItems.GetCartItemsByCartIdAsync(cart.Id, itemIds);
+				var items = await _unitOfWork.CartItems.GetCartItemsByUserIdAsync(userId, itemIds);
 				if (items == null || items.Count == 0)
 				{
 					return BaseResponse<GetCartItemsResponse>.Ok(
@@ -109,17 +95,8 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				// 1. Get cart
-				var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
-				if (cart == null)
-				{
-					return BaseResponse<GetCartTotalResponse>.Fail(
-						"Cart not found",
-						ResponseErrorType.NotFound);
-				}
-
 				// 2. Get cart items
-				var items = await _unitOfWork.CartItems.GetCartItemPricesAsync(cart.Id, request.ItemIds);
+				var items = await _unitOfWork.CartItems.GetCartItemPricesAsync(userId, request.ItemIds);
 				if (items == null || items.Count == 0)
 				{
 					return BaseResponse<GetCartTotalResponse>.Ok(
@@ -225,16 +202,14 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<string>> ClearCartAsync(Guid userId)
+		public async Task<BaseResponse<string>> ClearCartAsync(Guid userId, List<Guid>? itemIds)
 		{
-			var cart = await _unitOfWork.Carts.GetByUserIdAsync(userId);
-
 			try
 			{
-				var hasItems = await _unitOfWork.CartItems.HasItemsInCartAsync(cart.Id);
+				var hasItems = await _unitOfWork.CartItems.HasItemsAsync(userId);
 				if (hasItems)
 				{
-					var result = await _unitOfWork.Carts.ClearCartByUserIdAsync(userId);
+					var result = await _unitOfWork.CartItems.ClearCartByUserIdAsync(userId, itemIds);
 					if (!result)
 					{
 						return BaseResponse<string>.Fail("Could not clear cart", ResponseErrorType.InternalError);

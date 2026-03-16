@@ -7,7 +7,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.ImportDetails
 		[JsonIgnore]
 		public Guid TicketId { get; set; }
 		public Guid VariantId { get; set; }
-		public int Quantity { get; set; }
+		public int ExpectedQuantity { get; set; }
 		public decimal UnitPrice { get; set; }
 	}
 }

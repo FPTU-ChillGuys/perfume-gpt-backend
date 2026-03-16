@@ -6,8 +6,6 @@ namespace PerfumeGPT.Domain.Entities
 	public class Address : BaseEntity<Guid>, IHasTimestamps
 	{
 		public Guid UserId { get; set; }
-		public string ReceiverName { get; set; } = string.Empty;
-		public string Phone { get; set; } = null!;
 
 		// Address details
 		public string Street { get; set; } = string.Empty;

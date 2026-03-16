@@ -9,11 +9,36 @@ namespace PerfumeGPT.Application.Mappings
 	{
 		public void Register(TypeAdapterConfig config)
 		{
-			config.NewConfig<Address, AddressResponse>();
+			config.NewConfig<Address, AddressResponse>()
+				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.Street, src => src.Street)
+				.Map(dest => dest.Ward, src => src.Ward)
+				.Map(dest => dest.District, src => src.District)
+				.Map(dest => dest.City, src => src.City)
+				.Map(dest => dest.DistrictId, src => src.DistrictId)
+				.Map(dest => dest.ProvinceId, src => src.ProvinceId)
+				.Map(dest => dest.WardCode, src => src.WardCode)
+				.Map(dest => dest.IsDefault, src => src.IsDefault);
 
-			config.NewConfig<CreateAddressRequest, Address>();
+			config.NewConfig<CreateAddressRequest, Address>()
+				.Map(dest => dest.Street, src => src.Street)
+				.Map(dest => dest.Ward, src => src.Ward)
+				.Map(dest => dest.District, src => src.District)
+				.Map(dest => dest.City, src => src.City)
+				.Map(dest => dest.DistrictId, src => src.DistrictId)
+				.Map(dest => dest.ProvinceId, src => src.ProvinceId)
+				.Map(dest => dest.WardCode, src => src.WardCode)
+				.Map(dest => dest.IsDefault, src => src.IsDefault);
 
-			config.NewConfig<UpdateAddressRequest, Address>();
+			config.NewConfig<UpdateAddressRequest, Address>()
+				.Map(dest => dest.Street, src => src.Street)
+				.Map(dest => dest.Ward, src => src.Ward)
+				.Map(dest => dest.District, src => src.District)
+				.Map(dest => dest.City, src => src.City)
+				.Map(dest => dest.DistrictId, src => src.DistrictId)
+				.Map(dest => dest.ProvinceId, src => src.ProvinceId)
+				.Map(dest => dest.WardCode, src => src.WardCode)
+				.Map(dest => dest.IsDefault, src => src.IsDefault);
 		}
 	}
 }

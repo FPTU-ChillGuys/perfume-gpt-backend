@@ -17,6 +17,8 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ConcentrationId, src => src.ConcentrationId)
 				.Map(dest => dest.Type, src => src.Type)
 				.Map(dest => dest.BasePrice, src => src.BasePrice)
+				.Map(dest => dest.Sillage, src => src.Sillage)
+				.Map(dest => dest.Longevity, src => src.Longevity)
 				.Map(dest => dest.Status, src => src.Status);
 
 			config.NewConfig<UpdateVariantRequest, ProductVariant>()
@@ -26,6 +28,8 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ConcentrationId, src => src.ConcentrationId)
 				.Map(dest => dest.Type, src => src.Type)
 				.Map(dest => dest.BasePrice, src => src.BasePrice)
+				.Map(dest => dest.Sillage, src => src.Sillage)
+				.Map(dest => dest.Longevity, src => src.Longevity)
 				.Map(dest => dest.Status, src => src.Status);
 
 			config.NewConfig<ProductVariant, VariantPagedItem>()
@@ -57,6 +61,8 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.BasePrice, src => src.BasePrice)
 				.Map(dest => dest.Status, src => src.Status)
 				.Map(dest => dest.StockQuantity, src => src.Stock.TotalQuantity - src.Stock.ReservedQuantity)
+				.Map(dest => dest.Sillage, src => src.Sillage)
+				.Map(dest => dest.Longevity, src => src.Longevity)
 				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 
 			config.NewConfig<ProductVariant, VariantLookupItem>()
@@ -73,6 +79,11 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.UnitPrice, src => src.BasePrice)
 				.Map(dest => dest.Snapshot, src => $"{src.Product.Name} - {src.VolumeMl}ml - {src.Concentration.Name} - {src.Type}");
+
+			config.NewConfig<ProductVariant, VariantSummaryItem>()
+				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.DisplayName, src => $"{src.Concentration.Name} - {src.VolumeMl}ml")
+				.Map(dest => dest.ConcentrationName, src => src.Concentration.Name);
 		}
 	}
 }

@@ -15,7 +15,6 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid? UserVoucherId { get; set; }
 		public DateTime? PaymentExpiresAt { get; set; }
 		public DateTime? PaidAt { get; set; }
-		public bool IsExpired => !PaidAt.HasValue && PaymentExpiresAt.HasValue && DateTime.UtcNow > PaymentExpiresAt.Value;
 
 		// Navigation
 		public virtual User? Customer { get; set; }
@@ -24,6 +23,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<StockReservation> StockReservations { get; set; } = [];
 		public virtual ICollection<Notification> Notifications { get; set; } = [];
 		public virtual ICollection<PaymentTransaction> PaymentTransactions { get; set; } = null!;
+		public virtual ICollection<LoyaltyTransaction> LoyaltyTransactions { get; set; } = null!;
 		public virtual UserVoucher? UserVoucher { get; set; }
 		public virtual ShippingInfo? ShippingInfo { get; set; }
 		public virtual RecipientInfo RecipientInfo { get; set; } = null!;

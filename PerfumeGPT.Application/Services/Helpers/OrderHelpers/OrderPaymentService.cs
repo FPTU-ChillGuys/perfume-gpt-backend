@@ -67,7 +67,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				return BaseResponse<string>.Fail("Momo payment not yet implemented.", ResponseErrorType.InternalError);
 			}
 
-			return BaseResponse<string>.Ok(payment.Id.ToString(), successMessage);
+			return BaseResponse<string>.Ok(orderId.ToString(), successMessage);
 		}
 	}
 }

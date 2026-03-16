@@ -2,34 +2,33 @@
 {
 	public interface IUnitOfWork : IDisposable, IAsyncDisposable
 	{
-	IPaymentRepository Payments { get; }
-	IOrderRepository Orders { get; }
-	ICartRepository Carts { get; }
-	ICartItemRepository CartItems { get; }
-	IVariantRepository Variants { get; }
-	IStockRepository Stocks { get; }
-	IImportTicketRepository ImportTickets { get; }
-	IImportDetailRepository ImportDetails { get; }
-	ISupplierRepository Suppliers { get; }
-	IBatchRepository Batches { get; }
-	IAddressRepository Addresses { get; }
-	IRecipientInfoRepository RecipientInfos { get; }
-	IShippingInfoRepository ShippingInfos { get; }
-	IReceiptRepository Receipts { get; }
-	IVoucherRepository Vouchers { get; }
-	IUserVoucherRepository UserVouchers { get; }
-	IStockAdjustmentRepository StockAdjustments { get; }
-	IStockAdjustmentDetailRepository StockAdjustmentDetails { get; }
-	IStockReservationRepository StockReservations { get; }
-	IReviewRepository Reviews { get; }
-	ITemporaryMediaRepository TemporaryMedia { get; }
-	IMediaRepository Media { get; }
-	ILoyaltyPointRepository LoyaltyPoints { get; }
+		IPaymentRepository Payments { get; }
+		IOrderRepository Orders { get; }
+		ICartItemRepository CartItems { get; }
+		IVariantRepository Variants { get; }
+		IStockRepository Stocks { get; }
+		IImportTicketRepository ImportTickets { get; }
+		IImportDetailRepository ImportDetails { get; }
+		ISupplierRepository Suppliers { get; }
+		IBatchRepository Batches { get; }
+		IAddressRepository Addresses { get; }
+		IRecipientInfoRepository RecipientInfos { get; }
+		IShippingInfoRepository ShippingInfos { get; }
+		IReceiptRepository Receipts { get; }
+		IVoucherRepository Vouchers { get; }
+		IUserVoucherRepository UserVouchers { get; }
+		IStockAdjustmentRepository StockAdjustments { get; }
+		IStockAdjustmentDetailRepository StockAdjustmentDetails { get; }
+		IStockReservationRepository StockReservations { get; }
+		IReviewRepository Reviews { get; }
+		ITemporaryMediaRepository TemporaryMedia { get; }
+		IMediaRepository Media { get; }
+		ILoyaltyTransactionRepository LoyaltyTransactions { get; }
 
-	/// <summary>
-	/// Save changes and return true if one or more rows were affected.
-	/// </summary>
-	Task<bool> SaveChangesAsync();
+		/// <summary>
+		/// Save changes and return true if one or more rows were affected.
+		/// </summary>
+		Task<bool> SaveChangesAsync();
 
 		/// <summary>
 		/// Save changes and return number of affected rows.

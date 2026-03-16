@@ -3,7 +3,6 @@ using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using PerfumeGPT.Application.DTOs.Requests.Auths;
-using PerfumeGPT.Application.DTOs.Requests.Profiles;
 using PerfumeGPT.Application.DTOs.Responses.Auths;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories;
@@ -23,7 +22,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IEmailService _emailService;
 		private readonly IAuthRepository _authRepository;
 		private readonly IProfileService _profileService;
-		private readonly ILoyaltyPointService _loyaltyPointService;
+		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IUserRepository _userRepository;
 		private readonly IValidator<RegisterRequest> _registerValidator;
 		private readonly IUserVoucherRepository _userVoucherRepository;
@@ -33,20 +32,20 @@ namespace PerfumeGPT.Application.Services
 			IEmailService emailService,
 			IAuthRepository authRepository,
 			IProfileService profileService,
-			ILoyaltyPointService loyaltyPointService,
 			IUserRepository userRepository,
 			IValidator<RegisterRequest> registerValidator,
-			IUserVoucherRepository userVoucherRepository)
+			IUserVoucherRepository userVoucherRepository,
+			ILoyaltyTransactionService loyaltyTransactionService)
 		{
 			_templateService = templateService;
 			_userManager = userManager;
 			_emailService = emailService;
 			_authRepository = authRepository;
 			_profileService = profileService;
-			_loyaltyPointService = loyaltyPointService;
 			_userRepository = userRepository;
 			_registerValidator = registerValidator;
 			_userVoucherRepository = userVoucherRepository;
+			_loyaltyTransactionService = loyaltyTransactionService;
 		}
 
 		#endregion
@@ -62,19 +61,15 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		private async Task TryCreateProfileAndLoyaltyPointsAsync(User user)
+		private async Task TryCreateProfileAsync(User user)
 		{
 			var roles = await _userManager.GetRolesAsync(user);
-			if (!roles.Any(r => r.Equals(UserRole.User.ToString().ToLower())))
+			if (!roles.Any(r => r.Equals(UserRole.user.ToString())))
 				return;
 
 			try
 			{
-				var profileResult = await _profileService.CreateProfileAsync(new CreateProfileRequest { UserId = user.Id });
-				if (profileResult.Success)
-				{
-					await _loyaltyPointService.CreateLoyaltyPointAsync(user.Id);
-				}
+				var profileResult = await _profileService.CreateProfileAsync(user.Id);
 			}
 			catch
 			{
@@ -117,7 +112,7 @@ namespace PerfumeGPT.Application.Services
 		private async Task<TokenResponse> GenerateTokenResponseAsync(User user)
 		{
 			var roles = await _userManager.GetRolesAsync(user);
-			var role = roles.FirstOrDefault() ?? "User";
+			var role = roles.FirstOrDefault() ?? UserRole.user.ToString();
 			return new TokenResponse()
 			{
 				AccessToken = await _authRepository.GenerateJwtToken(user, role)
@@ -154,7 +149,7 @@ namespace PerfumeGPT.Application.Services
 					[.. identityResult.Errors.Select(e => e.Description)]
 				);
 
-			var roleName = role?.ToString() ?? UserRole.User.ToString();
+			var roleName = role?.ToString() ?? UserRole.user.ToString();
 			var roleResult = await _userManager.AddToRoleAsync(user, roleName);
 			if (!roleResult.Succeeded)
 				return BaseResponse<string>.Fail(
@@ -193,7 +188,7 @@ namespace PerfumeGPT.Application.Services
 			if (!result.Succeeded)
 				return BaseResponse<string>.Fail("failed to verify", ResponseErrorType.InternalError);
 
-			await TryCreateProfileAndLoyaltyPointsAsync(user);
+			await TryCreateProfileAsync(user);
 			await SyncVouchersToUserAsync(user);
 			return BaseResponse<string>.Ok("Success");
 		}
@@ -246,7 +241,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				try
 				{
-					await TryCreateProfileAndLoyaltyPointsAsync(user);
+					await TryCreateProfileAsync(user);
 					await SyncVouchersToUserAsync(user);
 				}
 				catch

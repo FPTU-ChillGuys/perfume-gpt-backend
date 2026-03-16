@@ -4,9 +4,9 @@ namespace PerfumeGPT.Domain.Entities
 {
 	public class Attribute : BaseEntity<int>
 	{
-		public string Name { get; set; } = string.Empty;
-		public string Description { get; set; } = string.Empty;
-		public string InternalCode { get; set; } = string.Empty;
+		public string InternalCode { get; set; } = null!;
+		public string Name { get; set; } = null!;
+		public string? Description { get; set; }
 		public bool IsVariantLevel { get; set; }
 
 		// Navigation properties

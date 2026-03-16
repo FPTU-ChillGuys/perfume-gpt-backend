@@ -3,7 +3,6 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 	public class PickListResponse
 	{
 		public Guid OrderId { get; set; }
-		public string OrderCode { get; set; } = null!;
 		public List<PickListItemResponse> Items { get; set; } = [];
 	}
 

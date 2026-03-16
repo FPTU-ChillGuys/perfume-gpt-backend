@@ -10,7 +10,7 @@ namespace PerfumeGPT.Application.Validators.ImportDetails
 			RuleFor(x => x.VariantId)
 				.NotEmpty().WithMessage("Variant ID is required.");
 
-			RuleFor(x => x.Quantity)
+			RuleFor(x => x.ExpectedQuantity)
 				.GreaterThan(0).WithMessage("Quantity must be greater than 0.");
 
 			RuleFor(x => x.UnitPrice)

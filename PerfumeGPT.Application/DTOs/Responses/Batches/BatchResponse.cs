@@ -1,9 +1,5 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Responses.Batches
 {
-	/// <summary>
-	/// Base batch response with essential properties.
-	/// Used for nested batch info in import tickets.
-	/// </summary>
 	public class BatchResponse
 	{
 		public Guid Id { get; set; }

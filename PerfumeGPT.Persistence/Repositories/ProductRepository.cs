@@ -5,7 +5,6 @@ using Microsoft.Extensions.AI;
 using Microsoft.SemanticKernel;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Media;
-using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
 using PerfumeGPT.Application.DTOs.Responses.Products;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories;
@@ -54,13 +53,29 @@ namespace PerfumeGPT.Persistence.Repositories
 			var query = _context.Products
 				.Where(p => !p.IsDeleted);
 
-			if (request.GenderValueId.HasValue)
+			if (request.Gender.HasValue)
 			{
-				query = query.Where(p => p.ProductAttributes.Any(pa =>
-					pa.Attribute != null &&
-					pa.Attribute.InternalCode == "GENDER" &&
-					pa.ValueId == request.GenderValueId.Value
-				));
+				query = query.Where(p => p.Gender == request.Gender.Value);
+			}
+
+			if (request.Volume.HasValue)
+			{
+				query = query.Where(p => p.Variants.Any(v => !v.IsDeleted && v.VolumeMl == request.Volume.Value));
+			}
+
+			if (request.BrandId.HasValue)
+			{
+				query = query.Where(p => p.BrandId == request.BrandId.Value);
+			}
+
+			if (request.FromPrice.HasValue)
+			{
+				query = query.Where(p => p.Variants.Any(v => !v.IsDeleted && v.BasePrice >= request.FromPrice.Value));
+			}
+
+			if (request.ToPrice.HasValue)
+			{
+				query = query.Where(p => p.Variants.Any(v => !v.IsDeleted && v.BasePrice <= request.ToPrice.Value));
 			}
 
 			if (request.IsAvailable.HasValue)
@@ -78,6 +93,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
 				.ProjectToType<ProductListItem>()
+				.AsSplitQuery()
 				.AsNoTracking()
 				.ToListAsync();
 
@@ -146,6 +162,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					Name = p.Name,
 					Description = p.Description,
 					BrandName = p.Brand.Name,
+					Gender = p.Gender,
 
 					// Calculate rating and review count
 					Rating = (int)Math.Round(
@@ -185,20 +202,6 @@ namespace PerfumeGPT.Persistence.Repositories
 								.FirstOrDefault()
 						})
 						.ToList(),
-
-					// Map product-level attributes
-					Attribute = p.ProductAttributes
-						.Where(pa => pa.Attribute != null && pa.Attribute.InternalCode == "GENDER")
-						.Select(pa => new ProductAttributeResponse
-						{
-							Id = pa.Id,
-							AttributeId = pa.AttributeId,
-							Attribute = pa.Attribute.Name,
-							ValueId = pa.ValueId,
-							Value = pa.Value.Value,
-							Description = pa.Attribute.Description
-						})
-						.FirstOrDefault(),
 				})
 				.AsNoTracking()
 				.FirstOrDefaultAsync();

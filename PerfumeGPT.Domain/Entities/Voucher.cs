@@ -19,6 +19,7 @@ namespace PerfumeGPT.Domain.Entities
 		// Navigation
 		public virtual ICollection<UserVoucher> UserVouchers { get; set; } = [];
 		public virtual ICollection<Notification> Notifications { get; set; } = [];
+		public virtual ICollection<LoyaltyTransaction> LoyaltyTransactions { get; set; } = [];
 
 		// ISoftDelete implementation
 		public bool IsDeleted { get; set; }

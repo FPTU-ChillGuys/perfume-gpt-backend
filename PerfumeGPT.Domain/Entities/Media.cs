@@ -8,9 +8,13 @@ namespace PerfumeGPT.Domain.Entities
 	{
 		public string Url { get; set; } = null!;
 		public string? AltText { get; set; }
-		public EntityType EntityType { get; set; }
+		public int DisplayOrder { get; set; } = 0;
+		public bool IsPrimary { get; set; } = false;
+		public string? PublicId { get; set; } // Image URL
+		public long? FileSize { get; set; } // In bytes
+		public string? MimeType { get; set; } // e.g., image/jpeg, image/png
 
-		// Separate foreign keys for proper referential integrity
+		public EntityType EntityType { get; set; }
 		public Guid? ProductId { get; set; }
 		public Guid? ProductVariantId { get; set; }
 		public Guid? UserId { get; set; }
@@ -25,12 +29,6 @@ namespace PerfumeGPT.Domain.Entities
 			EntityType.Review => ReviewId ?? Guid.Empty,
 			_ => Guid.Empty
 		};
-
-		public int DisplayOrder { get; set; } = 0;
-		public bool IsPrimary { get; set; } = false;
-		public string? PublicId { get; set; } // For cloud storage (e.g., Cloudinary)
-		public long? FileSize { get; set; } // In bytes
-		public string? MimeType { get; set; } // e.g., image/jpeg, image/png
 
 		// Navigation properties
 		public virtual Product? Product { get; set; }

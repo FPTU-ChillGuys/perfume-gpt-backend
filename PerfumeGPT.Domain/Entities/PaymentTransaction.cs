@@ -20,7 +20,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual Order Order { get; set; } = null!;
 		public virtual Receipt Receipt { get; set; } = null!;
 		public virtual PaymentTransaction? OriginalPayment { get; set; }
-		public virtual ICollection<PaymentTransaction> RetryPayments { get; set; } = new List<PaymentTransaction>();
+		public virtual ICollection<PaymentTransaction> RetryPayments { get; set; } = [];
 
 		// Timestamps
 		public DateTime? UpdatedAt { get; set; }

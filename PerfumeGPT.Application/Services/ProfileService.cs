@@ -12,32 +12,26 @@ namespace PerfumeGPT.Application.Services
 	public class ProfileService : IProfileService
 	{
 		private readonly IProfileRepository _profileRepo;
-		private readonly IValidator<CreateProfileRequest> _createProfileValidator;
 		private readonly IValidator<UpdateProfileRequest> _updateProfileValidator;
 		private readonly IMapper _mapper;
 
-		public ProfileService(IProfileRepository profileRepo, IValidator<CreateProfileRequest> createProfileValidator, IMapper mapper, IValidator<UpdateProfileRequest> updateProfileValidator)
+		public ProfileService(IProfileRepository profileRepo, IMapper mapper, IValidator<UpdateProfileRequest> updateProfileValidator)
 		{
 			_profileRepo = profileRepo;
-			_createProfileValidator = createProfileValidator;
 			_mapper = mapper;
 			_updateProfileValidator = updateProfileValidator;
 		}
 
-		public async Task<BaseResponse<string>> CreateProfileAsync(CreateProfileRequest request)
+		public async Task<BaseResponse<string>> CreateProfileAsync(Guid userId)
 		{
-			var validationResult = await _createProfileValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed", ResponseErrorType.BadRequest, errors);
-			}
-
-			var exists = await _profileRepo.AnyAsync(p => p.UserId == request.UserId);
+			var exists = await _profileRepo.AnyAsync(p => p.UserId == userId);
 			if (exists)
 				return BaseResponse<string>.Fail("Profile already exists for this user", ResponseErrorType.Conflict);
 
-			var profile = _mapper.Map<CustomerProfile>(request);
+			var profile = new CustomerProfile
+			{
+				UserId = userId
+			};
 
 			await _profileRepo.AddAsync(profile);
 			var saved = await _profileRepo.SaveChangesAsync();

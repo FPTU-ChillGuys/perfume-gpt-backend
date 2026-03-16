@@ -15,6 +15,8 @@ namespace PerfumeGPT.Application.DTOs.Responses.Products
 		public int NumberOfVariants { get; set; }
 		public MediaResponse? PrimaryImage { get; set; }
 		public List<ProductAttributeResponse>? Attributes { get; set; }
+		public List<ProductScentNoteResponse> ScentNotes { get; set; } = [];
+		public List<ProductOlfactoryFamilyResponse> OlfactoryFamilies { get; set; } = [];
 	}
 }
 

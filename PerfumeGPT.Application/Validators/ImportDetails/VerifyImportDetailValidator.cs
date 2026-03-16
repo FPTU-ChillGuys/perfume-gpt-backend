@@ -11,7 +11,7 @@ namespace PerfumeGPT.Application.Validators.ImportDetails
 			RuleFor(x => x.ImportDetailId)
 				.NotEmpty().WithMessage("Import detail ID is required.");
 
-			RuleFor(x => x.RejectQuantity)
+			RuleFor(x => x.RejectedQuantity)
 				.GreaterThanOrEqualTo(0).WithMessage("Reject quantity cannot be negative.");
 
 			RuleFor(x => x.Note)

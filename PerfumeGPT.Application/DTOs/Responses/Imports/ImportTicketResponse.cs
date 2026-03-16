@@ -24,10 +24,10 @@ namespace PerfumeGPT.Application.DTOs.Responses.Imports
 		public Guid VariantId { get; set; }
 		public string VariantName { get; set; } = null!;
 		public string VariantSku { get; set; } = null!;
-		public int Quantity { get; set; }
+		public int ExpectedQuantity { get; set; }
 		public decimal UnitPrice { get; set; }
 		public decimal TotalPrice { get; set; }
-		public int RejectQuantity { get; set; }
+		public int RejectedQuantity { get; set; }
 		public string? Note { get; set; }
 		public List<BatchResponse> Batches { get; set; } = [];
 	}

@@ -101,7 +101,7 @@ namespace PerfumeGPT.Application.Services
 
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
-					var totalCost = request.ImportDetails.Sum(d => d.Quantity * d.UnitPrice);
+					var totalCost = request.ImportDetails.Sum(d => d.ExpectedQuantity * d.UnitPrice);
 
 					var importTicket = new ImportTicket
 					{
@@ -219,7 +219,7 @@ namespace PerfumeGPT.Application.Services
 							importDetails.Add(new CreateImportDetailRequest
 							{
 								VariantId = variant.Id,
-								Quantity = quantity,
+								ExpectedQuantity = quantity,
 								UnitPrice = unitPrice
 							});
 
@@ -345,13 +345,13 @@ namespace PerfumeGPT.Application.Services
 					var importDetail = importDetailLookup[verifyDetail.ImportDetailId];
 
 					// Validate reject quantity does not exceed total quantity
-					if (verifyDetail.RejectQuantity > importDetail.Quantity)
+					if (verifyDetail.RejectedQuantity > importDetail.ExpectedQuantity)
 					{
-						validationErrors.Add($"Reject quantity ({verifyDetail.RejectQuantity}) cannot exceed total quantity ({importDetail.Quantity}) for import detail {verifyDetail.ImportDetailId}.");
+						validationErrors.Add($"Reject quantity ({verifyDetail.RejectedQuantity}) cannot exceed total quantity ({importDetail.ExpectedQuantity}) for import detail {verifyDetail.ImportDetailId}.");
 						continue;
 					}
 
-					var acceptedQuantity = importDetail.Quantity - verifyDetail.RejectQuantity;
+					var acceptedQuantity = importDetail.ExpectedQuantity - verifyDetail.RejectedQuantity;
 
 					// Full rejection (acceptedQuantity = 0) is allowed - no batches required
 					if (acceptedQuantity == 0)
@@ -380,10 +380,10 @@ namespace PerfumeGPT.Application.Services
 					foreach (var verifyDetail in request.ImportDetails)
 					{
 						var importDetail = importDetailLookup[verifyDetail.ImportDetailId];
-						var acceptedQuantity = importDetail.Quantity - verifyDetail.RejectQuantity;
+						var acceptedQuantity = importDetail.ExpectedQuantity - verifyDetail.RejectedQuantity;
 
 						// Update import detail with reject quantity and note
-						importDetail.RejectQuantity = verifyDetail.RejectQuantity;
+						importDetail.RejectedQuantity = verifyDetail.RejectedQuantity;
 						importDetail.Note = verifyDetail.Note; // Note batchcode issues if any
 						_unitOfWork.ImportDetails.Update(importDetail);
 
@@ -570,7 +570,7 @@ namespace PerfumeGPT.Application.Services
 					}
 
 					// Calculate new total cost
-					var totalCost = request.ImportDetails.Sum(d => d.Quantity * d.UnitPrice);
+					var totalCost = request.ImportDetails.Sum(d => d.ExpectedQuantity * d.UnitPrice);
 					importTicket.TotalCost = totalCost;
 
 					var requestDetailIds = request.ImportDetails.Where(d => d.Id.HasValue).Select(d => d.Id!.Value).ToList();
@@ -592,7 +592,7 @@ namespace PerfumeGPT.Application.Services
 							if (existingDetail != null)
 							{
 								existingDetail.ProductVariantId = detailRequest.VariantId;
-								existingDetail.Quantity = detailRequest.Quantity;
+								existingDetail.ExpectedQuantity = detailRequest.ExpectedQuantity;
 								existingDetail.UnitPrice = detailRequest.UnitPrice;
 								_unitOfWork.ImportDetails.Update(existingDetail);
 							}
