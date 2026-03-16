@@ -254,5 +254,41 @@ namespace PerfumeGPT.Application.Services
 
 			return BaseResponse<TokenResponse>.Ok(tokenResponse, message);
 		}
+
+		public async Task<BaseResponse<string>> ForgotPasswordAsync(ForgotPasswordRequest request)
+		{
+			var user = await _userManager.FindByEmailAsync(request.Email!);
+			if (user is null)
+				return BaseResponse<string>.Fail("User not found", ResponseErrorType.NotFound);
+
+			var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+			var param = new Dictionary<string, string?>
+			{
+				{"token", token },
+				{"email", request.Email!}
+			};
+
+			var callback = QueryHelpers.AddQueryString(request.ClientUri!, param);
+			var emailContent = _templateService.GetForgotPasswordTemplate(user.UserName ?? "User", callback);
+
+			await _emailService.SendEmailAsync(user.Email!, "Reset Password", emailContent);
+			return BaseResponse<string>.Ok(token);
+		}
+
+		public async Task<BaseResponse<string>> ResetPasswordAsync(ResetPasswordRequest request)
+		{
+			var user = await _userManager.FindByEmailAsync(request.Email!);
+			if (user is null)
+				return BaseResponse<string>.Fail("User not found", ResponseErrorType.NotFound);
+
+			var resetResult = await _userManager.ResetPasswordAsync(user, request.Token!, request.Password!);
+			if (!resetResult.Succeeded)
+				return BaseResponse<string>.Fail(
+					"Failed to reset password",
+					ResponseErrorType.BadRequest,
+					resetResult.Errors.Select(e => e.Description).ToList());
+
+			return BaseResponse<string>.Ok("Password reset successfully");
+		}
 	}
 }

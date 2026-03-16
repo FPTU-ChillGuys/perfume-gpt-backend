@@ -366,12 +366,13 @@ namespace PerfumeGPT.Application.Services
 			return null; // Valid
 		}
 
-		private async Task<(string? Url, string? Error)> UploadToTemporaryStorageAsync(IFormFile file)
+		private async Task<(string? Url, string? Error)> UploadToTemporaryStorageAsync(IFormFile file, EntityType entityType)
 		{
 			try
 			{
 				using var stream = file.OpenReadStream();
-				var url = await _supabaseService.UploadPreviewImageAsync(stream, file.FileName);
+				var bucketName = GetBucketName(entityType);
+				var url = await _supabaseService.UploadImageAsync(stream, file.FileName, bucketName);
 
 				if (string.IsNullOrEmpty(url))
 					return (null, $"Failed to upload {file.FileName}");
@@ -458,7 +459,7 @@ namespace PerfumeGPT.Application.Services
 					continue;
 				}
 
-				var (url, uploadError) = await UploadToTemporaryStorageAsync(imageFile!);
+				var (url, uploadError) = await UploadToTemporaryStorageAsync(imageFile!, EntityType.Review);
 				if (uploadError != null)
 				{
 					bulkResult.FailedItems.Add(new BulkActionError { Id = tempId, ErrorMessage = uploadError });
@@ -510,7 +511,7 @@ namespace PerfumeGPT.Application.Services
 					continue;
 				}
 
-				var (url, uploadError) = await UploadToTemporaryStorageAsync(imageRequest.ImageFile!);
+				var (url, uploadError) = await UploadToTemporaryStorageAsync(imageRequest.ImageFile!, EntityType.Product);
 				if (uploadError != null)
 				{
 					bulkResult.FailedItems.Add(new BulkActionError { Id = tempId, ErrorMessage = uploadError });
@@ -564,7 +565,7 @@ namespace PerfumeGPT.Application.Services
 					continue;
 				}
 
-				var (url, uploadError) = await UploadToTemporaryStorageAsync(imageRequest.ImageFile!);
+				var (url, uploadError) = await UploadToTemporaryStorageAsync(imageRequest.ImageFile!, EntityType.ProductVariant);
 				if (uploadError != null)
 				{
 					bulkResult.FailedItems.Add(new BulkActionError { Id = tempId, ErrorMessage = uploadError });

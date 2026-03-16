@@ -5,12 +5,14 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Interfaces.Services
 {
-    public interface IAuthService
-    {
-        Task<BaseResponse<string>> RegisterAsync(RegisterRequest register, UserRole? role);
-        Task<BaseResponse<string>> VerifyEmailAsync(string email, string token);
-        Task<BaseResponse<TokenResponse>> LoginAsync(LoginRequest login);
-        Task<BaseResponse<TokenResponse>> LoginWithGoogleAsync(GoogleLoginRequest request);
-        Task<BaseResponse<TokenResponse>> CreateApiTokenAsync(string email);
-    }
+	public interface IAuthService
+	{
+		Task<BaseResponse<string>> RegisterAsync(RegisterRequest register, UserRole? role);
+		Task<BaseResponse<string>> VerifyEmailAsync(string email, string token);
+		Task<BaseResponse<TokenResponse>> LoginAsync(LoginRequest login);
+		Task<BaseResponse<TokenResponse>> LoginWithGoogleAsync(GoogleLoginRequest request);
+		Task<BaseResponse<TokenResponse>> CreateApiTokenAsync(string email);
+		Task<BaseResponse<string>> ForgotPasswordAsync(ForgotPasswordRequest request);
+		Task<BaseResponse<string>> ResetPasswordAsync(ResetPasswordRequest request);
+	}
 }

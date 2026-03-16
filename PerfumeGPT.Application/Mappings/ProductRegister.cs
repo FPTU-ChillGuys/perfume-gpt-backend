@@ -47,6 +47,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.BrandName, src => src.Brand.Name)
 				.Map(dest => dest.Origin, src => src.Origin)
 				.Map(dest => dest.ReleaseYear, src => src.ReleaseYear)
+				.Map(dest => dest.Gender, src => src.Gender)
 				.Map(dest => dest.ScentGroup, src => string.Join(", ", src.ProductFamilyMaps.Select(pfm => pfm.OlfactoryFamily.Name)))
 				.Map(dest => dest.Style, src => string.Join(", ", src.ProductAttributes
 					.Where(pa => pa.Attribute.InternalCode == "STYLE")
