@@ -23,6 +23,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<List<MediaResponse>>> GetProductImagesAsync(Guid productId);
 
 		// Semantic search
+		Task<BaseResponse<List<ProductDailySaleFigureResponse>>> GetProductDailySaleFiguresAsync(DateOnly date);
 		Task<BaseResponse> UpdateAllProductsEmbeddingAsync();
 		Task<BaseResponse> UpdateProductEmbeddingAsync(Guid productId);
 		Task<BaseResponse<PagedResult<ProductListItemWithVariants>>> GetSemanticSearchProductAsync(string searchText, GetPagedProductRequest request);

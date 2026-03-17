@@ -24,6 +24,7 @@
 		ITemporaryMediaRepository TemporaryMedia { get; }
 		IMediaRepository Media { get; }
 		ILoyaltyTransactionRepository LoyaltyTransactions { get; }
+		IOrderCancelRequestRepository OrderCancelRequests { get; }
 
 		/// <summary>
 		/// Save changes and return true if one or more rows were affected.

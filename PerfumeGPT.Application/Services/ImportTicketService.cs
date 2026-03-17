@@ -395,15 +395,6 @@ namespace PerfumeGPT.Application.Services
 								importDetail.ProductVariantId,
 								importDetail.Id,
 								mergedBatches);
-
-							var stockIncreased = await _stockService.IncreaseStockAsync(
-								importDetail.ProductVariantId,
-								acceptedQuantity);
-
-							if (!stockIncreased)
-							{
-								throw new InvalidOperationException($"Failed to increase stock for variant {importDetail.ProductVariantId}");
-							}
 						}
 					}
 

@@ -193,6 +193,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<CustomerNotePreference> CustomerNotePreferences { get; set; }
 		public DbSet<CustomerFamilyPreference> CustomerFamilyPreferences { get; set; }
 		public DbSet<CustomerAttributePreference> CustomerAttributePreferences { get; set; }
+		public DbSet<OrderCancelRequest> OrderCancelRequests { get; set; }
 
 		protected override void OnModelCreating(ModelBuilder builder)
 		{
@@ -681,6 +682,27 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(r => r.ModeratedByStaffId)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			// OrderCancelRequest -> Order (M:1)
+			builder.Entity<OrderCancelRequest>()
+				.HasOne(ocr => ocr.Order)
+				.WithMany(orc => orc.CancelRequests)
+				.HasForeignKey(ocr => ocr.OrderId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// OrderCancelRequest -> RequestedBy (M:1)
+			builder.Entity<OrderCancelRequest>()
+				.HasOne(ocr => ocr.RequestedBy)
+				.WithMany(u => u.RequestedCancelRequests)
+				.HasForeignKey(ocr => ocr.RequestedById)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// OrderCancelRequest -> ProcessedBy (M:1, nullable)
+			builder.Entity<OrderCancelRequest>()
+				.HasOne(ocr => ocr.ProcessedBy)
+				.WithMany(u => u.ProcessedCancelRequests)
+				.HasForeignKey(ocr => ocr.ProcessedById)
+				.OnDelete(DeleteBehavior.Restrict);
+
 			// Create indexes for efficient queries
 			builder.Entity<Media>()
 				.HasIndex(m => new { m.EntityType, m.ProductId });
@@ -740,6 +762,8 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Voucher>().Property(v => v.DiscountValue).HasPrecision(18, 2);
 			builder.Entity<Voucher>().Property(v => v.MinOrderValue).HasPrecision(18, 2);
 
+			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.RefundAmount).HasPrecision(18, 2);
+
 			// Configure enum to string conversions
 			builder.Entity<PaymentTransaction>().Property(pt => pt.TransactionStatus).HasConversion<string>();
 			builder.Entity<PaymentTransaction>().Property(pt => pt.Method).HasConversion<string>();
@@ -761,6 +785,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Product>().Property(p => p.Gender).HasConversion<string>();
 			builder.Entity<ProductNoteMap>().Property(s => s.NoteType).HasConversion<string>();
 			builder.Entity<LoyaltyTransaction>().Property(lt => lt.TransactionType).HasConversion<string>();
+			builder.Entity<Stock>().Property(s => s.Status).HasConversion<string>();
 
 			// Configure NVarchar for string properties to avoid default max length issues
 			builder.Entity<Product>().Property(p => p.Description)

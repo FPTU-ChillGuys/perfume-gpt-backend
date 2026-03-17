@@ -9,5 +9,6 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 	{
 		public Task<OrderCheckoutResponse> CreatePaymentUrlAsync(HttpContext context, VnPaymentRequest request);
 		public VnPaymentResponse GetPaymentResponseAsync(IQueryCollection queryParameters);
+        public Task<VnPayRefundResponse> RefundAsync(HttpContext context, VnPayRefundRequest request);
 	}
 }

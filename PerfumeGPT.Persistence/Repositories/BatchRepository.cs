@@ -47,6 +47,13 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (batches, totalCount);
 		}
 
+		public async Task<List<BatchLookupResponse>> GetBatchLookupAsync()
+		{
+			return await _context.Batches
+				.ProjectToType<BatchLookupResponse>()
+				.AsNoTracking().ToListAsync();
+		}
+
 		public async Task<List<BatchDetailResponse>> GetBatchesByVariantIdAsync(Guid variantId)
 		{
 			return await _context.Batches

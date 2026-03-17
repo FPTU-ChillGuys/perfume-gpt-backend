@@ -162,7 +162,9 @@ namespace PerfumeGPT.Persistence.Repositories
 				{
 					Id = p.Id,
 					Name = p.Name,
-					Description = p.Description,
+					Description = p.Description != null
+						? p.Description.Substring(0, Math.Min(p.Description.Length, 100)) + (p.Description.Length > 100 ? "..." : "")
+						: string.Empty,
 					BrandName = p.Brand.Name,
 					Gender = p.Gender,
 
@@ -366,6 +368,35 @@ namespace PerfumeGPT.Persistence.Repositories
 				}
 			}
 			return product!;
+		}
+
+		public async Task<List<ProductDailySaleFigureResponse>> GetProductDailySaleFiguresAsync(DateOnly date)
+		{
+			var startDate = date.ToDateTime(TimeOnly.MinValue);
+			var endDate = date.ToDateTime(TimeOnly.MaxValue);
+			var dailyFigures = await _context.Products
+				.Where(p => !p.IsDeleted)
+				.Select(p => new ProductDailySaleFigureResponse
+				{
+					ProductId = p.Id,
+					ProductName = p.Name,
+					DailySaleFigures = p.Variants
+						.Where(v => !v.IsDeleted)
+						.Select(v => new VariantDailySaleFigure
+						{
+							VariantId = v.Id,
+							VariantName = $"{v.Concentration.Name} - {v.VolumeMl}ml",
+							QuantitySold = v.OrderDetails
+								.Where(od => od.Order != null && od.Order.CreatedAt >= startDate && od.Order.CreatedAt <= endDate)
+								.Sum(od => od.Quantity),
+							Date = date
+						})
+						.ToList()
+				})
+				.AsNoTracking()
+				.ToListAsync();
+
+			return dailyFigures.Where(df => df.DailySaleFigures.Any(v => v.QuantitySold > 0)).ToList();
 		}
 
 		#endregion Vector Search Methods

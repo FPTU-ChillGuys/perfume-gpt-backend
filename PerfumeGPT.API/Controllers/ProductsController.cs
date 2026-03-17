@@ -182,6 +182,13 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _productService.GetSemanticSearchProductAsync(searchText, request);
 			return HandleResponse(response);
 		}
+
+		[HttpGet("daily-sale-figures")]
+		public async Task<ActionResult<BaseResponse<List<ProductDailySaleFigureResponse>>>> GetProductDailySaleFigures([FromQuery] DateOnly date)
+		{
+			var response = await _productService.GetProductDailySaleFiguresAsync(date);
+			return HandleResponse(response);
+		}
 		#endregion
 
 		#region Best Seller & New Arrival Endpoints

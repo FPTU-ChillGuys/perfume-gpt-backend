@@ -189,32 +189,12 @@ namespace PerfumeGPT.Application.Services
 						// Apply stock adjustment
 						if (verifyDetail.ApprovedQuantity > 0)
 						{
-							// Increase stock quantity
-							var stockIncreased = await _stockService.IncreaseStockAsync(
-								adjustmentDetail.ProductVariantId,
-								verifyDetail.ApprovedQuantity);
-
-							if (!stockIncreased)
-							{
-								throw new InvalidOperationException($"Failed to increase stock for variant {adjustmentDetail.ProductVariantId}");
-							}
-
-							// Update batch quantity
+							// Update batch quantity - this will also recalculate and update stock quantity automatically
 							await _batchService.IncreaseBatchQuantityAsync(adjustmentDetail.BatchId, verifyDetail.ApprovedQuantity);
 						}
 						else if (verifyDetail.ApprovedQuantity < 0)
 						{
-							// Decrease stock quantity
-							var stockDecreased = await _stockService.DecreaseStockAsync(
-								adjustmentDetail.ProductVariantId,
-								Math.Abs(verifyDetail.ApprovedQuantity));
-
-							if (!stockDecreased)
-							{
-								throw new InvalidOperationException($"Failed to decrease stock for variant {adjustmentDetail.ProductVariantId}");
-							}
-
-							// Update batch quantity
+							// Update batch quantity - this will also recalculate and update stock quantity automatically
 							await _batchService.DecreaseBatchQuantityAsync(adjustmentDetail.BatchId, Math.Abs(verifyDetail.ApprovedQuantity));
 						}
 					}

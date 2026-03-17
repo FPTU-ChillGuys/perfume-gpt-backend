@@ -320,6 +320,20 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			}
 		}
 
+		public IOrderCancelRequestRepository OrderCancelRequests
+		{
+			get
+			{
+				var key = typeof(IOrderCancelRequestRepository);
+				if (!_repositories.TryGetValue(key, out var repo))
+				{
+					repo = new OrderCancelRequestRepository(_context);
+					_repositories[key] = repo!;
+				}
+				return (IOrderCancelRequestRepository)repo!;
+			}
+		}
+
 		public UnitOfWork(PerfumeDbContext context)
 		{
 			_context = context ?? throw new ArgumentNullException(nameof(context));

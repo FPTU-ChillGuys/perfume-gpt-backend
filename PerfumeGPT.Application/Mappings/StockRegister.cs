@@ -13,12 +13,16 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.VariantId, src => src.VariantId)
 				.Map(dest => dest.VariantSku, src => src.ProductVariant.Sku)
 				.Map(dest => dest.ProductName, src => src.ProductVariant.Product.Name)
+				.Map(dest => dest.VariantImageUrl, src => src.ProductVariant.Media
+					.Where(m => m.IsPrimary && !m.IsDeleted)
+					.Select(m => m.Url)
+					.FirstOrDefault())
 				.Map(dest => dest.VolumeMl, src => src.ProductVariant.VolumeMl)
 				.Map(dest => dest.ConcentrationName, src => src.ProductVariant.Concentration.Name)
 				.Map(dest => dest.TotalQuantity, src => src.TotalQuantity)
 				.Map(dest => dest.AvailableQuantity, src => src.AvailableQuantity)
 				.Map(dest => dest.LowStockThreshold, src => src.LowStockThreshold)
-				.Map(dest => dest.IsLowStock, src => src.TotalQuantity <= src.LowStockThreshold);
+				.Map(dest => dest.Status, src => src.Status);
 		}
 	}
 }

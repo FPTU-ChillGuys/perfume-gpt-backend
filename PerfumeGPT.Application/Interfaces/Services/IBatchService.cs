@@ -16,6 +16,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<bool> ValidateBatchAvailabilityAsync(Guid variantId, int requiredQuantity);
 
 		// Retrieval methods
+		Task<BaseResponse<List<BatchLookupResponse>>> GetBatchLookupAsync();
 		Task<BaseResponse<PagedResult<BatchDetailResponse>>> GetBatchesAsync(GetBatchesRequest request);
 		Task<BaseResponse<List<BatchDetailResponse>>> GetBatchesByVariantIdAsync(Guid variantId);
 		Task<BaseResponse<BatchDetailResponse>> GetBatchByIdAsync(Guid batchId);

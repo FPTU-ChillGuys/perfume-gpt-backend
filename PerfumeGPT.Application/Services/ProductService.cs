@@ -324,6 +324,12 @@ namespace PerfumeGPT.Application.Services
 
 		#region Semantic Search
 
+		public async Task<BaseResponse<List<ProductDailySaleFigureResponse>>> GetProductDailySaleFiguresAsync(DateOnly date)
+		{
+			var response = await _productRepo.GetProductDailySaleFiguresAsync(date);
+			return BaseResponse<List<ProductDailySaleFigureResponse>>.Ok(response, "Product daily sale figures retrieved successfully");
+		}
+
 		public async Task<BaseResponse<PagedResult<ProductListItemWithVariants>>> GetSemanticSearchProductAsync(string searchText, GetPagedProductRequest request)
 		{
 			var (items, totalCount) = await _productRepo.GetPagedProductsWithSemanticSearch(searchText, request);

@@ -167,10 +167,10 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> CancelOrder([FromRoute] Guid orderId)
+		public async Task<ActionResult<BaseResponse<string>>> CancelOrder([FromRoute] Guid orderId, [FromBody] UserCancelOrderRequest request)
 		{
 			var userId = GetCurrentUserId();
-			var response = await _orderService.CancelOrderAsync(orderId, userId);
+			var response = await _orderService.CancelOrderAsync(orderId, userId, request);
 			return HandleResponse(response);
 		}
 

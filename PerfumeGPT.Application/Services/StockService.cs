@@ -4,6 +4,7 @@ using PerfumeGPT.Application.DTOs.Responses.Inventory;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -34,19 +35,21 @@ namespace PerfumeGPT.Application.Services
 
 			if (stock == null)
 			{
-				stock = new Stock
-				{
-					VariantId = variantId,
-					TotalQuantity = quantity,
-					LowStockThreshold = 10
-				};
-				await _stockRepository.AddAsync(stock);
+				return false;
+			}
+
+			stock.TotalQuantity += quantity;
+
+			if (stock.TotalQuantity > stock.LowStockThreshold)
+			{
+				stock.Status = StockStatus.Normal;
 			}
 			else
 			{
-				stock.TotalQuantity += quantity;
-				_stockRepository.Update(stock);
+				stock.Status = StockStatus.LowStock;
 			}
+
+			_stockRepository.Update(stock);
 
 			return true;
 		}
@@ -66,9 +69,19 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			stock.TotalQuantity -= quantity;
+
 			if (stock.TotalQuantity < 0)
 			{
+				stock.Status = StockStatus.OutOfStock;
 				stock.TotalQuantity = 0;
+			}
+			else if (stock.TotalQuantity <= stock.LowStockThreshold)
+			{
+				stock.Status = StockStatus.LowStock;
+			}
+			else
+			{
+				stock.Status = StockStatus.Normal;
 			}
 
 			_stockRepository.Update(stock);
@@ -168,7 +181,8 @@ namespace PerfumeGPT.Application.Services
 			{
 				VariantId = variantId,
 				TotalQuantity = initialQuantity,
-				LowStockThreshold = lowThreshold
+				LowStockThreshold = lowThreshold,
+				Status = StockStatus.OutOfStock
 			});
 
 			return true;

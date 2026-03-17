@@ -50,18 +50,11 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		{
 			foreach (var item in items)
 			{
-				// Use BatchService to deduct batches (FIFO)
+				// Use BatchService to deduct batches (FIFO) - this will also recalculate stock automatically
 				var batchDeducted = await _batchService.DeductBatchesByVariantIdAsync(item.VariantId, item.Quantity);
 				if (!batchDeducted)
 				{
 					return BaseResponse<bool>.Fail($"Failed to deduct batch quantity for variant {item.VariantId}.", ResponseErrorType.InternalError);
-				}
-
-				// Use StockService to decrease stock
-				var stockDecreased = await _stockService.DecreaseStockAsync(item.VariantId, item.Quantity);
-				if (!stockDecreased)
-				{
-					return BaseResponse<bool>.Fail($"Failed to update stock for variant {item.VariantId}.", ResponseErrorType.InternalError);
 				}
 			}
 

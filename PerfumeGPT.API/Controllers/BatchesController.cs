@@ -49,5 +49,12 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _batchService.GetBatchesByVariantIdAsync(variantId);
 			return HandleResponse(response);
 		}
+
+		[HttpGet("lookup")]
+		public async Task<ActionResult<BaseResponse<List<BatchLookupResponse>>>> GetBatchLookup()
+		{
+			var response = await _batchService.GetBatchLookupAsync();
+			return HandleResponse(response);
+		}
 	}
 }

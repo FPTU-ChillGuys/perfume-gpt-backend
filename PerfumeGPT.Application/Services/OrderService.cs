@@ -644,6 +644,22 @@ namespace PerfumeGPT.Application.Services
 					if (request.Status == OrderStatus.Canceled)
 					{
 						await HandleOrderCancellationAsync(order);
+						var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
+
+						var cancelRequest = new OrderCancelRequest
+						{
+							OrderId = order.Id,
+							RequestedById = staffId,
+							ProcessedById = null,
+							Reason = request.Note ?? "Staff cancelled order.",
+							StaffNote = request.Note,
+							Status = CancelRequestStatus.Pending,
+							IsRefundRequired = isRefundRequired,
+							RefundAmount = isRefundRequired ? order.TotalAmount : null,
+							IsRefunded = false,
+							Order = order
+						};
+						await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
 					}
 
 					// Handle delivery completion - update loyalty points
@@ -677,7 +693,7 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<string>> CancelOrderAsync(Guid orderId, Guid userId)
+		public async Task<BaseResponse<string>> CancelOrderAsync(Guid orderId, Guid userId, UserCancelOrderRequest request)
 		{
 			try
 			{
@@ -718,30 +734,23 @@ namespace PerfumeGPT.Application.Services
 						return BaseResponse<string>.Fail("Order is already cancelled.", ResponseErrorType.BadRequest);
 					}
 
-					// Update status
-					order.Status = OrderStatus.Canceled;
-					_unitOfWork.Orders.Update(order);
-
-					// Update shipping status
-					if (order.ShippingInfo != null)
+					// Create OrderCancelRequest
+					bool isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
+					var cancelRequest = new OrderCancelRequest
 					{
-						order.ShippingInfo.Status = ShippingStatus.Cancelled;
-						_unitOfWork.ShippingInfos.Update(order.ShippingInfo);
-					}
+						OrderId = order.Id,
+						RequestedById = userId,
+						ProcessedById = isRefundRequired ? null : userId,
+						Reason = request.Reason ?? "Customer cancelled order.",
+						Status = CancelRequestStatus.Pending,
+						IsRefundRequired = isRefundRequired,
+						RefundAmount = isRefundRequired ? order.TotalAmount : null,
+						IsRefunded = false,
+						Order = order
+					};
+					await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
 
-					// Release stock reservation
-					var releaseResult = await _stockReservationService.ReleaseReservationAsync(order.Id);
-					if (!releaseResult.Success)
-					{
-						return BaseResponse<string>.Fail(
-					releaseResult.Message ?? "Failed to release stock reservation.",
-					releaseResult.ErrorType);
-					}
-
-					// Release voucher
-					await ReleaseVoucherIfUsedAsync(order);
-
-					return BaseResponse<string>.Ok("Order has been cancelled successfully.");
+					return BaseResponse<string>.Ok("Cancel request submitted successfully.");
 				});
 			}
 			catch (Exception ex)

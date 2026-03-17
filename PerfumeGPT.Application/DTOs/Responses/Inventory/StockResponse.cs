@@ -1,3 +1,5 @@
+using PerfumeGPT.Domain.Enums;
+
 namespace PerfumeGPT.Application.DTOs.Responses.Inventory
 {
 	public class StockResponse
@@ -6,11 +8,12 @@ namespace PerfumeGPT.Application.DTOs.Responses.Inventory
 		public Guid VariantId { get; set; }
 		public string VariantSku { get; set; } = null!;
 		public string ProductName { get; set; } = null!;
+		public string VariantImageUrl { get; set; } = null!;
 		public int VolumeMl { get; set; }
 		public string ConcentrationName { get; set; } = null!;
 		public int TotalQuantity { get; set; }
 		public int AvailableQuantity { get; set; }
 		public int LowStockThreshold { get; set; }
-		public bool IsLowStock { get; set; }
+		public StockStatus Status { get; set; }
 	}
 }

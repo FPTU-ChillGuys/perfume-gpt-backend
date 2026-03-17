@@ -15,15 +15,18 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 
 		private readonly IBatchRepository _batchRepository;
+		private readonly IStockRepository _stockRepository;
 		private readonly IValidator<CreateBatchRequest> _createBatchValidator;
 		private readonly IMapper _mapper;
 
 		public BatchService(
 			IBatchRepository batchRepository,
+			IStockRepository stockRepository,
 			IValidator<CreateBatchRequest> createBatchValidator,
 			IMapper mapper)
 		{
 			_batchRepository = batchRepository;
+			_stockRepository = stockRepository;
 			_createBatchValidator = createBatchValidator;
 			_mapper = mapper;
 		}
@@ -51,6 +54,10 @@ namespace PerfumeGPT.Application.Services
 				createdBatches.Add(batch);
 			}
 
+			// Ensure batches are saved to DB before recalculating stock so SumAsync includes them
+			await _batchRepository.SaveChangesAsync();
+			await _stockRepository.UpdateStockAsync(variantId);
+
 			return createdBatches;
 		}
 
@@ -76,7 +83,12 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<bool> DeductBatchesByVariantIdAsync(Guid variantId, int quantity)
 		{
-			return await _batchRepository.DeductBatchesByVariantIdAsync(variantId, quantity);
+			var result = await _batchRepository.DeductBatchesByVariantIdAsync(variantId, quantity);
+			if (result)
+			{
+				await _stockRepository.UpdateStockAsync(variantId);
+			}
+			return result;
 		}
 
 		public async Task<BaseResponse<PagedResult<BatchDetailResponse>>> GetBatchesAsync(GetBatchesRequest request)
@@ -101,6 +113,12 @@ namespace PerfumeGPT.Application.Services
 					ResponseErrorType.InternalError
 				);
 			}
+		}
+
+		public async Task<BaseResponse<List<BatchLookupResponse>>> GetBatchLookupAsync()
+		{
+			var batchLookup = await _batchRepository.GetBatchLookupAsync();
+			return BaseResponse<List<BatchLookupResponse>>.Ok(batchLookup);
 		}
 
 		public async Task<BaseResponse<List<BatchDetailResponse>>> GetBatchesByVariantIdAsync(Guid variantId)
@@ -147,12 +165,30 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<bool> IncreaseBatchQuantityAsync(Guid batchId, int quantity)
 		{
-			return await _batchRepository.IncreaseBatchQuantityAsync(batchId, quantity);
+			var result = await _batchRepository.IncreaseBatchQuantityAsync(batchId, quantity);
+			if (result)
+			{
+				var batch = await _batchRepository.GetBatchByIdAsync(batchId);
+				if (batch != null)
+				{
+					await _stockRepository.UpdateStockAsync(batch.VariantId);
+				}
+			}
+			return result;
 		}
 
 		public async Task<bool> DecreaseBatchQuantityAsync(Guid batchId, int quantity)
 		{
-			return await _batchRepository.DecreaseBatchQuantityAsync(batchId, quantity);
+			var result = await _batchRepository.DecreaseBatchQuantityAsync(batchId, quantity);
+			if (result)
+			{
+				var batch = await _batchRepository.GetBatchByIdAsync(batchId);
+				if (batch != null)
+				{
+					await _stockRepository.UpdateStockAsync(batch.VariantId);
+				}
+			}
+			return result;
 		}
 	}
 }
