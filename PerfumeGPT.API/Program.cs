@@ -1,4 +1,5 @@
 using Hangfire;
+using MicroElements.AspNetCore.OpenApi.FluentValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
@@ -62,23 +63,23 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
-
-
+builder.Services.AddFluentValidationRulesToOpenApi();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi(options =>
 {
+	options.AddFluentValidationRules();
 	options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
 	options.AddSchemaTransformer<EnumSchemaTransformer>();
-		
+
 	TypeTransformer.MapType<decimal>(new OpenApiSchema { Type = JsonSchemaType.Number, Format = "decimal" });
-    TypeTransformer.MapType<decimal?>(new OpenApiSchema { Type = JsonSchemaType.Number | JsonSchemaType.Null, Format = "decimal" });
-    TypeTransformer.MapType<double>(new OpenApiSchema { Type = JsonSchemaType.Number, Format = "double" });
-    TypeTransformer.MapType<double?>(new OpenApiSchema { Type = JsonSchemaType.Number | JsonSchemaType.Null, Format = "double" });
-    TypeTransformer.MapType<int>(new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32" });
-    TypeTransformer.MapType<int?>(new OpenApiSchema { Type = JsonSchemaType.Integer | JsonSchemaType.Null, Format = "int32" });
-    TypeTransformer.MapType<long>(new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int64" });
-    TypeTransformer.MapType<long?>(new OpenApiSchema { Type = JsonSchemaType.Integer | JsonSchemaType.Null, Format = "int64" });
+	TypeTransformer.MapType<decimal?>(new OpenApiSchema { Type = JsonSchemaType.Number | JsonSchemaType.Null, Format = "decimal" });
+	TypeTransformer.MapType<double>(new OpenApiSchema { Type = JsonSchemaType.Number, Format = "double" });
+	TypeTransformer.MapType<double?>(new OpenApiSchema { Type = JsonSchemaType.Number | JsonSchemaType.Null, Format = "double" });
+	TypeTransformer.MapType<int>(new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32" });
+	TypeTransformer.MapType<int?>(new OpenApiSchema { Type = JsonSchemaType.Integer | JsonSchemaType.Null, Format = "int32" });
+	TypeTransformer.MapType<long>(new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int64" });
+	TypeTransformer.MapType<long?>(new OpenApiSchema { Type = JsonSchemaType.Integer | JsonSchemaType.Null, Format = "int64" });
 	options.AddSchemaTransformer<TypeTransformer>();
 });
 
@@ -104,7 +105,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 // JSON options
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
-	 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+	options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 	// options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
 });
 
@@ -203,23 +204,23 @@ internal sealed class EnumSchemaTransformer : IOpenApiSchemaTransformer
 
 internal sealed class TypeTransformer : IOpenApiSchemaTransformer
 {
-    private static readonly ConcurrentDictionary<Type, (JsonSchemaType Type, string? Format)> _typeMappings = new();
+	private static readonly ConcurrentDictionary<Type, (JsonSchemaType Type, string? Format)> _typeMappings = new();
 
-    public static void MapType<T>(OpenApiSchema schema)
-    {
-        _typeMappings[typeof(T)] = (schema.Type ?? JsonSchemaType.Null, schema.Format);
-    }
+	public static void MapType<T>(OpenApiSchema schema)
+	{
+		_typeMappings[typeof(T)] = (schema.Type ?? JsonSchemaType.Null, schema.Format);
+	}
 
-    public Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
-    {
-        var clrType = context.JsonTypeInfo.Type;
+	public Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
+	{
+		var clrType = context.JsonTypeInfo.Type;
 
-        if (_typeMappings.TryGetValue(clrType, out var mapping))
-        {
-            schema.Type = mapping.Type;
-            schema.Format = mapping.Format;
-        }
+		if (_typeMappings.TryGetValue(clrType, out var mapping))
+		{
+			schema.Type = mapping.Type;
+			schema.Format = mapping.Format;
+		}
 
-        return Task.CompletedTask;
-    }
+		return Task.CompletedTask;
+	}
 }

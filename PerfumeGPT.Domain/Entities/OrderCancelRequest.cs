@@ -14,7 +14,6 @@ namespace PerfumeGPT.Domain.Entities
 		public string? StaffNote { get; set; }
 		public CancelRequestStatus Status { get; set; }
 
-
 		public bool IsRefundRequired { get; set; }
 		public decimal? RefundAmount { get; set; }
 		public bool IsRefunded { get; set; }

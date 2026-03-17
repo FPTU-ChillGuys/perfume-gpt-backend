@@ -40,6 +40,12 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ExpiryDate, src => src.ExpiryDate)
 				.Map(dest => dest.ImportQuantity, src => src.Quantity)
 				.Map(dest => dest.RemainingQuantity, src => src.Quantity);
+
+			config.NewConfig<Batch, BatchLookupResponse>()
+				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.BatchCode, src => src.BatchCode)
+				.Map(dest => dest.VariantId, src => src.VariantId)
+				.Map(dest => dest.Sku, src => src.ProductVariant.Sku ?? "");
 		}
 	}
 }
