@@ -67,9 +67,8 @@ namespace PerfumeGPT.API.Controllers
         [HttpPost("add-to-cart-for-ai")]
         [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)] 
         [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-        [AllowAnonymous] // Allow anonymous access for AI requests
         public async Task<ActionResult<BaseResponse<string>>> AddToCartForAiAsync([FromBody] CreateCartItemForAiRequest request)
         {
             var validation = ValidateRequestBody<CreateCartItemForAiRequest>(request);
