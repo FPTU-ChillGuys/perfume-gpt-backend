@@ -7,61 +7,75 @@ using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.API.Controllers
 {
-	[Route("api/cart/items")]
-	[ApiController]
-	[Authorize]
-	public class CartItemsController : BaseApiController
-	{
-		private readonly ICartItemService _cartItemService;
+    [Route("api/cart/items")]
+    [ApiController]
+    [Authorize]
+    public class CartItemsController : BaseApiController
+    {
+        private readonly ICartItemService _cartItemService;
 
-		public CartItemsController(ICartItemService cartItemService)
-		{
-			_cartItemService = cartItemService;
-		}
+        public CartItemsController(ICartItemService cartItemService)
+        {
+            _cartItemService = cartItemService;
+        }
 
-		[HttpPost("add-to-cart")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> AddToCartAsync([FromBody] CreateCartItemRequest request)
-		{
-			var validation = ValidateRequestBody<CreateCartItemRequest>(request);
-			if (validation != null) return validation;
+        [HttpPost("add-to-cart")]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<BaseResponse<string>>> AddToCartAsync([FromBody] CreateCartItemRequest request)
+        {
+            var validation = ValidateRequestBody<CreateCartItemRequest>(request);
+            if (validation != null) return validation;
 
-			var userId = GetCurrentUserId();
-			var result = await _cartItemService.AddToCartAsync(userId, request);
-			return HandleResponse(result);
-		}
+            var userId = GetCurrentUserId();
+            var result = await _cartItemService.AddToCartAsync(userId, request);
+            return HandleResponse(result);
+        }
 
-		[HttpPut("{id:guid}/update-cart-item")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UpdateCartItemAsync(
-			[FromRoute] Guid id,
-			[FromBody] UpdateCartItemRequest request)
-		{
-			var validation = ValidateRequestBody<UpdateCartItemRequest>(request);
-			if (validation != null) return validation;
+        [HttpPut("{id:guid}/update-cart-item")]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<BaseResponse<string>>> UpdateCartItemAsync(
+            [FromRoute] Guid id,
+            [FromBody] UpdateCartItemRequest request)
+        {
+            var validation = ValidateRequestBody<UpdateCartItemRequest>(request);
+            if (validation != null) return validation;
 
-			var userId = GetCurrentUserId();
-			var result = await _cartItemService.UpdateCartItemAsync(userId, id, request);
-			return HandleResponse(result);
-		}
+            var userId = GetCurrentUserId();
+            var result = await _cartItemService.UpdateCartItemAsync(userId, id, request);
+            return HandleResponse(result);
+        }
 
-		[HttpDelete("{id:guid}/remove-from-cart")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> RemoveFromCartAsync([FromRoute] Guid id)
-		{
-			var userId = GetCurrentUserId();
-			var result = await _cartItemService.RemoveFromCartAsync(userId, id);
-			return HandleResponse(result);
-		}
-	}
+        [HttpDelete("{id:guid}/remove-from-cart")]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<BaseResponse<string>>> RemoveFromCartAsync([FromRoute] Guid id)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _cartItemService.RemoveFromCartAsync(userId, id);
+            return HandleResponse(result);
+        }
+
+        [HttpPost("add-to-cart-for-ai")]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<BaseResponse<string>>> AddToCartForAiAsync([FromBody] CreateCartItemForAiRequest request)
+        {
+            var validation = ValidateRequestBody<CreateCartItemForAiRequest>(request);
+            if (validation != null) return validation;
+
+            var result = await _cartItemService.AddToCartAsync(request.UserId, request);
+            return HandleResponse(result);
+        }
+    }
 }
