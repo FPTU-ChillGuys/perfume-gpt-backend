@@ -83,7 +83,17 @@ namespace PerfumeGPT.Application.Mappings
 			config.NewConfig<ProductVariant, VariantSummaryItem>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.DisplayName, src => $"{src.Concentration.Name} - {src.VolumeMl}ml")
-				.Map(dest => dest.ConcentrationName, src => src.Concentration.Name);
+				.Map(dest => dest.ConcentrationName, src => src.Concentration.Name)
+				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary && !m.IsDeleted))
+				.Map(dest => dest.Barcode, src => src.Barcode)
+				.Map(dest => dest.Sku, src => src.Sku)
+				.Map(dest => dest.VolumeMl, src => src.VolumeMl)
+				.Map(dest => dest.ConcentrationId, src => src.ConcentrationId)
+				.Map(dest => dest.Type, src => src.Type)
+				.Map(dest => dest.BasePrice, src => src.BasePrice)
+				.Map(dest => dest.Status, src => src.Status)
+				.Map(dest => dest.StockQuantity, src => src.Stock.TotalQuantity - src.Stock.ReservedQuantity)
+				.Map(dest => dest.Attributes, src => src.ProductAttributes);
 		}
 	}
 }
