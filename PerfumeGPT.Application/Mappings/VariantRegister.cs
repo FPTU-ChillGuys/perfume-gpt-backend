@@ -17,6 +17,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ConcentrationId, src => src.ConcentrationId)
 				.Map(dest => dest.Type, src => src.Type)
 				.Map(dest => dest.BasePrice, src => src.BasePrice)
+				.Map(dest => dest.RetailPrice, src => src.RetailPrice)
 				.Map(dest => dest.Sillage, src => src.Sillage)
 				.Map(dest => dest.Longevity, src => src.Longevity)
 				.Map(dest => dest.Status, src => src.Status);
@@ -28,6 +29,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ConcentrationId, src => src.ConcentrationId)
 				.Map(dest => dest.Type, src => src.Type)
 				.Map(dest => dest.BasePrice, src => src.BasePrice)
+				.Map(dest => dest.RetailPrice, src => src.RetailPrice)
 				.Map(dest => dest.Sillage, src => src.Sillage)
 				.Map(dest => dest.Longevity, src => src.Longevity)
 				.Map(dest => dest.Status, src => src.Status);
@@ -43,6 +45,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ConcentrationName, src => src.Concentration.Name)
 				.Map(dest => dest.Type, src => src.Type)
 				.Map(dest => dest.BasePrice, src => src.BasePrice)
+				.Map(dest => dest.RetailPrice, src => src.RetailPrice)
 				.Map(dest => dest.Status, src => src.Status)
 				.Map(dest => dest.StockQuantity, src => src.Stock.TotalQuantity - src.Stock.ReservedQuantity)
 				.Map(dest => dest.Attributes, src => src.ProductAttributes);
@@ -59,6 +62,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ConcentrationName, src => src.Concentration.Name)
 				.Map(dest => dest.Type, src => src.Type)
 				.Map(dest => dest.BasePrice, src => src.BasePrice)
+				.Map(dest => dest.RetailPrice, src => src.RetailPrice)
 				.Map(dest => dest.Status, src => src.Status)
 				.Map(dest => dest.StockQuantity, src => src.Stock.TotalQuantity - src.Stock.ReservedQuantity)
 				.Map(dest => dest.Sillage, src => src.Sillage)

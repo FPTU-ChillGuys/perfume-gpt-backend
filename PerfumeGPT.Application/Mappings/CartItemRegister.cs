@@ -27,6 +27,8 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.IsAvailable, src => src.ProductVariant.Stock.TotalQuantity - src.ProductVariant.Stock.ReservedQuantity > 0);
 
 			config.NewConfig<CartItem, CartItemPriceDto>()
+				.Map(dest => dest.VariantId, src => src.VariantId)
+				.Map(dest => dest.VariantName, src => $"{src.ProductVariant.Product.Name} - {src.ProductVariant.Concentration.Name} - {src.ProductVariant.VolumeMl}ml")
 				.Map(dest => dest.VariantPrice, src => src.ProductVariant.BasePrice)
 				.Map(dest => dest.Quantity, src => src.Quantity);
 

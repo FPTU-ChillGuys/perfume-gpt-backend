@@ -3,6 +3,7 @@ using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
+using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -15,33 +16,45 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly ICampaignRepository _campaignRepository;
+		private readonly IPromotionItemRepository _promotionItemRepository;
 		private readonly IUserService _userService;
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IMapper _mapper;
 		private readonly IValidator<CreateVoucherRequest> _createValidator;
+		private readonly IValidator<CreateCampaignVoucherRequest> _createCampaignValidator;
 		private readonly IValidator<UpdateVoucherRequest> _updateValidator;
+		private readonly IValidator<UpdateCampaignVoucherRequest> _updateCampaignValidator;
 
 		public VoucherService(
 			IUnitOfWork unitOfWork,
+			ICampaignRepository campaignRepository,
+		 IPromotionItemRepository promotionItemRepository,
 			IMapper mapper,
 			IValidator<CreateVoucherRequest> createValidator,
+			IValidator<CreateCampaignVoucherRequest> createCampaignValidator,
 			IValidator<UpdateVoucherRequest> updateValidator,
 			IUserService userService,
-			ILoyaltyTransactionService loyaltyTransactionService)
+			ILoyaltyTransactionService loyaltyTransactionService,
+			IValidator<UpdateCampaignVoucherRequest> updateCampaignValidator)
 		{
 			_unitOfWork = unitOfWork;
+			_campaignRepository = campaignRepository;
+			_promotionItemRepository = promotionItemRepository;
 			_mapper = mapper;
 			_createValidator = createValidator;
+			_createCampaignValidator = createCampaignValidator;
 			_updateValidator = updateValidator;
 			_userService = userService;
 			_loyaltyTransactionService = loyaltyTransactionService;
+			_updateCampaignValidator = updateCampaignValidator;
 		}
 
 		#endregion Dependencies
 
 		#region Admin Operations
 
-		public async Task<BaseResponse<string>> CreateVoucherAsync(CreateVoucherRequest request)
+		public async Task<BaseResponse<string>> CreateRegularVoucherAsync(CreateVoucherRequest request)
 		{
 			var validationResult = await _createValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
@@ -69,12 +82,56 @@ namespace PerfumeGPT.Application.Services
 				await _unitOfWork.Vouchers.AddAsync(voucher);
 				await _unitOfWork.SaveChangesAsync();
 
-				return BaseResponse<string>.Ok(voucher.Id.ToString(), "Voucher created successfully");
+				return BaseResponse<string>.Ok(voucher.Id.ToString(), "Regular voucher created successfully");
 			}
 			catch (Exception ex)
 			{
 				return BaseResponse<string>.Fail(
-					$"Error creating voucher: {ex.Message}",
+					$"Error creating regular voucher: {ex.Message}",
+					ResponseErrorType.InternalError
+				);
+			}
+		}
+
+		public async Task<BaseResponse<string>> CreateCampaignVoucherAsync(Guid campaignId, CreateCampaignVoucherRequest request)
+		{
+			var validationResult = await _createCampaignValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+			{
+				return BaseResponse<string>.Fail(
+					"Validation failed",
+					ResponseErrorType.BadRequest,
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]
+				);
+			}
+
+			try
+			{
+				var campaign = await _campaignRepository.GetByIdAsync(campaignId);
+				if (campaign == null)
+				{
+					return BaseResponse<string>.Fail("Campaign not found", ResponseErrorType.NotFound);
+				}
+
+				var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code);
+				if (codeExists)
+				{
+					return BaseResponse<string>.Fail("Voucher code already exists", ResponseErrorType.Conflict);
+				}
+
+				var voucher = _mapper.Map<Voucher>(request);
+				voucher.CampaignId = campaignId;
+				voucher.ExpiryDate = campaign.EndDate;
+
+				await _unitOfWork.Vouchers.AddAsync(voucher);
+				await _unitOfWork.SaveChangesAsync();
+
+				return BaseResponse<string>.Ok(voucher.Id.ToString(), "Campaign voucher created successfully");
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<string>.Fail(
+					$"Error creating campaign voucher: {ex.Message}",
 					ResponseErrorType.InternalError
 				);
 			}
@@ -97,26 +154,24 @@ namespace PerfumeGPT.Application.Services
 				var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
 				if (voucher == null || voucher.IsDeleted)
 				{
-					return BaseResponse<string>.Fail(
-						"Voucher not found",
-						ResponseErrorType.NotFound
-					);
+					return BaseResponse<string>.Fail("Voucher not found", ResponseErrorType.NotFound);
 				}
 
-				if (request.Code != null && request.Code != voucher.Code)
+				if (voucher.CampaignId.HasValue)
+				{
+					return BaseResponse<string>.Fail("Use campaign voucher endpoint for campaign voucher updates", ResponseErrorType.BadRequest);
+				}
+
+				if (request.Code != voucher.Code)
 				{
 					var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code, voucherId);
 					if (codeExists)
 					{
-						return BaseResponse<string>.Fail(
-							"Voucher code already exists",
-							ResponseErrorType.Conflict
-						);
+						return BaseResponse<string>.Fail("Voucher code already exists", ResponseErrorType.Conflict);
 					}
 				}
 
 				_mapper.Map(request, voucher);
-
 				_unitOfWork.Vouchers.Update(voucher);
 				await _unitOfWork.SaveChangesAsync();
 
@@ -124,10 +179,51 @@ namespace PerfumeGPT.Application.Services
 			}
 			catch (Exception ex)
 			{
-				return BaseResponse<string>.Fail(
-					$"Error updating voucher: {ex.Message}",
-					ResponseErrorType.InternalError
-				);
+				return BaseResponse<string>.Fail($"Error updating voucher: {ex.Message}", ResponseErrorType.InternalError);
+			}
+		}
+
+		public async Task<BaseResponse<string>> UpdateCampaignVoucherAsync(Guid campaignId, Guid voucherId, UpdateCampaignVoucherRequest request)
+		{
+			var validationResult = await _updateCampaignValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+			{
+				return BaseResponse<string>.Fail("Validation failed", ResponseErrorType.BadRequest, validationResult.Errors.Select(e => e.ErrorMessage).ToList());
+			}
+
+			try
+			{
+				var campaign = await _campaignRepository.GetByIdAsync(campaignId);
+				if (campaign == null)
+				{
+					return BaseResponse<string>.Fail("Campaign not found", ResponseErrorType.NotFound);
+				}
+
+				var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(v => v.Id == voucherId && v.CampaignId == campaignId && !v.IsDeleted);
+				if (voucher == null)
+				{
+					return BaseResponse<string>.Fail("Campaign voucher not found", ResponseErrorType.NotFound);
+				}
+
+				if (request.Code != voucher.Code)
+				{
+					var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code, voucherId);
+					if (codeExists)
+					{
+						return BaseResponse<string>.Fail("Voucher code already exists", ResponseErrorType.Conflict);
+					}
+				}
+
+				_mapper.Map(request, voucher);
+				voucher.CampaignId = campaignId;
+				_unitOfWork.Vouchers.Update(voucher);
+				await _unitOfWork.SaveChangesAsync();
+
+				return BaseResponse<string>.Ok(voucherId.ToString(), "Campaign voucher updated successfully");
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<string>.Fail($"Error updating campaign voucher: {ex.Message}", ResponseErrorType.InternalError);
 			}
 		}
 
@@ -138,18 +234,17 @@ namespace PerfumeGPT.Application.Services
 				var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
 				if (voucher == null || voucher.IsDeleted)
 				{
-					return BaseResponse<string>.Fail(
-						"Voucher not found",
-						ResponseErrorType.NotFound
-					);
+					return BaseResponse<string>.Fail("Voucher not found", ResponseErrorType.NotFound);
+				}
+
+				if (voucher.CampaignId.HasValue)
+				{
+					return BaseResponse<string>.Fail("Use campaign voucher endpoint for campaign voucher deletion", ResponseErrorType.BadRequest);
 				}
 
 				if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && !uv.IsUsed))
 				{
-					return BaseResponse<string>.Fail(
-						"Cannot delete voucher that has been redeemed by users",
-						ResponseErrorType.BadRequest
-					);
+					return BaseResponse<string>.Fail("Cannot delete voucher that has been redeemed by users", ResponseErrorType.BadRequest);
 				}
 
 				_unitOfWork.Vouchers.Remove(voucher);
@@ -159,17 +254,46 @@ namespace PerfumeGPT.Application.Services
 			}
 			catch (Exception ex)
 			{
-				return BaseResponse<string>.Fail(
-					$"Error deleting voucher: {ex.Message}",
-					ResponseErrorType.InternalError
-				);
+				return BaseResponse<string>.Fail($"Error deleting voucher: {ex.Message}", ResponseErrorType.InternalError);
+			}
+		}
+
+		public async Task<BaseResponse<string>> DeleteCampaignVoucherAsync(Guid campaignId, Guid voucherId)
+		{
+			try
+			{
+				var campaign = await _campaignRepository.GetByIdAsync(campaignId);
+				if (campaign == null)
+				{
+					return BaseResponse<string>.Fail("Campaign not found", ResponseErrorType.NotFound);
+				}
+
+				var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(v => v.Id == voucherId && v.CampaignId == campaignId && !v.IsDeleted);
+				if (voucher == null)
+				{
+					return BaseResponse<string>.Fail("Campaign voucher not found", ResponseErrorType.NotFound);
+				}
+
+				if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && !uv.IsUsed))
+				{
+					return BaseResponse<string>.Fail("Cannot delete voucher that has been redeemed by users", ResponseErrorType.BadRequest);
+				}
+
+				_unitOfWork.Vouchers.Remove(voucher);
+				await _unitOfWork.SaveChangesAsync();
+
+				return BaseResponse<string>.Ok(voucherId.ToString(), "Campaign voucher deleted successfully");
+			}
+			catch (Exception ex)
+			{
+				return BaseResponse<string>.Fail($"Error deleting campaign voucher: {ex.Message}", ResponseErrorType.InternalError);
 			}
 		}
 
 		public async Task<BaseResponse<VoucherResponse>> GetVoucherByIdAsync(Guid voucherId)
 		{
 			var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
-				v => v.Id == voucherId && !v.IsDeleted,
+		   v => v.Id == voucherId && !v.IsDeleted && !v.CampaignId.HasValue,
 				asNoTracking: true
 			);
 
@@ -183,6 +307,28 @@ namespace PerfumeGPT.Application.Services
 
 			var response = _mapper.Map<VoucherResponse>(voucher);
 			return BaseResponse<VoucherResponse>.Ok(response, "Voucher retrieved successfully");
+		}
+
+		public async Task<BaseResponse<VoucherResponse>> GetCampaignVoucherByIdAsync(Guid campaignId, Guid voucherId)
+		{
+			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
+			if (campaign == null)
+			{
+				return BaseResponse<VoucherResponse>.Fail("Campaign not found", ResponseErrorType.NotFound);
+			}
+
+			var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
+				v => v.Id == voucherId && !v.IsDeleted && v.CampaignId == campaignId,
+				asNoTracking: true
+			);
+
+			if (voucher == null)
+			{
+				return BaseResponse<VoucherResponse>.Fail("Campaign voucher not found", ResponseErrorType.NotFound);
+			}
+
+			var response = _mapper.Map<VoucherResponse>(voucher);
+			return BaseResponse<VoucherResponse>.Ok(response, "Campaign voucher retrieved successfully");
 		}
 
 		public async Task<BaseResponse<PagedResult<VoucherResponse>>> GetPagedVouchersAsync(GetPagedVouchersRequest request)
@@ -363,7 +509,7 @@ namespace PerfumeGPT.Application.Services
 			);
 		}
 
-		public async Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null)
+		public async Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null, IEnumerable<Guid>? cartVariantIds = null)
 		{
 			// 1. Validate voucher existence
 			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode);
@@ -384,11 +530,19 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 
+			// 2.1 If voucher belongs to a campaign, validate campaign/item scope
+			var campaignScopeValidation = await ValidateCampaignVoucherScopeAsync(voucher, cartVariantIds);
+			if (campaignScopeValidation != null)
+			{
+				return campaignScopeValidation;
+			}
+
 			// 3. Check minimum order value
-			if (orderAmount < voucher.MinOrderValue)
+			var minOrderValue = voucher.MinOrderValue ?? 0m;
+			if (orderAmount < minOrderValue)
 			{
 				return BaseResponse<bool>.Fail(
-					$"Order amount must be at least {voucher.MinOrderValue:C} to use this voucher",
+				 $"Order amount must be at least {minOrderValue:C} to use this voucher",
 					ResponseErrorType.BadRequest
 				);
 			}
@@ -397,7 +551,8 @@ namespace PerfumeGPT.Application.Services
 			var (effectiveUserId, isGuest, isAnonymousGuest) = await ResolveEffectiveUserAsync(userId, emailOrPhone);
 
 			// 5. Check ownership and usage strategy
-			bool requiresPriorOwnership = !voucher.IsPublic || voucher.RequiredPoints > 0;
+			var requiredPoints = voucher.RequiredPoints ?? 0;
+			bool requiresPriorOwnership = !voucher.IsPublic || requiredPoints > 0;
 
 			if (requiresPriorOwnership)
 			{
@@ -419,7 +574,7 @@ namespace PerfumeGPT.Application.Services
 				if (ownedVoucher == null)
 				{
 					return BaseResponse<bool>.Fail(
-						voucher.RequiredPoints > 0
+					  requiredPoints > 0
 							? "You must redeem this voucher with points before using it"
 							: "You do not own this private voucher",
 						ResponseErrorType.Forbidden
@@ -430,7 +585,10 @@ namespace PerfumeGPT.Application.Services
 			{
 				bool alreadyUsed = await _unitOfWork.UserVouchers.AnyAsync(uv =>
 					uv.VoucherId == voucher.Id &&
-					(uv.IsUsed || uv.Status != UsageStatus.Available) &&
+					(
+						uv.IsUsed ||
+						(uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow)
+					) &&
 					(
 						(effectiveUserId.HasValue && uv.UserId == effectiveUserId.Value) ||
 						(!string.IsNullOrEmpty(emailOrPhone) && uv.GuestEmailOrPhone == emailOrPhone)
@@ -445,7 +603,7 @@ namespace PerfumeGPT.Application.Services
 					);
 				}
 
-				if (voucher.RemainingQuantity <= 0)
+				if (voucher.RemainingQuantity.HasValue && voucher.RemainingQuantity.Value <= 0)
 				{
 					return BaseResponse<bool>.Fail(
 						"Voucher is out of stock",
@@ -455,6 +613,64 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			return BaseResponse<bool>.Ok(true, "Voucher can be applied");
+		}
+
+		private async Task<BaseResponse<bool>?> ValidateCampaignVoucherScopeAsync(VoucherResponse voucher, IEnumerable<Guid>? cartVariantIds)
+		{
+			if (!voucher.CampaignId.HasValue)
+			{
+				return null;
+			}
+
+			var campaign = await _campaignRepository.FirstOrDefaultAsync(
+				c => c.Id == voucher.CampaignId.Value && !c.IsDeleted,
+				asNoTracking: true);
+
+			if (campaign == null)
+			{
+				return BaseResponse<bool>.Fail("Campaign not found for this voucher", ResponseErrorType.NotFound);
+			}
+
+			var now = DateTime.UtcNow;
+			if (campaign.Status != CampaignStatus.Active || now < campaign.StartDate || now > campaign.EndDate)
+			{
+				return BaseResponse<bool>.Fail("Campaign is not active for this voucher", ResponseErrorType.BadRequest);
+			}
+
+			if (campaign.Status == CampaignStatus.Paused)
+			{
+				return BaseResponse<bool>.Fail("Campaign is currently paused, voucher cannot be applied", ResponseErrorType.BadRequest);
+			}
+
+			var cartVariantSet = cartVariantIds?
+				.Where(x => x != Guid.Empty)
+				.Distinct()
+				.ToHashSet();
+
+			if (voucher.ApplyType == VoucherType.Product && (cartVariantSet == null || cartVariantSet.Count == 0))
+			{
+				return BaseResponse<bool>.Fail("Cart items are required for product-level voucher validation", ResponseErrorType.BadRequest);
+			}
+
+			var hasMatchingActiveItem = await _promotionItemRepository.AnyAsync(
+				i => i.CampaignId == campaign.Id
+					&& !i.IsDeleted
+					&& i.ItemType == voucher.TargetItemType
+					&& (!i.StartDate.HasValue || i.StartDate.Value <= now)
+					&& (!i.EndDate.HasValue || i.EndDate.Value >= now)
+					&& (voucher.ApplyType != VoucherType.Product
+						|| (cartVariantSet != null && cartVariantSet.Contains(i.ProductVariantId))));
+
+			if (!hasMatchingActiveItem)
+			{
+				var message = voucher.ApplyType == VoucherType.Product
+					? "No active campaign product item matches this voucher"
+					: "No active campaign order item matches this voucher";
+
+				return BaseResponse<bool>.Fail(message, ResponseErrorType.BadRequest);
+			}
+
+			return null;
 		}
 
 		public async Task<BaseResponse<UserVoucher>> MarkVoucherAsReservedAsync(Guid? userId, string? emailOrPhone, Guid voucherId, Guid orderId)
@@ -683,7 +899,7 @@ namespace PerfumeGPT.Application.Services
 				var discountAmount = voucher.DiscountType switch
 				{
 					DiscountType.Percentage => totalPrice * (voucher.DiscountValue / 100m),
-					DiscountType.Fixed => voucher.DiscountValue,
+					DiscountType.FixedAmount => voucher.DiscountValue,
 					_ => 0m
 				};
 

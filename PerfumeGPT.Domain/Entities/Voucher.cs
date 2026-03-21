@@ -8,15 +8,23 @@ namespace PerfumeGPT.Domain.Entities
 	{
 		public string Code { get; set; } = null!;
 		public decimal DiscountValue { get; set; }
-		public DiscountType DiscountType { get; set; }
+		public DiscountType DiscountType { get; set; } // Percentage, FixedAmount
+
+		// Campaign properties
+		public Guid? CampaignId { get; set; }
+		public VoucherType ApplyType { get; set; } // OrderLevel, ProductLevel
+		public PromotionType? TargetItemType { get; set; } // Clearance, NewArrival, Regular, etc.
+
+		// Redemption properties
 		public int RequiredPoints { get; set; }
 		public decimal MinOrderValue { get; set; }
 		public DateTime ExpiryDate { get; set; }
-		public int RemainingQuantity { get; set; }
-		public int TotalQuantity { get; set; }
+		public int? RemainingQuantity { get; set; }
+		public int? TotalQuantity { get; set; }
 		public bool IsPublic { get; set; }
 
 		// Navigation
+		public virtual Campaign? Campaign { get; set; }
 		public virtual ICollection<UserVoucher> UserVouchers { get; set; } = [];
 		public virtual ICollection<Notification> Notifications { get; set; } = [];
 		public virtual ICollection<LoyaltyTransaction> LoyaltyTransactions { get; set; } = [];

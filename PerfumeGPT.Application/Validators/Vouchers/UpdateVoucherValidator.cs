@@ -18,6 +18,9 @@ namespace PerfumeGPT.Application.Validators.Vouchers
 			RuleFor(x => x.DiscountType)
 				.IsInEnum().WithMessage("Invalid discount type.");
 
+			RuleFor(x => x.ApplyType)
+				.IsInEnum().WithMessage("Invalid apply type.");
+
 			RuleFor(x => x.RequiredPoints)
 				.GreaterThanOrEqualTo(0).WithMessage("Required points must be greater than or equal to 0.");
 

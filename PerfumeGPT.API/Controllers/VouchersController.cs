@@ -32,7 +32,7 @@ namespace PerfumeGPT.API.Controllers
 			var validation = ValidateRequestBody<CreateVoucherRequest>(request);
 			if (validation != null) return validation;
 
-			var response = await _voucherService.CreateVoucherAsync(request);
+           var response = await _voucherService.CreateRegularVoucherAsync(request);
 			return HandleResponse(response);
 		}
 
