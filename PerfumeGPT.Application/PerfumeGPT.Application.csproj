@@ -22,4 +22,8 @@
     <ProjectReference Include="..\PerfumeGPT.Domain\PerfumeGPT.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="DTOs\Requests\Promotions\" />
+  </ItemGroup>
+
 </Project>
