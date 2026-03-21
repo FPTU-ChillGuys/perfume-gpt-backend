@@ -131,53 +131,6 @@ namespace PerfumeGPT.Application.Services
 					// Use the updated recipient info returned from the service as the truth source
 					var updatedRecipient = updateResult.Payload!;
 
-					// 4. Update shipping fee
-					var shippingInfo = await _unitOfWork.ShippingInfos.GetByOrderIdAsync(order.Id);
-					if (shippingInfo != null)
-					{
-						// Capture old fee before update
-						var oldFee = shippingInfo.ShippingFee;
-
-						var feeUpdateResult = await _shippingHelper.UpdateShippingFeeAsync(
-							shippingInfo,
-							updatedRecipient.DistrictId,
-							updatedRecipient.WardCode,
-							order);
-
-						if (!feeUpdateResult.Success)
-						{
-							return BaseResponse<string>.Fail(
-								feeUpdateResult.Errors?.FirstOrDefault() ?? feeUpdateResult.Message,
-								feeUpdateResult.ErrorType,
-								feeUpdateResult.Errors);
-						}
-
-						var newFee = feeUpdateResult.Payload;
-
-						if (newFee == oldFee)
-						{
-							// no-op
-						}
-						else if (newFee < oldFee && order.CustomerId.HasValue)
-						{
-							// refund to loyalty points
-							var refund = oldFee - newFee;
-							const decimal currencyPerPoint = 1000m;
-							var points = (int)Math.Floor(refund / currencyPerPoint);
-							if (points > 0)
-							{
-								await _loyaltyTransactionService.PlusPointAsync(order.CustomerId.Value, points, orderId, false);
-							}
-						}
-						else if (newFee > oldFee)
-						{
-							// increase: add difference to order as COD (rebundant -> COD)
-							var diff = newFee - oldFee;
-							order.TotalAmount += diff;
-							_unitOfWork.Orders.Update(order);
-						}
-					}
-
 					return BaseResponse<string>.Ok("Order address updated successfully.");
 				});
 			}
@@ -326,24 +279,21 @@ namespace PerfumeGPT.Application.Services
 						cartResponse.ErrorType);
 					}
 
-					// Validate voucher if provided
-					VoucherResponse? voucher = null;
-					if (!string.IsNullOrEmpty(request.VoucherCode))
+					if (request.ExpectedTotalPrice.HasValue
+						&& Math.Abs(request.ExpectedTotalPrice.Value - cartResponse.Payload.TotalPrice) > 0.0001m)
 					{
-						var voucherResult = await ValidateAndGetVoucherAsync(request.VoucherCode, userId, null, cartResponse.Payload.TotalPrice);
-						if (!voucherResult.Success)
-						{
-							return BaseResponse<string>.Fail(
-								voucherResult.Message ?? "Voucher validation failed.",
-								voucherResult.ErrorType);
-						}
-						voucher = voucherResult.Payload;
+						return BaseResponse<string>.Fail(
+							"Discount no longer matches what you saw. Please refresh cart total and checkout again.",
+							ResponseErrorType.Conflict,
+							[$"Current total is {cartResponse.Payload.TotalPrice:0.##}, expected was {request.ExpectedTotalPrice.Value:0.##}."]);
 					}
 
 					if (cartResponse.Payload.Items.Count == 0)
 					{
 						return BaseResponse<string>.Fail("Cart is empty.", ResponseErrorType.BadRequest);
 					}
+
+					VoucherResponse? voucher = null;
 
 					// Create order details
 					var itemsToValidate = cartResponse.Payload.Items
@@ -358,8 +308,48 @@ namespace PerfumeGPT.Application.Services
 							orderDetailsResult.ErrorType);
 					}
 
+					// Validate voucher if provided (with subtotal + cart variant context)
+					if (!string.IsNullOrEmpty(request.VoucherCode))
+					{
+						var subtotal = orderDetailsResult.Payload.Sum(od => od.UnitPrice * od.Quantity);
+						var voucherResult = await ValidateAndGetVoucherAsync(
+							request.VoucherCode,
+							userId,
+							null,
+							subtotal,
+							itemsToValidate.Select(x => x.VariantId));
+
+						if (!voucherResult.Success)
+						{
+							return BaseResponse<string>.Fail(
+								voucherResult.Message ?? "Voucher validation failed.",
+								voucherResult.ErrorType);
+						}
+
+						voucher = voucherResult.Payload;
+					}
+
 					// Set payment expiration
 					var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
+
+					// Recalculate total right before reservation to detect promotion/batch drift
+					var latestTotalResponse = await _cartService.GetCartTotalAsync(userId, getCartTotalRequest);
+					if (!latestTotalResponse.Success || latestTotalResponse.Payload == null)
+					{
+						return BaseResponse<string>.Fail(
+							latestTotalResponse.Message ?? "Failed to refresh cart total.",
+							latestTotalResponse.ErrorType);
+					}
+
+					if (Math.Abs(latestTotalResponse.Payload.TotalPrice - cartResponse.Payload.TotalPrice) > 0.0001m)
+					{
+						return BaseResponse<string>.Fail(
+							"Discount no longer matches what you saw. Please refresh cart total and checkout again.",
+							ResponseErrorType.Conflict,
+							string.IsNullOrWhiteSpace(latestTotalResponse.Message)
+								? null
+								: [latestTotalResponse.Message]);
+					}
 
 					// Create order
 					var order = CreateOnlineOrder(userId, null, cartResponse.Payload.TotalPrice, paymentExpiresAt, orderDetailsResult.Payload);
@@ -939,10 +929,15 @@ namespace PerfumeGPT.Application.Services
 			await _voucherService.ReleaseReservedVoucherAsync(order.Id);
 		}
 
-		private async Task<BaseResponse<VoucherResponse>> ValidateAndGetVoucherAsync(string voucherCode, Guid userId, string? phoneNumber, decimal totalPrice)
+      private async Task<BaseResponse<VoucherResponse>> ValidateAndGetVoucherAsync(
+			string voucherCode,
+			Guid userId,
+			string? phoneNumber,
+			decimal totalPrice,
+			IEnumerable<Guid>? cartVariantIds = null)
 		{
 			// Validate voucher eligibility
-			var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(voucherCode, userId, totalPrice, phoneNumber);
+           var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(voucherCode, userId, totalPrice, phoneNumber, cartVariantIds);
 			if (!voucherValidation.Success)
 			{
 				return BaseResponse<VoucherResponse>.Fail(

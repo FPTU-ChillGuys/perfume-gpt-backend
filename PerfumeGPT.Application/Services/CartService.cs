@@ -1,8 +1,12 @@
 using PerfumeGPT.Application.DTOs.Requests.Carts;
+using PerfumeGPT.Application.DTOs.Responses.CartItems;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Carts;
+using PerfumeGPT.Application.DTOs.Responses.Vouchers;
+using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -11,17 +15,20 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IPromotionItemRepository _promotionItemRepository;
 		private readonly IShippingService _shippingService;
 		private readonly IVoucherService _voucherService;
 		private readonly IAddressService _addressService;
 
 		public CartService(
 			IUnitOfWork unitOfWork,
+		   IPromotionItemRepository promotionItemRepository,
 			IShippingService shippingService,
 			IAddressService addressService,
 			IVoucherService voucherService)
 		{
 			_unitOfWork = unitOfWork;
+			_promotionItemRepository = promotionItemRepository;
 			_shippingService = shippingService;
 			_addressService = addressService;
 			_voucherService = voucherService;
@@ -57,7 +64,11 @@ namespace PerfumeGPT.Application.Services
 					TotalPrice = totalResult.Payload.TotalPrice
 				};
 
-				return BaseResponse<CartCheckoutResponse>.Ok(response, "Cart retrieved for checkout");
+              return BaseResponse<CartCheckoutResponse>.Ok(
+					response,
+					string.IsNullOrWhiteSpace(totalResult.Message)
+						? "Cart retrieved for checkout"
+						: totalResult.Message);
 			}
 			catch (Exception ex)
 			{
@@ -112,46 +123,9 @@ namespace PerfumeGPT.Application.Services
 				// 3. Calculate subtotal
 				var subtotal = items.Sum(item => item.SubTotal);
 
-				// 4. Calculate shipping fee 
-				decimal shippingFee = 0m;
-				if (request.SavedAddressId != null)
-				{
-					var addressResult = await _addressService.GetAddressByIdAsync(userId, request.SavedAddressId.Value);
-					if (!addressResult.Success || addressResult.Payload == null)
-					{
-						return BaseResponse<GetCartTotalResponse>.Fail(
-							"Saved address not found",
-							ResponseErrorType.NotFound);
-					}
-					var calculatedFee = await _shippingService.CalculateShippingFeeAsync(
-						addressResult.Payload.DistrictId,
-						addressResult.Payload.WardCode);
-
-					if (calculatedFee == null)
-					{
-						return BaseResponse<GetCartTotalResponse>.Fail(
-							"Failed to calculate shipping fee",
-							ResponseErrorType.InternalError);
-					}
-
-					shippingFee = calculatedFee.Value;
-				}
-				else if (request.Recipient != null)
-				{
-					var calculatedFee = await _shippingService.CalculateShippingFeeAsync(
-						request.Recipient.DistrictId,
-						request.Recipient.WardCode);
-					if (calculatedFee == null)
-					{
-						return BaseResponse<GetCartTotalResponse>.Fail(
-							"Failed to calculate shipping fee",
-							ResponseErrorType.InternalError);
-					}
-					shippingFee = calculatedFee.Value;
-				}
-
 				// 5. Apply voucher discount if provided
 				decimal finalAmount = subtotal;
+				string? voucherMessage = null;
 				if (!string.IsNullOrWhiteSpace(request.VoucherCode))
 				{
 
@@ -167,7 +141,8 @@ namespace PerfumeGPT.Application.Services
 						request.VoucherCode,
 						userId,
 						subtotal,
-						null); // Cart for signined-in users, not guests
+						null,
+						items.Select(x => x.VariantId)); // Cart for signed-in users, not guests
 
 					if (!voucherValidation.Success)
 					{
@@ -176,23 +151,34 @@ namespace PerfumeGPT.Application.Services
 							voucherValidation.ErrorType);
 					}
 
-					finalAmount = await _voucherService.CalculateVoucherDiscountAsync(
-						request.VoucherCode,
-						subtotal);
+					if (voucher.ApplyType == VoucherType.Product && voucher.CampaignId.HasValue)
+					{
+						var (CalculatedfinalAmount, message) = await CalculateProductLevelVoucherAmountAsync(voucher, items);
+						finalAmount = CalculatedfinalAmount;
+						voucherMessage = message;
+					}
+					else
+					{
+						finalAmount = await _voucherService.CalculateVoucherDiscountAsync(
+							request.VoucherCode,
+							subtotal);
+					}
 				}
 
 				// 6. Build response
 				var response = new GetCartTotalResponse
 				{
 					Subtotal = subtotal,
-					ShippingFee = shippingFee,
+					ShippingFee = 0,
 					Discount = subtotal - finalAmount,
-					TotalPrice = finalAmount + shippingFee
+					TotalPrice = finalAmount + 0
 				};
 
 				return BaseResponse<GetCartTotalResponse>.Ok(
-					response,
-					"Cart total calculated successfully");
+					 response,
+					 string.IsNullOrWhiteSpace(voucherMessage)
+						 ? "Cart total calculated successfully"
+						 : voucherMessage);
 			}
 			catch (Exception)
 			{
@@ -200,6 +186,126 @@ namespace PerfumeGPT.Application.Services
 					"An error occurred while calculating cart total",
 					ResponseErrorType.InternalError);
 			}
+		}
+
+		private async Task<(decimal FinalAmount, string? Message)> CalculateProductLevelVoucherAmountAsync(
+			VoucherResponse voucher,
+			List<CartItemPriceDto> items)
+		{
+			if (!voucher.CampaignId.HasValue)
+			{
+				var fallback = await _voucherService.CalculateVoucherDiscountAsync(voucher.Code, items.Sum(x => x.SubTotal));
+				return (fallback, null);
+			}
+
+			var now = DateTime.UtcNow;
+			var variantIds = items.Select(x => x.VariantId).Distinct().ToList();
+
+			var promotionItems = (await _promotionItemRepository.GetAllAsync(
+				i => i.CampaignId == voucher.CampaignId.Value
+					&& !i.IsDeleted
+					&& i.ItemType == voucher.TargetItemType
+					&& variantIds.Contains(i.ProductVariantId)
+					&& (!i.StartDate.HasValue || i.StartDate.Value <= now)
+					&& (!i.EndDate.HasValue || i.EndDate.Value >= now),
+				asNoTracking: true)).ToList();
+
+			if (promotionItems.Count == 0)
+			{
+				return (items.Sum(x => x.SubTotal), "No eligible product is in active promotion for this voucher");
+			}
+
+			var promoItemsByVariant = promotionItems
+				   .GroupBy(x => x.ProductVariantId)
+				   .ToDictionary(g => g.Key, g => g.ToList());
+
+			var batchIds = promotionItems
+				.Where(x => x.BatchId.HasValue)
+				.Select(x => x.BatchId!.Value)
+				.Distinct()
+				.ToList();
+
+			var batchAvailability = new Dictionary<Guid, int>();
+			if (batchIds.Count > 0)
+			{
+				var batches = await _unitOfWork.Batches.GetAllAsync(b => batchIds.Contains(b.Id), asNoTracking: true);
+				batchAvailability = batches.ToDictionary(b => b.Id, b => Math.Max(0, b.RemainingQuantity - b.ReservedQuantity));
+			}
+
+			var eligibleQty = 0;
+			var nonEligibleQty = 0;
+			decimal eligibleSubtotal = 0m;
+			decimal nonEligibleSubtotal = 0m;
+			var messageLines = new List<string>();
+
+			foreach (var line in items)
+			{
+				if (!promoItemsByVariant.TryGetValue(line.VariantId, out var variantPromotions) || variantPromotions.Count == 0)
+				{
+					nonEligibleQty += line.Quantity;
+					nonEligibleSubtotal += line.SubTotal;
+					messageLines.Add($"'{line.VariantName}': {line.Quantity} not in promotion.");
+					continue;
+				}
+
+				var hasGlobalPromotion = variantPromotions.Any(x => !x.BatchId.HasValue);
+				var allowedQty = hasGlobalPromotion ? line.Quantity : 0;
+
+				if (!hasGlobalPromotion)
+				{
+					var remainingNeed = line.Quantity;
+					foreach (var promotion in variantPromotions.Where(x => x.BatchId.HasValue))
+					{
+						if (remainingNeed <= 0)
+						{
+							break;
+						}
+
+						if (!batchAvailability.TryGetValue(promotion.BatchId!.Value, out var availableInBatch) || availableInBatch <= 0)
+						{
+							continue;
+						}
+
+						var useQty = Math.Min(remainingNeed, availableInBatch);
+						allowedQty += useQty;
+						remainingNeed -= useQty;
+						batchAvailability[promotion.BatchId.Value] = availableInBatch - useQty;
+					}
+				}
+
+				var excludedQty = line.Quantity - allowedQty;
+				eligibleQty += allowedQty;
+				nonEligibleQty += excludedQty;
+				eligibleSubtotal += line.VariantPrice * allowedQty;
+				nonEligibleSubtotal += line.VariantPrice * excludedQty;
+
+				if (excludedQty > 0)
+				{
+					messageLines.Add($"'{line.VariantName}': only {allowedQty} in promotion, {excludedQty} not.");
+				}
+			}
+
+			if (eligibleQty <= 0)
+			{
+				return (eligibleSubtotal + nonEligibleSubtotal, "No quantity is available in promotion batch for voucher discount");
+			}
+
+			var discountAmount = voucher.DiscountType switch
+			{
+				DiscountType.Percentage => eligibleSubtotal * (voucher.DiscountValue / 100m),
+				DiscountType.FixedAmount => voucher.DiscountValue,
+				_ => 0m
+			};
+
+			if (discountAmount > eligibleSubtotal)
+			{
+				discountAmount = eligibleSubtotal;
+			}
+
+			var finalAmount = (eligibleSubtotal - discountAmount) + nonEligibleSubtotal;
+			var message = messageLines.Count > 0 ? string.Join(" | ", messageLines) : null;
+
+			return (finalAmount, message);
 		}
 
 		public async Task<BaseResponse<string>> ClearCartAsync(Guid userId, List<Guid>? itemIds)

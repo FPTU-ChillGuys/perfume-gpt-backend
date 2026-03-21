@@ -194,6 +194,8 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<CustomerFamilyPreference> CustomerFamilyPreferences { get; set; }
 		public DbSet<CustomerAttributePreference> CustomerAttributePreferences { get; set; }
 		public DbSet<OrderCancelRequest> OrderCancelRequests { get; set; }
+		public DbSet<PromotionItem> Promotions { get; set; }
+		public DbSet<Campaign> Campaigns { get; set; }
 
 		protected override void OnModelCreating(ModelBuilder builder)
 		{
@@ -469,6 +471,20 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(d => d.ProductVariantId)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			// Variant -> Promotions
+			builder.Entity<ProductVariant>()
+				.HasMany(v => v.PromotionItems)
+				.WithOne(p => p.ProductVariant)
+				.HasForeignKey(p => p.ProductVariantId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// Batch -> Promotions
+			builder.Entity<Batch>()
+				.HasMany(b => b.Promotions)
+				.WithOne(p => p.Batch)
+				.HasForeignKey(p => p.BatchId)
+				.OnDelete(DeleteBehavior.Restrict);
+
 			// Batch -> StockAdjustmentDetail (1:M)
 			builder.Entity<Batch>()
 				.HasMany(b => b.StockAdjustmentDetails)
@@ -703,6 +719,20 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(ocr => ocr.ProcessedById)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			// Campaign -> PromotionItem (1:M)
+			builder.Entity<Campaign>()
+				.HasMany(c => c.Items)
+				.WithOne(pi => pi.Campaign)
+				.HasForeignKey(pi => pi.CampaignId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// Campaign -> Voucher (1:M)
+			builder.Entity<Campaign>()
+				.HasMany(c => c.Vouchers)
+				.WithOne(v => v.Campaign)
+				.HasForeignKey(v => v.CampaignId)
+				.OnDelete(DeleteBehavior.Cascade);
+
 			// Create indexes for efficient queries
 			builder.Entity<Media>()
 				.HasIndex(m => new { m.EntityType, m.ProductId });
@@ -757,6 +787,7 @@ namespace PerfumeGPT.Persistence.Contexts
 
 			builder.Entity<PaymentTransaction>().Property(pt => pt.Amount).HasPrecision(18, 2);
 			builder.Entity<ProductVariant>().Property(pv => pv.BasePrice).HasPrecision(18, 2);
+			builder.Entity<ProductVariant>().Property(pv => pv.RetailPrice).HasPrecision(18, 2);
 			builder.Entity<ShippingInfo>().Property(s => s.ShippingFee).HasPrecision(18, 2);
 
 			builder.Entity<Voucher>().Property(v => v.DiscountValue).HasPrecision(18, 2);
@@ -776,6 +807,8 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<ProductVariant>().Property(pv => pv.Type).HasConversion<string>();
 			builder.Entity<ProductVariant>().Property(pv => pv.Status).HasConversion<string>();
 			builder.Entity<Voucher>().Property(v => v.DiscountType).HasConversion<string>();
+			builder.Entity<Voucher>().Property(v => v.ApplyType).HasConversion<string>();
+			builder.Entity<Voucher>().Property(v => v.TargetItemType).HasConversion<string>();
 			builder.Entity<UserVoucher>().Property(uv => uv.Status).HasConversion<string>();
 			builder.Entity<ShippingInfo>().Property(s => s.CarrierName).HasConversion<string>();
 			builder.Entity<Media>().Property(m => m.EntityType).HasConversion<string>();
@@ -786,6 +819,9 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<ProductNoteMap>().Property(s => s.NoteType).HasConversion<string>();
 			builder.Entity<LoyaltyTransaction>().Property(lt => lt.TransactionType).HasConversion<string>();
 			builder.Entity<Stock>().Property(s => s.Status).HasConversion<string>();
+			builder.Entity<PromotionItem>().Property(p => p.ItemType).HasConversion<string>();
+			builder.Entity<Campaign>().Property(p => p.Status).HasConversion<string>();
+			builder.Entity<Campaign>().Property(p => p.Type).HasConversion<string>();
 
 			// Configure NVarchar for string properties to avoid default max length issues
 			builder.Entity<Product>().Property(p => p.Description)

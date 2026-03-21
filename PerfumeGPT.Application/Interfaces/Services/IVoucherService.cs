@@ -8,10 +8,14 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface IVoucherService
 	{
 		// Admin operations
-		Task<BaseResponse<string>> CreateVoucherAsync(CreateVoucherRequest request);
+		Task<BaseResponse<string>> CreateRegularVoucherAsync(CreateVoucherRequest request);
+		Task<BaseResponse<string>> CreateCampaignVoucherAsync(Guid campaignId, CreateCampaignVoucherRequest request);
 		Task<BaseResponse<string>> UpdateVoucherAsync(Guid voucherId, UpdateVoucherRequest request);
+		Task<BaseResponse<string>> UpdateCampaignVoucherAsync(Guid campaignId, Guid voucherId, UpdateCampaignVoucherRequest request);
 		Task<BaseResponse<string>> DeleteVoucherAsync(Guid voucherId);
+		Task<BaseResponse<string>> DeleteCampaignVoucherAsync(Guid campaignId, Guid voucherId);
 		Task<BaseResponse<VoucherResponse>> GetVoucherByIdAsync(Guid voucherId);
+		Task<BaseResponse<VoucherResponse>> GetCampaignVoucherByIdAsync(Guid campaignId, Guid voucherId);
 		Task<BaseResponse<PagedResult<VoucherResponse>>> GetPagedVouchersAsync(GetPagedVouchersRequest request);
 
 		// User operations
@@ -22,7 +26,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 
 		// Apply voucher logic
 		Task<BaseResponse<PagedResult<AvailableVoucherResponse>>> GetAvailableVouchersAsync(Guid userId, GetPagedAvailableVouchersRequest request);
-		Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null);
+      Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null, IEnumerable<Guid>? cartVariantIds = null);
 
 		// Voucher status management
 		Task<BaseResponse<UserVoucher>> MarkVoucherAsReservedAsync(Guid? userId, string? emailOrPhone, Guid voucherId, Guid orderId);

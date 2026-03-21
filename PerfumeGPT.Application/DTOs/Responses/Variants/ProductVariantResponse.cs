@@ -17,6 +17,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 		public string ConcentrationName { get; set; } = null!;
 		public VariantType Type { get; set; }
 		public decimal BasePrice { get; set; }
+		public decimal? RetailPrice { get; set; }
 		public VariantStatus Status { get; set; }
 		public int StockQuantity { get; set; }
 		public int Sillage { get; set; }
