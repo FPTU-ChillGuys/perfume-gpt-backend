@@ -17,10 +17,15 @@ namespace PerfumeGPT.Domain.Entities
 		public int DistrictId { get; set; }
 		public int ProvinceId { get; set; }
 		public bool IsDefault { get; set; }
+
+		// IHasTimestamps implementation
 		public DateTime CreatedAt { get; set; }
 		public DateTime? UpdatedAt { get; set; }
+
+		// Navigation property
 		public virtual User User { get; set; } = null!;
 
+		// Business logic methods
 		public bool IsOwnedBy(Guid userId) => UserId == userId;
 		public bool CanBeDeleted() => !IsDefault;
 

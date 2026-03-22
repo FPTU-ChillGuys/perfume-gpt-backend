@@ -30,7 +30,7 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(result);
 		}
 
-		[HttpGet("values/lookup/{attributeId:int}")]
+		[HttpGet("{attributeId:int}/values/lookup")]
 		[ProducesResponseType(typeof(BaseResponse<List<AttributeValueLookupItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<List<AttributeValueLookupItem>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<List<AttributeValueLookupItem>>>> GetAttributeValueLookupList([FromRoute] int attributeId)
@@ -67,14 +67,14 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(result);
 		}
 
-		[HttpPost("values")]
+		[HttpPost("{attributeId:int}/values")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status201Created)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		public async Task<ActionResult<BaseResponse<string>>> CreateAttributeValue([FromBody] CreateAttributeValueRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> CreateAttributeValue([FromRoute] int attributeId, [FromBody] CreateAttributeValueRequest request)
 		{
-			var result = await _attributeValueService.CreateAttributeValueAsync(request);
+			var result = await _attributeValueService.CreateAttributeValueAsync(attributeId, request);
 			if (!result.Success) return HandleResponse(result);
-			return CreatedAtAction(nameof(GetAttributeValueLookupList), new { attributeId = request.AttributeId }, result);
+			return HandleResponse(result);
 		}
 
 		[HttpPut("values/{valueId:int}")]

@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
+using PerfumeGPT.Domain.Exceptions;
 
 namespace PerfumeGPT.Domain.Entities
 {
@@ -33,5 +34,22 @@ namespace PerfumeGPT.Domain.Entities
 		// Soft Delete
 		public bool IsDeleted { get; set; }
 		public DateTime? DeletedAt { get; set; }
+
+		// Business Logic
+		public void EnsureActive()
+		{
+			if (!IsActive)
+			{
+				throw DomainException.Forbidden("User is inactive");
+			}
+		}
+
+		public void EnsureEmailConfirmed()
+		{
+			if (!EmailConfirmed)
+			{
+				throw DomainException.Forbidden("Email not confirmed");
+			}
+		}
 	}
 }

@@ -10,14 +10,13 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class AttributeRepository : GenericRepository<Attribute>, IAttributeRepository
 	{
-		public AttributeRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public AttributeRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<List<int>> GetExistingIdsAsync(IEnumerable<int> ids)
-		{
-			return await _context.Attributes.Where(a => ids.Contains(a.Id)).Select(a => a.Id).ToListAsync();
-		}
+			=> await _context.Attributes.Where(a => ids.Contains(a.Id)).Select(a => a.Id).ToListAsync();
+
+		public async Task<List<Attribute>> GetByIdsAsync(IEnumerable<int> ids)
+			=> await _context.Attributes.Where(a => ids.Contains(a.Id)).ToListAsync();
 
 		public async Task<List<AttributeLookupItem>> GetLookupListAsync(bool? isVariantLevel = null)
 		{
@@ -28,11 +27,6 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 
 			return await query.ProjectToType<AttributeLookupItem>().ToListAsync();
-		}
-
-		public async Task<List<Attribute>> GetByIdsAsync(IEnumerable<int> ids)
-		{
-			return await _context.Attributes.Where(a => ids.Contains(a.Id)).ToListAsync();
 		}
 	}
 }

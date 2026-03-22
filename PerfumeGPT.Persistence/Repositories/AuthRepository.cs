@@ -1,6 +1,5 @@
 ﻿using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
@@ -8,7 +7,6 @@ using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
-using PerfumeGPT.Persistence.Contexts;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -17,34 +15,36 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class AuthRepository : IAuthRepository
 	{
+		private static readonly JwtSecurityTokenHandler TokenHandler = new();
+
 		private readonly UserManager<User> _userManager;
-		private readonly PerfumeDbContext _context;
-		private readonly IConfiguration _configuration;
 		private readonly ILogger<AuthRepository> _logger;
 		private readonly IMediaService _mediaService;
-		private readonly string _secretKey;
 		private readonly string _issuer;
 		private readonly string _audience;
+		private readonly SigningCredentials _signingCredentials;
 
 		public AuthRepository(
-			PerfumeDbContext context,
 			IConfiguration configuration,
 			UserManager<User> userManager,
 			ILogger<AuthRepository> logger,
 			IMediaService mediaService)
 		{
 			_userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
-			_context = context ?? throw new ArgumentNullException(nameof(context));
-			_configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 			_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 			_mediaService = mediaService ?? throw new ArgumentNullException(nameof(mediaService));
 
-			_secretKey = _configuration["Jwt:Key"]
-				?? throw new ArgumentNullException("Jwt:Key not found in configuration");
-			_issuer = _configuration["Jwt:Issuer"]
-				?? throw new ArgumentNullException("Jwt:Issuer not found in configuration");
-			_audience = _configuration["Jwt:Audience"]
-				?? throw new ArgumentNullException("Jwt:Audience not found in configuration");
+			var secretKey = configuration["Jwt:Key"]
+				  ?? throw new ArgumentNullException("Jwt:Key not found in configuration");
+			_issuer = configuration["Jwt:Issuer"]
+				  ?? throw new ArgumentNullException("Jwt:Issuer not found in configuration");
+			_audience = configuration["Jwt:Audience"]
+				  ?? throw new ArgumentNullException("Jwt:Audience not found in configuration");
+
+			var privateKeyPem = secretKey.Replace("\\n", "\n");
+			var rsa = RSA.Create();
+			rsa.ImportFromPem(privateKeyPem);
+			_signingCredentials = new SigningCredentials(new RsaSecurityKey(rsa), SecurityAlgorithms.RsaSha256);
 		}
 
 		public async Task ConfirmEmailAsync(User user)
@@ -54,118 +54,87 @@ namespace PerfumeGPT.Persistence.Repositories
 			await _userManager.UpdateAsync(user);
 		}
 
-		public async Task<string> GenerateJwtToken(User user, string role)
+		public string GenerateJwtToken(User user, string role)
 		{
 			ArgumentNullException.ThrowIfNull(user);
 			if (string.IsNullOrWhiteSpace(role)) throw new ArgumentNullException(nameof(role));
 
 			var claims = new List<Claim>
 			{
-				new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-				new Claim("id", user.Id.ToString()),
-				new Claim("phoneNumber", user.PhoneNumber ?? string.Empty),
-				new Claim("email", user.Email ?? string.Empty),
-				new Claim("role", role.ToLower()),
-				new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+				new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+				new("id", user.Id.ToString()),
+				new("phoneNumber", user.PhoneNumber ?? string.Empty),
+				new("email", user.Email ?? string.Empty),
+				new("role", role.ToLower()),
+				new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
 			};
-
-			//var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
-			//var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-			var rsa = RSA.Create();
-			rsa.ImportFromPem(_secretKey);
-			var key = new RsaSecurityKey(rsa);
-			var creds = new SigningCredentials(
-				key,
-				SecurityAlgorithms.RsaSha256 // RS256
-			);
 
 			var token = new JwtSecurityToken(
 				issuer: _issuer,
 				audience: _audience,
 				claims: claims,
 				notBefore: DateTime.UtcNow,
-				signingCredentials: creds
+			   signingCredentials: _signingCredentials
 			);
 
-			return new JwtSecurityTokenHandler().WriteToken(token);
+			return TokenHandler.WriteToken(token);
 		}
 
 		public async Task<User> RegisterViaGoogleAsync(GoogleJsonWebSignature.Payload payload)
 		{
 			if (payload == null || string.IsNullOrWhiteSpace(payload.Email))
 			{
-				_logger.LogWarning("RegisterViaGoogleAsync called with null/invalid payload.");
-				return null!;
+				throw new ArgumentException("Google payload is invalid.", nameof(payload));
 			}
 
-			try
+			var existing = await _userManager.FindByEmailAsync(payload.Email);
+			if (existing != null)
 			{
-				var existing = await _userManager.FindByEmailAsync(payload.Email);
-				if (existing != null)
-				{
-					return existing;
-				}
-
-				var newUser = new User
-				{
-					Email = payload.Email,
-					UserName = payload.Email,
-					FullName = payload.Name ?? string.Empty,
-					EmailConfirmed = true,
-					IsActive = true
-				};
-
-				var tempPassword = GenerateTemporaryPassword(12);
-				var createResult = await _userManager.CreateAsync(newUser, tempPassword);
-				if (!createResult.Succeeded)
-				{
-					_logger.LogWarning(
-						"Failed to create user via Google for {Email}. Errors: {Errors}",
-						payload.Email,
-						string.Join(" | ", createResult.Errors.Select(e => e.Description)));
-
-					return null!;
-				}
-
-				string defaultRole = UserRole.user.ToString();
-				var roleExists = await _context.Roles.AnyAsync(r => r.Name == defaultRole);
-				if (!roleExists)
-				{
-					_logger.LogWarning("Default role '{Role}' does not exist. Skipping role assignment for user {Email}.", defaultRole, payload.Email);
-				}
-				else
-				{
-					var roleResult = await _userManager.AddToRoleAsync(newUser, defaultRole);
-					if (!roleResult.Succeeded)
-					{
-						_logger.LogWarning(
-							"Failed to add role '{Role}' to user {Email}. Errors: {Errors}",
-							defaultRole,
-							payload.Email,
-							string.Join(" | ", roleResult.Errors.Select(e => e.Description)));
-					}
-				}
-
-				if (!string.IsNullOrWhiteSpace(payload.Picture))
-				{
-					var avatarCreated = await _mediaService.CreateProfileAvatarFromUrlAsync(
-						newUser.Id,
-						payload.Picture,
-						$"{newUser.FullName}'s profile picture");
-
-					if (!avatarCreated)
-					{
-						_logger.LogWarning("Failed to create profile picture for user {Email}", payload.Email);
-					}
-				}
-
-				return newUser;
+				return existing;
 			}
-			catch (Exception ex)
+
+			var newUser = new User
 			{
-				_logger.LogError(ex, "Unexpected error in RegisterViaGoogleAsync for email {Email}", payload.Email);
-				return null!;
+				Email = payload.Email,
+				UserName = payload.Email,
+				FullName = payload.Name ?? string.Empty,
+				EmailConfirmed = true,
+				IsActive = true
+			};
+
+			var tempPassword = GenerateTemporaryPassword(12);
+			var createResult = await _userManager.CreateAsync(newUser, tempPassword);
+			if (!createResult.Succeeded)
+			{
+				throw new InvalidOperationException(
+					$"Failed to create user via Google for {payload.Email}. Errors: {string.Join(" | ", createResult.Errors.Select(e => e.Description))}");
 			}
+
+			string defaultRole = UserRole.user.ToString();
+			var roleResult = await _userManager.AddToRoleAsync(newUser, defaultRole);
+			if (!roleResult.Succeeded)
+			{
+				_logger.LogWarning(
+					"Failed to add role '{Role}' to user {Email}. Errors: {Errors}",
+					defaultRole,
+					payload.Email,
+					string.Join(" | ", roleResult.Errors.Select(e => e.Description)));
+			}
+
+			if (!string.IsNullOrWhiteSpace(payload.Picture))
+			{
+				var avatarCreated = await _mediaService.CreateProfileAvatarFromUrlAsync(
+					newUser.Id,
+					payload.Picture,
+					$"{newUser.FullName}'s profile picture");
+
+				if (!avatarCreated)
+				{
+					_logger.LogWarning("Failed to create profile picture for user {Email}", payload.Email);
+				}
+			}
+
+			return newUser;
 		}
 
 		private static string GenerateTemporaryPassword(int length = 12)

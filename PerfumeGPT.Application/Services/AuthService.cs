@@ -1,10 +1,12 @@
 ﻿using FluentValidation;
 using Google.Apis.Auth;
+using MapsterMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using PerfumeGPT.Application.DTOs.Requests.Auths;
 using PerfumeGPT.Application.DTOs.Responses.Auths;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
@@ -16,7 +18,6 @@ namespace PerfumeGPT.Application.Services
 	public class AuthService : IAuthService
 	{
 		#region Dependencies
-
 		private readonly IEmailTemplateService _templateService;
 		private readonly UserManager<User> _userManager;
 		private readonly IEmailService _emailService;
@@ -25,6 +26,8 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUserRepository _userRepository;
 		private readonly IValidator<RegisterRequest> _registerValidator;
 		private readonly IUserVoucherRepository _userVoucherRepository;
+		private readonly IValidator<LoginRequest> _loginValidator;
+		private readonly IMapper _mapper;
 
 		public AuthService(IEmailTemplateService templateService,
 			UserManager<User> userManager,
@@ -33,7 +36,9 @@ namespace PerfumeGPT.Application.Services
 			IProfileService profileService,
 			IUserRepository userRepository,
 			IValidator<RegisterRequest> registerValidator,
-			IUserVoucherRepository userVoucherRepository)
+			IUserVoucherRepository userVoucherRepository,
+			IValidator<LoginRequest> loginValidator,
+			IMapper mapper)
 		{
 			_templateService = templateService;
 			_userManager = userManager;
@@ -43,48 +48,27 @@ namespace PerfumeGPT.Application.Services
 			_userRepository = userRepository;
 			_registerValidator = registerValidator;
 			_userVoucherRepository = userVoucherRepository;
+			_loginValidator = loginValidator;
+			_mapper = mapper;
 		}
-
 		#endregion
-
-		private async Task SyncVouchersToUserAsync(User user)
-		{
-			try
-			{
-				await _userVoucherRepository.MigrateGuestVouchersAsync(user.Id, user.Email!, user.PhoneNumber!);
-			}
-			catch { }
-		}
-
-		private async Task TryCreateProfileAsync(User user)
-		{
-			var roles = await _userManager.GetRolesAsync(user);
-			if (!roles.Any(r => r.Equals(UserRole.user.ToString())))
-				return;
-
-			try
-			{
-				var profileResult = await _profileService.CreateProfileAsync(user.Id);
-			}
-			catch { }
-		}
 
 		public async Task<BaseResponse<TokenResponse>> LoginAsync(LoginRequest request)
 		{
-			var user = await _userManager.FindByEmailAsync(request.Credential!) ?? await _userRepository.FindByPhoneNumberAsync(request.Credential!);
-			if (user == null)
-				return BaseResponse<TokenResponse>.Fail("User not found", ResponseErrorType.NotFound);
+			var validationResults = await _loginValidator.ValidateAsync(request);
+			if (!validationResults.IsValid)
+				throw AppException.BadRequest("Validation failed", [.. validationResults.Errors.Select(e => e.ErrorMessage)]);
 
-			if (!user.IsActive)
-				return BaseResponse<TokenResponse>.Fail("User is inactive", ResponseErrorType.Forbidden);
+			var user = await FindByEmailOrPhoneAsync(request.Credential)
+				?? throw AppException.NotFound("User not found");
 
-			var isPasswordValid = await _userManager.CheckPasswordAsync(user, request.Password!);
+			user.EnsureActive();
+
+			var isPasswordValid = await _userManager.CheckPasswordAsync(user, request.Password);
 			if (!isPasswordValid)
-				return BaseResponse<TokenResponse>.Fail("Invalid password", ResponseErrorType.Unauthorized);
+				throw AppException.Unauthorized("Invalid password");
 
-			var isEmailConfirmed = await _userManager.IsEmailConfirmedAsync(user);
-			if (!isEmailConfirmed)
-				return BaseResponse<TokenResponse>.Fail("Email not confirmed", ResponseErrorType.Forbidden);
+			user.EnsureEmailConfirmed();
 
 			var tokenResponse = await GenerateTokenResponseAsync(user);
 			return BaseResponse<TokenResponse>.Ok(tokenResponse);
@@ -92,11 +76,11 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<TokenResponse>> CreateApiTokenAsync(string email)
 		{
-			var user = await _userManager.FindByEmailAsync(email);
-			if (user == null)
-				return BaseResponse<TokenResponse>.Fail("User not found", ResponseErrorType.NotFound);
-			if (!user.IsActive)
-				return BaseResponse<TokenResponse>.Fail("User is inactive", ResponseErrorType.Forbidden);
+			if (string.IsNullOrWhiteSpace(email))
+				throw AppException.BadRequest("Email is required");
+
+			var user = await _userManager.FindByEmailAsync(email) ?? throw AppException.NotFound("User not found");
+			user.EnsureActive();
 
 			var tokenResponse = await GenerateTokenResponseAsync(user);
 			return BaseResponse<TokenResponse>.Ok(tokenResponse);
@@ -108,7 +92,7 @@ namespace PerfumeGPT.Application.Services
 			var role = roles.FirstOrDefault() ?? UserRole.user.ToString();
 			return new TokenResponse()
 			{
-				AccessToken = await _authRepository.GenerateJwtToken(user, role)
+				AccessToken = _authRepository.GenerateJwtToken(user, role)
 			};
 		}
 
@@ -116,41 +100,28 @@ namespace PerfumeGPT.Application.Services
 		{
 			var validationResults = await _registerValidator.ValidateAsync(request);
 			if (!validationResults.IsValid)
-			{
-				var errors = validationResults.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed", ResponseErrorType.BadRequest, errors);
-			}
+				throw AppException.BadRequest("Validation failed", validationResults.Errors.Select(e => e.ErrorMessage).ToList());
 
 			var existingUser = await _userManager.FindByEmailAsync(request.Email) ?? await _userRepository.FindByPhoneNumberAsync(request.PhoneNumber);
 			if (existingUser != null)
-				return BaseResponse<string>.Fail("Email/PhoneNumber already exists", ResponseErrorType.Conflict);
+				throw AppException.Conflict("Email/PhoneNumber already exists");
 
-			var user = new User
-			{
-				FullName = request.FullName,
-				UserName = request.Email,
-				Email = request.Email,
-				PhoneNumber = request.PhoneNumber,
-				PhoneNumberConfirmed = !string.IsNullOrWhiteSpace(request.PhoneNumber),
-				IsActive = true
-			};
+			var user = _mapper.Map<User>(request);
 
 			var identityResult = await _userManager.CreateAsync(user, request.Password!);
 			if (!identityResult.Succeeded)
-				return BaseResponse<string>.Fail(
-					"Failed to create user",
-					ResponseErrorType.BadRequest,
-					[.. identityResult.Errors.Select(e => e.Description)]
-				);
+				throw AppException.BadRequest(
+					 "Failed to create user",
+					 [.. identityResult.Errors.Select(e => e.Description)]
+				 );
 
 			var roleName = role?.ToString() ?? UserRole.user.ToString();
 			var roleResult = await _userManager.AddToRoleAsync(user, roleName);
 			if (!roleResult.Succeeded)
-				return BaseResponse<string>.Fail(
-					"Failed to assign role",
-					ResponseErrorType.BadRequest,
-					[.. roleResult.Errors.Select(e => e.Description)]
-				);
+				throw AppException.BadRequest(
+					 "Failed to assign role",
+					 [.. roleResult.Errors.Select(e => e.Description)]
+				 );
 
 			var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
 			var verifyUrl = QueryHelpers.AddQueryString(
@@ -174,13 +145,14 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> VerifyEmailAsync(string email, string token)
 		{
-			var user = await _userManager.FindByEmailAsync(email);
-			if (user == null)
-				return BaseResponse<string>.Fail("User not found", ResponseErrorType.NotFound);
+			if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(token))
+				throw AppException.BadRequest("Email and token are required");
+
+			var user = await _userManager.FindByEmailAsync(email) ?? throw AppException.NotFound("User not found");
 
 			var result = await _userManager.ConfirmEmailAsync(user, token);
 			if (!result.Succeeded)
-				return BaseResponse<string>.Fail("failed to verify", ResponseErrorType.InternalError);
+				throw AppException.BadRequest("Failed to verify email", [.. result.Errors.Select(e => e.Description)]);
 
 			await TryCreateProfileAsync(user);
 			await SyncVouchersToUserAsync(user);
@@ -190,7 +162,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<TokenResponse>> LoginWithGoogleAsync(GoogleLoginRequest request)
 		{
 			if (request is null || string.IsNullOrWhiteSpace(request.IdToken))
-				return BaseResponse<TokenResponse>.Fail("Invalid request", ResponseErrorType.BadRequest);
+				throw AppException.BadRequest("Invalid request");
 
 			GoogleJsonWebSignature.Payload payload;
 			try
@@ -199,48 +171,31 @@ namespace PerfumeGPT.Application.Services
 			}
 			catch
 			{
-				return BaseResponse<TokenResponse>.Fail("Invalid Google token", ResponseErrorType.BadRequest);
+				throw AppException.BadRequest("Invalid Google token");
 			}
 
 			var email = payload.Email;
 			if (string.IsNullOrWhiteSpace(email))
-				return BaseResponse<TokenResponse>.Fail("Google token does not contain an email", ResponseErrorType.BadRequest);
+				throw AppException.BadRequest("Google token does not contain an email");
 
 			var user = await _userManager.FindByEmailAsync(email);
 			var isNewRegistration = false;
 
 			if (user is null)
 			{
-				try
-				{
-					user = await _authRepository.RegisterViaGoogleAsync(payload);
-					if (user is null)
-						return BaseResponse<TokenResponse>.Fail("Failed to create user account from Google payload", ResponseErrorType.InternalError);
-
-					isNewRegistration = true;
-				}
-				catch (Exception ex)
-				{
-					return BaseResponse<TokenResponse>.Fail("Google registration failed: " + ex.Message, ResponseErrorType.InternalError);
-				}
+				user = await _authRepository.RegisterViaGoogleAsync(payload);
+				isNewRegistration = true;
 			}
 
-			if (!user.IsActive)
-				return BaseResponse<TokenResponse>.Fail("Your account is inactive.", ResponseErrorType.Forbidden);
+			user.EnsureActive();
 
 			if (!user.EmailConfirmed)
 				await _authRepository.ConfirmEmailAsync(user);
 
 			if (isNewRegistration)
 			{
-				try
-				{
-					await TryCreateProfileAsync(user);
-					await SyncVouchersToUserAsync(user);
-				}
-				catch
-				{
-				}
+				await TryCreateProfileAsync(user);
+				await SyncVouchersToUserAsync(user);
 			}
 
 			var tokenResponse = await GenerateTokenResponseAsync(user);
@@ -251,18 +206,18 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> ForgotPasswordAsync(ForgotPasswordRequest request)
 		{
-			var user = await _userManager.FindByEmailAsync(request.Email!);
-			if (user is null)
-				return BaseResponse<string>.Fail("User not found", ResponseErrorType.NotFound);
+			if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.ClientUri))
+				throw AppException.BadRequest("Email and clientUri are required");
 
+			var user = await _userManager.FindByEmailAsync(request.Email!) ?? throw AppException.NotFound("User not found");
 			var token = await _userManager.GeneratePasswordResetTokenAsync(user);
 			var param = new Dictionary<string, string?>
 			{
 				{"token", token },
-				{"email", request.Email!}
+			   {"email", request.Email}
 			};
 
-			var callback = QueryHelpers.AddQueryString(request.ClientUri!, param);
+			var callback = QueryHelpers.AddQueryString(request.ClientUri, param);
 			var emailContent = _templateService.GetForgotPasswordTemplate(user.UserName ?? "User", callback);
 
 			await _emailService.SendEmailAsync(user.Email!, "Reset Password", emailContent);
@@ -271,18 +226,40 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> ResetPasswordAsync(ResetPasswordRequest request)
 		{
-			var user = await _userManager.FindByEmailAsync(request.Email!);
-			if (user is null)
-				return BaseResponse<string>.Fail("User not found", ResponseErrorType.NotFound);
+			if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.Password))
+				throw AppException.BadRequest("Email, token and password are required");
 
+			var user = await _userManager.FindByEmailAsync(request.Email!) ?? throw AppException.NotFound("User not found");
 			var resetResult = await _userManager.ResetPasswordAsync(user, request.Token!, request.Password!);
 			if (!resetResult.Succeeded)
-				return BaseResponse<string>.Fail(
-					"Failed to reset password",
-					ResponseErrorType.BadRequest,
-					resetResult.Errors.Select(e => e.Description).ToList());
+				throw AppException.BadRequest(
+					 "Failed to reset password",
+					 resetResult.Errors.Select(e => e.Description).ToList());
 
 			return BaseResponse<string>.Ok("Password reset successfully");
 		}
+
+		#region Private Helpers
+		private async Task SyncVouchersToUserAsync(User user)
+		{
+			await _userVoucherRepository.MigrateGuestVouchersAsync(user.Id, user.Email!, user.PhoneNumber!);
+		}
+
+		private async Task TryCreateProfileAsync(User user)
+		{
+			var roles = await _userManager.GetRolesAsync(user);
+			if (!roles.Any(r => r.Equals(UserRole.user.ToString())))
+				return;
+
+			await _profileService.CreateProfileAsync(user.Id);
+		}
+
+		private async Task<User?> FindByEmailOrPhoneAsync(string credential)
+		{
+			return await _userManager.FindByEmailAsync(credential)
+				?? await _userRepository.FindByPhoneNumberAsync(credential);
+		}
+
+		#endregion Private Helpers
 	}
 }

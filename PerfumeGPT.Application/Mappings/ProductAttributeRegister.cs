@@ -1,6 +1,9 @@
 ﻿using Mapster;
+using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
 using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
+using PerfumeGPT.Application.DTOs.Responses.ProductAttributes.Attributes;
 using PerfumeGPT.Domain.Entities;
+using Attribute = PerfumeGPT.Domain.Entities.Attribute;
 
 namespace PerfumeGPT.Application.Mappings
 {
@@ -8,6 +11,34 @@ namespace PerfumeGPT.Application.Mappings
 	{
 		public void Register(TypeAdapterConfig config)
 		{
+			// Attribute mappings
+			config.NewConfig<Attribute, AttributeLookupItem>()
+				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.InternalCode, src => src.InternalCode.ToUpper())
+				.Map(dest => dest.Name, src => src.Name)
+				.Map(dest => dest.Description, src => src.Description)
+				.Map(dest => dest.IsVariantLevel, src => src.IsVariantLevel);
+
+			config.NewConfig<CreateAttributeRequest, Attribute>()
+				.Map(dest => dest.InternalCode, src => src.InternalCode.ToUpper())
+				.Map(dest => dest.Name, src => src.Name)
+				.Map(dest => dest.Description, src => src.Description)
+				.Map(dest => dest.IsVariantLevel, src => src.IsVariantLevel);
+
+			config.NewConfig<UpdateAttributeRequest, Attribute>()
+				.Map(dest => dest.InternalCode, src => src.InternalCode.ToUpper())
+				.Map(dest => dest.Name, src => src.Name)
+				.Map(dest => dest.Description, src => src.Description)
+				.Map(dest => dest.IsVariantLevel, src => src.IsVariantLevel);
+
+			// AttributeValue mappings
+			config.NewConfig<CreateAttributeValueRequest, AttributeValue>()
+				.Map(dest => dest.Value, src => src.Value.Trim());
+
+			config.NewConfig<UpdateAttributeValueRequest, AttributeValue>()
+				.Map(dest => dest.Value, src => src.Value.Trim());
+
+			// ProductAttribute mappings
 			config.NewConfig<ProductAttribute, ProductAttributeResponse>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.AttributeId, src => src.AttributeId)
