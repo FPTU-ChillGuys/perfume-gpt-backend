@@ -19,6 +19,6 @@ namespace PerfumeGPT.Persistence.Repositories
 			=> await _context.AttributeValues.FirstOrDefaultAsync(v => v.Id == id);
 
 		public async Task<List<AttributeValueLookupItem>> GetLookupListByAttributeIdAsync(int attributeId)
-		=> await _context.AttributeValues.Where(v => v.AttributeId == attributeId).ProjectToType<AttributeValueLookupItem>().ToListAsync();
+			=> await _context.AttributeValues.Where(v => v.AttributeId == attributeId).ProjectToType<AttributeValueLookupItem>().ToListAsync();
 	}
 }

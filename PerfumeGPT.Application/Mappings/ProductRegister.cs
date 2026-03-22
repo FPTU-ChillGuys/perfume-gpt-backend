@@ -84,10 +84,8 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.CategoryName, src => src.Category.Name)
 				.Map(dest => dest.Description, src => src.Description)
 				.Map(dest => dest.NumberOfVariants, src => src.Variants.Count())
-				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary && !m.IsDeleted))
-				.Map(dest => dest.Attributes, src => src.ProductAttributes)
-				.Map(dest => dest.OlfactoryFamilies, src => src.ProductFamilyMaps.Select(pfm => new ProductOlfactoryFamilyResponse { OlfactoryFamilyId = pfm.OlfactoryFamilyId, Name = pfm.OlfactoryFamily.Name }))
-				.Map(dest => dest.ScentNotes, src => src.ProductScentMaps.Select(psm => new ProductScentNoteResponse { NoteId = psm.ScentNoteId, Name = psm.ScentNote.Name, Type = psm.NoteType }));
+				.Map(dest => dest.VariantPrices, src => src.Variants.Where(v => !v.IsDeleted).Select(v => v.BasePrice).ToList())
+				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary && !m.IsDeleted));
 
 			config.NewConfig<Product, ProductListItemWithVariants>()
 				.Map(dest => dest.Id, src => src.Id)
@@ -98,7 +96,6 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.CategoryName, src => src.Category.Name)
 				.Map(dest => dest.Description, src => src.Description)
 				.Map(dest => dest.PrimaryImage, src => src.Media.FirstOrDefault(m => m.IsPrimary && !m.IsDeleted))
-				.Map(dest => dest.Attributes, src => src.ProductAttributes)
 				.Map(dest => dest.Variants, src => src.Variants.Where(v => !v.IsDeleted));
 
 			config.NewConfig<Product, ProductLookupItem>()

@@ -97,6 +97,11 @@ namespace PerfumeGPT.Persistence.Repositories
 			IQueryable<Stock> query = _context.Stocks
 				.AsNoTracking();
 
+			if (request.CategoryId.HasValue)
+			{
+				query = query.Where(s => s.ProductVariant.Product.CategoryId == request.CategoryId.Value);
+			}
+
 			if (request.SKU != null)
 			{
 				query = query.Where(s => s.ProductVariant.Sku.Contains(request.SKU));

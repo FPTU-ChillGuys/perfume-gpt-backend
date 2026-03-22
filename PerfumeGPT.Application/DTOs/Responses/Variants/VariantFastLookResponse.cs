@@ -5,6 +5,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 	public class VariantFastLookResponse
 	{
 		public Guid Id { get; set; }
+		public string Sku { get; set; } = null!;
 		public string DisplayName { get; set; } = null!;
 		public decimal Price { get; set; }
 		public decimal? RetailPrice { get; set; }

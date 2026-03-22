@@ -1,5 +1,4 @@
 ﻿using PerfumeGPT.Application.DTOs.Responses.Media;
-using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Products
 {
@@ -13,10 +12,8 @@ namespace PerfumeGPT.Application.DTOs.Responses.Products
 		public string CategoryName { get; set; } = null!;
 		public string? Description { get; set; }
 		public int NumberOfVariants { get; set; }
+		public List<decimal> VariantPrices { get; set; } = [];
 		public MediaResponse? PrimaryImage { get; set; }
-		public List<ProductAttributeResponse>? Attributes { get; set; }
-		public List<ProductScentNoteResponse> ScentNotes { get; set; } = [];
-		public List<ProductOlfactoryFamilyResponse> OlfactoryFamilies { get; set; } = [];
 	}
 }
 

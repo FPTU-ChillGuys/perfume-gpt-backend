@@ -63,6 +63,11 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(p => p.Variants.Any(v => !v.IsDeleted && v.VolumeMl == request.Volume.Value));
 			}
 
+			if (request.CategoryId.HasValue)
+			{
+				query = query.Where(p => p.CategoryId == request.CategoryId.Value);
+			}
+
 			if (request.BrandId.HasValue)
 			{
 				query = query.Where(p => p.BrandId == request.BrandId.Value);
@@ -188,8 +193,10 @@ namespace PerfumeGPT.Persistence.Repositories
 						.Select(v => new VariantFastLookResponse
 						{
 							Id = v.Id,
+							Sku = v.Sku,
 							DisplayName = $"{v.Concentration.Name} - {v.VolumeMl}ml",
 							Price = v.BasePrice,
+							RetailPrice = v.RetailPrice,
 							StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
 							Media = v.Media
 								.Where(m => m.IsPrimary)
