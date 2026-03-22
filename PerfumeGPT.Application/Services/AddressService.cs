@@ -3,6 +3,7 @@ using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Address;
 using PerfumeGPT.Application.DTOs.Responses.Address;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -11,229 +12,129 @@ namespace PerfumeGPT.Application.Services
 {
 	public class AddressService : IAddressService
 	{
+		#region Dependencies
 		private readonly IAddressRepository _addressRepo;
 		private readonly IValidator<CreateAddressRequest> _validator;
 		private readonly IValidator<UpdateAddressRequest> _updateValidator;
 		private readonly IMapper _mapper;
 
-		public AddressService(IAddressRepository addressRepo, IValidator<CreateAddressRequest> validator, IValidator<UpdateAddressRequest> updateValidator, IMapper mapper)
+		public AddressService(
+			IAddressRepository addressRepo,
+			IValidator<CreateAddressRequest> validator,
+			IValidator<UpdateAddressRequest> updateValidator,
+			IMapper mapper)
 		{
 			_addressRepo = addressRepo;
 			_validator = validator;
 			_updateValidator = updateValidator;
 			_mapper = mapper;
 		}
+		#endregion Dependencies
 
 		public async Task<BaseResponse<string>> CreateAddressAsync(Guid userId, CreateAddressRequest request)
 		{
 			var validationResult = await _validator.ValidateAsync(request);
 			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed", ResponseErrorType.BadRequest, errors);
-			}
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-			try
-			{
-				var userAddresses = await _addressRepo.GetUserAddresses(userId);
-				var isFirstAddress = userAddresses.Count == 0;
+			var userAddresses = await _addressRepo.GetUserAddresses(userId);
 
-				var address = _mapper.Map<Address>(request);
-				address.UserId = userId;
-				address.IsDefault = isFirstAddress;
+			var address = _mapper.Map<Address>(request);
+			address.UserId = userId;
+			address.IsDefault = userAddresses.Count == 0; // first address is default
 
-				await _addressRepo.AddAsync(address);
-				var saved = await _addressRepo.SaveChangesAsync();
-				if (!saved)
-				{
-					return BaseResponse<string>.Fail("Could not create address", ResponseErrorType.InternalError);
-				}
+			await _addressRepo.AddAsync(address);
+			var saved = await _addressRepo.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Could not create address");
 
-				return BaseResponse<string>.Ok(address.Id.ToString(), "Address created successfully");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail($"Error creating address: {ex.Message}", ResponseErrorType.InternalError);
-			}
-		}
-
-		public async Task<BaseResponse<string>> DeleteAddressAsync(Guid userId, Guid addressId)
-		{
-			try
-			{
-				var address = await _addressRepo.GetByIdAsync(addressId);
-				if (address == null)
-				{
-					return BaseResponse<string>.Fail("Address not found", ResponseErrorType.NotFound);
-				}
-
-				if (address.UserId != userId)
-				{
-					return BaseResponse<string>.Fail("Address does not belong to this user", ResponseErrorType.Forbidden);
-				}
-
-				if (address.IsDefault)
-				{
-					return BaseResponse<string>.Fail("Cannot delete default address. Please set another address as default first.", ResponseErrorType.BadRequest);
-				}
-
-				_addressRepo.Remove(address);
-				var saved = await _addressRepo.SaveChangesAsync();
-				if (!saved)
-				{
-					return BaseResponse<string>.Fail("Could not delete address", ResponseErrorType.InternalError);
-				}
-
-				return BaseResponse<string>.Ok(addressId.ToString(), "Address deleted successfully");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail($"Error deleting address: {ex.Message}", ResponseErrorType.InternalError);
-			}
-		}
-
-		public async Task<BaseResponse<AddressResponse>> GetDefaultAddressAsync(Guid userId)
-		{
-			try
-			{
-				var address = await _addressRepo.GetDefaultAddress(userId);
-				if (address == null)
-				{
-					return BaseResponse<AddressResponse>.Fail("Default address not found for user", ResponseErrorType.NotFound);
-				}
-
-				var response = _mapper.Map<AddressResponse>(address);
-				return BaseResponse<AddressResponse>.Ok(response, "Default address retrieved successfully");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<AddressResponse>.Fail($"Error retrieving default address: {ex.Message}", ResponseErrorType.InternalError);
-			}
-		}
-
-		public async Task<BaseResponse<List<AddressResponse>>> GetUserAddressesAsync(Guid userId)
-		{
-			try
-			{
-				var addresses = await _addressRepo.GetUserAddresses(userId);
-				if (addresses == null || addresses.Count == 0)
-				{
-					return BaseResponse<List<AddressResponse>>.Fail("No addresses found for user", ResponseErrorType.NotFound);
-				}
-
-				var response = _mapper.Map<List<AddressResponse>>(addresses);
-				return BaseResponse<List<AddressResponse>>.Ok(response, "User addresses retrieved successfully");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<List<AddressResponse>>.Fail($"Error retrieving user addresses: {ex.Message}", ResponseErrorType.InternalError);
-			}
+			return BaseResponse<string>.Ok(address.Id.ToString(), "Address created successfully");
 		}
 
 		public async Task<BaseResponse<string>> UpdateAddressAsync(Guid userId, Guid addressId, UpdateAddressRequest request)
 		{
 			var validationResult = await _updateValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed", ResponseErrorType.BadRequest, errors);
-			}
+				throw AppException.BadRequest("Validation failed",
+					validationResult.Errors.Select(e => e.ErrorMessage).ToList());
 
-			try
-			{
-				var address = await _addressRepo.GetByIdAsync(addressId);
-				if (address == null)
-				{
-					return BaseResponse<string>.Fail("Address not found", ResponseErrorType.NotFound);
-				}
+			var address = await _addressRepo.GetByIdAsync(addressId)
+				?? throw AppException.NotFound("Address not found");
 
-				if (address.UserId != userId)
-				{
-					return BaseResponse<string>.Fail("Address does not belong to this user", ResponseErrorType.Forbidden);
-				}
+			address.EnsureOwnedBy(userId);
+			_mapper.Map(request, address);
+			_addressRepo.Update(address);
 
-				_mapper.Map(request, address);
+			var saved = await _addressRepo.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Could not update address");
 
-				_addressRepo.Update(address);
-				var saved = await _addressRepo.SaveChangesAsync();
-				if (!saved)
-				{
-					return BaseResponse<string>.Fail("Could not update address", ResponseErrorType.InternalError);
-				}
+			return BaseResponse<string>.Ok(address.Id.ToString(), "Address updated successfully");
+		}
 
-				return BaseResponse<string>.Ok(address.Id.ToString(), "Address updated successfully");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail($"Error updating address: {ex.Message}", ResponseErrorType.InternalError);
-			}
+		public async Task<BaseResponse<string>> DeleteAddressAsync(Guid userId, Guid addressId)
+		{
+			var address = await _addressRepo.GetByIdAsync(addressId)
+				?? throw AppException.NotFound("Address not found");
+
+			address.EnsureOwnedBy(userId);
+			address.EnsureCanBeDeleted();
+
+			_addressRepo.Remove(address);
+			var saved = await _addressRepo.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Could not delete address");
+
+			return BaseResponse<string>.Ok(addressId.ToString(), "Address deleted successfully");
 		}
 
 		public async Task<BaseResponse<string>> SetDefaultAddressAsync(Guid userId, Guid addressId)
 		{
-			try
-			{
-				var address = await _addressRepo.GetByIdAsync(addressId);
-				if (address == null)
-				{
-					return BaseResponse<string>.Fail("Address not found", ResponseErrorType.NotFound);
-				}
+			var address = await _addressRepo.FirstOrDefaultAsync(a => a.Id == addressId && a.UserId == userId)
+				?? throw AppException.NotFound("Address not found or does not belong to this user");
 
-				if (address.UserId != userId)
-				{
-					return BaseResponse<string>.Fail("Address does not belong to this user", ResponseErrorType.Forbidden);
-				}
+			address.EnsureNotAlreadyDefault();
 
-				if (address.IsDefault)
-				{
-					return BaseResponse<string>.Ok(addressId.ToString(), "Address is already the default");
-				}
+			var currentDefault = await _addressRepo.FirstOrDefaultAsync(a => a.UserId == userId && a.IsDefault);
+			currentDefault?.UnsetDefault();
+			if (currentDefault != null) _addressRepo.Update(currentDefault);
 
-				var currentDefaultAddress = await _addressRepo.GetDefaultAddress(userId);
-				if (currentDefaultAddress != null)
-				{
-					var currentDefault = await _addressRepo.GetByIdAsync(currentDefaultAddress.Id);
-					if (currentDefault != null)
-					{
-						currentDefault.IsDefault = false;
-						_addressRepo.Update(currentDefault);
-					}
-				}
+			address.SetAsDefault();
+			_addressRepo.Update(address);
 
-				address.IsDefault = true;
-				_addressRepo.Update(address);
+			var saved = await _addressRepo.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Could not set default address");
 
-				var saved = await _addressRepo.SaveChangesAsync();
-				if (!saved)
-				{
-					return BaseResponse<string>.Fail("Could not set default address", ResponseErrorType.InternalError);
-				}
-
-				return BaseResponse<string>.Ok(addressId.ToString(), "Default address set successfully");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail($"Error setting default address: {ex.Message}", ResponseErrorType.InternalError);
-			}
+			return BaseResponse<string>.Ok(addressId.ToString(), "Default address set successfully");
 		}
 
 		public async Task<BaseResponse<AddressResponse>> GetAddressByIdAsync(Guid userId, Guid addressId)
 		{
-			try
-			{
-				var address = await _addressRepo.GetUserAddressById(userId, addressId);
-				if (address == null)
-				{
-					return BaseResponse<AddressResponse>.Fail("Address not found", ResponseErrorType.NotFound);
-				}
+			var address = await _addressRepo.GetUserAddressById(userId, addressId)
+				?? throw AppException.NotFound("Address not found");
 
-				var response = _mapper.Map<AddressResponse>(address);
-				return BaseResponse<AddressResponse>.Ok(response, "Address retrieved successfully");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<AddressResponse>.Fail($"Error retrieving address: {ex.Message}", ResponseErrorType.InternalError);
-			}
+			return BaseResponse<AddressResponse>.Ok(
+				_mapper.Map<AddressResponse>(address),
+				"Address retrieved successfully");
+		}
+
+		public async Task<BaseResponse<AddressResponse>> GetDefaultAddressAsync(Guid userId)
+		{
+			var address = await _addressRepo.GetDefaultAddress(userId)
+				?? throw AppException.NotFound("Default address not found");
+
+			return BaseResponse<AddressResponse>.Ok(
+				_mapper.Map<AddressResponse>(address),
+				"Default address retrieved successfully");
+		}
+
+		public async Task<BaseResponse<List<AddressResponse>>> GetUserAddressesAsync(Guid userId)
+		{
+			var addresses = await _addressRepo.GetUserAddresses(userId);
+			if (addresses.Count == 0)
+				throw AppException.NotFound("No addresses found for user");
+
+			return BaseResponse<List<AddressResponse>>.Ok(
+				_mapper.Map<List<AddressResponse>>(addresses),
+				"User addresses retrieved successfully");
 		}
 	}
 }

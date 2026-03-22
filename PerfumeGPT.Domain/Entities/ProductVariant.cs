@@ -15,6 +15,7 @@ namespace PerfumeGPT.Domain.Entities
 		public int Sillage { get; set; }
 		public int Longevity { get; set; }
 		public decimal BasePrice { get; set; }
+		public decimal? RetailPrice { get; set; }
 		public VariantStatus Status { get; set; }
 
 		// Navigation
@@ -29,6 +30,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<OrderDetail> OrderDetails { get; set; } = [];
 		public virtual ICollection<Media> Media { get; set; } = [];
 		public virtual ICollection<ProductAttribute> ProductAttributes { get; set; } = [];
+		public virtual ICollection<PromotionItem> PromotionItems { get; set; } = [];
 
 		// ISoftDelete implementation
 		public bool IsDeleted { get; set; }

@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Http;
 using PerfumeGPT.Application.DTOs.Requests.OrderCancelRequests;
-using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.OrderCancelRequests;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
@@ -113,29 +112,32 @@ namespace PerfumeGPT.Application.Services
 								if (context == null)
 									return BaseResponse<string>.Fail("HttpContext not available.", ResponseErrorType.InternalError);
 
-								var refundReq = new VnPayRefundRequest
-								{
-									OrderId = order.Id,
-									Amount = cancelRequest.RefundAmount ?? payment.Amount,
-									PaymentId = payment.Id,
-									TransactionType = "02", // full refund
-									CreateBy = processedBy.ToString(),
-									OrderInfo = $"Refund for Order {order.Id}"
-								};
+								//var refundReq = new VnPayRefundRequest
+								//{
+								//	OrderId = order.Id,
+								//	Amount = cancelRequest.RefundAmount ?? payment.Amount,
+								//	PaymentId = payment.Id,
+								//	TransactionType = "02", // full refund
+								//	CreateBy = processedBy.ToString(),
+								//	OrderInfo = $"Refund for Order {order.Id}",
+								//};
 
-								var refundRes = await _vnPayService.RefundAsync(context, refundReq);
+								//var refundRes = await _vnPayService.RefundAsync(context, refundReq);
 
-								if (refundRes.IsSuccess)
-								{
-									cancelRequest.IsRefunded = true;
-									cancelRequest.VnpTransactionNo = refundRes.TransactionNo;
-									order.PaymentStatus = PaymentStatus.Refunded;
-								}
-								else
-								{
-									// We might still consider it approved, but log refund failure
-									cancelRequest.StaffNote += $" | Refund failed: {refundRes.Message}";
-								}
+								//if (refundRes.IsSuccess)
+								//{
+								//	cancelRequest.IsRefunded = true;
+								//	cancelRequest.VnpTransactionNo = refundRes.TransactionNo;
+								//	order.PaymentStatus = PaymentStatus.Refunded;
+								//}
+								//else
+								//{
+								//	// We might still consider it approved, but log refund failure
+								//	cancelRequest.StaffNote += $" | Refund failed: {refundRes.Message}";
+								//}
+
+								cancelRequest.IsRefunded = true;
+								order.PaymentStatus = PaymentStatus.Refunded;
 							}
 							else
 							{

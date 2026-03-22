@@ -7,9 +7,6 @@ namespace PerfumeGPT.API.Controllers.Base
 	[ApiController]
 	public abstract class BaseApiController : ControllerBase
 	{
-		/// <summary>
-		/// Lấy UserId của user hiện tại từ token
-		/// </summary> 
 		protected Guid GetCurrentUserId()
 		{
 			var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -17,7 +14,7 @@ namespace PerfumeGPT.API.Controllers.Base
 		}
 
 		/// <summary>
-		/// Xử lý response cho các hàm có payload (generic)
+		/// Handle response for generic BaseResponse<T>. This centralizes the logic for interpreting the success status and error types, ensuring consistent API responses across all controllers that inherit from BaseApiController.
 		/// </summary>
 		protected ActionResult HandleResponse<T>(BaseResponse<T> result)
 		{
@@ -39,7 +36,7 @@ namespace PerfumeGPT.API.Controllers.Base
 		}
 
 		/// <summary>
-		/// Xử lý response cho các hàm không có payload (non-generic)
+		/// Handle response for non-generic BaseResponse. Useful for endpoints that don't return data but still want to indicate success or failure with a message.
 		/// </summary>
 		protected ActionResult HandleResponse(BaseResponse result)
 		{

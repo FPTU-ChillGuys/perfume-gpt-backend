@@ -14,6 +14,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Variants
 		public int Longevity { get; set; }
 		public VariantType Type { get; set; }
 		public decimal BasePrice { get; set; }
+		public decimal? RetailPrice { get; set; }
 		public VariantStatus Status { get; set; }
 		public int LowStockThreshold { get; set; }
 		public List<ProductAttributeDto>? Attributes { get; set; }

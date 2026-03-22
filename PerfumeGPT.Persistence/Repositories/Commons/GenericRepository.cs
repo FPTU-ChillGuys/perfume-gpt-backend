@@ -6,189 +6,174 @@ using System.Linq.Expressions;
 
 namespace PerfumeGPT.Persistence.Repositories.Commons
 {
-    public class GenericRepository<T> : IGenericRepository<T> where T : class
-    {
-        protected readonly PerfumeDbContext _context;
-        private readonly DbSet<T> _dbSet;
+	public class GenericRepository<T> : IGenericRepository<T> where T : class
+	{
+		protected readonly PerfumeDbContext _context;
+		private readonly DbSet<T> _dbSet;
 
-        public GenericRepository(PerfumeDbContext context) : base()
-        {
-            _context = context;
-            _dbSet = _context.Set<T>();
-        }
+		public GenericRepository(PerfumeDbContext context) : base()
+		{
+			_context = context;
+			_dbSet = _context.Set<T>();
+		}
 
-        public async Task AddAsync(T entity)
-        {
-            if (entity is null) throw new ArgumentNullException(nameof(entity));
-            await _dbSet.AddAsync(entity);
-        }
+		public async Task AddAsync(T entity)
+		{
+			if (entity is null) throw new ArgumentNullException(nameof(entity));
+			await _dbSet.AddAsync(entity);
+		}
 
-        public async Task AddRangeAsync(IEnumerable<T> entities)
-        {
-            if (entities is null) throw new ArgumentNullException(nameof(entities));
-            await _dbSet.AddRangeAsync(entities);
-        }
+		public async Task AddRangeAsync(IEnumerable<T> entities)
+		{
+			if (entities is null) throw new ArgumentNullException(nameof(entities));
+			await _dbSet.AddRangeAsync(entities);
+		}
 
-        public async Task<bool> AnyAsync(Expression<Func<T, bool>> predicate)
-        {
-            if (predicate is null) throw new ArgumentNullException(nameof(predicate));
-            return await _dbSet.AnyAsync(predicate);
-        }
+		public async Task<bool> AnyAsync(Expression<Func<T, bool>> predicate)
+		{
+			if (predicate is null) throw new ArgumentNullException(nameof(predicate));
+			return await _dbSet.AnyAsync(predicate);
+		}
 
-        public void Attach(T entity)
-        {
-            if (entity is null) throw new ArgumentNullException(nameof(entity));
-            _dbSet.Attach(entity);
-        }
+		public void Attach(T entity)
+		{
+			if (entity is null) throw new ArgumentNullException(nameof(entity));
+			_dbSet.Attach(entity);
+		}
 
-        public async Task<int> CountAsync(Expression<Func<T, bool>>? filter = null)
-        {
-            if (filter is null)
-                return await _dbSet.CountAsync();
-            return await _dbSet.CountAsync(filter);
-        }
+		public async Task<int> CountAsync(Expression<Func<T, bool>>? filter = null)
+		{
+			if (filter is null)
+				return await _dbSet.CountAsync();
+			return await _dbSet.CountAsync(filter);
+		}
 
-        public void Detach(T entity)
-        {
-            if (entity is null) throw new ArgumentNullException(nameof(entity));
-            _context.Entry(entity).State = EntityState.Detached;
-        }
+		public void Detach(T entity)
+		{
+			if (entity is null) throw new ArgumentNullException(nameof(entity));
+			_context.Entry(entity).State = EntityState.Detached;
+		}
 
-        public async Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, bool asNoTracking = false)
-        {
-            if (predicate is null) throw new ArgumentNullException(nameof(predicate));
+		public async Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, bool asNoTracking = false)
+		{
+			if (predicate is null) throw new ArgumentNullException(nameof(predicate));
 
-            IQueryable<T> query = _dbSet;
+			IQueryable<T> query = _dbSet;
 
-            if (include is not null)
-                query = include(query);
+			if (include is not null)
+				query = include(query);
 
-            if (asNoTracking)
-                query = query.AsNoTracking();
+			if (asNoTracking)
+				query = query.AsNoTracking();
 
-            return await query.FirstOrDefaultAsync(predicate);
-        }
+			return await query.FirstOrDefaultAsync(predicate);
+		}
 
-        public async Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>>? filter = null, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null, bool asNoTracking = false)
-        {
-            IQueryable<T> query = _dbSet;
+		public async Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>>? filter = null, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null, bool asNoTracking = false)
+		{
+			IQueryable<T> query = _dbSet;
 
-            if (filter is not null)
-                query = query.Where(filter);
+			if (filter is not null)
+				query = query.Where(filter);
 
-            if (include is not null)
-                query = include(query);
+			if (include is not null)
+				query = include(query);
 
-            if (orderBy is not null)
-                query = orderBy(query);
+			if (orderBy is not null)
+				query = orderBy(query);
 
-            if (asNoTracking)
-                query = query.AsNoTracking();
+			if (asNoTracking)
+				query = query.AsNoTracking();
 
-            return await query.ToListAsync();
-        }
+			return await query.ToListAsync();
+		}
 
-        public async Task<T?> GetByConditionAsync(Expression<Func<T, bool>> predicate, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, bool asNoTracking = false)
-        {
-            if (predicate is null) throw new ArgumentNullException(nameof(predicate));
+		public async Task<T?> GetByIdAsync(params object[] keyValues)
+		{
+			if (keyValues is null || keyValues.Length == 0) throw new ArgumentException("Key values must be provided.", nameof(keyValues));
+			var found = await _dbSet.FindAsync(keyValues);
+			return found;
+		}
 
-            IQueryable<T> query = _dbSet;
+		public async Task<(IEnumerable<T> Items, int TotalCount)> GetPagedAsync(Expression<Func<T, bool>>? filter = null, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null, int pageNumber = 1, int pageSize = 10, bool asNoTracking = false)
+		{
+			IQueryable<T> query = _dbSet;
 
-            if (include is not null)
-                query = include(query);
+			if (filter is not null)
+				query = query.Where(filter);
 
-            if (asNoTracking)
-                query = query.AsNoTracking();
+			if (include is not null)
+				query = include(query);
 
-            return await query.FirstOrDefaultAsync(predicate);
-        }
+			if (asNoTracking)
+				query = query.AsNoTracking();
 
-        public async Task<T?> GetByIdAsync(params object[] keyValues)
-        {
-            if (keyValues is null || keyValues.Length == 0) throw new ArgumentException("Key values must be provided.", nameof(keyValues));
-            var found = await _dbSet.FindAsync(keyValues);
-            return found;
-        }
+			if (orderBy is not null)
+				query = orderBy(query);
 
-        public async Task<(IEnumerable<T> Items, int TotalCount)> GetPagedAsync(Expression<Func<T, bool>>? filter = null, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null, int pageNumber = 1, int pageSize = 10, bool asNoTracking = false)
-        {
-            IQueryable<T> query = _dbSet;
+			int totalCount = await query.CountAsync();
 
-            if (filter is not null)
-                query = query.Where(filter);
+			var items = await query
+				.Skip((pageNumber - 1) * pageSize)
+				.Take(pageSize)
+				.ToListAsync();
 
-            if (include is not null)
-                query = include(query);
+			return (items, totalCount);
+		}
 
-            if (asNoTracking)
-                query = query.AsNoTracking();
+		public IQueryable<T> Query(bool asNoTracking = false)
+		{
+			return asNoTracking ? _dbSet.AsNoTracking() : _dbSet;
+		}
 
-            if (orderBy is not null)
-                query = orderBy(query);
+		public void Remove(T entity)
+		{
+			if (entity is null) throw new ArgumentNullException(nameof(entity));
+			_dbSet.Remove(entity);
+		}
 
-            int totalCount = await query.CountAsync();
+		public void RemoveRange(IEnumerable<T> entities)
+		{
+			if (entities is null) throw new ArgumentNullException(nameof(entities));
+			_dbSet.RemoveRange(entities);
+		}
 
-            var items = await query
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
+		public async Task<int> SaveChangesAndReturnCountAsync()
+		{
+			return await _context.SaveChangesAsync();
+		}
 
-            return (items, totalCount);
-        }
+		public async Task<bool> SaveChangesAsync()
+		{
+			return await _context.SaveChangesAsync() > 0;
+		}
 
-        public IQueryable<T> Query(bool asNoTracking = false)
-        {
-            return asNoTracking ? _dbSet.AsNoTracking() : _dbSet;
-        }
+		public async Task<T?> SingleOrDefaultAsync(Expression<Func<T, bool>> predicate, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, bool asNoTracking = false)
+		{
+			if (predicate is null) throw new ArgumentNullException(nameof(predicate));
 
-        public void Remove(T entity)
-        {
-            if (entity is null) throw new ArgumentNullException(nameof(entity));
-            _dbSet.Remove(entity);
-        }
+			IQueryable<T> query = _dbSet;
 
-        public void RemoveRange(IEnumerable<T> entities)
-        {
-            if (entities is null) throw new ArgumentNullException(nameof(entities));
-            _dbSet.RemoveRange(entities);
-        }
+			if (include is not null)
+				query = include(query);
 
-        public async Task<int> SaveChangesAndReturnCountAsync()
-        {
-            return await _context.SaveChangesAsync();
-        }
+			if (asNoTracking)
+				query = query.AsNoTracking();
 
-        public async Task<bool> SaveChangesAsync()
-        {
-            return await _context.SaveChangesAsync() > 0;
-        }
+			return await query.SingleOrDefaultAsync(predicate);
+		}
 
-        public async Task<T?> SingleOrDefaultAsync(Expression<Func<T, bool>> predicate, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, bool asNoTracking = false)
-        {
-            if (predicate is null) throw new ArgumentNullException(nameof(predicate));
+		public void Update(T entity)
+		{
+			if (entity is null) throw new ArgumentNullException(nameof(entity));
+			_dbSet.Update(entity);
+		}
 
-            IQueryable<T> query = _dbSet;
-
-            if (include is not null)
-                query = include(query);
-
-            if (asNoTracking)
-                query = query.AsNoTracking();
-
-            return await query.SingleOrDefaultAsync(predicate);
-        }
-
-        public void Update(T entity)
-        {
-            if (entity is null) throw new ArgumentNullException(nameof(entity));
-            _dbSet.Update(entity);
-        }
-
-        public async Task UpdateRangeAsync(IEnumerable<T> entities)
-        {
-            if (entities is null) throw new ArgumentNullException(nameof(entities));
-            _dbSet.UpdateRange(entities);
-            await Task.CompletedTask;
-        }
-    }
+		public async Task UpdateRangeAsync(IEnumerable<T> entities)
+		{
+			if (entities is null) throw new ArgumentNullException(nameof(entities));
+			_dbSet.UpdateRange(entities);
+			await Task.CompletedTask;
+		}
+	}
 }

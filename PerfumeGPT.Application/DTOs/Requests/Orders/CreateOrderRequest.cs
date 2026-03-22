@@ -6,6 +6,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Orders
 	{
 		public string? VoucherCode { get; set; }
 		public List<Guid> ItemIds { get; set; } = [];
+		public decimal? ExpectedTotalPrice { get; set; }
 		public DeliveryMethod DeliveryMethod { get; set; }
 		public Guid? SavedAddressId { get; set; }
 		public RecipientInformation? Recipient { get; set; }

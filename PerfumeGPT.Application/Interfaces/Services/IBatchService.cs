@@ -9,7 +9,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface IBatchService
 	{
 		Task<List<Batch>> CreateBatchesAsync(Guid variantId, Guid importDetailId, List<CreateBatchRequest> batchRequests);
-		Task<bool> DeductBatchesByVariantIdAsync(Guid variantId, int quantity);
 
 		// Validation methods
 		bool IsTotalQuantityValid(List<CreateBatchRequest> batchRequests, int expectedTotalQuantity);
@@ -21,8 +20,9 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<List<BatchDetailResponse>>> GetBatchesByVariantIdAsync(Guid variantId);
 		Task<BaseResponse<BatchDetailResponse>> GetBatchByIdAsync(Guid batchId);
 
-		// Stock adjustment methods
+		// Calculation methods
 		Task<bool> IncreaseBatchQuantityAsync(Guid batchId, int quantity);
 		Task<bool> DecreaseBatchQuantityAsync(Guid batchId, int quantity);
+		Task<bool> DeductBatchesByVariantIdAsync(Guid variantId, int quantity);
 	}
 }

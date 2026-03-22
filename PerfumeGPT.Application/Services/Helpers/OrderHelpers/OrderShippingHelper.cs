@@ -14,49 +14,18 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 	public class OrderShippingHelper : IOrderShippingHelper
 	{
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IShippingService _shippingService;
 		private readonly IRecipientService _recipientService;
 		private readonly IGHNService _ghnService;
 
 		public OrderShippingHelper(
 			IUnitOfWork unitOfWork,
-			IShippingService shippingService,
 			IGHNService ghnService,
 			IRecipientService recipientService)
 		{
 			_unitOfWork = unitOfWork;
-			_shippingService = shippingService;
 			_ghnService = ghnService;
 			_recipientService = recipientService;
 		}
-
-		public async Task<BaseResponse<decimal>> UpdateShippingFeeAsync(
-		ShippingInfo shippingInfo,
-		int districtId,
-		string wardCode,
-		Order order)
-		{
-			var newShippingFee = await _shippingService.CalculateShippingFeeAsync(districtId, wardCode);
-
-			if (!newShippingFee.HasValue)
-			{
-				return BaseResponse<decimal>.Fail("Failed to calculate new shipping fee.");
-			}
-
-			var oldFee = shippingInfo.ShippingFee;
-			var feeDifference = newShippingFee.Value - oldFee;
-
-			// Update shipping info
-			shippingInfo.ShippingFee = newShippingFee.Value;
-			_unitOfWork.ShippingInfos.Update(shippingInfo);
-
-			// Update order total
-			order.TotalAmount += feeDifference;
-			_unitOfWork.Orders.Update(order);
-
-			return BaseResponse<decimal>.Ok(newShippingFee.Value);
-		}
-
 
 		public async Task<BaseResponse<decimal>> SetupShippingInfoAsync(
 		Guid orderId,
@@ -83,19 +52,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 			var recipientInfo = recipientResult.Payload!;
 
-			// 2. Calculate shipping fee
-			var shippingFee = await CalculateOrUseShippingFeeAsync(
-				preCalculatedShippingFee,
-				recipientInfo.DistrictId,
-				recipientInfo.WardCode);
-
-			if (!shippingFee.HasValue)
-			{
-				return BaseResponse<decimal>.Fail(
-					"Failed to calculate shipping fee.",
-					ResponseErrorType.InternalError);
-			}
-
 			// 3. Get lead time
 			var leadTimeDays = await GetLeadTimeAsync(recipientInfo.DistrictId, recipientInfo.WardCode);
 
@@ -105,7 +61,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				OrderId = orderId,
 				CarrierName = CarrierName.GHN,
 				TrackingNumber = null,
-				ShippingFee = shippingFee.Value,
+				ShippingFee = 0,
 				Status = ShippingStatus.Pending,
 				LeadTime = leadTimeDays
 			};
@@ -115,24 +71,11 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			// 5. Update order total if needed
 			if (orderToUpdate != null)
 			{
-				orderToUpdate.TotalAmount += shippingFee.Value;
+				orderToUpdate.TotalAmount += 0;
 				_unitOfWork.Orders.Update(orderToUpdate);
 			}
 
-			return BaseResponse<decimal>.Ok(shippingFee.Value);
-		}
-
-		private async Task<decimal?> CalculateOrUseShippingFeeAsync(
-		decimal? preCalculatedFee,
-		int districtId,
-		string wardCode)
-		{
-			if (preCalculatedFee.HasValue)
-			{
-				return preCalculatedFee.Value;
-			}
-
-			return await _shippingService.CalculateShippingFeeAsync(districtId, wardCode);
+			return BaseResponse<decimal>.Ok(0);
 		}
 
 		private async Task<int?> GetLeadTimeAsync(int districtId, string wardCode)
@@ -189,7 +132,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			try
 			{
 				// Load order details with variant information
-				var orderWithDetails = await _unitOfWork.Orders.GetByConditionAsync(o => o.Id == order.Id, o => o.Include(o => o.OrderDetails));
+				var orderWithDetails = await _unitOfWork.Orders.FirstOrDefaultAsync(o => o.Id == order.Id, o => o.Include(o => o.OrderDetails));
 				if (orderWithDetails?.OrderDetails == null || orderWithDetails.OrderDetails.Count == 0)
 				{
 					return BaseResponse<string>.Fail(
