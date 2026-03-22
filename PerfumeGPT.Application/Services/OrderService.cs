@@ -21,7 +21,6 @@ namespace PerfumeGPT.Application.Services
 		private readonly ICartService _cartService;
 		private readonly IVariantService _variantService;
 		private readonly IVoucherService _voucherService;
-		private readonly IShippingService _shippingService;
 		private readonly IOrderPaymentService _orderPaymentService;
 		private readonly IOrderInventoryManager _inventoryManager;
 		private readonly IOrderShippingHelper _shippingHelper;
@@ -38,7 +37,6 @@ namespace PerfumeGPT.Application.Services
 			ICartService cartService,
 			IVariantService variantService,
 			IVoucherService voucherService,
-			IShippingService shippingService,
 			IOrderPaymentService orderPaymentService,
 			IOrderInventoryManager inventoryManager,
 			IOrderShippingHelper shippingHelper,
@@ -54,7 +52,6 @@ namespace PerfumeGPT.Application.Services
 			_cartService = cartService;
 			_variantService = variantService;
 			_voucherService = voucherService;
-			_shippingService = shippingService;
 			_orderPaymentService = orderPaymentService;
 			_inventoryManager = inventoryManager;
 			_shippingHelper = shippingHelper;
@@ -554,16 +551,15 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				decimal subtotal = items.Payload.Sum(i => i.Total);
-				decimal shippingFee = await CalculateShippingFeeAsync(request.DistrictId, request.WardCode);
 				decimal discount = await CalculateVoucherDiscountAsync(request.VoucherCode, subtotal);
 
 				var response = new PreviewOrderResponse
 				{
 					Items = items.Payload,
 					SubTotal = subtotal,
-					ShippingFee = shippingFee,
+					ShippingFee = 0,
 					Discount = discount,
-					Total = subtotal + shippingFee - discount
+					Total = subtotal + 0 - discount
 				};
 
 				return BaseResponse<PreviewOrderResponse>.Ok(response);
@@ -860,16 +856,6 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<List<OrderDetailListItems>>.Ok(items);
 		}
 
-		private async Task<decimal> CalculateShippingFeeAsync(int districtId, string? wardCode)
-		{
-			if (string.IsNullOrEmpty(wardCode) || districtId <= 0)
-			{
-				return 0;
-			}
-
-			return await _shippingService.CalculateShippingFeeAsync(districtId, wardCode) ?? 0;
-		}
-
 		private async Task<decimal> CalculateVoucherDiscountAsync(string? voucherCode, decimal subtotal)
 		{
 			if (string.IsNullOrEmpty(voucherCode))
@@ -929,15 +915,15 @@ namespace PerfumeGPT.Application.Services
 			await _voucherService.ReleaseReservedVoucherAsync(order.Id);
 		}
 
-      private async Task<BaseResponse<VoucherResponse>> ValidateAndGetVoucherAsync(
-			string voucherCode,
-			Guid userId,
-			string? phoneNumber,
-			decimal totalPrice,
-			IEnumerable<Guid>? cartVariantIds = null)
+		private async Task<BaseResponse<VoucherResponse>> ValidateAndGetVoucherAsync(
+			  string voucherCode,
+			  Guid userId,
+			  string? phoneNumber,
+			  decimal totalPrice,
+			  IEnumerable<Guid>? cartVariantIds = null)
 		{
 			// Validate voucher eligibility
-           var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(voucherCode, userId, totalPrice, phoneNumber, cartVariantIds);
+			var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(voucherCode, userId, totalPrice, phoneNumber, cartVariantIds);
 			if (!voucherValidation.Success)
 			{
 				return BaseResponse<VoucherResponse>.Fail(

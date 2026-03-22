@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
+using PerfumeGPT.API.Middlewares;
 using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Infrastructure.Extensions;
 using PerfumeGPT.Persistence.Contexts;
@@ -112,8 +113,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-// Global exception handling middleware
-//app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<GlobalExceptionMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

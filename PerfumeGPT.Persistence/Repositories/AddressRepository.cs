@@ -8,37 +8,23 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class AddressRepository : GenericRepository<Address>, IAddressRepository
 	{
-		public AddressRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public AddressRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<Address?> GetUserAddressById(Guid userId, Guid addressId)
-		{
-			var address = await _context.Addresses
-				.Where(a => a.UserId == userId && a.Id == addressId)
-				.FirstOrDefaultAsync();
-
-			return address;
-		}
+		=> await _context.Addresses
+			.Where(a => a.UserId == userId && a.Id == addressId)
+			.FirstOrDefaultAsync();
 
 		public async Task<Address?> GetDefaultAddress(Guid userId)
-		{
-			var address = await _context.Addresses
-				.Where(a => a.UserId == userId && a.IsDefault)
-				.FirstOrDefaultAsync();
-
-			return address;
-		}
+		=> await _context.Addresses
+			.Where(a => a.UserId == userId && a.IsDefault)
+			.FirstOrDefaultAsync();
 
 		public async Task<List<Address>> GetUserAddresses(Guid userId)
-		{
-			var addresses = await _context.Addresses
+		=> await _context.Addresses
 			.AsNoTracking()
 			.Where(a => a.UserId == userId)
 			.OrderByDescending(a => a.CreatedAt)
 			.ToListAsync();
-
-			return addresses;
-		}
 	}
 }

@@ -16,21 +16,15 @@ namespace PerfumeGPT.Application.Services
 
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IPromotionItemRepository _promotionItemRepository;
-		private readonly IShippingService _shippingService;
 		private readonly IVoucherService _voucherService;
-		private readonly IAddressService _addressService;
 
 		public CartService(
 			IUnitOfWork unitOfWork,
 		   IPromotionItemRepository promotionItemRepository,
-			IShippingService shippingService,
-			IAddressService addressService,
 			IVoucherService voucherService)
 		{
 			_unitOfWork = unitOfWork;
 			_promotionItemRepository = promotionItemRepository;
-			_shippingService = shippingService;
-			_addressService = addressService;
 			_voucherService = voucherService;
 		}
 
@@ -64,11 +58,11 @@ namespace PerfumeGPT.Application.Services
 					TotalPrice = totalResult.Payload.TotalPrice
 				};
 
-              return BaseResponse<CartCheckoutResponse>.Ok(
-					response,
-					string.IsNullOrWhiteSpace(totalResult.Message)
-						? "Cart retrieved for checkout"
-						: totalResult.Message);
+				return BaseResponse<CartCheckoutResponse>.Ok(
+					  response,
+					  string.IsNullOrWhiteSpace(totalResult.Message)
+						  ? "Cart retrieved for checkout"
+						  : totalResult.Message);
 			}
 			catch (Exception ex)
 			{

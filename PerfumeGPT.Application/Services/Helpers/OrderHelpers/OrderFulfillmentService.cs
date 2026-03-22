@@ -32,7 +32,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		{
 			try
 			{
-				var order = await _unitOfWork.Orders.GetByConditionAsync(
+				var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
 					o => o.Id == orderId && o.PaymentStatus == PaymentStatus.Paid,
 					o => o.Include(o => o.OrderDetails));
 
@@ -183,7 +183,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 		private async Task<BaseResponse<Order>> ValidateOrderForFulfillmentAsync(Guid orderId)
 		{
-			var order = await _unitOfWork.Orders.GetByConditionAsync(
+			var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
 				o => o.Id == orderId,
 				o => o.Include(o => o.ShippingInfo).Include(o => o.OrderDetails));
 
@@ -451,7 +451,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			Guid orderId,
 			SwapDamagedStockRequest request)
 		{
-			var order = await _unitOfWork.Orders.GetByConditionAsync(
+			var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
 				o => o.Id == orderId,
 				o => o.Include(o => o.OrderDetails));
 

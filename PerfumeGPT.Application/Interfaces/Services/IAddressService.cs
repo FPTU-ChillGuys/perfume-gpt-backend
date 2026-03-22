@@ -9,6 +9,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<AddressResponse>> GetDefaultAddressAsync(Guid userId);
 		Task<BaseResponse<List<AddressResponse>>> GetUserAddressesAsync(Guid userId);
 		Task<BaseResponse<AddressResponse>> GetAddressByIdAsync(Guid userId, Guid addressId);
+
 		Task<BaseResponse<string>> CreateAddressAsync(Guid userId, CreateAddressRequest request);
 		Task<BaseResponse<string>> UpdateAddressAsync(Guid userId, Guid addressId, UpdateAddressRequest request);
 		Task<BaseResponse<string>> DeleteAddressAsync(Guid userId, Guid addressId);
