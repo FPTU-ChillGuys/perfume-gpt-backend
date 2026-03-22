@@ -14,7 +14,7 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IAddressRepository _addressRepo;
-		private readonly IValidator<CreateAddressRequest> _validator;
+		private readonly IValidator<CreateAddressRequest> _createValidator;
 		private readonly IValidator<UpdateAddressRequest> _updateValidator;
 		private readonly IMapper _mapper;
 
@@ -25,7 +25,7 @@ namespace PerfumeGPT.Application.Services
 			IMapper mapper)
 		{
 			_addressRepo = addressRepo;
-			_validator = validator;
+			_createValidator = validator;
 			_updateValidator = updateValidator;
 			_mapper = mapper;
 		}
@@ -33,16 +33,34 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> CreateAddressAsync(Guid userId, CreateAddressRequest request)
 		{
-			var validationResult = await _validator.ValidateAsync(request);
+			var validationResult = await _createValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 				throw AppException.BadRequest("Validation failed",
 					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
 			var userAddresses = await _addressRepo.GetUserAddresses(userId);
+			var shouldBeDefault = userAddresses.Count == 0 || request.IsDefault;
 
-			var address = _mapper.Map<Address>(request);
-			address.UserId = userId;
-			address.IsDefault = userAddresses.Count == 0; // first address is default
+			if (shouldBeDefault && userAddresses.Count > 0)
+			{
+				var currentDefault = await _addressRepo.FirstOrDefaultAsync(
+					a => a.UserId == userId && a.IsDefault);
+				currentDefault?.UnsetDefault();
+				if (currentDefault != null) _addressRepo.Update(currentDefault);
+			}
+
+			var address = Address.CreateForUser(
+				userId,
+				request.RecipientName,
+				request.RecipientPhoneNumber,
+				request.Street,
+				request.Ward,
+				request.District,
+				request.City,
+				request.WardCode,
+				request.DistrictId,
+				request.ProvinceId,
+				shouldBeDefault);
 
 			await _addressRepo.AddAsync(address);
 			var saved = await _addressRepo.SaveChangesAsync();
@@ -62,7 +80,16 @@ namespace PerfumeGPT.Application.Services
 				?? throw AppException.NotFound("Address not found");
 
 			address.EnsureOwnedBy(userId);
-			_mapper.Map(request, address);
+			address.UpdateDetails(
+				  request.RecipientName,
+				  request.RecipientPhoneNumber,
+				  request.Street,
+				  request.Ward,
+				  request.District,
+				  request.City,
+				  request.WardCode,
+				  request.DistrictId,
+				  request.ProvinceId);
 			_addressRepo.Update(address);
 
 			var saved = await _addressRepo.SaveChangesAsync();
@@ -129,12 +156,10 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<List<AddressResponse>>> GetUserAddressesAsync(Guid userId)
 		{
 			var addresses = await _addressRepo.GetUserAddresses(userId);
-			if (addresses.Count == 0)
-				throw AppException.NotFound("No addresses found for user");
 
 			return BaseResponse<List<AddressResponse>>.Ok(
 				_mapper.Map<List<AddressResponse>>(addresses),
-				"User addresses retrieved successfully");
+				addresses.Count == 0 ? "No addresses found" : "User addresses retrieved successfully");
 		}
 	}
 }
