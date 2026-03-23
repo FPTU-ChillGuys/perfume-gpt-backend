@@ -117,11 +117,24 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(s => s.Status == request.StockStatus);
 			}
 
+			if (request.DaysUntilExpiry.HasValue)
+			{
+				var expiryDate = DateTime.UtcNow.AddDays(request.DaysUntilExpiry.Value);
+				query = query.Where(s => s.ProductVariant.Batches.Any(b => b.ExpiryDate <= expiryDate));
+			}
+
 			// Apply sorting
 			if (!string.IsNullOrEmpty(request.SortBy))
 			{
 				var descending = request.SortOrder?.ToLower() == "desc";
 				query = query.ApplySorting(request.SortBy, descending);
+			}
+			else if (request.DaysUntilExpiry.HasValue)
+			{
+				// If sorting is not specified but filtering by expiry is applied, sort by nearest expiry date
+				query = query.OrderBy(s => s.ProductVariant.Batches
+					.Where(b => b.ExpiryDate > DateTime.UtcNow)
+					.Min(b => b.ExpiryDate));
 			}
 			else
 			{

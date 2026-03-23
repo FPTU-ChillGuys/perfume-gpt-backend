@@ -124,34 +124,35 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<string>> CreateImportTicketFromExcelAsync(CreateImportTicketFromExcelRequest request, Guid userId)
+		public async Task<BaseResponse<CreateImportTicketRequest>> CreateImportTicketFromExcelAsync(CreateImportTicketFromExcelRequest request, Guid userId)
 		{
 			try
 			{
+				_ = userId;
 				var validationResult = await _createImportTicketFromExcelValidator.ValidateAsync(request);
 				if (!validationResult.IsValid)
 				{
 					var validationErrors = string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage));
-					return BaseResponse<string>.Fail(validationErrors, ResponseErrorType.BadRequest);
+					return BaseResponse<CreateImportTicketRequest>.Fail(validationErrors, ResponseErrorType.BadRequest);
 				}
 
 				// Validate Excel file
 				if (request.ExcelFile == null || request.ExcelFile.Length == 0)
 				{
-					return BaseResponse<string>.Fail("Excel file is required.", ResponseErrorType.BadRequest);
+					return BaseResponse<CreateImportTicketRequest>.Fail("Excel file is required.", ResponseErrorType.BadRequest);
 				}
 
 				// Validate file extension
 				var fileExtension = Path.GetExtension(request.ExcelFile.FileName).ToLowerInvariant();
 				if (fileExtension != ".xlsx" && fileExtension != ".xls")
 				{
-					return BaseResponse<string>.Fail("Only .xlsx and .xls files are supported.", ResponseErrorType.BadRequest);
+					return BaseResponse<CreateImportTicketRequest>.Fail("Only .xlsx and .xls files are supported.", ResponseErrorType.BadRequest);
 				}
 
 				// Validate file size (max 10MB)
 				if (request.ExcelFile.Length > 10 * 1024 * 1024)
 				{
-					return BaseResponse<string>.Fail("File size cannot exceed 10MB.", ResponseErrorType.BadRequest);
+					return BaseResponse<CreateImportTicketRequest>.Fail("File size cannot exceed 10MB.", ResponseErrorType.BadRequest);
 				}
 
 				// Parse Excel file
@@ -169,7 +170,7 @@ namespace PerfumeGPT.Application.Services
 
 					if (rows == null || !rows.Any())
 					{
-						return BaseResponse<string>.Fail("Excel file is empty or has no data rows.", ResponseErrorType.BadRequest);
+						return BaseResponse<CreateImportTicketRequest>.Fail("Excel file is empty or has no data rows.", ResponseErrorType.BadRequest);
 					}
 
 					int rowNumber = 2; // Start from 2 (1 is header)
@@ -237,13 +238,13 @@ namespace PerfumeGPT.Application.Services
 				if (errors.Count != 0)
 				{
 					var errorMessage = string.Join("; ", errors);
-					return BaseResponse<string>.Fail($"Excel parsing errors: {errorMessage}", ResponseErrorType.BadRequest);
+					return BaseResponse<CreateImportTicketRequest>.Fail($"Excel parsing errors: {errorMessage}", ResponseErrorType.BadRequest);
 				}
 
 				// Check if we have any details
 				if (importDetails.Count == 0)
 				{
-					return BaseResponse<string>.Fail("No valid import details found in Excel file.", ResponseErrorType.BadRequest);
+					return BaseResponse<CreateImportTicketRequest>.Fail("No valid import details found in Excel file.", ResponseErrorType.BadRequest);
 				}
 
 				// Create the import ticket request
@@ -254,11 +255,11 @@ namespace PerfumeGPT.Application.Services
 					ImportDetails = importDetails
 				};
 
-				return await CreateImportTicketAsync(createRequest, userId);
+				return BaseResponse<CreateImportTicketRequest>.Ok(createRequest, "Excel parsed successfully. Please confirm and submit import ticket.");
 			}
 			catch (Exception ex)
 			{
-				return BaseResponse<string>.Fail($"Error creating import ticket from Excel: {ex.Message}", ResponseErrorType.InternalError);
+				return BaseResponse<CreateImportTicketRequest>.Fail($"Error parsing import ticket from Excel: {ex.Message}", ResponseErrorType.InternalError);
 			}
 		}
 

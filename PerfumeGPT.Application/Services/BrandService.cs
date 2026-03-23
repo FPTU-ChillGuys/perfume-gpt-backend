@@ -1,8 +1,11 @@
-﻿using Mapster;
+﻿using FluentValidation;
+using Mapster;
 using MapsterMapper;
+using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Brands;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Brands;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -11,14 +14,24 @@ namespace PerfumeGPT.Application.Services
 {
 	public class BrandService : IBrandService
 	{
+		#region Dependencies
 		private readonly IBrandRepository _brandRepository;
+		private readonly IValidator<CreateBrandRequest> _createValidator;
+		private readonly IValidator<UpdateBrandRequest> _updateValidator;
 		private readonly IMapper _mapper;
 
-		public BrandService(IBrandRepository brandRepository, IMapper mapper)
+		public BrandService(
+			 IBrandRepository brandRepository,
+			 IValidator<CreateBrandRequest> createValidator,
+			 IValidator<UpdateBrandRequest> updateValidator,
+			 IMapper mapper)
 		{
 			_brandRepository = brandRepository;
+			_createValidator = createValidator;
+			_updateValidator = updateValidator;
 			_mapper = mapper;
 		}
+		#endregion Dependencies
 
 		public async Task<BaseResponse<List<BrandLookupItem>>> GetBrandLookupAsync()
 		{
@@ -28,9 +41,9 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<BrandResponse>> GetBrandByIdAsync(int id)
 		{
 			var result = await _brandRepository.GetBrandByIdAsync(id);
-			if (result == null)
-				return BaseResponse<BrandResponse>.Fail("Brand not found", ResponseErrorType.NotFound);
-			return BaseResponse<BrandResponse>.Ok(result);
+			return result == null
+				? throw new AppException("Brand not found", ResponseErrorType.NotFound)
+				: BaseResponse<BrandResponse>.Ok(result);
 		}
 
 		public async Task<BaseResponse<List<BrandResponse>>> GetAllBrandsAsync()
@@ -41,18 +54,23 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<BrandResponse>> CreateBrandAsync(CreateBrandRequest request)
 		{
-			var normalizedName = request.Name.Trim();
+			var validationResult = await _createValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+			{
+				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+				throw new AppException("Validation failed", ResponseErrorType.BadRequest, errors);
+			}
+
+			var normalizedName = Brand.NormalizeName(request.Name);
 
 			var exists = await _brandRepository.AnyAsync(b =>
-				b.Name.ToLower() == normalizedName.ToLower());
+			  b.Name.Equals(normalizedName, StringComparison.CurrentCultureIgnoreCase));
 
 			if (exists)
-				return BaseResponse<BrandResponse>.Fail(
-					"Brand name already exists.",
-					ResponseErrorType.Conflict);
+				throw new AppException("Brand name already exists.", ResponseErrorType.Conflict);
 
 			var entity = _mapper.Map<Brand>(request);
-			entity.Name = normalizedName;
+			entity.Rename(normalizedName);
 
 			await _brandRepository.AddAsync(entity);
 			await _brandRepository.SaveChangesAsync();
@@ -61,22 +79,25 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<BrandResponse>> UpdateBrandAsync(int id, UpdateBrandRequest request)
 		{
-			var normalizedName = request.Name.Trim();
+			var validationResult = await _updateValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+			{
+				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+				throw new AppException("Validation failed", ResponseErrorType.BadRequest, errors);
+			}
+
+			var normalizedName = Brand.NormalizeName(request.Name);
+
+			var entity = await _brandRepository.GetByIdAsync(id) ?? throw new AppException("Brand not found", ResponseErrorType.NotFound);
 
 			var exists = await _brandRepository.AnyAsync(b =>
-				b.Name.ToLower() == normalizedName.ToLower());
+			  b.Id != id && b.Name.Equals(normalizedName, StringComparison.CurrentCultureIgnoreCase));
 
 			if (exists)
-				return BaseResponse<BrandResponse>.Fail(
-					"Brand name already exists.",
-					ResponseErrorType.Conflict);
-
-			var entity = await _brandRepository.GetByIdAsync(id);
-			if (entity == null)
-				return BaseResponse<BrandResponse>.Fail("Brand not found", ResponseErrorType.NotFound);
+				throw new AppException("Brand name already exists.", ResponseErrorType.Conflict);
 
 			_mapper.Map(request, entity);
-			entity.Name = normalizedName;
+			entity.Rename(normalizedName);
 
 			_brandRepository.Update(entity);
 			await _brandRepository.SaveChangesAsync();
@@ -86,12 +107,11 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<bool>> DeleteBrandAsync(int id)
 		{
-			var entity = await _brandRepository.GetByIdAsync(id);
-			if (entity == null)
-				return BaseResponse<bool>.Fail("Brand not found", ResponseErrorType.NotFound);
+			var entity = await _brandRepository.FirstOrDefaultAsync(
+				 b => b.Id == id,
+				 include: q => q.Include(b => b.Products)) ?? throw new AppException("Brand not found", ResponseErrorType.NotFound);
 
-			if (entity.Products != null && entity.Products.Any())
-				return BaseResponse<bool>.Fail("Cannot delete brand with associated products", ResponseErrorType.BadRequest);
+			entity.EnsureCanBeDeleted();
 
 			_brandRepository.Remove(entity);
 			await _brandRepository.SaveChangesAsync();

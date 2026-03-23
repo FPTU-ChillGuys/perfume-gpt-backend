@@ -37,11 +37,11 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost("upload-excel")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> CreateImportTicketFromExcel([FromForm] CreateImportTicketFromExcelRequest request)
+       [ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<CreateImportTicketRequest>>> CreateImportTicketFromExcel([FromForm] CreateImportTicketFromExcelRequest request)
 		{
 			var validation = ValidateRequestBody<CreateImportTicketFromExcelRequest>(request);
 			if (validation != null) return validation;

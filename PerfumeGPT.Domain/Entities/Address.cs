@@ -6,17 +6,19 @@ namespace PerfumeGPT.Domain.Entities
 {
 	public class Address : BaseEntity<Guid>, IHasTimestamps
 	{
-		public Guid UserId { get; set; }
-		public string RecipientName { get; set; } = string.Empty;
-		public string RecipientPhoneNumber { get; set; } = string.Empty;
-		public string Street { get; set; } = string.Empty;
-		public string Ward { get; set; } = string.Empty;
-		public string District { get; set; } = string.Empty;
-		public string City { get; set; } = string.Empty;
-		public string WardCode { get; set; } = null!;
-		public int DistrictId { get; set; }
-		public int ProvinceId { get; set; }
-		public bool IsDefault { get; set; }
+		private Address() { }
+
+		public Guid UserId { get; private set; }
+		public string RecipientName { get; private set; } = string.Empty;
+		public string RecipientPhoneNumber { get; private set; } = string.Empty;
+		public string Street { get; private set; } = string.Empty;
+		public string Ward { get; private set; } = string.Empty;
+		public string District { get; private set; } = string.Empty;
+		public string City { get; private set; } = string.Empty;
+		public string WardCode { get; private set; } = null!;
+		public int DistrictId { get; private set; }
+		public int ProvinceId { get; private set; }
+		public bool IsDefault { get; private set; }
 
 		// IHasTimestamps implementation
 		public DateTime CreatedAt { get; set; }
@@ -26,14 +28,64 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual User User { get; set; } = null!;
 
 		// Business logic methods
-		public bool IsOwnedBy(Guid userId) => UserId == userId;
-		public bool CanBeDeleted() => !IsDefault;
-
-		public void EnsureOwnedBy(Guid requestUserId)
+		public static Address CreateForUser(
+			 Guid userId,
+			 string recipientName,
+			 string recipientPhoneNumber,
+			 string street,
+			 string ward,
+			 string district,
+			 string city,
+			 string wardCode,
+			 int districtId,
+			 int provinceId,
+			 bool isDefault)
 		{
-			if (!IsOwnedBy(requestUserId))
-				throw DomainException.Forbidden("Address does not belong to this user");
+			return new Address
+			{
+				UserId = userId,
+				RecipientName = recipientName,
+				RecipientPhoneNumber = recipientPhoneNumber,
+				Street = street,
+				Ward = ward,
+				District = district,
+				City = city,
+				WardCode = wardCode,
+				DistrictId = districtId,
+				ProvinceId = provinceId,
+				IsDefault = isDefault
+			};
 		}
+
+		public void UpdateDetails(
+			string recipientName,
+			string recipientPhoneNumber,
+			string street,
+			string ward,
+			string district,
+			string city,
+			string wardCode,
+			int districtId,
+			int provinceId)
+		{
+			RecipientName = recipientName;
+			RecipientPhoneNumber = recipientPhoneNumber;
+			Street = street;
+			Ward = ward;
+			District = district;
+			City = city;
+			WardCode = wardCode;
+			DistrictId = districtId;
+			ProvinceId = provinceId;
+		}
+
+		public void EnsureOwnedBy(Guid userId)
+		{
+			if (UserId != userId)
+				throw DomainException.Forbidden("Address does not belong to this user.");
+		}
+
+		public bool CanBeDeleted() => !IsDefault;
 
 		public void EnsureCanBeDeleted()
 		{

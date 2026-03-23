@@ -8,6 +8,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Inventory
 		public int? CategoryId { get; set; }
 		public string? BatchCode { get; set; }
 		public string? SKU { get; set; }
+		public int? DaysUntilExpiry { get; set; }
 		public StockStatus? StockStatus { get; set; }
 	}
 }

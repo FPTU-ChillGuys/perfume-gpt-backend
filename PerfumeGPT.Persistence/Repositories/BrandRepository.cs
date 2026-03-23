@@ -15,27 +15,20 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		public async Task<List<BrandLookupItem>> GetBrandLookupAsync()
-		{
-			return await _context.Brands
-				.ProjectToType<BrandLookupItem>()
+			=> await _context.Brands
 				.AsNoTracking()
+				.ProjectToType<BrandLookupItem>()
 				.ToListAsync();
-		}
 
 		public async Task<List<BrandResponse>> GetAllBrandsAsync()
-		{
-			return await _context.Brands
-				.ProjectToType<BrandResponse>()
+			=> await _context.Brands
 				.AsNoTracking()
+				.ProjectToType<BrandResponse>()
 				.ToListAsync();
-		}
 
 		public async Task<BrandResponse?> GetBrandByIdAsync(int id)
-		{
-			return await _context.Brands
-				.Where(b => b.Id == id)
+			=> await _context.Brands
 				.ProjectToType<BrandResponse>()
-				.FirstOrDefaultAsync();
-		}
+				.FirstOrDefaultAsync(b => b.Id == id);
 	}
 }
