@@ -1,4 +1,5 @@
 ﻿using Mapster;
+using PerfumeGPT.Application.DTOs.Requests.Campaigns.Vouchers;
 using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Domain.Entities;
@@ -42,6 +43,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.IsPublic, src => src.IsPublic);
 
 			config.NewConfig<UpdateCampaignVoucherRequest, Voucher>()
+				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.Code, src => src.Code.ToUpper())
 				.Map(dest => dest.DiscountValue, src => src.DiscountValue)
 				.Map(dest => dest.DiscountType, src => src.DiscountType)

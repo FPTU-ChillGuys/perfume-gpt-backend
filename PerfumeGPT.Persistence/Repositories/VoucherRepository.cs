@@ -17,8 +17,10 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<bool> CodeExistsAsync(string code, Guid? excludeVoucherId = null)
 		{
+			var normalizedCode = code.Trim().ToLower();
+
 			var query = _context.Vouchers
-				.Where(v => v.Code.ToLower() == code.ToLower() && !v.IsDeleted);
+				.Where(v => v.Code.ToLower() == normalizedCode && !v.IsDeleted);
 
 			if (excludeVoucherId.HasValue)
 			{

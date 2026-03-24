@@ -1,6 +1,7 @@
 using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Campaigns;
-using PerfumeGPT.Application.DTOs.Requests.Promotions;
+using PerfumeGPT.Application.Validators.Campaigns.PromotionItems;
+using PerfumeGPT.Application.Validators.Campaigns.Vouchers;
 
 namespace PerfumeGPT.Application.Validators.Campaigns
 {
@@ -23,27 +24,13 @@ namespace PerfumeGPT.Application.Validators.Campaigns
 
 			RuleForEach(x => x.Items)
 				.SetValidator(new CreateCampaignPromotionItemValidator());
-		}
-	}
 
-	public class CreateCampaignPromotionItemValidator : AbstractValidator<CreateCampaignPromotionItemRequest>
-	{
-		public CreateCampaignPromotionItemValidator()
-		{
-			RuleFor(x => x.ProductVariantId)
-				.NotEmpty().WithMessage("Product variant is required.");
+            RuleForEach(x => x.Vouchers)
+				.SetValidator(new CreateCampaignVoucherValidator());
 
-			RuleFor(x => x.Name)
-				.NotEmpty().WithMessage("Promotion item name is required.")
-				.MaximumLength(100).WithMessage("Promotion item name must not exceed 100 characters.");
-
-			RuleFor(x => x.EndDate)
-				.GreaterThan(x => x.StartDate).WithMessage("Item end date must be after item start date.")
-				.When(x => x.StartDate.HasValue && x.EndDate.HasValue);
-
-			RuleFor(x => x.MaxUsage)
-				.GreaterThan(0).WithMessage("Item max usage must be greater than 0.")
-				.When(x => x.MaxUsage.HasValue);
+			RuleFor(x => x.Vouchers)
+                .Must(vouchers => vouchers == null || vouchers.Select(v => v.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count() == vouchers.Count)
+				.WithMessage("Voucher codes in campaign must be unique.");
 		}
 	}
 }

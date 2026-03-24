@@ -1,8 +1,8 @@
-﻿using PerfumeGPT.Domain.Enums;
+using PerfumeGPT.Domain.Enums;
 
-namespace PerfumeGPT.Application.DTOs.Requests.Vouchers
+namespace PerfumeGPT.Application.DTOs.Requests.Campaigns.Vouchers
 {
-	public class UpdateCampaignVoucherRequest
+	public class CreateCampaignVoucherRequest
 	{
 		public string Code { get; set; } = null!;
 		public decimal DiscountValue { get; set; }
