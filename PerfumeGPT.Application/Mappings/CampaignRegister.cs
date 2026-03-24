@@ -21,12 +21,14 @@ namespace PerfumeGPT.Application.Mappings
 
 			config.NewConfig<CreateCampaignPromotionItemRequest, PromotionItem>()
 				.Map(dest => dest.ProductVariantId, src => src.ProductVariantId)
+				.Map(dest => dest.ItemType, src => src.PromotionType)
 				.Map(dest => dest.BatchId, src => src.BatchId)
 				.Map(dest => dest.MaxUsage, src => src.MaxUsage)
 				.Map(dest => dest.CurrentUsage, src => 0);
 
 			config.NewConfig<UpdateCampaignPromotionItemRequest, PromotionItem>()
 				.Map(dest => dest.ProductVariantId, src => src.ProductVariantId)
+				.Map(dest => dest.ItemType, src => src.PromotionType)
 				.Map(dest => dest.BatchId, src => src.BatchId)
 				.Map(dest => dest.MaxUsage, src => src.MaxUsage);
 

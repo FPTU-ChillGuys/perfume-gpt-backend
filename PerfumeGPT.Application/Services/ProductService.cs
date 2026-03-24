@@ -228,6 +228,14 @@ namespace PerfumeGPT.Application.Services
 				"New arrival products retrieved successfully");
 		}
 
+		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetCampaignProductsAsync(Guid campaignId, GetPagedProductRequest request)
+		{
+			var (items, totalCount) = await _productRepo.GetCampaignProductsAsync(campaignId, request);
+			return BaseResponse<PagedResult<ProductListItem>>.Ok(
+				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
+				"Campaign products retrieved successfully");
+		}
+
 		public async Task<BaseResponse<ProductInforResponse>> GetProductInforAsync(Guid productId)
 		{
 			var response = await _productRepo.GetProductInfoAsync(productId)
