@@ -8,7 +8,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface IReviewService
 	{
 		Task<BaseResponse<BulkActionResult<Guid>>> CreateReviewAsync(Guid userId, CreateReviewRequest request);
-		Task<BaseResponse<BulkActionResult<string>>> UpdateReviewAsync(Guid userId, Guid reviewId, UpdateReviewRequest request);
 		Task<BaseResponse<string>> DeleteReviewAsync(Guid userId, Guid reviewId);
 		Task<BaseResponse<PagedResult<ReviewListItem>>> GetReviewsAsync(GetPagedReviewsRequest request);
 		Task<BaseResponse<ReviewDetailResponse>> GetReviewByIdAsync(Guid reviewId);
