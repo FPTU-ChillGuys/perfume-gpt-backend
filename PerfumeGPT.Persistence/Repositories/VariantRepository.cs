@@ -93,28 +93,33 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			var now = DateTime.UtcNow;
 
-			var result = await _context.ProductVariants
+			var raw = await _context.ProductVariants
+				.AsNoTracking()
 				.Where(v => v.Id == variantId)
-			 .Select(v => new
-			 {
-				 Item = new ProductVariantResponse
-				 {
-					 Id = v.Id,
-					 ProductId = v.ProductId,
-					 ProductName = v.Product.Name,
-					 Barcode = v.Barcode,
-					 Sku = v.Sku,
-					 VolumeMl = v.VolumeMl,
-					 ConcentrationId = v.ConcentrationId,
-					 ConcentrationName = v.Concentration.Name,
-					 Type = v.Type,
-					 BasePrice = v.BasePrice,
-					 RetailPrice = v.RetailPrice,
-					 Status = v.Status,
-					 Sillage = v.Sillage,
-					 Longevity = v.Longevity,
-					 StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
-					 Media = v.Media.Where(m => !m.IsDeleted)
+				.Select(v => new
+				{
+					Variant = new ProductVariantResponse
+					{
+						Id = v.Id,
+						ProductId = v.ProductId,
+						ProductName = v.Product.Name,
+						Barcode = v.Barcode,
+						Sku = v.Sku,
+						VolumeMl = v.VolumeMl,
+						ConcentrationId = v.ConcentrationId,
+						ConcentrationName = v.Concentration.Name,
+						Type = v.Type,
+						BasePrice = v.BasePrice,
+						RetailPrice = v.RetailPrice,
+						Status = v.Status,
+						Sillage = v.Sillage,
+						Longevity = v.Longevity,
+						StockQuantity = v.Stock != null
+							? v.Stock.TotalQuantity - v.Stock.ReservedQuantity
+							: 0,
+						Media = v.Media
+							.Where(m => !m.IsDeleted)
+							.OrderBy(m => m.DisplayOrder)
 							.Select(m => new MediaResponse
 							{
 								Id = m.Id,
@@ -124,66 +129,66 @@ namespace PerfumeGPT.Persistence.Repositories
 								DisplayOrder = m.DisplayOrder,
 								MimeType = m.MimeType,
 								FileSize = m.FileSize
-							}).ToList(),
-					 Attributes = v.ProductAttributes
+							})
+							.ToList(),
+						Attributes = v.ProductAttributes
 							.Select(pa => new ProductAttributeResponse
 							{
 								AttributeId = pa.AttributeId,
 								ValueId = pa.ValueId,
 								Attribute = pa.Attribute.Name,
 								Value = pa.Value.Value
-							}).ToList()
-				 },
-				 ActiveCampaign = v.PromotionItems
+							})
+							.ToList()
+					},
+
+					// Lấy voucher tốt nhất từ campaign active duy nhất
+					ActiveVoucher = v.PromotionItems
 						.Where(pi =>
 							!pi.IsDeleted &&
+							pi.IsActive &&
 							!pi.Campaign.IsDeleted &&
 							pi.Campaign.Status == CampaignStatus.Active &&
 							pi.Campaign.StartDate <= now &&
-							pi.Campaign.EndDate >= now &&
-							(pi.IsActive))
+							pi.Campaign.EndDate >= now)
 						.OrderByDescending(pi => pi.CreatedAt)
-						.Select(pi => new
-						{
-							CampaignName = pi.Campaign.Name,
-							Voucher = pi.Campaign.Vouchers
-								.Where(voucher =>
-									!voucher.IsDeleted &&
-									voucher.ExpiryDate >= now &&
-									voucher.ApplyType == VoucherType.Product &&
-									(voucher.RemainingQuantity == null || voucher.RemainingQuantity > 0) &&
-									(!voucher.TargetItemType.HasValue || voucher.TargetItemType == pi.ItemType))
-								.OrderByDescending(voucher => voucher.CreatedAt)
-								.Select(voucher => new
-								{
-									voucher.Code,
-									voucher.DiscountType,
-									voucher.DiscountValue
-								})
-								.FirstOrDefault()
-						})
+						.SelectMany(pi => pi.Campaign.Vouchers
+							.Where(voucher =>
+								!voucher.IsDeleted &&
+								voucher.ExpiryDate >= now &&
+								voucher.ApplyType == VoucherType.Product &&
+								(voucher.RemainingQuantity == null || voucher.RemainingQuantity > 0) &&
+								(!voucher.TargetItemType.HasValue || voucher.TargetItemType == pi.ItemType))
+							.Select(voucher => new
+							{
+								CampaignName = pi.Campaign.Name,
+								voucher.Code,
+								voucher.DiscountType,
+								voucher.DiscountValue
+							}))
+						.OrderByDescending(x => x.DiscountValue) // ưu tiên giảm nhiều nhất
 						.FirstOrDefault()
-			 })
-				.AsSplitQuery()
-				.AsNoTracking()
+				})
 				.FirstOrDefaultAsync();
 
-			if (result?.Item == null)
+			if (raw?.Variant == null)
 				return null;
 
-			result.Item.CampaignName = result.ActiveCampaign?.CampaignName;
-			result.Item.VoucherCode = result.ActiveCampaign?.Voucher?.Code;
+			var response = raw.Variant;
 
-			if (result.ActiveCampaign?.Voucher != null)
+			if (raw.ActiveVoucher != null)
 			{
-				var discounted = result.ActiveCampaign.Voucher.DiscountType == DiscountType.Percentage
-					? result.Item.BasePrice - (result.Item.BasePrice * result.ActiveCampaign.Voucher.DiscountValue / 100m)
-					: result.Item.BasePrice - result.ActiveCampaign.Voucher.DiscountValue;
+				response.CampaignName = raw.ActiveVoucher.CampaignName;
+				response.VoucherCode = raw.ActiveVoucher.Code;
 
-				result.Item.DiscountedPrice = discounted < 0 ? 0 : discounted;
+				var discounted = raw.ActiveVoucher.DiscountType == DiscountType.Percentage
+					? response.BasePrice * (1 - raw.ActiveVoucher.DiscountValue / 100m)
+					: response.BasePrice - raw.ActiveVoucher.DiscountValue;
+
+				response.DiscountedPrice = discounted < 0 ? 0 : discounted;
 			}
 
-			return result.Item;
+			return response;
 		}
 
 		public async Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId)

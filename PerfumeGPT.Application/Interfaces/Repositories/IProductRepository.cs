@@ -14,6 +14,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<bool> HasActiveVariantsAsync(Guid productId);
 		Task<(List<ProductListItem> Items, int TotalCount)> GetBestSellerProductsAsync(GetPagedProductRequest request);
 		Task<(List<ProductListItem> Items, int TotalCount)> GetNewArrivalProductsAsync(GetPagedProductRequest request);
+		Task<(List<ProductListItem> Items, int TotalCount)> GetCampaignProductsAsync(Guid campaignId, GetPagedProductRequest request);
 		Task<ProductInforResponse?> GetProductInfoAsync(Guid productId);
 		Task<ProductFastLookResponse?> GetProductFastLookAsync(Guid productId);
 

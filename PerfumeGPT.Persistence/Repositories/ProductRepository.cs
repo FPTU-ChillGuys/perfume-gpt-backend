@@ -337,6 +337,128 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetCampaignProductsAsync(
+		Guid campaignId,
+		GetPagedProductRequest request)
+		{
+			var now = DateTime.UtcNow;
+
+			var query = _context.Products
+				.Where(p => p.Variants.Any(v =>
+					!v.IsDeleted &&
+					v.PromotionItems.Any(pi =>
+						!pi.IsDeleted &&
+						pi.IsActive &&
+						pi.CampaignId == campaignId &&
+						!pi.Campaign.IsDeleted &&
+						pi.Campaign.Status == CampaignStatus.Active &&
+						pi.Campaign.StartDate <= now &&
+						pi.Campaign.EndDate >= now)));
+
+			if (request.Gender.HasValue)
+				query = query.Where(p => p.Gender == request.Gender.Value);
+
+			if (request.Volume.HasValue)
+				query = query.Where(p =>
+					p.Variants.Any(v => !v.IsDeleted && v.VolumeMl == request.Volume.Value));
+
+			if (request.CategoryId.HasValue)
+				query = query.Where(p => p.CategoryId == request.CategoryId.Value);
+
+			if (request.BrandId.HasValue)
+				query = query.Where(p => p.BrandId == request.BrandId.Value);
+
+			if (request.FromPrice.HasValue)
+				query = query.Where(p =>
+					p.Variants.Any(v => !v.IsDeleted && v.BasePrice >= request.FromPrice.Value));
+
+			if (request.ToPrice.HasValue)
+				query = query.Where(p =>
+					p.Variants.Any(v => !v.IsDeleted && v.BasePrice <= request.ToPrice.Value));
+
+			if (request.IsAvailable == true)
+				query = query.Where(p =>
+					p.Variants.Any(v =>
+						!v.IsDeleted &&
+						v.Stock.TotalQuantity - v.Stock.ReservedQuantity > 0));
+
+			var totalCount = await query.CountAsync();
+
+			var itemsWithTags = await query
+				.OrderByDescending(p => p.CreatedAt)
+				.Skip((request.PageNumber - 1) * request.PageSize)
+				.Take(request.PageSize)
+				.Select(p => new
+				{
+					Item = new ProductListItem
+					{
+						Id = p.Id,
+						Name = p.Name,
+						BrandId = p.BrandId,
+						BrandName = p.Brand.Name,
+						CategoryId = p.CategoryId,
+						CategoryName = p.Category.Name,
+						Description = p.Description,
+						NumberOfVariants = p.Variants.Count(v => !v.IsDeleted),
+						VariantPrices = p.Variants
+							.Where(v => !v.IsDeleted)
+							.Select(v => v.BasePrice)
+							.ToList(),
+						PrimaryImage = p.Media
+							.Where(m => m.IsPrimary && !m.IsDeleted)
+							.Select(m => new MediaResponse
+							{
+								Id = m.Id,
+								Url = m.Url,
+								AltText = m.AltText,
+								IsPrimary = m.IsPrimary,
+								DisplayOrder = m.DisplayOrder,
+								MimeType = m.MimeType,
+								FileSize = m.FileSize
+							})
+							.FirstOrDefault()
+					},
+					HasSaleTag = p.Variants.Any(v =>
+						!v.IsDeleted &&
+						v.PromotionItems.Any(pi =>
+							!pi.IsDeleted &&
+							pi.IsActive &&
+							pi.CampaignId == campaignId &&
+							!pi.Campaign.IsDeleted &&
+							pi.Campaign.Status == CampaignStatus.Active &&
+							pi.Campaign.StartDate <= now &&
+							pi.Campaign.EndDate >= now)),
+					HasNewTag = p.Variants.Any(v =>
+						!v.IsDeleted &&
+						v.PromotionItems.Any(pi =>
+							!pi.IsDeleted &&
+							pi.IsActive &&
+							pi.CampaignId == campaignId &&
+							!pi.Campaign.IsDeleted &&
+							pi.ItemType == PromotionType.NewArrival &&
+							pi.Campaign.Status == CampaignStatus.Active &&
+							pi.Campaign.StartDate <= now &&
+							pi.Campaign.EndDate >= now))
+				})
+				.AsNoTracking()
+				.ToListAsync();
+
+			var items = itemsWithTags
+				.Select(x =>
+				{
+					if (x.HasSaleTag)
+						x.Item.Tags.Add("sale");
+
+					if (x.HasNewTag)
+						x.Item.Tags.Add("new");
+
+					return x.Item;
+				})
+				.ToList();
+
+			return (items, totalCount);
+		}
+
 		public async Task<ProductInforResponse?> GetProductInfoAsync(Guid productId)
 			=> await _context.Products
 				.Where(p => p.Id == productId)
