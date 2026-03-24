@@ -16,7 +16,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<CustomerFamilyPreference> FamilyPreferences { get; set; } = [];
 		public virtual ICollection<CustomerAttributePreference> AttributePreferences { get; set; } = [];
 
-		// Audit
+		// IHasTimestamps implementation
 		public DateTime? UpdatedAt { get; set; }
 		public DateTime CreatedAt { get; set; }
 	}

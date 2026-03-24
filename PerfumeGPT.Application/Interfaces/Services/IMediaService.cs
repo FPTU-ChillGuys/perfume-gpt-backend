@@ -15,7 +15,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 
 		// Profile avatar methods
 		Task<bool> CreateProfileAvatarFromUrlAsync(Guid userId, string avatarUrl, string? altText = null);
-		Task<BaseResponse<string>> UploadProfileAvatarAsync(Guid userId, UploadProfileAvatarRequest request);
+		Task<BaseResponse<string>> UploadProfileAvatarAsync(Guid userId, ProfileAvtarUploadRequest request);
 		Task<BaseResponse<string>> DeleteProfileAvatarAsync(Guid userId);
 
 		// Temporary media methods

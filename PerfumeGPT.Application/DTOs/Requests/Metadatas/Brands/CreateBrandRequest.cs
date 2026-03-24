@@ -1,4 +1,4 @@
-namespace PerfumeGPT.Application.DTOs.Requests.Brands
+namespace PerfumeGPT.Application.DTOs.Requests.Metadatas.Brands
 {
 	public class CreateBrandRequest
 	{

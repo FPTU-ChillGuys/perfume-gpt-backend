@@ -13,9 +13,11 @@ namespace PerfumeGPT.Domain.Entities
 		public string? Description { get; private set; }
 		public bool IsVariantLevel { get; private set; }
 
+		// Navigation properties
 		public virtual ICollection<ProductAttribute> ProductAttributes { get; set; } = [];
 		public virtual ICollection<AttributeValue> AttributeValues { get; set; } = [];
 
+		// Business logic methods
 		public static Attribute Create(string? internalCode, string name, string? description, bool isVariantLevel)
 		{
 			if (string.IsNullOrWhiteSpace(name))

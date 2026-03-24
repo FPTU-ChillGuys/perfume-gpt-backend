@@ -1,11 +1,11 @@
 using FluentValidation;
-using PerfumeGPT.Application.DTOs.Requests.Brands;
+using PerfumeGPT.Application.DTOs.Requests.Metadatas.Brands;
 
-namespace PerfumeGPT.Application.Validators.Brands
+namespace PerfumeGPT.Application.Validators.Metadatas.Brands
 {
-	public class UpdateBrandValidator : AbstractValidator<UpdateBrandRequest>
+	public class CreateBrandValidator : AbstractValidator<CreateBrandRequest>
 	{
-		public UpdateBrandValidator()
+		public CreateBrandValidator()
 		{
 			RuleFor(x => x.Name)
 				.Must(name => !string.IsNullOrWhiteSpace(name))

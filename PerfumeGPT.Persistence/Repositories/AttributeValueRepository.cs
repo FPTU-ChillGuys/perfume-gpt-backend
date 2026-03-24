@@ -15,10 +15,11 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<List<int>> GetExistingIdsAsync(IEnumerable<int> ids)
 			=> await _context.AttributeValues.Where(v => ids.Contains(v.Id)).Select(v => v.Id).ToListAsync();
 
-		public async Task<AttributeValue?> GetByIdAsync(int id)
-			=> await _context.AttributeValues.FirstOrDefaultAsync(v => v.Id == id);
-
 		public async Task<List<AttributeValueLookupItem>> GetLookupListByAttributeIdAsync(int attributeId)
 			=> await _context.AttributeValues.Where(v => v.AttributeId == attributeId).ProjectToType<AttributeValueLookupItem>().ToListAsync();
+
+		public async Task<bool> IsInUseAsync(int valueId)
+			=> await _context.ProductAttributes.AnyAsync(pa => pa.ValueId == valueId)
+				|| await _context.CustomerAttributePreferences.AnyAsync(cap => cap.AttributeValueId == valueId);
 	}
 }

@@ -1,4 +1,4 @@
-namespace PerfumeGPT.Application.DTOs.Requests.Categories
+namespace PerfumeGPT.Application.DTOs.Requests.Metadatas.Categories
 {
 	public class UpdateCategoryRequest
 	{

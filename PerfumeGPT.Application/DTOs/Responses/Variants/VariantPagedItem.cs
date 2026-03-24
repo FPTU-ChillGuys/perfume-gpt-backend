@@ -1,5 +1,4 @@
-﻿using PerfumeGPT.Application.DTOs.Responses.Media;
-using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
+﻿using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Variants
@@ -8,7 +7,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 	{
 		public Guid Id { get; set; }
 		public Guid ProductId { get; set; }
-		public MediaResponse? PrimaryImage { get; set; }
+		public string? PrimaryImageUrl { get; set; }
 		public string Barcode { get; set; } = null!;
 		public string Sku { get; set; } = null!;
 		public int VolumeMl { get; set; }

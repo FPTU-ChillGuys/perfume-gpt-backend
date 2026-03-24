@@ -1,5 +1,4 @@
 ﻿using Mapster;
-using PerfumeGPT.Application.DTOs.Requests.Batches;
 using PerfumeGPT.Application.DTOs.Responses.Batches;
 using PerfumeGPT.Domain.Entities;
 
@@ -25,14 +24,6 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ProductName, src => src.ProductVariant.Product.Name)
 				.Map(dest => dest.VolumeMl, src => src.ProductVariant.VolumeMl)
 				.Map(dest => dest.ConcentrationName, src => src.ProductVariant.Concentration.Name);
-
-			config.NewConfig<CreateBatchRequest, Batch>()
-				.Map(dest => dest.BatchCode, src => src.BatchCode)
-				.Map(dest => dest.ManufactureDate, src => src.ManufactureDate)
-				.Map(dest => dest.ExpiryDate, src => src.ExpiryDate)
-				.Map(dest => dest.ImportQuantity, src => src.Quantity)
-			  .Map(dest => dest.RemainingQuantity, src => src.Quantity)
-				.Map(dest => dest.ReservedQuantity, src => 0);
 
 			config.NewConfig<Batch, BatchLookupResponse>()
 				.Map(dest => dest.Id, src => src.Id)

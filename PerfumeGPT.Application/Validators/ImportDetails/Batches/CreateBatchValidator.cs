@@ -1,7 +1,7 @@
 ﻿using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Batches;
 
-namespace PerfumeGPT.Application.Validators.Batches
+namespace PerfumeGPT.Application.Validators.ImportDetails.Batches
 {
 	public class CreateBatchValidator : AbstractValidator<CreateBatchRequest>
 	{

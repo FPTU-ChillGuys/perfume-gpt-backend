@@ -93,14 +93,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				return existing;
 			}
 
-			var newUser = new User
-			{
-				Email = payload.Email,
-				UserName = payload.Email,
-				FullName = payload.Name ?? string.Empty,
-				EmailConfirmed = true,
-				IsActive = true
-			};
+			var newUser = User.Create(payload.Name ?? payload.Email, payload.Email, null);
 
 			var tempPassword = GenerateTemporaryPassword(12);
 			var createResult = await _userManager.CreateAsync(newUser, tempPassword);

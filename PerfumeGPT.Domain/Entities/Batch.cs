@@ -7,21 +7,22 @@ namespace PerfumeGPT.Domain.Entities
 {
 	public class Batch : BaseEntity<Guid>, IHasCreatedAt
 	{
-		public Guid VariantId { get; set; }
-		public Guid ImportDetailId { get; set; }
+		private Batch() { }
 
-		public string BatchCode { get; set; } = null!;
-		public DateTime ManufactureDate { get; set; }
-		public DateTime ExpiryDate { get; set; }
-		public int ImportQuantity { get; set; }
-		public int RemainingQuantity { get; set; }
-		public int ReservedQuantity { get; set; }
+		public Guid VariantId { get; private set; }
+		public Guid ImportDetailId { get; private set; }
+		public string BatchCode { get; private set; } = null!;
+		public DateTime ManufactureDate { get; private set; }
+		public DateTime ExpiryDate { get; private set; }
+		public int ImportQuantity { get; private set; }
+		public int RemainingQuantity { get; private set; }
+		public int ReservedQuantity { get; private set; }
 		public int AvailableInBatch => RemainingQuantity - ReservedQuantity;
 
 		[Timestamp]
 		public byte[] RowVersion { get; set; } = null!;
 
-		// Navigation Properties
+		// Navigation properties
 		public virtual ProductVariant ProductVariant { get; set; } = null!;
 		public virtual ImportDetail ImportDetail { get; set; } = null!;
 		public virtual ICollection<StockAdjustmentDetail> StockAdjustmentDetails { get; set; } = [];
@@ -32,7 +33,7 @@ namespace PerfumeGPT.Domain.Entities
 		// IHasCreatedAt implementation
 		public DateTime CreatedAt { get; set; }
 
-		// Business Logic
+		// Factory methods
 		public static Batch CreateForImport(
 			Guid variantId,
 			Guid importDetailId,
@@ -50,6 +51,9 @@ namespace PerfumeGPT.Domain.Entities
 			if (expiryDate <= manufactureDate)
 				throw DomainException.BadRequest("Expiry date must be later than manufacture date.");
 
+			if (expiryDate <= DateTime.UtcNow)
+				throw DomainException.BadRequest("Expiry date must be in the future.");
+
 			return new Batch
 			{
 				VariantId = variantId,
@@ -63,6 +67,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
+		// Business logic methods
 		public bool CanIncreaseQuantity(int quantity)
 			=> quantity > 0 && RemainingQuantity + quantity <= ImportQuantity;
 
@@ -72,17 +77,35 @@ namespace PerfumeGPT.Domain.Entities
 		public void IncreaseQuantity(int quantity)
 		{
 			if (!CanIncreaseQuantity(quantity))
-				throw DomainException.BadRequest("Cannot increase batch quantity beyond import quantity.");
-
+				throw DomainException.BadRequest(
+					$"Cannot increase quantity beyond import quantity of {ImportQuantity}.");
 			RemainingQuantity += quantity;
 		}
 
 		public void DecreaseQuantity(int quantity)
 		{
 			if (!CanDecreaseQuantity(quantity))
-				throw DomainException.BadRequest("Cannot decrease batch quantity below zero.");
-
+				throw DomainException.BadRequest(
+					"Cannot decrease batch quantity below zero.");
 			RemainingQuantity -= quantity;
+		}
+
+		public void Reserve(int quantity)
+		{
+			if (quantity <= 0)
+				throw DomainException.BadRequest("Reserve quantity must be greater than 0.");
+			if (AvailableInBatch < quantity)
+				throw DomainException.BadRequest("Insufficient available quantity to reserve.");
+			ReservedQuantity += quantity;
+		}
+
+		public void Release(int quantity)
+		{
+			if (quantity <= 0)
+				throw DomainException.BadRequest("Release quantity must be greater than 0.");
+			if (ReservedQuantity < quantity)
+				throw DomainException.BadRequest("Cannot release more than reserved quantity.");
+			ReservedQuantity -= quantity;
 		}
 	}
 }

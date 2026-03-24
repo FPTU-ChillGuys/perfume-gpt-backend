@@ -1,4 +1,4 @@
-namespace PerfumeGPT.Application.DTOs.Requests.Concentrations
+namespace PerfumeGPT.Application.DTOs.Requests.Metadatas.Concentrations
 {
 	public class UpdateConcentrationRequest
 	{

@@ -200,8 +200,7 @@ namespace PerfumeGPT.Application.Services
 					&& !i.IsDeleted
 					&& i.ItemType == voucher.TargetItemType
 					&& variantIds.Contains(i.ProductVariantId)
-					&& (!i.StartDate.HasValue || i.StartDate.Value <= now)
-					&& (!i.EndDate.HasValue || i.EndDate.Value >= now),
+					&& (i.IsActive),
 				asNoTracking: true)).ToList();
 
 			if (promotionItems.Count == 0)

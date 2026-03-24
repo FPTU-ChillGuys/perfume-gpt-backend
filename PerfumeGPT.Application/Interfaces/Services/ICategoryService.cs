@@ -1,4 +1,4 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.Categories;
+﻿using PerfumeGPT.Application.DTOs.Requests.Metadatas.Categories;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Categories;
 

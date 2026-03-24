@@ -1,7 +1,9 @@
-﻿using MapsterMapper;
-using PerfumeGPT.Application.DTOs.Requests.Categories;
+﻿using FluentValidation;
+using Mapster;
+using PerfumeGPT.Application.DTOs.Requests.Metadatas.Categories;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Categories;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -10,14 +12,18 @@ namespace PerfumeGPT.Application.Services
 {
 	public class CategoryService : ICategoryService
 	{
+		#region Dependencies
 		private readonly ICategoryRepository _categoryRepository;
-		private readonly IMapper _mapper;
+		private readonly IValidator<CreateCategoryRequest> _createValidator;
+		private readonly IValidator<UpdateCategoryRequest> _updateValidator;
 
-		public CategoryService(ICategoryRepository categoryRepository, IMapper mapper)
+		public CategoryService(ICategoryRepository categoryRepository, IValidator<CreateCategoryRequest> createValidator, IValidator<UpdateCategoryRequest> updateValidator)
 		{
 			_categoryRepository = categoryRepository;
-			_mapper = mapper;
+			_createValidator = createValidator;
+			_updateValidator = updateValidator;
 		}
+		#endregion Dependencies
 
 		public async Task<BaseResponse<List<CategoriesLookupItem>>> GetCategoryLookupAsync()
 		{
@@ -27,9 +33,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<CategoryResponse>> GetCategoryByIdAsync(int id)
 		{
-			var result = await _categoryRepository.GetCategoryByIdAsync(id);
-			if (result == null)
-				return BaseResponse<CategoryResponse>.Fail("Category not found", ResponseErrorType.NotFound);
+			var result = await _categoryRepository.GetCategoryByIdAsync(id)
+				?? throw AppException.NotFound("Category not found");
 			return BaseResponse<CategoryResponse>.Ok(result);
 		}
 
@@ -41,36 +46,61 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<CategoryResponse>> CreateCategoryAsync(CreateCategoryRequest request)
 		{
-			var entity = _mapper.Map<Category>(request);
+			var validationResult = await _createValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
+
+			var normalizedName = Category.NormalizeName(request.Name).ToUpperInvariant();
+			var exists = await _categoryRepository.AnyAsync(c => c.Name.ToUpper() == normalizedName);
+
+			if (exists)
+				throw AppException.Conflict("Category name already exists.");
+
+			var entity = Category.Create(normalizedName);
 			await _categoryRepository.AddAsync(entity);
-			await _categoryRepository.SaveChangesAsync();
-			return BaseResponse<CategoryResponse>.Ok(_mapper.Map<CategoryResponse>(entity));
+
+			var saved = await _categoryRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to create category");
+
+			return BaseResponse<CategoryResponse>.Ok(entity.Adapt<CategoryResponse>());
 		}
 
 		public async Task<BaseResponse<CategoryResponse>> UpdateCategoryAsync(int id, UpdateCategoryRequest request)
 		{
-			var entity = await _categoryRepository.GetByIdAsync(id);
-			if (entity == null)
-				return BaseResponse<CategoryResponse>.Fail("Category not found", ResponseErrorType.NotFound);
+			var validationResult = await _updateValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-			_mapper.Map(request, entity);
+			var entity = await _categoryRepository.GetByIdAsync(id)
+				?? throw AppException.NotFound("Category not found");
+
+			var normalizedName = Category.NormalizeName(request.Name).ToUpperInvariant();
+			var exists = await _categoryRepository.AnyAsync(c => c.Id != id && c.Name.ToUpper() == normalizedName);
+			if (exists)
+				throw AppException.Conflict("Category name already exists.");
+
+			entity.Rename(normalizedName);
 			_categoryRepository.Update(entity);
-			await _categoryRepository.SaveChangesAsync();
 
-			return BaseResponse<CategoryResponse>.Ok(_mapper.Map<CategoryResponse>(entity));
+			var saved = await _categoryRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to update category");
+
+			return BaseResponse<CategoryResponse>.Ok(entity.Adapt<CategoryResponse>());
 		}
 
 		public async Task<BaseResponse<bool>> DeleteCategoryAsync(int id)
 		{
-			var entity = await _categoryRepository.GetByIdAsync(id);
-			if (entity == null)
-				return BaseResponse<bool>.Fail("Category not found", ResponseErrorType.NotFound);
+			var entity = await _categoryRepository.GetByIdAsync(id)
+				   ?? throw AppException.NotFound("Category not found");
 
-			if (entity.Products != null && entity.Products.Any())
-				return BaseResponse<bool>.Fail("Cannot delete category with associated products", ResponseErrorType.BadRequest);
+			var hasProducts = await _categoryRepository.HasProductsAsync(id);
+			Category.EnsureCanBeDeleted(hasProducts);
 
 			_categoryRepository.Remove(entity);
-			await _categoryRepository.SaveChangesAsync();
+			var saved = await _categoryRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to delete category");
 
 			return BaseResponse<bool>.Ok(true);
 		}

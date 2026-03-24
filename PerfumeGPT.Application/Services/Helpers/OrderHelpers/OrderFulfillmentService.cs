@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
@@ -12,6 +13,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 {
 	public class OrderFulfillmentService : IOrderFulfillmentService
 	{
+		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IOrderShippingHelper _shippingHelper;
@@ -25,54 +27,26 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			_stockReservationService = stockReservationService;
 			_shippingHelper = shippingHelper;
 		}
+		#endregion Dependencies
 
 		#region Pick List Generation
-
-		public async Task<BaseResponse<PickListResponse>> GetPickListAsync(Guid orderId)
+		public async Task<PickListResponse> GetPickListAsync(Guid orderId)
 		{
-			try
-			{
-				var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
-					o => o.Id == orderId && o.PaymentStatus == PaymentStatus.Paid,
-					o => o.Include(o => o.OrderDetails));
+			var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
+				o => o.Id == orderId && o.PaymentStatus == PaymentStatus.Paid,
+				o => o.Include(o => o.OrderDetails))
+				?? throw AppException.NotFound("Paid order not found.");
 
-				if (order == null)
-				{
-					return BaseResponse<PickListResponse>.Fail("Order not found.", ResponseErrorType.NotFound);
-				}
+			if (order.Type != OrderType.Online)
+				throw AppException.BadRequest("Pick list is only available for online orders.");
 
-				if (order.Type != OrderType.Online)
-				{
-					return BaseResponse<PickListResponse>.Fail(
-						"Pick list is only available for online orders.",
-						ResponseErrorType.BadRequest);
-				}
+			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(order.Id);
+			if (reservations.Any(r => r.Status != ReservationStatus.Reserved))
+				throw AppException.BadRequest("Pick list can only be generated for orders with active reservations.");
 
-				var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(order.Id);
+			var pickListItems = await BuildPickListItemsAsync(order.OrderDetails, reservations);
 
-				if (reservations.Any(r => r.Status != ReservationStatus.Reserved))
-				{
-					return BaseResponse<PickListResponse>.Fail(
-						"Pick list can only be generated for orders with active reservations.",
-						ResponseErrorType.BadRequest);
-				}
-
-				var pickListItems = await BuildPickListItemsAsync(order.OrderDetails, reservations);
-
-				var pickListResponse = new PickListResponse
-				{
-					OrderId = order.Id,
-					Items = pickListItems
-				};
-
-				return BaseResponse<PickListResponse>.Ok(pickListResponse);
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<PickListResponse>.Fail(
-					$"An error occurred while generating pick list: {ex.Message}",
-					ResponseErrorType.InternalError);
-			}
+			return new PickListResponse { OrderId = order.Id, Items = pickListItems };
 		}
 
 		private async Task<List<PickListItemResponse>> BuildPickListItemsAsync(
@@ -125,88 +99,53 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 			return pickListItems;
 		}
-
 		#endregion
 
 		#region Order Fulfillment
-
-		/// <inheritdoc />
-		public async Task<BaseResponse<string>> FulfillOrderAsync(Guid orderId, Guid staffId, FulfillOrderRequest request)
+		public async Task<string> FulfillOrderAsync(Guid orderId, Guid staffId, FulfillOrderRequest request)
 		{
-			try
-			{
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-				{
-					// Validate order state
-					var orderValidation = await ValidateOrderForFulfillmentAsync(orderId);
-					if (!orderValidation.Success || orderValidation.Payload == null)
-					{
-						return BaseResponse<string>.Fail(orderValidation.Message!, orderValidation.ErrorType);
-					}
+			// Validate order state
+			var order = await ValidateOrderForFulfillmentAsync(orderId);
+			await ValidateScannedBatchCodesAsync(order, request);
 
-					var order = orderValidation.Payload;
+			// Validate scanned batch codes
+			var batchValidation = await ValidateScannedBatchCodesAsync(order, request);
 
-					// Validate scanned batch codes
-					var batchValidation = await ValidateScannedBatchCodesAsync(order, request);
-					if (!batchValidation.Success)
-					{
-						return BaseResponse<string>.Fail(batchValidation.Message!, batchValidation.ErrorType);
-					}
+			// Commit stock reservation
+			await _stockReservationService.CommitReservationAsync(order.Id);
 
-					// Commit stock reservation
-					var commitResult = await _stockReservationService.CommitReservationAsync(order.Id);
-					if (!commitResult.Success)
-					{
-						return BaseResponse<string>.Fail(
-							commitResult.Message ?? "Failed to commit stock reservation.",
-							commitResult.ErrorType);
-					}
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			  {
+				  // Update order status
+				  var currentOrder = await _unitOfWork.Orders.FirstOrDefaultAsync(
+				  o => o.Id == orderId,
+				  o => o.Include(o => o.ShippingInfo!))
+				  ?? throw AppException.NotFound("Order not found.");
 
-					// Update order status
-					order.Status = OrderStatus.Delivering;
-					order.StaffId = staffId;
-					_unitOfWork.Orders.Update(order);
+				  currentOrder.Status = OrderStatus.Delivering;
+				  currentOrder.StaffId = staffId;
+				  _unitOfWork.Orders.Update(currentOrder);
 
-					// Handle shipping
-					await ProcessShippingAsync(order);
+				  await ProcessShippingAsync(currentOrder);
 
-					return BaseResponse<string>.Ok("Order fulfilled successfully. Stock committed and shipping order created.");
-				});
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail(
-					$"An error occurred while fulfilling order: {ex.Message}",
-					ResponseErrorType.InternalError);
-			}
+				  return "Order fulfilled successfully. Stock committed and shipping order created.";
+			  });
 		}
 
-		private async Task<BaseResponse<Order>> ValidateOrderForFulfillmentAsync(Guid orderId)
+		private async Task<Order> ValidateOrderForFulfillmentAsync(Guid orderId)
 		{
 			var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
-				o => o.Id == orderId,
-				o => o.Include(o => o.ShippingInfo).Include(o => o.OrderDetails));
-
-			if (order == null)
-			{
-				return BaseResponse<Order>.Fail("Order not found.", ResponseErrorType.NotFound);
-			}
+			o => o.Id == orderId,
+			o => o.Include(o => o.ShippingInfo).Include(o => o.OrderDetails))
+			?? throw AppException.NotFound("Order not found.");
 
 			if (order.Status != OrderStatus.Processing)
-			{
-				return BaseResponse<Order>.Fail(
-					$"Order must be in Processing status to fulfill. Current status: {order.Status}",
-					ResponseErrorType.BadRequest);
-			}
+				throw AppException.BadRequest($"Order must be in Processing status. Current: {order.Status}");
 
 			if (order.Type != OrderType.Online)
-			{
-				return BaseResponse<Order>.Fail(
-					"Only online orders can be fulfilled through this method.",
-					ResponseErrorType.BadRequest);
-			}
+				throw AppException.BadRequest("Only online orders can be fulfilled through this method.");
 
-			return BaseResponse<Order>.Ok(order);
+			return order;
 		}
 
 		private async Task<BaseResponse<bool>> ValidateScannedBatchCodesAsync(Order order, FulfillOrderRequest request)
@@ -215,11 +154,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			var activeReservations = reservations.Where(r => r.Status == ReservationStatus.Reserved).ToList();
 
 			if (activeReservations.Count == 0)
-			{
-				return BaseResponse<bool>.Fail(
-					"No active reservations found for this order.",
-					ResponseErrorType.BadRequest);
-			}
+				throw AppException.BadRequest("No active reservations found.");
 
 			// Validate all order details are included in the request
 			var requestOrderDetailIds = request.Items.Select(i => i.OrderDetailId).ToHashSet();
@@ -319,189 +254,87 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		#endregion
 
 		#region Damaged Stock Handling
-
-		/// <inheritdoc />
-		public async Task<BaseResponse<SwapDamagedStockResponse>> SwapDamagedStockAsync(
-			Guid orderId,
-			Guid staffId,
-			SwapDamagedStockRequest request)
+		public async Task<SwapDamagedStockResponse> SwapDamagedStockAsync(Guid orderId, Guid staffId, SwapDamagedStockRequest request)
 		{
-			try
-			{
-				// Validate order and reservation BEFORE starting transaction
-				var validationResult = await ValidateSwapRequestAsync(orderId, request);
-				if (!validationResult.Success || validationResult.Payload == null)
-				{
-					return BaseResponse<SwapDamagedStockResponse>.Fail(
-						validationResult.Message!,
-						validationResult.ErrorType);
-				}
+			var (order, damagedReservation, damagedBatch) = await ValidateSwapRequestAsync(orderId, request);
+			var quantityToSwap = damagedReservation.ReservedQuantity;
+			var variantId = damagedReservation.VariantId;
 
-				var (order, damagedReservation, damagedBatch) = validationResult.Payload.Value;
-				var quantityToSwap = damagedReservation.ReservedQuantity;
-				var variantId = damagedReservation.VariantId;
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			  {
+				  var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
+				  ?? throw AppException.NotFound("Stock not found.");
 
-				// Step 1: Check if the SAME batch still has enough available quantity after removing damaged items
-				// AvailableInBatch = RemainingQuantity - ReservedQuantity
-				// After releasing the damaged reservation, available will increase by quantityToSwap
-				// So we check: (AvailableInBatch + quantityToSwap) >= quantityToSwap, simplified to AvailableInBatch >= 0
-				// But we need to ensure there's actually stock to reserve, so check if remaining > reserved (has unreserved stock)
-				var sameBatchHasEnough = (damagedBatch.RemainingQuantity - damagedBatch.ReservedQuantity) >= quantityToSwap;
+				  // Step 1: Create stock adjustment for damaged batch
+				  await CreateDamageAdjustmentAsync(staffId, orderId, variantId, damagedBatch.Id, quantityToSwap, request.DamageNote);
 
-				Batch newBatch;
-				bool usingSameBatch;
+				  // Step 2: Process damaged batch and release reservation
+				  await ProcessDamagedBatchAsync(damagedBatch, damagedReservation, quantityToSwap, variantId);
+				  damagedReservation.Release();
+				  damagedBatch.Release(quantityToSwap);
+				  damagedBatch.DecreaseQuantity(quantityToSwap);
 
-				if (sameBatchHasEnough)
-				{
-					// Same batch has enough unreserved quantity - use it
-					newBatch = damagedBatch;
-					usingSameBatch = true;
-				}
-				else
-				{
-					// Need to find a different batch with available quantity
-					var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
-					var foundBatch = availableBatches
-						.Where(b => b.Id != damagedBatch.Id && (b.RemainingQuantity - b.ReservedQuantity) >= quantityToSwap)
-						.OrderBy(b => b.ExpiryDate) // FEFO: First Expiry First Out
-						.FirstOrDefault();
+				  // Step 3: Stock update for damaged batch
+				  stock.ReleaseReservation(quantityToSwap);
+				  stock.Decrease(quantityToSwap);
 
-					if (foundBatch == null)
-					{
-						return BaseResponse<SwapDamagedStockResponse>.Fail(
-							$"No available batch found with sufficient quantity ({quantityToSwap}) for variant {variantId}. Cannot swap damaged stock.",
-							ResponseErrorType.BadRequest);
-					}
+				  _unitOfWork.StockReservations.Update(damagedReservation);
+				  _unitOfWork.Batches.Update(damagedBatch);
 
-					newBatch = foundBatch;
-					usingSameBatch = false;
-				}
+				  // Step 4: Reserve new batch for the order
+				  var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+				  var newBatch = availableBatches
+					  .Where(b => b.Id != damagedBatch.Id && b.AvailableInBatch >= quantityToSwap)
+					  .OrderBy(b => b.ExpiryDate)
+					  .FirstOrDefault() ?? throw AppException.BadRequest($"No available batch found for replacement.");
 
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-				{
-					// Step 2: Create stock adjustment for damaged batch
-					await CreateDamageAdjustmentAsync(staffId, orderId, variantId, damagedBatch.Id, quantityToSwap, request.DamageNote);
+				  // Step 5: Create new reservation for the order
+				  var newReservation = new StockReservation(orderId, newBatch.Id, variantId, quantityToSwap, damagedReservation.ExpiresAt);
+				  await _unitOfWork.StockReservations.AddAsync(newReservation);
 
-					// Step 3: Process damaged batch and release reservation
-					await ProcessDamagedBatchAsync(damagedBatch, damagedReservation, quantityToSwap, variantId);
+				  newBatch.Reserve(quantityToSwap);
+				  _unitOfWork.Batches.Update(newBatch);
 
-					// Step 4: Reserve the new batch (we already verified it exists)
-					var newReservation = new StockReservation
-					{
-						OrderId = orderId,
-						BatchId = newBatch.Id,
-						VariantId = variantId,
-						ReservedQuantity = quantityToSwap,
-						Status = ReservationStatus.Reserved,
-						ExpiresAt = damagedReservation.ExpiresAt
-					};
+				  // Step 6: Update stock reserved quantity
+				  stock.Reserve(quantityToSwap);
+				  _unitOfWork.Stocks.Update(stock);
 
-					await _unitOfWork.StockReservations.AddAsync(newReservation);
+				  var newBatchWithIncludes = await _unitOfWork.Batches.GetBatchByIdWithIncludesAsync(newBatch.Id);
 
-					// Update batch reserved quantity
-					// Note: If using same batch, ProcessDamagedBatchAsync already decreased ReservedQuantity,
-					// so we need to add it back for the new reservation
-					newBatch.ReservedQuantity += quantityToSwap;
-					if (!usingSameBatch)
-					{
-						// Only call Update for different batch (damagedBatch is already updated in ProcessDamagedBatchAsync)
-						_unitOfWork.Batches.Update(newBatch);
-					}
-
-					// Update stock reserved quantity
-					var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
-					if (stock != null)
-					{
-						// If using same batch: ProcessDamagedBatchAsync decreased ReservedQuantity, now increase it back
-						// If using different batch: ProcessDamagedBatchAsync decreased, now increase for new batch
-						stock.ReservedQuantity += quantityToSwap;
-						_unitOfWork.Stocks.Update(stock);
-					}
-
-					// Get location info for response
-					var newBatchWithIncludes = usingSameBatch
-						? damagedBatch
-						: await _unitOfWork.Batches.GetBatchByIdWithIncludesAsync(newBatch.Id);
-
-					var response = new SwapDamagedStockResponse
-					{
-						NewReservationId = newReservation.Id,
-						NewBatchId = newBatch.Id,
-						NewBatchCode = newBatch.BatchCode,
-						NewLocation = newBatchWithIncludes?.ImportDetail?.Note,
-						ReservedQuantity = quantityToSwap,
-						ExpiryDate = newBatch.ExpiryDate,
-						Message = usingSameBatch
-						? $"Successfully reserved replacement stock from same batch {newBatch.BatchCode}."
-						: $"Successfully swapped damaged batch {damagedBatch.BatchCode} with new batch {newBatch.BatchCode}."
-					};
-
-					return BaseResponse<SwapDamagedStockResponse>.Ok(response);
-				});
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<SwapDamagedStockResponse>.Fail(
-					$"An error occurred while swapping damaged stock: {ex.Message}",
-					ResponseErrorType.InternalError);
-			}
+				  return new SwapDamagedStockResponse
+				  {
+					  NewReservationId = newReservation.Id,
+					  NewBatchId = newBatch.Id,
+					  NewBatchCode = newBatch.BatchCode,
+					  NewLocation = newBatchWithIncludes?.ImportDetail?.Note,
+					  ReservedQuantity = quantityToSwap,
+					  ExpiryDate = newBatch.ExpiryDate,
+					  Message = $"Successfully swapped damaged batch with new batch {newBatch.BatchCode}."
+				  };
+			  });
 		}
 
-		private async Task<BaseResponse<(Order, StockReservation, Batch)?>> ValidateSwapRequestAsync(
-			Guid orderId,
-			SwapDamagedStockRequest request)
+		private async Task<(Order, StockReservation, Batch)> ValidateSwapRequestAsync(Guid orderId, SwapDamagedStockRequest request)
 		{
 			var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
 				o => o.Id == orderId,
-				o => o.Include(o => o.OrderDetails));
-
-			if (order == null)
-			{
-				return BaseResponse<(Order, StockReservation, Batch)?>.Fail("Order not found.", ResponseErrorType.NotFound);
-			}
+				o => o.Include(o => o.OrderDetails))
+				?? throw AppException.NotFound("Order not found.");
 
 			if (order.Status != OrderStatus.Processing)
-			{
-				return BaseResponse<(Order, StockReservation, Batch)?>.Fail(
-					$"Order must be in Processing status to swap damaged stock. Current status: {order.Status}",
-					ResponseErrorType.BadRequest);
-			}
+				throw AppException.BadRequest($"Order must be in Processing status.");
 
 			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(order.Id);
-			var damagedReservation = reservations.FirstOrDefault(r => r.Id == request.DamagedReservationId);
-
-			if (damagedReservation == null)
-			{
-				return BaseResponse<(Order, StockReservation, Batch)?>.Fail(
-					"Damaged reservation not found.",
-					ResponseErrorType.NotFound);
-			}
+			var damagedReservation = reservations.FirstOrDefault(r => r.Id == request.DamagedReservationId)
+				?? throw AppException.NotFound("Damaged reservation not found.");
 
 			if (damagedReservation.Status != ReservationStatus.Reserved)
-			{
-				return BaseResponse<(Order, StockReservation, Batch)?>.Fail(
-					"Reservation is not in Reserved status.",
-					ResponseErrorType.BadRequest);
-			}
+				throw AppException.BadRequest("Reservation is not in Reserved status.");
 
-			var orderDetail = order.OrderDetails.FirstOrDefault(od => od.Id == request.OrderDetailId);
-			if (orderDetail == null)
-			{
-				return BaseResponse<(Order, StockReservation, Batch)?>.Fail(
-					"Order detail not found.",
-					ResponseErrorType.NotFound);
-			}
+			var damagedBatch = damagedReservation.Batch
+				?? throw AppException.NotFound("Damaged batch not found.");
 
-			// Use the Batch already loaded via reservation navigation property to avoid EF tracking conflicts
-			var damagedBatch = damagedReservation.Batch;
-			if (damagedBatch == null)
-			{
-				return BaseResponse<(Order, StockReservation, Batch)?>.Fail(
-					"Damaged batch not found.",
-					ResponseErrorType.NotFound);
-			}
-
-			return BaseResponse<(Order, StockReservation, Batch)?>.Ok((order, damagedReservation, damagedBatch));
+			return (order, damagedReservation, damagedBatch);
 		}
 
 		private async Task CreateDamageAdjustmentAsync(
@@ -542,73 +375,22 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			Guid variantId)
 		{
 			// Decrease damaged batch quantities
-			damagedBatch.RemainingQuantity -= quantityToSwap;
-			damagedBatch.ReservedQuantity -= quantityToSwap;
+			damagedBatch.Release(quantityToSwap);
+			damagedBatch.DecreaseQuantity(quantityToSwap);
 			_unitOfWork.Batches.Update(damagedBatch);
 
 			// Release the damaged reservation
-			damagedReservation.Status = ReservationStatus.Released;
+			damagedReservation.Release();
 			_unitOfWork.StockReservations.Update(damagedReservation);
 
 			// Update stock quantities
 			var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
 			if (stock != null)
 			{
-				stock.ReservedQuantity -= quantityToSwap;
-				stock.TotalQuantity -= quantityToSwap;
+				stock.ReleaseReservation(quantityToSwap);
+				stock.Decrease(quantityToSwap);
 				_unitOfWork.Stocks.Update(stock);
 			}
-		}
-
-		private async Task<BaseResponse<(StockReservation, Batch)?>> ReserveNewBatchAsync(
-			Guid orderId,
-			Guid variantId,
-			int quantityToSwap,
-			Guid excludeBatchId,
-			DateTime? expiresAt)
-		{
-			var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
-
-			var newBatch = availableBatches
-				.Where(b => b.Id != excludeBatchId && (b.RemainingQuantity - b.ReservedQuantity) >= quantityToSwap)
-				.OrderBy(b => b.ExpiryDate) // FEFO: First Expiry First Out
-				.FirstOrDefault();
-
-			if (newBatch == null)
-			{
-				return BaseResponse<(StockReservation, Batch)?>.Fail(
-					$"No available batch found with sufficient quantity ({quantityToSwap}) for variant {variantId}.",
-					ResponseErrorType.BadRequest);
-			}
-
-			// Create new reservation
-			var newReservation = new StockReservation
-			{
-				OrderId = orderId,
-				BatchId = newBatch.Id,
-				VariantId = variantId,
-				ReservedQuantity = quantityToSwap,
-				Status = ReservationStatus.Reserved,
-				ExpiresAt = expiresAt
-			};
-
-			await _unitOfWork.StockReservations.AddAsync(newReservation);
-
-			// Update batch reserved quantity
-			newBatch.ReservedQuantity += quantityToSwap;
-			_unitOfWork.Batches.Update(newBatch);
-
-			// Update stock reserved quantity
-			var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
-			if (stock != null)
-			{
-				stock.ReservedQuantity += quantityToSwap;
-				_unitOfWork.Stocks.Update(stock);
-			}
-
-			await _unitOfWork.SaveChangesAsync();
-
-			return BaseResponse<(StockReservation, Batch)?>.Ok((newReservation, newBatch));
 		}
 
 		#endregion

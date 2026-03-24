@@ -1,12 +1,13 @@
 ﻿using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.ScentNotes;
-using PerfumeGPT.Application.DTOs.Requests.ScentNotes;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using Mapster;
 using MapsterMapper;
+using PerfumeGPT.Application.DTOs.Requests.Metadatas.ScentNotes;
+using PerfumeGPT.Application.Interfaces.Services;
 
-namespace PerfumeGPT.Application.Interfaces.Services
+namespace PerfumeGPT.Application.Services
 {
 	public class ScentNoteService : IScentNoteService
 	{

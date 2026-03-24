@@ -9,9 +9,7 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class StockReservationRepository : GenericRepository<StockReservation>, IStockReservationRepository
 	{
-		public StockReservationRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public StockReservationRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<IEnumerable<StockReservation>> GetByOrderIdAsync(Guid orderId)
 		{
@@ -30,8 +28,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Include(sr => sr.Batch)
 				.Include(sr => sr.ProductVariant)
 				.Where(sr => sr.Status == ReservationStatus.Reserved
-					&& sr.ExpiresAt.HasValue
-					&& sr.ExpiresAt.Value <= now)
+					&& sr.ExpiresAt <= now)
 				.ToListAsync();
 		}
 	}

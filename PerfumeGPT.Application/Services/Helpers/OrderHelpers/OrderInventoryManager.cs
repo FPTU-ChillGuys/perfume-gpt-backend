@@ -66,11 +66,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			foreach (var item in items)
 			{
 				// Use StockService to increase stock
-				var stockIncreased = await _stockService.IncreaseStockAsync(item.VariantId, item.Quantity);
-				if (!stockIncreased)
-				{
-					return BaseResponse<bool>.Fail($"Failed to restore stock for variant {item.VariantId}.", ResponseErrorType.InternalError);
-				}
+             await _stockService.IncreaseStockAsync(item.VariantId, item.Quantity);
 
 				// Note: Batches are not restored as they follow FIFO and have already been consumed
 				// New batches should be created through the normal batch creation process

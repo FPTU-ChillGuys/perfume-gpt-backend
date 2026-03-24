@@ -1,5 +1,4 @@
 ﻿using FluentValidation;
-using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Address;
 using PerfumeGPT.Application.DTOs.Responses.Address;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -16,18 +15,15 @@ namespace PerfumeGPT.Application.Services
 		private readonly IAddressRepository _addressRepo;
 		private readonly IValidator<CreateAddressRequest> _createValidator;
 		private readonly IValidator<UpdateAddressRequest> _updateValidator;
-		private readonly IMapper _mapper;
 
 		public AddressService(
 			IAddressRepository addressRepo,
 			IValidator<CreateAddressRequest> validator,
-			IValidator<UpdateAddressRequest> updateValidator,
-			IMapper mapper)
+			IValidator<UpdateAddressRequest> updateValidator)
 		{
 			_addressRepo = addressRepo;
 			_createValidator = validator;
 			_updateValidator = updateValidator;
-			_mapper = mapper;
 		}
 		#endregion Dependencies
 
@@ -138,9 +134,7 @@ namespace PerfumeGPT.Application.Services
 			var address = await _addressRepo.GetUserAddressById(userId, addressId)
 				?? throw AppException.NotFound("Address not found");
 
-			return BaseResponse<AddressResponse>.Ok(
-				_mapper.Map<AddressResponse>(address),
-				"Address retrieved successfully");
+			return BaseResponse<AddressResponse>.Ok(address, "Address retrieved successfully");
 		}
 
 		public async Task<BaseResponse<AddressResponse>> GetDefaultAddressAsync(Guid userId)
@@ -148,18 +142,16 @@ namespace PerfumeGPT.Application.Services
 			var address = await _addressRepo.GetDefaultAddress(userId)
 				?? throw AppException.NotFound("Default address not found");
 
-			return BaseResponse<AddressResponse>.Ok(
-				_mapper.Map<AddressResponse>(address),
-				"Default address retrieved successfully");
+			return BaseResponse<AddressResponse>.Ok(address, "Default address retrieved successfully");
 		}
 
 		public async Task<BaseResponse<List<AddressResponse>>> GetUserAddressesAsync(Guid userId)
 		{
 			var addresses = await _addressRepo.GetUserAddresses(userId);
 
-			return BaseResponse<List<AddressResponse>>.Ok(
-				_mapper.Map<List<AddressResponse>>(addresses),
-				addresses.Count == 0 ? "No addresses found" : "User addresses retrieved successfully");
+			return BaseResponse<List<AddressResponse>>.Ok(addresses, addresses.Count == 0
+				? "No addresses found"
+				: "User addresses retrieved successfully");
 		}
 	}
 }

@@ -1,8 +1,6 @@
 ﻿using FluentValidation;
 using Mapster;
-using MapsterMapper;
-using Microsoft.EntityFrameworkCore;
-using PerfumeGPT.Application.DTOs.Requests.Brands;
+using PerfumeGPT.Application.DTOs.Requests.Metadatas.Brands;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Brands;
 using PerfumeGPT.Application.Exceptions;
@@ -18,32 +16,29 @@ namespace PerfumeGPT.Application.Services
 		private readonly IBrandRepository _brandRepository;
 		private readonly IValidator<CreateBrandRequest> _createValidator;
 		private readonly IValidator<UpdateBrandRequest> _updateValidator;
-		private readonly IMapper _mapper;
 
 		public BrandService(
-			 IBrandRepository brandRepository,
-			 IValidator<CreateBrandRequest> createValidator,
-			 IValidator<UpdateBrandRequest> updateValidator,
-			 IMapper mapper)
+			IBrandRepository brandRepository,
+			IValidator<CreateBrandRequest> createValidator,
+			IValidator<UpdateBrandRequest> updateValidator)
 		{
 			_brandRepository = brandRepository;
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
-			_mapper = mapper;
 		}
 		#endregion Dependencies
 
 		public async Task<BaseResponse<List<BrandLookupItem>>> GetBrandLookupAsync()
 		{
-			return BaseResponse<List<BrandLookupItem>>.Ok(await _brandRepository.GetBrandLookupAsync());
+			return BaseResponse<List<BrandLookupItem>>.Ok(
+				await _brandRepository.GetBrandLookupAsync());
 		}
 
 		public async Task<BaseResponse<BrandResponse>> GetBrandByIdAsync(int id)
 		{
-			var result = await _brandRepository.GetBrandByIdAsync(id);
-			return result == null
-				? throw new AppException("Brand not found", ResponseErrorType.NotFound)
-				: BaseResponse<BrandResponse>.Ok(result);
+			var result = await _brandRepository.GetBrandByIdAsync(id)
+				?? throw AppException.NotFound("Brand not found");
+			return BaseResponse<BrandResponse>.Ok(result);
 		}
 
 		public async Task<BaseResponse<List<BrandResponse>>> GetAllBrandsAsync()
@@ -56,24 +51,21 @@ namespace PerfumeGPT.Application.Services
 		{
 			var validationResult = await _createValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw new AppException("Validation failed", ResponseErrorType.BadRequest, errors);
-			}
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-			var normalizedName = Brand.NormalizeName(request.Name);
-
-			var exists = await _brandRepository.AnyAsync(b =>
-			  b.Name.Equals(normalizedName, StringComparison.CurrentCultureIgnoreCase));
+			var normalizedName = Brand.NormalizeName(request.Name).ToUpperInvariant();
+			var exists = await _brandRepository.AnyAsync(b => b.Name.ToUpper() == normalizedName);
 
 			if (exists)
-				throw new AppException("Brand name already exists.", ResponseErrorType.Conflict);
+				throw AppException.Conflict("Brand name already exists.");
 
-			var entity = _mapper.Map<Brand>(request);
-			entity.Rename(normalizedName);
-
+			var entity = Brand.Create(normalizedName);
 			await _brandRepository.AddAsync(entity);
-			await _brandRepository.SaveChangesAsync();
+
+			var saved = await _brandRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to create brand");
+
 			return BaseResponse<BrandResponse>.Ok(entity.Adapt<BrandResponse>());
 		}
 
@@ -81,40 +73,38 @@ namespace PerfumeGPT.Application.Services
 		{
 			var validationResult = await _updateValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw new AppException("Validation failed", ResponseErrorType.BadRequest, errors);
-			}
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-			var normalizedName = Brand.NormalizeName(request.Name);
+			var entity = await _brandRepository.GetByIdAsync(id)
+				?? throw AppException.NotFound("Brand not found");
 
-			var entity = await _brandRepository.GetByIdAsync(id) ?? throw new AppException("Brand not found", ResponseErrorType.NotFound);
-
-			var exists = await _brandRepository.AnyAsync(b =>
-			  b.Id != id && b.Name.Equals(normalizedName, StringComparison.CurrentCultureIgnoreCase));
+			var normalizedName = Brand.NormalizeName(request.Name).ToUpperInvariant();
+			var exists = await _brandRepository.AnyAsync(b => b.Name.ToUpper() == normalizedName);
 
 			if (exists)
-				throw new AppException("Brand name already exists.", ResponseErrorType.Conflict);
+				throw AppException.Conflict("Brand name already exists.");
 
-			_mapper.Map(request, entity);
 			entity.Rename(normalizedName);
-
 			_brandRepository.Update(entity);
-			await _brandRepository.SaveChangesAsync();
+
+			var saved = await _brandRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to update brand");
 
 			return BaseResponse<BrandResponse>.Ok(entity.Adapt<BrandResponse>());
 		}
 
 		public async Task<BaseResponse<bool>> DeleteBrandAsync(int id)
 		{
-			var entity = await _brandRepository.FirstOrDefaultAsync(
-				 b => b.Id == id,
-				 include: q => q.Include(b => b.Products)) ?? throw new AppException("Brand not found", ResponseErrorType.NotFound);
+			var entity = await _brandRepository.GetByIdAsync(id)
+				?? throw AppException.NotFound("Brand not found");
 
-			entity.EnsureCanBeDeleted();
+			var hasProducts = await _brandRepository.HasProductsAsync(id);
+			Brand.EnsureCanBeDeleted(hasProducts);
 
 			_brandRepository.Remove(entity);
-			await _brandRepository.SaveChangesAsync();
+			var saved = await _brandRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to delete brand");
 
 			return BaseResponse<bool>.Ok(true);
 		}

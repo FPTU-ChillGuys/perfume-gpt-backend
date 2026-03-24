@@ -1,5 +1,4 @@
 ﻿using FluentValidation;
-using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.ProductAttributes.Values;
@@ -14,23 +13,17 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Depedencies
 		private readonly IAttributeValueRepository _attributeValueRepo;
-		private readonly IProductAttributeRepository _productAttributeRepository;
 		private readonly IValidator<CreateAttributeValueRequest> _createValidator;
 		private readonly IValidator<UpdateAttributeValueRequest> _updateValidator;
-		private readonly IMapper _mapper;
 
 		public AttributeValueService(
 			  IAttributeValueRepository attributeValueRepo,
-			  IProductAttributeRepository productAttributeRepository,
 			  IValidator<CreateAttributeValueRequest> createValidator,
-			  IValidator<UpdateAttributeValueRequest> updateValidator,
-			  IMapper mapper)
+			  IValidator<UpdateAttributeValueRequest> updateValidator)
 		{
 			_attributeValueRepo = attributeValueRepo;
-			_productAttributeRepository = productAttributeRepository;
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
-			_mapper = mapper;
 		}
 		#endregion Dependencies
 
@@ -47,8 +40,7 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Validation failed",
 					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-			var entity = _mapper.Map<AttributeValue>(request);
-			entity.AttributeId = attributeId;
+			var entity = AttributeValue.Create(attributeId, request.Value);
 
 			await _attributeValueRepo.AddAsync(entity);
 			var saved = await _attributeValueRepo.SaveChangesAsync();
@@ -64,10 +56,12 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Validation failed",
 					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-			var entity = await _attributeValueRepo.GetByIdAsync(valueId) ?? throw AppException.NotFound("Attribute value not found");
-			_mapper.Map(request, entity);
+			var entity = await _attributeValueRepo.GetByIdAsync(valueId)
+				?? throw AppException.NotFound("Attribute value not found");
 
+			entity.Update(request.Value);
 			_attributeValueRepo.Update(entity);
+
 			var saved = await _attributeValueRepo.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update attribute value");
 
@@ -76,10 +70,10 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> DeleteAttributeValueAsync(int valueId)
 		{
-			var entity = await _attributeValueRepo.GetByIdAsync(valueId) ?? throw AppException.NotFound("Attribute value not found");
+			var entity = await _attributeValueRepo.GetByIdAsync(valueId)
+			?? throw AppException.NotFound("Attribute value not found");
 
-			// Check if attribute value is used by any product/variant
-			var isInUse = await _productAttributeRepository.AnyAsync(pa => pa.AttributeId == valueId);
+			var isInUse = await _attributeValueRepo.IsInUseAsync(valueId);
 			AttributeValue.EnsureCanBeDeleted(isInUse);
 
 			_attributeValueRepo.Remove(entity);

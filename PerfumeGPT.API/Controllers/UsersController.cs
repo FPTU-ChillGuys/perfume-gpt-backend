@@ -48,9 +48,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UploadAvatar([FromForm] UploadProfileAvatarRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> UploadAvatar([FromForm] ProfileAvtarUploadRequest request)
 		{
-			var validation = ValidateRequestBody<UploadProfileAvatarRequest>(request);
+			var validation = ValidateRequestBody<ProfileAvtarUploadRequest>(request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();

@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace PerfumeGPT.Application.DTOs.Requests.OlfactoryFamilies
+namespace PerfumeGPT.Application.DTOs.Requests.Metadatas.ScentNotes
 {
-	public class UpdateOlfactoryFamilyRequest
+	public class UpdateScentNoteRequest
 	{
 		[Required]
 		public string Name { get; set; } = null!;

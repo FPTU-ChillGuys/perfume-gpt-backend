@@ -371,17 +371,7 @@ namespace PerfumeGPT.Application.Services
 					}
 
 					// Reserve stock
-					var reservationResult = await _stockReservationService.ReserveStockForOrderAsync(
-						order.Id,
-						itemsToValidate,
-						paymentExpiresAt);
-
-					if (!reservationResult.Success)
-					{
-						return BaseResponse<string>.Fail(
-							reservationResult.Message ?? "Stock reservation failed.",
-							reservationResult.ErrorType);
-					}
+					await _stockReservationService.ReserveStockForOrderAsync(order.Id, itemsToValidate, paymentExpiresAt);
 
 					// Mark voucher as reserved
 					if (voucher != null)
@@ -618,12 +608,6 @@ namespace PerfumeGPT.Application.Services
 					if (request.Status == OrderStatus.Processing && order.Type == OrderType.Online)
 					{
 						var pickListResult = await _fulfillmentService.GetPickListAsync(order.Id);
-						if (pickListResult.Success && pickListResult.Payload != null)
-						{
-							return BaseResponse<PickListResponse>.Ok(
-								pickListResult.Payload,
-								"Order is now in Picking phase. Use FulfillOrderAsync to complete.");
-						}
 					}
 
 					// Handle cancellation
@@ -746,30 +730,20 @@ namespace PerfumeGPT.Application.Services
 					ResponseErrorType.InternalError);
 			}
 		}
-
 		#endregion
 
 		#region Fulfillment Operations (Delegated)
+		public async Task<BaseResponse<PickListResponse>> GetOrderPickListAsync(Guid orderId)
+			=> BaseResponse<PickListResponse>.Ok(await _fulfillmentService.GetPickListAsync(orderId));
 
-		public Task<BaseResponse<PickListResponse>> GetOrderPickListAsync(Guid orderId)
-		{
-			return _fulfillmentService.GetPickListAsync(orderId);
-		}
+		public async Task<BaseResponse<string>> FulfillOrderAsync(Guid orderId, Guid staffId, FulfillOrderRequest request)
+			=> BaseResponse<string>.Ok(await _fulfillmentService.FulfillOrderAsync(orderId, staffId, request));
 
-		public Task<BaseResponse<string>> FulfillOrderAsync(Guid orderId, Guid staffId, FulfillOrderRequest request)
-		{
-			return _fulfillmentService.FulfillOrderAsync(orderId, staffId, request);
-		}
-
-		public Task<BaseResponse<SwapDamagedStockResponse>> SwapDamagedStockAsync(Guid orderId, Guid staffId, SwapDamagedStockRequest request)
-		{
-			return _fulfillmentService.SwapDamagedStockAsync(orderId, staffId, request);
-		}
-
-		#endregion
+		public async Task<BaseResponse<SwapDamagedStockResponse>> SwapDamagedStockAsync(Guid orderId, Guid staffId, SwapDamagedStockRequest request)
+			=> BaseResponse<SwapDamagedStockResponse>.Ok(await _fulfillmentService.SwapDamagedStockAsync(orderId, staffId, request));
+		#endregion Fulfillment Operations
 
 		#region Private Helper Methods
-
 		private static DateTime GetPaymentExpiration(PaymentMethod method)
 		{
 			return method == PaymentMethod.VnPay
@@ -942,7 +916,6 @@ namespace PerfumeGPT.Application.Services
 
 			return BaseResponse<VoucherResponse>.Ok(voucher);
 		}
-
 		#endregion
 	}
 }

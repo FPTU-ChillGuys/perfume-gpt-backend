@@ -9,5 +9,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<List<CategoriesLookupItem>> GetCategoriesLookupItemsAsync();
 		Task<List<CategoryResponse>> GetAllCategoriesAsync();
 		Task<CategoryResponse?> GetCategoryByIdAsync(int id);
+		Task<bool> HasProductsAsync(int categoryId);
 	}
 }

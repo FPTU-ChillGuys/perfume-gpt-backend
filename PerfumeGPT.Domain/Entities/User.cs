@@ -7,9 +7,9 @@ namespace PerfumeGPT.Domain.Entities
 {
 	public class User : IdentityUser<Guid>, IHasTimestamps, ISoftDelete
 	{
-		public string FullName { get; set; } = string.Empty;
-		public int PointBalance { get; set; } = 0;
-		public bool IsActive { get; set; } = true;
+		public string FullName { get; private set; } = string.Empty;
+		public int PointBalance { get; private set; } = 0;
+		public bool IsActive { get; private set; } = true;
 
 		// Navigations
 		public virtual CustomerProfile? CustomerProfile { get; set; }
@@ -27,29 +27,66 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<OrderCancelRequest> RequestedCancelRequests { get; set; } = [];
 		public virtual ICollection<OrderCancelRequest> ProcessedCancelRequests { get; set; } = [];
 
-		// Audit
-		public DateTime? UpdatedAt { get; set; }
+		// IHasTimestamps
 		public DateTime CreatedAt { get; set; }
+		public DateTime? UpdatedAt { get; set; }
 
-		// Soft Delete
+		// ISoftDelete
 		public bool IsDeleted { get; set; }
 		public DateTime? DeletedAt { get; set; }
 
-		// Business Logic
+		// Factory method
+		public static User Create(string fullName, string email, string? phoneNumber)
+		{
+			if (string.IsNullOrWhiteSpace(fullName))
+				throw DomainException.BadRequest("Full name is required.");
+
+			if (string.IsNullOrWhiteSpace(email))
+				throw DomainException.BadRequest("Email is required.");
+
+			return new User
+			{
+				FullName = fullName.Trim(),
+				UserName = email.Trim(),
+				Email = email.Trim(),
+				PhoneNumber = phoneNumber?.Trim(),
+				PhoneNumberConfirmed = !string.IsNullOrWhiteSpace(phoneNumber),
+				IsActive = true
+			};
+		}
+
+		// Domain methods
 		public void EnsureActive()
 		{
 			if (!IsActive)
-			{
-				throw DomainException.Forbidden("User is inactive");
-			}
+				throw DomainException.Forbidden("User account is inactive.");
 		}
 
 		public void EnsureEmailConfirmed()
 		{
 			if (!EmailConfirmed)
-			{
-				throw DomainException.Forbidden("Email not confirmed");
-			}
+				throw DomainException.Forbidden("Email has not been confirmed.");
+		}
+
+		public void Activate()
+		{
+			if (IsActive)
+				throw DomainException.BadRequest("User is already active.");
+			IsActive = true;
+		}
+
+		public void Deactivate()
+		{
+			if (!IsActive)
+				throw DomainException.BadRequest("User is already inactive.");
+			IsActive = false;
+		}
+
+		public void UpdateProfile(string fullName)
+		{
+			if (string.IsNullOrWhiteSpace(fullName))
+				throw DomainException.BadRequest("Full name cannot be empty.");
+			FullName = fullName.Trim();
 		}
 	}
 }

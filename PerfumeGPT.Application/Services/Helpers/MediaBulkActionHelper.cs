@@ -1,5 +1,4 @@
-﻿using MapsterMapper;
-using PerfumeGPT.Application.DTOs.Responses.Base;
+﻿using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -10,13 +9,11 @@ namespace PerfumeGPT.Application.Services.Helpers
 	public class MediaBulkActionHelper
 	{
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IMapper _mapper;
 		private readonly IMediaService _mediaService;
 
-		public MediaBulkActionHelper(IUnitOfWork unitOfWork, IMapper mapper, IMediaService mediaService)
+		public MediaBulkActionHelper(IUnitOfWork unitOfWork, IMediaService mediaService)
 		{
 			_unitOfWork = unitOfWork;
-			_mapper = mapper;
 			_mediaService = mediaService;
 		}
 
@@ -93,30 +90,30 @@ namespace PerfumeGPT.Application.Services.Helpers
 				return (false, "Temporary media not found");
 			}
 
-			if (tempMedia.IsExpired)
+			if (entityType is not (EntityType.Review or EntityType.Product or EntityType.ProductVariant))
 			{
-				return (false, "Temporary media has expired");
+				return (false, $"Unsupported entity type: {entityType}");
 			}
 
-			// Create permanent media
-			var media = _mapper.Map<Media>(tempMedia);
-			media.EntityType = entityType;
-
-			// Set the appropriate entity ID based on type
-			switch (entityType)
+			try
 			{
-				case EntityType.Review:
-					media.ReviewId = entityId;
-					break;
-				case EntityType.Product:
-					media.ProductId = entityId;
-					break;
-				case EntityType.ProductVariant:
-					media.ProductVariantId = entityId;
-					break;
-				default:
-					return (false, $"Unsupported entity type: {entityType}");
+				tempMedia.EnsureNotExpired();
 			}
+			catch (Exception ex)
+			{
+				return (false, ex.Message);
+			}
+
+			var media = Media.CreateForEntity(
+				entityType,
+				entityId,
+				tempMedia.Url,
+				tempMedia.AltText,
+				tempMedia.DisplayOrder,
+				tempMedia.IsPrimary,
+				tempMedia.PublicId,
+				tempMedia.FileSize,
+				tempMedia.MimeType);
 
 			await _unitOfWork.Media.AddAsync(media);
 			_unitOfWork.TemporaryMedia.Remove(tempMedia);

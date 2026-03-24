@@ -7,7 +7,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 {
 	public interface IStockRepository : IGenericRepository<Stock>
 	{
-		Task<bool> UpdateStockAsync(Guid variantId);
+		Task UpdateStockAsync(Guid variantId);
 		Task<bool> IsLowStockAsync(Guid variantId);
 		Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity);
 

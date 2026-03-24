@@ -1,37 +1,124 @@
+using FluentValidation;
+using Mapster;
+using PerfumeGPT.Application.DTOs.Requests.Metadatas.Suppliers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Suppliers;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class SupplierService : ISupplierService
 	{
+		#region Dependencies
 		private readonly ISupplierRepository _supplierRepository;
+		private readonly IValidator<CreateSupplierRequest> _createValidator;
+		private readonly IValidator<UpdateSupplierRequest> _updateValidator;
 
-		public SupplierService(ISupplierRepository supplierRepository)
+		public SupplierService(
+			  ISupplierRepository supplierRepository,
+			  IValidator<CreateSupplierRequest> createValidator,
+			  IValidator<UpdateSupplierRequest> updateValidator)
 		{
 			_supplierRepository = supplierRepository;
+			_createValidator = createValidator;
+			_updateValidator = updateValidator;
 		}
+		#endregion Dependencies
 
 		public async Task<BaseResponse<List<SupplierLookupItem>>> GetSupplierLookupListAsync()
 		{
-			var suppliers = await _supplierRepository.GetAllAsync(
-				asNoTracking: true
-			);
+			var suppliers = await _supplierRepository.GetSupplierLookupListAsync();
+			return BaseResponse<List<SupplierLookupItem>>.Ok(suppliers);
+		}
 
-			var lookupItems = suppliers
-				.OrderBy(s => s.Name)
-				.Select(s => new SupplierLookupItem
-				{
-					Id = s.Id,
-					Name = s.Name ?? "Unknown",
-					Phone = s.Phone,
-					ContactEmail = s.ContactEmail
-				})
-				.ToList();
+		public async Task<BaseResponse<SupplierResponse>> GetSupplierByIdAsync(int id)
+		{
+			var supplier = await _supplierRepository.GetSupplierByIdAsync(id)
+				?? throw AppException.NotFound("Supplier not found");
 
-			return BaseResponse<List<SupplierLookupItem>>.Ok(lookupItems, "Supplier lookup list retrieved successfully");
+			return BaseResponse<SupplierResponse>.Ok(supplier);
+		}
+
+		public async Task<BaseResponse<List<SupplierResponse>>> GetAllSuppliersAsync()
+		{
+			var suppliers = await _supplierRepository.GetAllSuppliersAsync();
+			return BaseResponse<List<SupplierResponse>>.Ok(suppliers);
+		}
+
+		public async Task<BaseResponse<SupplierResponse>> CreateSupplierAsync(CreateSupplierRequest request)
+		{
+			var validationResult = await _createValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
+
+			var normalizedName = Supplier.NormalizeName(request.Name).ToUpperInvariant();
+			var normalizedEmail = Supplier.NormalizeEmail(request.ContactEmail).ToUpperInvariant();
+
+			var nameExists = await _supplierRepository.AnyAsync(s => s.Name.ToUpper() == normalizedName);
+			if (nameExists)
+				throw AppException.Conflict("Supplier name already exists.");
+
+			var emailExists = await _supplierRepository.AnyAsync(s => s.ContactEmail.ToUpper() == normalizedEmail);
+			if (emailExists)
+				throw AppException.Conflict("Supplier contact email already exists.");
+
+			var entity = Supplier.Create(request.Name, request.ContactEmail, request.Phone, request.Address);
+			await _supplierRepository.AddAsync(entity);
+
+			var saved = await _supplierRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to create supplier");
+
+			return BaseResponse<SupplierResponse>.Ok(entity.Adapt<SupplierResponse>());
+		}
+
+		public async Task<BaseResponse<SupplierResponse>> UpdateSupplierAsync(int id, UpdateSupplierRequest request)
+		{
+			var validationResult = await _updateValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
+
+			var entity = await _supplierRepository.GetByIdAsync(id)
+				?? throw AppException.NotFound("Supplier not found");
+
+			var normalizedName = Supplier.NormalizeName(request.Name).ToUpperInvariant();
+			var normalizedEmail = Supplier.NormalizeEmail(request.ContactEmail).ToUpperInvariant();
+
+			var nameExists = await _supplierRepository.AnyAsync(s => s.Id != id && s.Name.ToUpper() == normalizedName);
+			if (nameExists)
+				throw AppException.Conflict("Supplier name already exists.");
+
+			var emailExists = await _supplierRepository.AnyAsync(s => s.Id != id && s.ContactEmail.ToUpper() == normalizedEmail);
+			if (emailExists)
+				throw AppException.Conflict("Supplier contact email already exists.");
+
+			entity.UpdateDetails(request.Name, request.ContactEmail, request.Phone, request.Address);
+			_supplierRepository.Update(entity);
+
+			var saved = await _supplierRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to update supplier");
+
+			return BaseResponse<SupplierResponse>.Ok(entity.Adapt<SupplierResponse>());
+		}
+
+		public async Task<BaseResponse<bool>> DeleteSupplierAsync(int id)
+		{
+			var entity = await _supplierRepository.GetByIdAsync(id)
+				?? throw AppException.NotFound("Supplier not found");
+
+			var hasImportTickets = await _supplierRepository.HasImportTicketsAsync(id);
+			Supplier.EnsureCanBeDeleted(hasImportTickets);
+
+			_supplierRepository.Remove(entity);
+
+			var saved = await _supplierRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to delete supplier");
+
+			return BaseResponse<bool>.Ok(true);
 		}
 	}
 }

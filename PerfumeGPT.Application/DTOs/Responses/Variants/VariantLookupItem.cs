@@ -1,5 +1,3 @@
-using PerfumeGPT.Application.DTOs.Responses.Media;
-
 namespace PerfumeGPT.Application.DTOs.Responses.Variants
 {
 	public class VariantLookupItem
@@ -11,7 +9,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 		public int VolumeMl { get; set; }
 		public string ConcentrationName { get; set; } = null!;
 		public decimal BasePrice { get; set; }
-		public MediaResponse? PrimaryImage { get; set; }
+		public string? PrimaryImageUrl { get; set; }
 	}
 }
 
