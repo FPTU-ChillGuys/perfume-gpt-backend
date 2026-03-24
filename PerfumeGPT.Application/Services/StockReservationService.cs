@@ -18,160 +18,121 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task ReserveStockForOrderAsync(Guid orderId, List<(Guid VariantId, int Quantity)> items, DateTime expiresAt)
 		{
-			await _unitOfWork.BeginTransactionAsync();
-
-			try
+			foreach (var (variantId, quantity) in items)
 			{
-				foreach (var (variantId, quantity) in items)
+				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
+					?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
+
+				// 1. Reserve quantity in Stock 
+				stock.Reserve(quantity);
+
+				// 2. Find available batches and reserve from them
+				var batches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+				var remainingToReserve = quantity;
+
+				foreach (var batch in batches)
 				{
-					var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
-						?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
+					if (remainingToReserve <= 0) break;
 
-					// 1. Reserve quantity in Stock 
-					stock.Reserve(quantity);
+					var availableInBatch = batch.AvailableInBatch;
+					if (availableInBatch <= 0) continue;
 
-					// 2. Find available batches and reserve from them
-					var batches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
-					var remainingToReserve = quantity;
+					var reserveFromBatch = Math.Min(remainingToReserve, availableInBatch);
 
-					foreach (var batch in batches)
-					{
-						if (remainingToReserve <= 0) break;
+					// Create StockReservation record
+					var reservation = new StockReservation(orderId, batch.Id, variantId, reserveFromBatch, expiresAt);
+					await _unitOfWork.StockReservations.AddAsync(reservation);
 
-						var availableInBatch = batch.AvailableInBatch;
-						if (availableInBatch <= 0) continue;
+					// Decrease available quantity in batch
+					batch.Reserve(reserveFromBatch);
+					_unitOfWork.Batches.Update(batch);
 
-						var reserveFromBatch = Math.Min(remainingToReserve, availableInBatch);
-
-						// Create StockReservation record
-						var reservation = new StockReservation(orderId, batch.Id, variantId, reserveFromBatch, expiresAt);
-						await _unitOfWork.StockReservations.AddAsync(reservation);
-
-						// Decrease available quantity in batch
-						batch.Reserve(reserveFromBatch);
-						_unitOfWork.Batches.Update(batch);
-
-						remainingToReserve -= reserveFromBatch;
-					}
-
-					// insufficient stock in batches
-					if (remainingToReserve > 0)
-					{
-						throw AppException.Conflict($"Data inconsistency: Batches do not have enough stock for variant {variantId}. Need {quantity}, missing {remainingToReserve}.");
-					}
-
-					_unitOfWork.Stocks.Update(stock);
+					remainingToReserve -= reserveFromBatch;
 				}
 
-				await _unitOfWork.SaveChangesAsync();
-				await _unitOfWork.CommitTransactionAsync();
-			}
-			catch (Exception)
-			{
-				await _unitOfWork.RollbackTransactionAsync();
-				throw;
+				// insufficient stock in batches
+				if (remainingToReserve > 0)
+				{
+					throw AppException.Conflict($"Data inconsistency: Batches do not have enough stock for variant {variantId}. Need {quantity}, missing {remainingToReserve}.");
+				}
+
+				_unitOfWork.Stocks.Update(stock);
 			}
 		}
 
 		public async Task CommitReservationAsync(Guid orderId)
 		{
-			await _unitOfWork.BeginTransactionAsync();
+			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(orderId);
+			if (!reservations.Any()) throw AppException.NotFound($"No reservations found for order {orderId}.");
 
-			try
+			// Group reservations by VariantId to minimize database calls when updating Stock
+			var reservationsGroupedByVariant = reservations
+				.Where(r => r.Status == ReservationStatus.Reserved)
+				.GroupBy(r => r.VariantId);
+
+			foreach (var group in reservationsGroupedByVariant)
 			{
-				var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(orderId);
-				if (!reservations.Any()) throw AppException.NotFound($"No reservations found for order {orderId}.");
+				var variantId = group.Key;
+				var totalQuantityToCommit = group.Sum(r => r.ReservedQuantity);
 
-				// Group reservations by VariantId to minimize database calls when updating Stock
-				var reservationsGroupedByVariant = reservations
-					.Where(r => r.Status == ReservationStatus.Reserved)
-					.GroupBy(r => r.VariantId);
+				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
+					?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
 
-				foreach (var group in reservationsGroupedByVariant)
+				// 1. Release Reservation
+				stock.ReleaseReservation(totalQuantityToCommit);
+
+				// 2. Decrease real quantity in Stock
+				stock.Decrease(totalQuantityToCommit);
+
+				_unitOfWork.Stocks.Update(stock);
+
+				foreach (var reservation in group)
 				{
-					var variantId = group.Key;
-					var totalQuantityToCommit = group.Sum(r => r.ReservedQuantity);
+					var batch = reservation.Batch;
 
-					var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
-						?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
+					// Do the same for Batch: release reservation and decrease quantity
+					batch.Release(reservation.ReservedQuantity);
+					batch.DecreaseQuantity(reservation.ReservedQuantity);
 
-					// 1. Release Reservation
-					stock.ReleaseReservation(totalQuantityToCommit);
+					_unitOfWork.Batches.Update(batch);
 
-					// 2. Decrease real quantity in Stock
-					stock.Decrease(totalQuantityToCommit);
-
-					_unitOfWork.Stocks.Update(stock);
-
-					foreach (var reservation in group)
-					{
-						var batch = reservation.Batch;
-
-						// Do the same for Batch: release reservation and decrease quantity
-						batch.Release(reservation.ReservedQuantity);
-						batch.DecreaseQuantity(reservation.ReservedQuantity);
-
-						_unitOfWork.Batches.Update(batch);
-
-						// Update reservation status to Committed
-						reservation.Commit();
-						_unitOfWork.StockReservations.Update(reservation);
-					}
+					// Update reservation status to Committed
+					reservation.Commit();
+					_unitOfWork.StockReservations.Update(reservation);
 				}
-
-				await _unitOfWork.SaveChangesAsync();
-				await _unitOfWork.CommitTransactionAsync();
-			}
-			catch (Exception)
-			{
-				await _unitOfWork.RollbackTransactionAsync();
-				throw;
 			}
 		}
 
 		public async Task ReleaseReservationAsync(Guid orderId)
 		{
-			await _unitOfWork.BeginTransactionAsync();
+			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(orderId);
+			if (!reservations.Any()) return;
 
-			try
+			var reservationsGroupedByVariant = reservations
+				   .Where(r => r.Status == ReservationStatus.Reserved)
+				   .GroupBy(r => r.VariantId);
+
+			foreach (var group in reservationsGroupedByVariant)
 			{
-				var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(orderId);
-				if (!reservations.Any()) return;
+				var variantId = group.Key;
+				var totalQuantityToRelease = group.Sum(r => r.ReservedQuantity);
 
-				var reservationsGroupedByVariant = reservations
-					.Where(r => r.Status == ReservationStatus.Reserved)
-					.GroupBy(r => r.VariantId);
-
-				foreach (var group in reservationsGroupedByVariant)
+				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
+				if (stock != null)
 				{
-					var variantId = group.Key;
-					var totalQuantityToRelease = group.Sum(r => r.ReservedQuantity);
-
-					var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
-					if (stock != null)
-					{
-						stock.ReleaseReservation(totalQuantityToRelease);
-						_unitOfWork.Stocks.Update(stock);
-					}
-
-					foreach (var reservation in group)
-					{
-						var batch = reservation.Batch;
-						batch.Release(reservation.ReservedQuantity);
-						_unitOfWork.Batches.Update(batch);
-
-						reservation.Release();
-						_unitOfWork.StockReservations.Update(reservation);
-					}
+					stock.ReleaseReservation(totalQuantityToRelease);
+					_unitOfWork.Stocks.Update(stock);
 				}
 
-				await _unitOfWork.SaveChangesAsync();
-				await _unitOfWork.CommitTransactionAsync();
-			}
-			catch (Exception)
-			{
-				await _unitOfWork.RollbackTransactionAsync();
-				throw;
+				foreach (var reservation in group)
+				{
+					var batch = reservation.Batch;
+					batch.Release(reservation.ReservedQuantity);
+					_unitOfWork.Batches.Update(batch);
+
+					reservation.Release();
+					_unitOfWork.StockReservations.Update(reservation);
+				}
 			}
 		}
 

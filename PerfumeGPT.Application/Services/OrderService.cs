@@ -604,10 +604,12 @@ namespace PerfumeGPT.Application.Services
 					// Update shipping status
 					UpdateShippingStatus(order, request.Status);
 
+					var pickListResponse = new PickListResponse();
+
 					// Handle Processing status - return pick list
 					if (request.Status == OrderStatus.Processing && order.Type == OrderType.Online)
 					{
-						var pickListResult = await _fulfillmentService.GetPickListAsync(order.Id);
+						pickListResponse = await _fulfillmentService.GetPickListAsync(order.Id);
 					}
 
 					// Handle cancellation
@@ -650,9 +652,7 @@ namespace PerfumeGPT.Application.Services
 					}
 
 					var orderTypeText = order.Type == OrderType.Online ? "online" : "in-store";
-					return BaseResponse<PickListResponse>.Ok(
-						new PickListResponse(),
-						$"Order status updated to {request.Status} for {orderTypeText} order.");
+					return BaseResponse<PickListResponse>.Ok(pickListResponse, $"Order status updated to {request.Status} for {orderTypeText} order.");
 				});
 			}
 			catch (Exception ex)

@@ -29,11 +29,13 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		}
 		#endregion Dependencies
 
+
 		#region Pick List Generation
 		public async Task<PickListResponse> GetPickListAsync(Guid orderId)
 		{
 			var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
-				o => o.Id == orderId && o.PaymentStatus == PaymentStatus.Paid,
+				o => o.Id == orderId
+					&& o.PaymentStatus == PaymentStatus.Paid,
 				o => o.Include(o => o.OrderDetails))
 				?? throw AppException.NotFound("Paid order not found.");
 
@@ -49,21 +51,17 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			return new PickListResponse { OrderId = order.Id, Items = pickListItems };
 		}
 
-		private async Task<List<PickListItemResponse>> BuildPickListItemsAsync(
-			ICollection<OrderDetail> orderDetails,
-			IEnumerable<StockReservation> reservations)
+		private async Task<List<PickListItemResponse>> BuildPickListItemsAsync(ICollection<OrderDetail> orderDetails, IEnumerable<StockReservation> reservations)
 		{
 			var pickListItems = new List<PickListItemResponse>();
 
 			var reservationsByVariant = reservations
 				.Where(r => r.Status == ReservationStatus.Reserved)
-				.GroupBy(r => r.VariantId)
-				.ToList();
+				.GroupBy(r => r.VariantId).ToList();
 
 			foreach (var orderDetail in orderDetails)
 			{
-				var variantReservations = reservationsByVariant
-					.FirstOrDefault(g => g.Key == orderDetail.VariantId);
+				var variantReservations = reservationsByVariant.FirstOrDefault(g => g.Key == orderDetail.VariantId);
 
 				var batchInfoList = new List<PickListBatchInfo>();
 
@@ -101,35 +99,34 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		}
 		#endregion
 
+
 		#region Order Fulfillment
 		public async Task<string> FulfillOrderAsync(Guid orderId, Guid staffId, FulfillOrderRequest request)
 		{
-			// Validate order state
-			var order = await ValidateOrderForFulfillmentAsync(orderId);
-			await ValidateScannedBatchCodesAsync(order, request);
-
-			// Validate scanned batch codes
-			var batchValidation = await ValidateScannedBatchCodesAsync(order, request);
-
-			// Commit stock reservation
-			await _stockReservationService.CommitReservationAsync(order.Id);
-
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			  {
-				  // Update order status
-				  var currentOrder = await _unitOfWork.Orders.FirstOrDefaultAsync(
-				  o => o.Id == orderId,
-				  o => o.Include(o => o.ShippingInfo!))
-				  ?? throw AppException.NotFound("Order not found.");
+			   {
+				   // Validate order state
+				   var order = await ValidateOrderForFulfillmentAsync(orderId);
 
-				  currentOrder.Status = OrderStatus.Delivering;
-				  currentOrder.StaffId = staffId;
-				  _unitOfWork.Orders.Update(currentOrder);
+				   // Validate scanned batch codes
+				   var batchValidation = await ValidateScannedBatchCodesAsync(order, request);
+				   if (!batchValidation.Success)
+				   {
+					   throw AppException.BadRequest(batchValidation.Message ?? "Batch validation failed.");
+				   }
 
-				  await ProcessShippingAsync(currentOrder);
+				   // Commit stock reservation
+				   await _stockReservationService.CommitReservationAsync(order.Id);
 
-				  return "Order fulfilled successfully. Stock committed and shipping order created.";
-			  });
+				   // Update order status
+				   order.Status = OrderStatus.Delivering;
+				   order.StaffId = staffId;
+				   _unitOfWork.Orders.Update(order);
+
+				   await ProcessShippingAsync(order);
+
+				   return "Order fulfilled successfully. Stock committed and shipping order created.";
+			   });
 		}
 
 		private async Task<Order> ValidateOrderForFulfillmentAsync(Guid orderId)

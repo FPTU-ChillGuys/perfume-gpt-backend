@@ -172,8 +172,18 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Cannot revert campaign to a previous status.", ResponseErrorType.BadRequest);
 			}
 
+			var campaignItems = await _campaignRepository.GetCampaignItemsAsync(campaignId, asNoTracking: false);
+			var isItemActive = request.Status == CampaignStatus.Active;
+
 			campaign.Status = request.Status;
 			_campaignRepository.Update(campaign);
+
+			foreach (var item in campaignItems)
+			{
+				item.IsActive = isItemActive;
+				_promotionItemRepository.Update(item);
+			}
+
 			await _campaignRepository.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok(campaignId.ToString(), "Campaign status updated successfully.");
