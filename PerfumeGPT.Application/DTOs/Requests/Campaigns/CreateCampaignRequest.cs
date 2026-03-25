@@ -1,4 +1,5 @@
-using PerfumeGPT.Application.DTOs.Requests.Promotions;
+using PerfumeGPT.Application.DTOs.Requests.Campaigns.Promotions;
+using PerfumeGPT.Application.DTOs.Requests.Campaigns.Vouchers;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Campaigns
@@ -11,5 +12,6 @@ namespace PerfumeGPT.Application.DTOs.Requests.Campaigns
 		public DateTime EndDate { get; set; }
 		public CampaignType Type { get; set; }
 		public List<CreateCampaignPromotionItemRequest> Items { get; set; } = [];
+		public List<CreateCampaignVoucherRequest> Vouchers { get; set; } = [];
 	}
 }

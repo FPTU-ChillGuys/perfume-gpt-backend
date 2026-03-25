@@ -30,5 +30,8 @@ namespace PerfumeGPT.Persistence.Repositories
 			=> await _context.Brands
 				.ProjectToType<BrandResponse>()
 				.FirstOrDefaultAsync(b => b.Id == id);
+
+		public async Task<bool> HasProductsAsync(int brandId)
+			=> await _context.Products.AnyAsync(p => p.BrandId == brandId);
 	}
 }

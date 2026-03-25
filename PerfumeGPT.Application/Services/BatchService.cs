@@ -1,5 +1,4 @@
 using FluentValidation;
-using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Batches;
 using PerfumeGPT.Application.DTOs.Requests.Inventory;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -17,27 +16,22 @@ namespace PerfumeGPT.Application.Services
 		private readonly IBatchRepository _batchRepository;
 		private readonly IStockRepository _stockRepository;
 		private readonly IValidator<CreateBatchRequest> _createBatchValidator;
-		private readonly IMapper _mapper;
 
 		public BatchService(
 			IBatchRepository batchRepository,
 			IStockRepository stockRepository,
-			IValidator<CreateBatchRequest> createBatchValidator,
-			IMapper mapper)
+			IValidator<CreateBatchRequest> createBatchValidator)
 		{
 			_batchRepository = batchRepository;
 			_stockRepository = stockRepository;
 			_createBatchValidator = createBatchValidator;
-			_mapper = mapper;
 		}
 		#endregion
 
 		public async Task<List<Batch>> CreateBatchesAsync(Guid variantId, Guid importDetailId, List<CreateBatchRequest> batchRequests)
 		{
 			if (batchRequests == null || batchRequests.Count == 0)
-			{
 				throw AppException.BadRequest("At least one batch is required.");
-			}
 
 			var createdBatches = new List<Batch>();
 
@@ -45,20 +39,16 @@ namespace PerfumeGPT.Application.Services
 			{
 				var validationResult = await _createBatchValidator.ValidateAsync(batchRequest);
 				if (!validationResult.IsValid)
-				{
-					throw AppException.BadRequest(
-						"Batch validation failed",
-						validationResult.Errors.Select(e => e.ErrorMessage).ToList());
-				}
+					throw AppException.BadRequest("Batch validation failed",
+						[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-				var mapped = _mapper.Map<Batch>(batchRequest);
 				var batch = Batch.CreateForImport(
 					variantId,
 					importDetailId,
-					mapped.BatchCode,
-					mapped.ManufactureDate,
-					mapped.ExpiryDate,
-					mapped.ImportQuantity);
+					batchRequest.BatchCode,
+					batchRequest.ManufactureDate,
+					batchRequest.ExpiryDate,
+					batchRequest.Quantity);
 
 				await _batchRepository.AddAsync(batch);
 				createdBatches.Add(batch);

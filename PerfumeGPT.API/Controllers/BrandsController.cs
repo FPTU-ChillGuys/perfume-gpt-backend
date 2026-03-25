@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
-using PerfumeGPT.Application.DTOs.Requests.Brands;
+using PerfumeGPT.Application.DTOs.Requests.Metadatas.Brands;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Brands;
 using PerfumeGPT.Application.Interfaces.Services;

@@ -9,6 +9,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 	{
 		private readonly Client _supabaseClient;
 		private readonly SupabaseSettings _settings;
+		private readonly Task _initializeTask;
 
 		public SupabaseService(IConfiguration configuration)
 		{
@@ -34,19 +35,37 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			};
 
 			_supabaseClient = new Client(_settings.Url, _settings.ApiKey, options);
-			_supabaseClient.InitializeAsync().Wait();
+			_initializeTask = _supabaseClient.InitializeAsync();
 		}
 
 		public async Task<string?> UploadImageAsync(Stream fileStream, string fileName, string bucketName)
 		{
 			try
 			{
+				await EnsureInitializedAsync();
+
+				if (string.IsNullOrWhiteSpace(bucketName))
+				{
+					throw new ArgumentException("Bucket name is required.");
+				}
+
+				if (string.IsNullOrWhiteSpace(fileName))
+				{
+					throw new ArgumentException("File name is required.");
+				}
+
 				if (fileStream == null || fileStream.Length == 0)
 				{
 					throw new ArgumentException("File stream is empty or null.");
 				}
 
-				var uniqueFileName = $"{Guid.NewGuid()}_{fileName}";
+				if (fileStream.CanSeek)
+				{
+					fileStream.Position = 0;
+				}
+
+				var safeFileName = Path.GetFileName(fileName).Trim();
+				var uniqueFileName = $"{Guid.NewGuid():N}_{safeFileName}";
 
 				using var memoryStream = new MemoryStream();
 				await fileStream.CopyToAsync(memoryStream);
@@ -70,6 +89,13 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 		{
 			try
 			{
+				await EnsureInitializedAsync();
+
+				if (string.IsNullOrWhiteSpace(bucketName))
+				{
+					return false;
+				}
+
 				if (string.IsNullOrWhiteSpace(filePath))
 				{
 					return false;
@@ -98,6 +124,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 		{
 			try
 			{
+				if (string.IsNullOrWhiteSpace(filePath) || string.IsNullOrWhiteSpace(bucketName))
+				{
+					return string.Empty;
+				}
+
 				var publicUrl = _supabaseClient.Storage
 					.From(bucketName)
 					.GetPublicUrl(filePath);
@@ -112,43 +143,32 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 		}
 
 		public async Task<string?> UploadVariantImageAsync(Stream fileStream, string fileName)
-		{
-			return await UploadImageAsync(fileStream, fileName, _settings.BucketVariantName);
-		}
+		   => await UploadImageAsync(fileStream, fileName, _settings.BucketVariantName);
 
 		public async Task<string?> UploadProductImageAsync(Stream fileStream, string fileName)
-		{
-			return await UploadImageAsync(fileStream, fileName, _settings.BucketProductName);
-		}
+		   => await UploadImageAsync(fileStream, fileName, _settings.BucketProductName);
 
 		public async Task<string?> UploadPreviewImageAsync(Stream fileStream, string fileName)
-		{
-			return await UploadImageAsync(fileStream, fileName, _settings.BucketPreviewName);
-		}
+		   => await UploadImageAsync(fileStream, fileName, _settings.BucketPreviewName);
 
 		public async Task<string?> UploadAvatarImageAsync(Stream fileStream, string fileName)
-		{
-			return await UploadImageAsync(fileStream, fileName, _settings.BucketAvatarName);
-		}
+		   => await UploadImageAsync(fileStream, fileName, _settings.BucketAvatarName);
 
 		public async Task<bool> DeleteVariantImageAsync(string filePath)
-		{
-			return await DeleteImageAsync(filePath, _settings.BucketVariantName);
-		}
+		   => await DeleteImageAsync(filePath, _settings.BucketVariantName);
 
 		public async Task<bool> DeleteProductImageAsync(string filePath)
-		{
-			return await DeleteImageAsync(filePath, _settings.BucketProductName);
-		}
+		   => await DeleteImageAsync(filePath, _settings.BucketProductName);
 
 		public async Task<bool> DeletePreviewImageAsync(string filePath)
-		{
-			return await DeleteImageAsync(filePath, _settings.BucketPreviewName);
-		}
+		   => await DeleteImageAsync(filePath, _settings.BucketPreviewName);
 
 		public async Task<bool> DeleteAvatarImageAsync(string filePath)
+		   => await DeleteImageAsync(filePath, _settings.BucketAvatarName);
+
+		private async Task EnsureInitializedAsync()
 		{
-			return await DeleteImageAsync(filePath, _settings.BucketAvatarName);
+			await _initializeTask;
 		}
 
 		private static string ExtractFileNameFromUrl(string url)
@@ -162,11 +182,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 				var uri = new Uri(url);
 				var segments = uri.AbsolutePath.Split('/');
-				return segments.Length > 0 ? segments[^1] : string.Empty;
+				return segments.Length > 0 ? Uri.UnescapeDataString(segments[^1]) : string.Empty;
 			}
 			catch
 			{
-				return url;
+				return Path.GetFileName(url);
 			}
 		}
 	}

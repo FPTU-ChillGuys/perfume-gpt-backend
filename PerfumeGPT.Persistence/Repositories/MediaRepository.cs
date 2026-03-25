@@ -10,24 +10,18 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class MediaRepository : GenericRepository<Media>, IMediaRepository
 	{
-		public MediaRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public MediaRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<List<Media>> GetMediaByEntityTypeAsync(EntityType entityType, Guid entityId)
-		{
-			return await _context.Media
+			=> await _context.Media
 				.WhereEntityNotDeleted(entityType, entityId)
 				.OrderBy(m => m.DisplayOrder)
 				.ToListAsync();
-		}
 
 		public async Task<Media?> GetPrimaryMediaAsync(EntityType entityType, Guid entityId)
-		{
-			return await _context.Media
+			=> await _context.Media
 				.WherePrimaryForEntity(entityType, entityId)
 				.FirstOrDefaultAsync();
-		}
 
 		public async Task<int> DeleteAllMediaByEntityAsync(EntityType entityType, Guid entityId)
 		{

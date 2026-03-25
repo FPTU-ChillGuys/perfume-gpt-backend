@@ -24,7 +24,6 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		#region USER ENDPOINTS
-
 		[HttpGet("me")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<List<ReviewResponse>>), StatusCodes.Status200OK)]
@@ -52,23 +51,6 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpPut("{reviewId:guid}")]
-		[Authorize(Roles = "user")]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status403Forbidden)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> UpdateReview(Guid reviewId, [FromBody] UpdateReviewRequest request)
-		{
-			var validation = ValidateRequestBody<UpdateReviewRequest>(request);
-			if (validation != null) return validation;
-
-			var userId = GetCurrentUserId();
-			var response = await _reviewService.UpdateReviewAsync(userId, reviewId, request);
-			return HandleResponse(response);
-		}
-
 		[HttpDelete("{reviewId:guid}")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
@@ -81,7 +63,6 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _reviewService.DeleteReviewAsync(userId, reviewId);
 			return HandleResponse(response);
 		}
-
 		#endregion
 
 		#region PUBLIC ENDPOINTS

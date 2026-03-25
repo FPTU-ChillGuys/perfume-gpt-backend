@@ -1,27 +1,25 @@
 using FluentValidation;
-using MapsterMapper;
+using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Products;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
-using Microsoft.EntityFrameworkCore;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class ProductService : IProductService
 	{
 		#region Dependencies
-
 		private readonly IProductRepository _productRepo;
 		private readonly IMediaService _mediaService;
 		private readonly IValidator<CreateProductRequest> _createValidator;
 		private readonly IValidator<UpdateProductRequest> _updateValidator;
-		private readonly IMapper _mapper;
 		private readonly MediaBulkActionHelper _helper;
 		private readonly IProductAttributeService _productAttributeService;
 
@@ -30,7 +28,6 @@ namespace PerfumeGPT.Application.Services
 			IMediaService mediaService,
 			IValidator<CreateProductRequest> createValidator,
 			IValidator<UpdateProductRequest> updateValidator,
-			IMapper mapper,
 			MediaBulkActionHelper helper,
 			IProductAttributeService productAttributeService)
 		{
@@ -38,62 +35,60 @@ namespace PerfumeGPT.Application.Services
 			_mediaService = mediaService;
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
-			_mapper = mapper;
 			_helper = helper;
 			_productAttributeService = productAttributeService;
 		}
-
 		#endregion Dependencies
 
 		public async Task<BaseResponse<BulkActionResult<string>>> CreateProductAsync(CreateProductRequest request)
 		{
 			var validationResult = await _createValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
-			{
-				return BaseResponse<BulkActionResult<string>>.Fail(
-					"Validation failed",
-					ResponseErrorType.BadRequest,
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]
-				);
-			}
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-			// Validate and apply attributes using ProductAttributeService
 			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes);
 			if (attributeErrors.Count != 0)
-			{
-				return BaseResponse<BulkActionResult<string>>.Fail(
-					"Validation failed",
-					ResponseErrorType.BadRequest,
-					[.. attributeErrors]
-				);
-			}
-			var product = _mapper.Map<Product>(request);
+				throw AppException.BadRequest("Validation failed", attributeErrors);
+
+			var product = Product.Create(
+				request.Name,
+				request.BrandId,
+				request.CategoryId,
+				request.Origin,
+				request.Gender,
+				request.ReleaseYear,
+				request.Description);
+
+			if (request.OlfactoryFamilyIds?.Count > 0)
+				product.ReplaceFamilyMaps(request.OlfactoryFamilyIds);
+
+			if (request.ScentNotes != null)
+				product.ReplaceScentMaps(
+					request.ScentNotes.Select(n => (n.NoteId, n.Type)));
 
 			_productAttributeService.ApplyAttributesToProductEntity(product, request.Attributes);
 
 			await _productRepo.AddAsync(product);
 			var saved = await _productRepo.SaveChangesAsync();
-
-			if (!saved)
-			{
-				return BaseResponse<BulkActionResult<string>>.Fail("Failed to create product", ResponseErrorType.InternalError);
-			}
+			if (!saved) throw AppException.Internal("Failed to create product");
 
 			var metadata = new BulkActionMetadata();
-			// Convert temporary media to permanent media if provided
-			if (request.TemporaryMediaIds != null && request.TemporaryMediaIds.Count != 0)
+			if (request.TemporaryMediaIds?.Count > 0)
 			{
-				var conversionResult = await ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIds, product.Id);
+				var conversionResult = await ConvertTemporaryMediaToPermanentAsync(
+					request.TemporaryMediaIds, product.Id);
 				if (conversionResult.TotalProcessed > 0)
-				{
-					metadata.Operations.Add(BulkOperationResult.FromBulkActionResponse("Media Upload", conversionResult));
-				}
+					metadata.Operations.Add(
+						BulkOperationResult.FromBulkActionResponse("Media Upload", conversionResult));
 			}
 
-			// Generate embeddings after product is fully saved with attributes and media
 			await _productRepo.AddProductEmbeddingsByIdAsync(product.Id);
 
-			var result = new BulkActionResult<string>(product.Id.ToString(), metadata.Operations.Count > 0 ? metadata : null);
+			var result = new BulkActionResult<string>(
+				product.Id.ToString(),
+				metadata.Operations.Count > 0 ? metadata : null);
+
 			var message = metadata.HasPartialFailure
 				? $"Product created successfully with {metadata.TotalFailed} media upload failure(s)."
 				: "Product created successfully";
@@ -105,100 +100,69 @@ namespace PerfumeGPT.Application.Services
 		{
 			var validationResult = await _updateValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
-			{
-				return BaseResponse<BulkActionResult<string>>.Fail(
-					"Validation failed",
-					ResponseErrorType.BadRequest,
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]
-				);
-			}
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
 			var product = await _productRepo.FirstOrDefaultAsync(
 				p => p.Id == productId,
-				include: q => q.Include(x => x.ProductFamilyMaps).Include(x => x.ProductScentMaps)
-			);
-			if (product == null)
-			{
-				return BaseResponse<BulkActionResult<string>>.Fail("Product not found", ResponseErrorType.NotFound);
-			}
+				include: q => q.Include(x => x.ProductFamilyMaps).Include(x => x.ProductScentMaps))
+				?? throw AppException.NotFound("Product not found");
 
-			if (product.IsDeleted)
-			{
-				return BaseResponse<BulkActionResult<string>>.Fail("Cannot update deleted product", ResponseErrorType.BadRequest);
-			}
+			product.EnsureNotDeleted();
 
-			// Prepare metadata for bulk operations
+			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes);
+			if (attributeErrors.Count != 0)
+				throw AppException.BadRequest("Validation failed", attributeErrors);
+
 			var metadata = new BulkActionMetadata();
 
-			// Delete specified images first
-			if (request.MediaIdsToDelete != null && request.MediaIdsToDelete.Count != 0)
+			if (request.MediaIdsToDelete?.Count > 0)
 			{
 				var deleteResult = await DeleteMultipleMediaAsync(request.MediaIdsToDelete);
 				if (deleteResult.TotalProcessed > 0)
-				{
-					metadata.Operations.Add(BulkOperationResult.FromBulkActionResponse("Media Deletion", deleteResult));
-				}
+					metadata.Operations.Add(
+						BulkOperationResult.FromBulkActionResponse("Media Deletion", deleteResult));
 			}
 
-			// Add new images from temporary media
-			if (request.TemporaryMediaIdsToAdd != null && request.TemporaryMediaIdsToAdd.Count != 0)
+			if (request.TemporaryMediaIdsToAdd?.Count > 0)
 			{
-				var conversionResult = await ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIdsToAdd, productId);
+				var conversionResult = await ConvertTemporaryMediaToPermanentAsync(
+					request.TemporaryMediaIdsToAdd, productId);
 				if (conversionResult.TotalProcessed > 0)
-				{
-					metadata.Operations.Add(BulkOperationResult.FromBulkActionResponse("Media Upload", conversionResult));
-				}
+					metadata.Operations.Add(
+						BulkOperationResult.FromBulkActionResponse("Media Upload", conversionResult));
 			}
 
-			// Validate attributes
-			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes);
-			if (attributeErrors.Count != 0)
-			{
-				return BaseResponse<BulkActionResult<string>>.Fail(
-					"Validation failed",
-					ResponseErrorType.BadRequest,
-					[.. attributeErrors]
-				);
-			}
-
-			_mapper.Map(request, product);
+			product.Update(
+				request.Name,
+				request.BrandId,
+				request.CategoryId,
+				request.Origin,
+				request.Gender,
+				request.ReleaseYear,
+				request.Description);
 
 			if (request.OlfactoryFamilyIds != null)
-			{
-				product.ProductFamilyMaps.Clear();
-				foreach (var familyId in request.OlfactoryFamilyIds)
-				{
-					product.ProductFamilyMaps.Add(new ProductFamilyMap { OlfactoryFamilyId = familyId });
-				}
-			}
+				product.ReplaceFamilyMaps(request.OlfactoryFamilyIds);
 
 			if (request.ScentNotes != null)
-			{
-				product.ProductScentMaps.Clear();
-				foreach (var note in request.ScentNotes)
-				{
-					product.ProductScentMaps.Add(new ProductNoteMap { ScentNoteId = note.NoteId, NoteType = note.Type });
-				}
-			}
+				product.ReplaceScentMaps(
+					request.ScentNotes.Select(n => (n.NoteId, n.Type)));
 
-			// Replace attributes using service (this will remove existing and add new ones)
 			if (request.Attributes != null)
-			{
-				await _productAttributeService.ReplaceAttributesAsync(productId, request.Attributes, isVariant: false);
-			}
+				await _productAttributeService.ReplaceAttributesAsync(
+					productId, request.Attributes, isVariant: false);
 
 			_productRepo.Update(product);
 			var saved = await _productRepo.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to update product");
 
-			if (!saved)
-			{
-				return BaseResponse<BulkActionResult<string>>.Fail("Failed to update product", ResponseErrorType.InternalError);
-			}
-
-			// Regenerate embeddings after product data is fully updated
 			await _productRepo.AddProductEmbeddingsByIdAsync(productId);
 
-			var result = new BulkActionResult<string>(productId.ToString(), metadata.Operations.Count > 0 ? metadata : null);
+			var result = new BulkActionResult<string>(
+				productId.ToString(),
+				metadata.Operations.Count > 0 ? metadata : null);
+
 			var message = metadata.HasPartialFailure
 				? $"Product updated successfully with {metadata.TotalFailed} media operation failure(s)."
 				: "Product updated successfully";
@@ -208,38 +172,28 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> DeleteProductAsync(Guid productId)
 		{
-			var product = await _productRepo.GetByIdAsync(productId);
-			if (product == null)
-			{
-				return BaseResponse<string>.Fail("Product not found", ResponseErrorType.NotFound);
-			}
+			var product = await _productRepo.GetByIdAsync(productId)
+				?? throw AppException.NotFound("Product not found");
 
-			if (product.IsDeleted)
-			{
-				return BaseResponse<string>.Fail("Product already deleted", ResponseErrorType.BadRequest);
-			}
+			product.EnsureNotDeleted();
+
+			var hasActiveVariants = await _productRepo.HasActiveVariantsAsync(productId);
+			Product.EnsureCanBeDeleted(hasActiveVariants);
 
 			await _productAttributeService.RemoveAttributesByEntityIdAsync(productId, isVariant: false);
 			await _mediaService.DeleteAllMediaByEntityAsync(EntityType.Product, productId);
+
 			_productRepo.Remove(product);
 			var saved = await _productRepo.SaveChangesAsync();
-
-			if (!saved)
-			{
-				return BaseResponse<string>.Fail("Failed to delete product", ResponseErrorType.InternalError);
-			}
+			if (!saved) throw AppException.Internal("Failed to delete product");
 
 			return BaseResponse<string>.Ok(productId.ToString(), "Product deleted successfully");
 		}
 
 		public async Task<BaseResponse<ProductResponse>> GetProductAsync(Guid productId)
 		{
-			var response = await _productRepo.GetProductResponseAsync(productId);
-
-			if (response == null)
-			{
-				return BaseResponse<ProductResponse>.Fail("Product not found", ResponseErrorType.NotFound);
-			}
+			var response = await _productRepo.GetProductResponseAsync(productId)
+				?? throw AppException.NotFound("Product not found");
 
 			return BaseResponse<ProductResponse>.Ok(response, "Product retrieved successfully");
 		}
@@ -247,15 +201,9 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetProductsAsync(GetPagedProductRequest request)
 		{
 			var (items, totalCount) = await _productRepo.GetPagedProductListItemsAsync(request);
-
-			var pagedResult = new PagedResult<ProductListItem>(
-				items,
-				request.PageNumber,
-				request.PageSize,
-				totalCount
-			);
-
-			return BaseResponse<PagedResult<ProductListItem>>.Ok(pagedResult, "Products retrieved successfully");
+			return BaseResponse<PagedResult<ProductListItem>>.Ok(
+				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
+				"Products retrieved successfully");
 		}
 
 		public async Task<BaseResponse<List<ProductLookupItem>>> GetProductLookupListAsync()
@@ -267,80 +215,71 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetBestSellerProductsAsync(GetPagedProductRequest request)
 		{
 			var (items, totalCount) = await _productRepo.GetBestSellerProductsAsync(request);
-			var pagedResult = new PagedResult<ProductListItem>(
-				items,
-				request.PageNumber,
-				request.PageSize,
-				totalCount);
-			return BaseResponse<PagedResult<ProductListItem>>.Ok(pagedResult, "Best seller products retrieved successfully");
+			return BaseResponse<PagedResult<ProductListItem>>.Ok(
+				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
+				"Best seller products retrieved successfully");
 		}
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetNewArrivalProductsAsync(GetPagedProductRequest request)
 		{
 			var (items, totalCount) = await _productRepo.GetNewArrivalProductsAsync(request);
-			var pagedResult = new PagedResult<ProductListItem>(
-				items,
-				request.PageNumber,
-				request.PageSize,
-				totalCount);
-			return BaseResponse<PagedResult<ProductListItem>>.Ok(pagedResult, "New arrival products retrieved successfully");
+			return BaseResponse<PagedResult<ProductListItem>>.Ok(
+				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
+				"New arrival products retrieved successfully");
+		}
+
+		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetCampaignProductsAsync(Guid campaignId, GetPagedProductRequest request)
+		{
+			var (items, totalCount) = await _productRepo.GetCampaignProductsAsync(campaignId, request);
+			return BaseResponse<PagedResult<ProductListItem>>.Ok(
+				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
+				"Campaign products retrieved successfully");
 		}
 
 		public async Task<BaseResponse<ProductInforResponse>> GetProductInforAsync(Guid productId)
 		{
-			var response = await _productRepo.GetProductInfoAsync(productId);
-			if (response == null)
-			{
-				return BaseResponse<ProductInforResponse>.Fail("Product not found", ResponseErrorType.NotFound);
-			}
-			return BaseResponse<ProductInforResponse>.Ok(response, "Product information retrieved successfully");
+			var response = await _productRepo.GetProductInfoAsync(productId)
+				?? throw AppException.NotFound("Product not found");
+
+			return BaseResponse<ProductInforResponse>.Ok(
+				response, "Product information retrieved successfully");
 		}
 
 		public async Task<BaseResponse<ProductFastLookResponse>> GetProductFastLookAsync(Guid productId)
 		{
-			var response = await _productRepo.GetProductFastLookAsync(productId);
-			if (response == null)
-			{
-				return BaseResponse<ProductFastLookResponse>.Fail("Product not found", ResponseErrorType.NotFound);
-			}
-			return BaseResponse<ProductFastLookResponse>.Ok(response, "Product fast look retrieved successfully");
+			var response = await _productRepo.GetProductFastLookAsync(productId)
+				?? throw AppException.NotFound("Product not found");
+
+			return BaseResponse<ProductFastLookResponse>.Ok(
+				response, "Product fast look retrieved successfully");
 		}
 
 		#region Media Management
-
 		public async Task<BaseResponse<List<MediaResponse>>> GetProductImagesAsync(Guid productId)
 		{
-			var product = await _productRepo.GetByIdAsync(productId);
-			if (product == null)
-			{
-				return BaseResponse<List<MediaResponse>>.Fail("Product not found", ResponseErrorType.NotFound);
-			}
+			var exists = await _productRepo.AnyAsync(p => p.Id == productId);
+			if (!exists) throw AppException.NotFound("Product not found");
 
-			var result = await _mediaService.GetMediaByEntityAsync(EntityType.Product, productId);
-			return result;
+			return await _mediaService.GetMediaByEntityAsync(EntityType.Product, productId);
 		}
-
 		#endregion
 
 		#region Semantic Search
-
-		public async Task<BaseResponse<List<ProductDailySaleFigureResponse>>> GetProductDailySaleFiguresAsync(DateOnly date)
+		public async Task<BaseResponse<List<ProductDailySaleFigureResponse>>> GetProductDailySaleFiguresAsync(
+		DateOnly date)
 		{
 			var response = await _productRepo.GetProductDailySaleFiguresAsync(date);
-			return BaseResponse<List<ProductDailySaleFigureResponse>>.Ok(response, "Product daily sale figures retrieved successfully");
+			return BaseResponse<List<ProductDailySaleFigureResponse>>.Ok(
+				response, "Product daily sale figures retrieved successfully");
 		}
 
-		public async Task<BaseResponse<PagedResult<ProductListItemWithVariants>>> GetSemanticSearchProductAsync(string searchText, GetPagedProductRequest request)
+		public async Task<BaseResponse<PagedResult<ProductListItemWithVariants>>> GetSemanticSearchProductAsync(
+			string searchText, GetPagedProductRequest request)
 		{
 			var (items, totalCount) = await _productRepo.GetPagedProductsWithSemanticSearch(searchText, request);
-
-			var pagedResult = new PagedResult<ProductListItemWithVariants>(
-				items,
-				request.PageNumber,
-				request.PageSize,
-				totalCount);
-
-			return BaseResponse<PagedResult<ProductListItemWithVariants>>.Ok(pagedResult, "Semantic search products retrieved successfully");
+			return BaseResponse<PagedResult<ProductListItemWithVariants>>.Ok(
+				new PagedResult<ProductListItemWithVariants>(items, request.PageNumber, request.PageSize, totalCount),
+				"Semantic search products retrieved successfully");
 		}
 
 		public async Task<BaseResponse> UpdateAllProductsEmbeddingAsync()
@@ -354,26 +293,16 @@ namespace PerfumeGPT.Application.Services
 			await _productRepo.AddProductEmbeddingsByIdAsync(productId);
 			return BaseResponse.Ok("Product embedding updated successfully");
 		}
-
 		#endregion
 
 		#region Private Methods
-
 		private async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(
-			List<Guid> temporaryMediaIds,
-			Guid productId)
-		{
-			return await _helper.ConvertTemporaryMediaToPermanentAsync(
-				temporaryMediaIds,
-				EntityType.Product,
-				productId);
-		}
+				List<Guid> temporaryMediaIds, Guid productId)
+				=> await _helper.ConvertTemporaryMediaToPermanentAsync(
+					temporaryMediaIds, EntityType.Product, productId);
 
 		private async Task<BulkActionResponse> DeleteMultipleMediaAsync(List<Guid> mediaIds)
-		{
-			return await _helper.DeleteMultipleMediaAsync(mediaIds);
-		}
-
+			=> await _helper.DeleteMultipleMediaAsync(mediaIds);
 		#endregion
 	}
 }

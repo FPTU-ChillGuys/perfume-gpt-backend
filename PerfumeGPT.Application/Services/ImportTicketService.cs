@@ -369,6 +369,30 @@ namespace PerfumeGPT.Application.Services
 					{
 						validationErrors.Add($"Total batch quantity does not match accepted quantity ({acceptedQuantity}) for import detail {verifyDetail.ImportDetailId}.");
 					}
+					else
+					{
+						var mergedBatches = MergeBatchesBySameCode(verifyDetail.Batches);
+
+						foreach (var batchRequest in mergedBatches)
+						{
+							var existingBatch = await _unitOfWork.Batches.FirstOrDefaultAsync(
+								b => b.VariantId == importDetail.ProductVariantId
+									&& b.BatchCode == batchRequest.BatchCode,
+								asNoTracking: true);
+
+							if (existingBatch == null)
+							{
+								continue;
+							}
+
+							if (existingBatch.ManufactureDate.Date != batchRequest.ManufactureDate.Date
+								|| existingBatch.ExpiryDate.Date != batchRequest.ExpiryDate.Date)
+							{
+								validationErrors.Add(
+									$"Batch code '{batchRequest.BatchCode}' not match with existed batch same batch code in stock.");
+							}
+						}
+					}
 				}
 
 				if (validationErrors.Count != 0)

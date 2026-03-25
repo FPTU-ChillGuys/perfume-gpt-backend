@@ -9,5 +9,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<List<ConcentrationLookupDto>> GetConcentrationLookupsAsync();
 		Task<List<ConcentrationResponse>> GetAllConcentrationsAsync();
 		Task<ConcentrationResponse?> GetConcentrationByIdAsync(int id);
+		Task<bool> HasVariantsAsync(int concentrationId);
 	}
 }

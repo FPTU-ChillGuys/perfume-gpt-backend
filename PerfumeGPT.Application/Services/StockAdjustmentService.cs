@@ -1,6 +1,4 @@
 using FluentValidation;
-using MapsterMapper;
-using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.StockAdjustments;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.StockAdjustments;
@@ -14,33 +12,25 @@ namespace PerfumeGPT.Application.Services
 	public class StockAdjustmentService : IStockAdjustmentService
 	{
 		#region Dependencies
-
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IStockService _stockService;
 		private readonly IBatchService _batchService;
 		private readonly IValidator<CreateStockAdjustmentRequest> _createValidator;
 		private readonly IValidator<VerifyStockAdjustmentRequest> _verifyValidator;
 		private readonly IValidator<UpdateStockAdjustmentStatusRequest> _updateStatusValidator;
-		private readonly IMapper _mapper;
 
 		public StockAdjustmentService(
 			IUnitOfWork unitOfWork,
-			IStockService stockService,
 			IBatchService batchService,
-			IMapper mapper,
 			IValidator<CreateStockAdjustmentRequest> createValidator,
 			IValidator<VerifyStockAdjustmentRequest> verifyValidator,
 			IValidator<UpdateStockAdjustmentStatusRequest> updateStatusValidator)
 		{
 			_unitOfWork = unitOfWork;
-			_stockService = stockService;
 			_batchService = batchService;
-			_mapper = mapper;
 			_createValidator = createValidator;
 			_verifyValidator = verifyValidator;
 			_updateStatusValidator = updateStatusValidator;
 		}
-
 		#endregion Dependencies
 
 		public async Task<BaseResponse<string>> CreateStockAdjustmentAsync(CreateStockAdjustmentRequest request, Guid userId)

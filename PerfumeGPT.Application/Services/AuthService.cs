@@ -1,6 +1,5 @@
 ﻿using FluentValidation;
 using Google.Apis.Auth;
-using MapsterMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using PerfumeGPT.Application.DTOs.Requests.Auths;
@@ -27,7 +26,6 @@ namespace PerfumeGPT.Application.Services
 		private readonly IValidator<RegisterRequest> _registerValidator;
 		private readonly IUserVoucherRepository _userVoucherRepository;
 		private readonly IValidator<LoginRequest> _loginValidator;
-		private readonly IMapper _mapper;
 
 		public AuthService(IEmailTemplateService templateService,
 			UserManager<User> userManager,
@@ -37,8 +35,7 @@ namespace PerfumeGPT.Application.Services
 			IUserRepository userRepository,
 			IValidator<RegisterRequest> registerValidator,
 			IUserVoucherRepository userVoucherRepository,
-			IValidator<LoginRequest> loginValidator,
-			IMapper mapper)
+			IValidator<LoginRequest> loginValidator)
 		{
 			_templateService = templateService;
 			_userManager = userManager;
@@ -49,7 +46,6 @@ namespace PerfumeGPT.Application.Services
 			_registerValidator = registerValidator;
 			_userVoucherRepository = userVoucherRepository;
 			_loginValidator = loginValidator;
-			_mapper = mapper;
 		}
 		#endregion
 
@@ -100,28 +96,28 @@ namespace PerfumeGPT.Application.Services
 		{
 			var validationResults = await _registerValidator.ValidateAsync(request);
 			if (!validationResults.IsValid)
-				throw AppException.BadRequest("Validation failed", validationResults.Errors.Select(e => e.ErrorMessage).ToList());
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResults.Errors.Select(e => e.ErrorMessage)]);
 
-			var existingUser = await _userManager.FindByEmailAsync(request.Email) ?? await _userRepository.FindByPhoneNumberAsync(request.PhoneNumber);
+			var existingUser = await _userManager.FindByEmailAsync(request.Email)
+				?? await _userRepository.FindByPhoneNumberAsync(request.PhoneNumber);
 			if (existingUser != null)
 				throw AppException.Conflict("Email/PhoneNumber already exists");
 
-			var user = _mapper.Map<User>(request);
+			var user = User.Create(request.FullName, request.Email, request.PhoneNumber);
 
 			var identityResult = await _userManager.CreateAsync(user, request.Password!);
 			if (!identityResult.Succeeded)
 				throw AppException.BadRequest(
-					 "Failed to create user",
-					 [.. identityResult.Errors.Select(e => e.Description)]
-				 );
+					"Failed to create user",
+					[.. identityResult.Errors.Select(e => e.Description)]);
 
 			var roleName = role?.ToString() ?? UserRole.user.ToString();
 			var roleResult = await _userManager.AddToRoleAsync(user, roleName);
 			if (!roleResult.Succeeded)
 				throw AppException.BadRequest(
-					 "Failed to assign role",
-					 [.. roleResult.Errors.Select(e => e.Description)]
-				 );
+					"Failed to assign role",
+					[.. roleResult.Errors.Select(e => e.Description)]);
 
 			var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
 			var verifyUrl = QueryHelpers.AddQueryString(
@@ -130,17 +126,13 @@ namespace PerfumeGPT.Application.Services
 				{
 					{ "email", request.Email! },
 					{ "token", token }
-				}
-			);
+				});
 
 			var emailContent = _templateService.GetRegisterTemplate(
-				request.FullName ?? request.Email,
-				verifyUrl
-			);
+				request.FullName ?? request.Email, verifyUrl);
 
 			await _emailService.SendEmailAsync(request.Email!, "Email Confirmation", emailContent);
-
-			return BaseResponse<string>.Ok(token, "User registered successfully, Please check your email to verify!");
+			return BaseResponse<string>.Ok(token, "User registered successfully. Please check your email to verify!");
 		}
 
 		public async Task<BaseResponse<string>> VerifyEmailAsync(string email, string token)

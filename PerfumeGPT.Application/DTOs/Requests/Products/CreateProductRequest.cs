@@ -6,7 +6,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Products
 {
 	public class CreateProductRequest
 	{
-		public string? Name { get; set; }
+		public string Name { get; set; } = null!;
 		public int BrandId { get; set; }
 		public int CategoryId { get; set; }
 		public Gender Gender { get; set; }

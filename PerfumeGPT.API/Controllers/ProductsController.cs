@@ -209,6 +209,17 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _productService.GetNewArrivalProductsAsync(request);
 			return HandleResponse(response);
 		}
+
+		[HttpGet("campaigns/{campaignId:guid}")]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<ProductListItem>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<ProductListItem>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PagedResult<ProductListItem>>>> GetCampaignProducts(
+			[FromRoute] Guid campaignId,
+			[FromQuery] GetPagedProductRequest request)
+		{
+			var response = await _productService.GetCampaignProductsAsync(campaignId, request);
+			return HandleResponse(response);
+		}
 		#endregion
 	}
 }

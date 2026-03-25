@@ -1,27 +1,83 @@
 using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Enums;
+using PerfumeGPT.Domain.Exceptions;
 
 namespace PerfumeGPT.Domain.Entities
 {
 	public class TemporaryMedia : BaseEntity<Guid>, IHasCreatedAt
 	{
-		public Guid? UploadedByUserId { get; set; }
-		public string Url { get; set; } = null!;
-		public string? AltText { get; set; }
-		public int DisplayOrder { get; set; } = 0;
-		public bool IsPrimary { get; set; } = false; // For Product/Variant images
-		public string? PublicId { get; set; } // For cloud storage (e.g., Supabase)
-		public long? FileSize { get; set; } // In bytes
-		public string? MimeType { get; set; } // e.g., image/jpeg, image/png
-		public EntityType? TargetEntityType { get; set; }
-		public DateTime ExpiresAt { get; set; }
-		public bool IsExpired => DateTime.UtcNow > ExpiresAt;
+		private TemporaryMedia() { }
 
-		// Navigation
-		public virtual User? UploadedByUser { get; set; }
+		public Guid? UploadedByUserId { get; private set; }
+		public string Url { get; private set; } = null!;
+		public string? AltText { get; private set; }
+		public int DisplayOrder { get; private set; } = 0;
+		public bool IsPrimary { get; private set; } = false;
+		public string? PublicId { get; private set; }
+		public long? FileSize { get; private set; }
+		public string? MimeType { get; private set; }
+		public EntityType? TargetEntityType { get; private set; }
+		public DateTime ExpiresAt { get; private set; }
+		public bool IsExpired => DateTime.UtcNow > ExpiresAt;
 
 		// IHasCreatedAt implementation
 		public DateTime CreatedAt { get; set; }
+
+		// Business logic methods
+		public virtual User? UploadedByUser { get; set; }
+
+		public static TemporaryMedia Create(
+			string url,
+			string fileName,
+			long fileSize,
+			Guid? uploadedByUserId,
+			EntityType targetEntityType,
+			int displayOrder,
+			bool isPrimary = false,
+			string? altText = null,
+			string? publicId = null,
+			TimeSpan? expiresIn = null)
+		{
+			if (string.IsNullOrWhiteSpace(url))
+				throw DomainException.BadRequest("Temporary media URL is required.");
+
+			if (string.IsNullOrWhiteSpace(fileName))
+				throw DomainException.BadRequest("Temporary media file name is required.");
+
+			if (fileSize <= 0)
+				throw DomainException.BadRequest("Temporary media file size must be greater than 0.");
+
+			return new TemporaryMedia
+			{
+				Url = url.Trim(),
+				AltText = altText,
+				DisplayOrder = displayOrder,
+				IsPrimary = isPrimary,
+				PublicId = publicId,
+				FileSize = fileSize,
+				MimeType = GetMimeType(fileName),
+				UploadedByUserId = uploadedByUserId,
+				TargetEntityType = targetEntityType,
+				ExpiresAt = DateTime.UtcNow.Add(expiresIn ?? TimeSpan.FromHours(24))
+			};
+		}
+
+		public void EnsureNotExpired()
+		{
+			if (IsExpired)
+				throw DomainException.BadRequest("Temporary media has expired.");
+		}
+
+		private static string? GetMimeType(string fileName) =>
+			Path.GetExtension(fileName).ToLowerInvariant() switch
+			{
+				".jpg" or ".jpeg" => "image/jpeg",
+				".png" => "image/png",
+				".gif" => "image/gif",
+				".webp" => "image/webp",
+				".svg" => "image/svg+xml",
+				_ => null
+			};
 	}
 }

@@ -1,20 +1,23 @@
-﻿using PerfumeGPT.Domain.Commons;
+﻿using Microsoft.Data.SqlTypes;
+using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
-using Microsoft.Data.SqlTypes;
 using PerfumeGPT.Domain.Enums;
+using PerfumeGPT.Domain.Exceptions;
 
 
 namespace PerfumeGPT.Domain.Entities
 {
 	public class Product : BaseEntity<Guid>, IHasTimestamps, ISoftDelete
 	{
-		public string Name { get; set; } = null!;
-		public int BrandId { get; set; }
-		public int CategoryId { get; set; }
-		public string? Description { get; set; }
-		public string Origin { get; set; } = null!;
-		public Gender Gender { get; set; }
-		public int ReleaseYear { get; set; }
+		private Product() { }
+
+		public string Name { get; private set; } = null!;
+		public int BrandId { get; private set; }
+		public int CategoryId { get; private set; }
+		public string? Description { get; private set; }
+		public string Origin { get; private set; } = null!;
+		public Gender Gender { get; private set; }
+		public int ReleaseYear { get; private set; }
 
 		// Navigation
 		public virtual Brand Brand { get; set; } = null!;
@@ -25,15 +28,140 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<ProductNoteMap> ProductScentMaps { get; set; } = [];
 		public virtual ICollection<ProductFamilyMap> ProductFamilyMaps { get; set; } = [];
 
-		// ISoftDelete implementation
+		// ISoftDelete
 		public bool IsDeleted { get; set; }
 		public DateTime? DeletedAt { get; set; }
 
-		// IHasTimestamps implementation
-		public DateTime? UpdatedAt { get; set; }
+		// IHasTimestamps
 		public DateTime CreatedAt { get; set; }
+		public DateTime? UpdatedAt { get; set; }
 
-		//Embedding vector for search functionality
+		// Embedding
 		public SqlVector<float>? Embedding { get; set; }
+
+		// Factory method
+		public static Product Create(
+			string name,
+			int brandId,
+			int categoryId,
+			string origin,
+			Gender gender,
+			int releaseYear,
+			string? description = null)
+		{
+			ValidateCore(name, brandId, categoryId, origin, releaseYear);
+
+			return new Product
+			{
+				Name = name.Trim(),
+				BrandId = brandId,
+				CategoryId = categoryId,
+				Origin = origin.Trim(),
+				Gender = gender,
+				ReleaseYear = releaseYear,
+				Description = description?.Trim()
+			};
+		}
+
+		// Domain methods
+		public void Update(
+			string? name,
+			int? brandId,
+			int? categoryId,
+			string? origin,
+			Gender? gender,
+			int? releaseYear,
+			string? description)
+		{
+			if (name != null)
+			{
+				if (string.IsNullOrWhiteSpace(name))
+					throw DomainException.BadRequest("Product name cannot be empty.");
+				Name = name.Trim();
+			}
+
+			if (brandId.HasValue)
+			{
+				if (brandId.Value <= 0)
+					throw DomainException.BadRequest("Invalid brand.");
+				BrandId = brandId.Value;
+			}
+
+			if (categoryId.HasValue)
+			{
+				if (categoryId.Value <= 0)
+					throw DomainException.BadRequest("Invalid category.");
+				CategoryId = categoryId.Value;
+			}
+
+			if (origin != null)
+			{
+				if (string.IsNullOrWhiteSpace(origin))
+					throw DomainException.BadRequest("Origin cannot be empty.");
+				Origin = origin.Trim();
+			}
+
+			if (gender.HasValue) Gender = gender.Value;
+
+			if (releaseYear.HasValue)
+			{
+				if (releaseYear.Value < 1900 || releaseYear.Value > DateTime.UtcNow.Year + 1)
+					throw DomainException.BadRequest("Invalid release year.");
+				ReleaseYear = releaseYear.Value;
+			}
+
+			if (description != null) Description = description.Trim();
+		}
+
+		public void ReplaceScentMaps(IEnumerable<(int NoteId, NoteType Type)> scentNotes)
+		{
+			ProductScentMaps.Clear();
+			foreach (var (noteId, type) in scentNotes)
+				ProductScentMaps.Add(new ProductNoteMap { ScentNoteId = noteId, NoteType = type });
+		}
+
+		public void ReplaceFamilyMaps(IEnumerable<int> olfactoryFamilyIds)
+		{
+			ProductFamilyMaps.Clear();
+			foreach (var familyId in olfactoryFamilyIds)
+				ProductFamilyMaps.Add(new ProductFamilyMap { OlfactoryFamilyId = familyId });
+		}
+
+		public void UpdateEmbedding(SqlVector<float> embedding)
+		{
+			Embedding = embedding;
+		}
+
+		public void EnsureNotDeleted()
+		{
+			if (IsDeleted)
+				throw DomainException.BadRequest("Cannot update a deleted product.");
+		}
+
+		public static void EnsureCanBeDeleted(bool hasActiveVariants)
+		{
+			if (hasActiveVariants)
+				throw DomainException.BadRequest(
+					"Cannot delete product with active variants. Please delete all variants first.");
+		}
+
+		private static void ValidateCore(
+			string name, int brandId, int categoryId, string origin, int releaseYear)
+		{
+			if (string.IsNullOrWhiteSpace(name))
+				throw DomainException.BadRequest("Product name is required.");
+
+			if (brandId <= 0)
+				throw DomainException.BadRequest("Invalid brand.");
+
+			if (categoryId <= 0)
+				throw DomainException.BadRequest("Invalid category.");
+
+			if (string.IsNullOrWhiteSpace(origin))
+				throw DomainException.BadRequest("Product origin is required.");
+
+			if (releaseYear < 1900 || releaseYear > DateTime.UtcNow.Year + 1)
+				throw DomainException.BadRequest("Invalid release year.");
+		}
 	}
 }

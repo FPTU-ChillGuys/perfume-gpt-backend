@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -16,224 +16,123 @@ namespace PerfumeGPT.Application.Services
 			_unitOfWork = unitOfWork;
 		}
 
-		public async Task<BaseResponse<bool>> ReserveStockForOrderAsync(
-			Guid orderId,
-			List<(Guid VariantId, int Quantity)> items,
-			DateTime expiresAt)
+		public async Task ReserveStockForOrderAsync(Guid orderId, List<(Guid VariantId, int Quantity)> items, DateTime expiresAt)
 		{
-			try
+			foreach (var (variantId, quantity) in items)
 			{
-				foreach (var (variantId, quantity) in items)
+				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
+					?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
+
+				// 1. Reserve quantity in Stock 
+				stock.Reserve(quantity);
+
+				// 2. Find available batches and reserve from them
+				var batches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+				var remainingToReserve = quantity;
+
+				foreach (var batch in batches)
 				{
-					// Get available batches (FIFO: ordered by ExpiryDate)
-					var batches = await _unitOfWork.Batches
-						.GetAvailableBatchesByVariantIdAsync(variantId);
+					if (remainingToReserve <= 0) break;
 
-					if (batches.Count == 0)
-					{
-						return BaseResponse<bool>.Fail(
-							$"No available batches for variant {variantId}.",
-							ResponseErrorType.BadRequest);
-					}
+					var availableInBatch = batch.AvailableInBatch;
+					if (availableInBatch <= 0) continue;
 
-					var remainingToReserve = quantity;
+					var reserveFromBatch = Math.Min(remainingToReserve, availableInBatch);
 
-					foreach (var batch in batches)
-					{
-						if (remainingToReserve <= 0) break;
+					// Create StockReservation record
+					var reservation = new StockReservation(orderId, batch.Id, variantId, reserveFromBatch, expiresAt);
+					await _unitOfWork.StockReservations.AddAsync(reservation);
 
-						var availableInBatch = batch.AvailableInBatch;
+					// Decrease available quantity in batch
+					batch.Reserve(reserveFromBatch);
+					_unitOfWork.Batches.Update(batch);
 
-						if (availableInBatch <= 0) continue;
-
-						var reserveFromBatch = Math.Min(remainingToReserve, availableInBatch);
-
-						var reservation = new StockReservation
-						{
-							OrderId = orderId,
-							BatchId = batch.Id,
-							VariantId = variantId,
-							ReservedQuantity = reserveFromBatch,
-							Status = ReservationStatus.Reserved,
-							ExpiresAt = expiresAt
-						};
-
-						await _unitOfWork.StockReservations.AddAsync(reservation);
-
-						batch.ReservedQuantity += reserveFromBatch;
-						_unitOfWork.Batches.Update(batch);
-
-						remainingToReserve -= reserveFromBatch;
-					}
-
-					if (remainingToReserve > 0)
-					{
-						return BaseResponse<bool>.Fail(
-							$"Insufficient stock for variant {variantId}. Need {quantity}, only {quantity - remainingToReserve} available.",
-							ResponseErrorType.BadRequest);
-					}
-
-					var stock = await _unitOfWork.Stocks
-						.FirstOrDefaultAsync(s => s.VariantId == variantId);
-
-					if (stock != null)
-					{
-						stock.ReservedQuantity += quantity;
-						_unitOfWork.Stocks.Update(stock);
-					}
+					remainingToReserve -= reserveFromBatch;
 				}
 
-				return BaseResponse<bool>.Ok(true, "Stock reserved successfully.");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<bool>.Fail(
-					$"Error reserving stock: {ex.Message}",
-					ResponseErrorType.InternalError);
+				// insufficient stock in batches
+				if (remainingToReserve > 0)
+				{
+					throw AppException.Conflict($"Data inconsistency: Batches do not have enough stock for variant {variantId}. Need {quantity}, missing {remainingToReserve}.");
+				}
+
+				_unitOfWork.Stocks.Update(stock);
 			}
 		}
 
-		public async Task<BaseResponse<bool>> CommitReservationAsync(Guid orderId)
+		public async Task CommitReservationAsync(Guid orderId)
 		{
-			try
+			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(orderId);
+			if (!reservations.Any()) throw AppException.NotFound($"No reservations found for order {orderId}.");
+
+			// Group reservations by VariantId to minimize database calls when updating Stock
+			var reservationsGroupedByVariant = reservations
+				.Where(r => r.Status == ReservationStatus.Reserved)
+				.GroupBy(r => r.VariantId);
+
+			foreach (var group in reservationsGroupedByVariant)
 			{
-				// Get all reservations for this order
-				var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(orderId);
+				var variantId = group.Key;
+				var totalQuantityToCommit = group.Sum(r => r.ReservedQuantity);
 
-				if (!reservations.Any())
+				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
+					?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
+
+				// 1. Release Reservation
+				stock.ReleaseReservation(totalQuantityToCommit);
+
+				// 2. Decrease real quantity in Stock
+				stock.Decrease(totalQuantityToCommit);
+
+				_unitOfWork.Stocks.Update(stock);
+
+				foreach (var reservation in group)
 				{
-					return BaseResponse<bool>.Fail(
-						"No reservations found for this order.",
-						ResponseErrorType.NotFound);
-				}
-
-				// Calculate total reserved quantities per variant BEFORE changing status
-				var variantIds = reservations.Select(r => r.VariantId).Distinct();
-				var reservedByVariant = new Dictionary<Guid, int>();
-
-				foreach (var variantId in variantIds)
-				{
-					var totalReserved = reservations
-						.Where(r => r.VariantId == variantId && r.Status == ReservationStatus.Reserved)
-						.Sum(r => r.ReservedQuantity);
-
-					reservedByVariant[variantId] = totalReserved;
-				}
-
-				// Update batches and reservation statuses
-				foreach (var reservation in reservations)
-				{
-					if (reservation.Status != ReservationStatus.Reserved)
-					{
-						continue; // Skip if already committed or released
-					}
-
-					// Update batch: decrease both reserved and remaining quantities
 					var batch = reservation.Batch;
-					batch.ReservedQuantity -= reservation.ReservedQuantity;
-					batch.RemainingQuantity -= reservation.ReservedQuantity;
+
+					// Do the same for Batch: release reservation and decrease quantity
+					batch.Release(reservation.ReservedQuantity);
+					batch.DecreaseQuantity(reservation.ReservedQuantity);
+
 					_unitOfWork.Batches.Update(batch);
 
-					// Update reservation status
-					reservation.Status = ReservationStatus.Committed;
+					// Update reservation status to Committed
+					reservation.Commit();
 					_unitOfWork.StockReservations.Update(reservation);
 				}
-
-				// Update stock: decrease both reserved and total quantities using pre-calculated totals
-				foreach (var variantId in variantIds)
-				{
-					var totalReserved = reservedByVariant[variantId];
-
-					if (totalReserved <= 0) continue;
-
-					var stock = await _unitOfWork.Stocks
-						.FirstOrDefaultAsync(s => s.VariantId == variantId);
-
-					if (stock != null)
-					{
-						stock.ReservedQuantity -= totalReserved;
-						stock.TotalQuantity -= totalReserved;
-						_unitOfWork.Stocks.Update(stock);
-					}
-				}
-
-				return BaseResponse<bool>.Ok(true, "Reservation committed successfully.");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<bool>.Fail(
-					$"Error committing reservation: {ex.Message}",
-					ResponseErrorType.InternalError);
 			}
 		}
 
-		public async Task<BaseResponse<bool>> ReleaseReservationAsync(Guid orderId)
+		public async Task ReleaseReservationAsync(Guid orderId)
 		{
-			try
+			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(orderId);
+			if (!reservations.Any()) return;
+
+			var reservationsGroupedByVariant = reservations
+				   .Where(r => r.Status == ReservationStatus.Reserved)
+				   .GroupBy(r => r.VariantId);
+
+			foreach (var group in reservationsGroupedByVariant)
 			{
-				// Get all reservations for this order
-				var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(orderId);
+				var variantId = group.Key;
+				var totalQuantityToRelease = group.Sum(r => r.ReservedQuantity);
 
-				if (!reservations.Any())
+				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
+				if (stock != null)
 				{
-					return BaseResponse<bool>.Ok(true, "No reservations to release.");
+					stock.ReleaseReservation(totalQuantityToRelease);
+					_unitOfWork.Stocks.Update(stock);
 				}
 
-				// Calculate total reserved quantities per variant BEFORE changing status
-				var variantIds = reservations.Select(r => r.VariantId).Distinct();
-				var reservedByVariant = new Dictionary<Guid, int>();
-
-				foreach (var variantId in variantIds)
+				foreach (var reservation in group)
 				{
-					var totalReserved = reservations
-						.Where(r => r.VariantId == variantId && r.Status == ReservationStatus.Reserved)
-						.Sum(r => r.ReservedQuantity);
-
-					reservedByVariant[variantId] = totalReserved;
-				}
-
-				// Update batches and reservation statuses
-				foreach (var reservation in reservations)
-				{
-					if (reservation.Status != ReservationStatus.Reserved)
-					{
-						continue; // Skip if already committed or released
-					}
-
-					// Update batch: decrease reserved quantity (restore to available)
 					var batch = reservation.Batch;
-					batch.ReservedQuantity -= reservation.ReservedQuantity;
+					batch.Release(reservation.ReservedQuantity);
 					_unitOfWork.Batches.Update(batch);
 
-					// Update reservation status
-					reservation.Status = ReservationStatus.Released;
+					reservation.Release();
 					_unitOfWork.StockReservations.Update(reservation);
 				}
-
-				// Update stock: decrease reserved quantity using pre-calculated totals
-				foreach (var variantId in variantIds)
-				{
-					var totalReserved = reservedByVariant[variantId];
-
-					if (totalReserved <= 0) continue;
-
-					var stock = await _unitOfWork.Stocks
-						.FirstOrDefaultAsync(s => s.VariantId == variantId);
-
-					if (stock != null)
-					{
-						stock.ReservedQuantity -= totalReserved;
-						_unitOfWork.Stocks.Update(stock);
-					}
-				}
-
-				return BaseResponse<bool>.Ok(true, "Reservation released successfully.");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<bool>.Fail(
-					$"Error releasing reservation: {ex.Message}",
-					ResponseErrorType.InternalError);
 			}
 		}
 
@@ -283,10 +182,10 @@ namespace PerfumeGPT.Application.Services
 
 					// Update batch: decrease reserved quantity
 					var batch = reservation.Batch;
-					batch.ReservedQuantity -= reservation.ReservedQuantity;
+					batch.Release(reservation.ReservedQuantity);
 					_unitOfWork.Batches.Update(batch);
 
-					reservation.Status = ReservationStatus.Released;
+					reservation.Release();
 					_unitOfWork.StockReservations.Update(reservation);
 
 					// Track order for cancellation
@@ -310,7 +209,7 @@ namespace PerfumeGPT.Application.Services
 
 					if (stock != null)
 					{
-						stock.ReservedQuantity -= totalReserved;
+						stock.ReleaseReservation(totalReserved);
 						_unitOfWork.Stocks.Update(stock);
 					}
 				}

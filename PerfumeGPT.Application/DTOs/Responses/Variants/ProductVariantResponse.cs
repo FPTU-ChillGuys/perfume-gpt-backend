@@ -7,9 +7,6 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 	public class ProductVariantResponse
 	{
 		public Guid Id { get; set; }
-		public Guid ProductId { get; set; }
-		public string ProductName { get; set; } = null!;
-		public List<MediaResponse> Media { get; set; } = [];
 		public string Barcode { get; set; } = null!;
 		public string Sku { get; set; } = null!;
 		public int VolumeMl { get; set; }
@@ -22,6 +19,20 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 		public int StockQuantity { get; set; }
 		public int Sillage { get; set; }
 		public int Longevity { get; set; }
+
+		// Product details
+		public Guid ProductId { get; set; }
+		public string ProductName { get; set; } = null!;
+
+		// Media
+		public List<MediaResponse> Media { get; set; } = [];
+
+		// Campaign details 
+		public string? CampaignName { get; set; }
+		public string? VoucherCode { get; set; }
+		public decimal? DiscountedPrice { get; set; }
+
+		// Attributes
 		public List<ProductAttributeResponse>? Attributes { get; set; }
 	}
 }

@@ -201,7 +201,6 @@ namespace PerfumeGPT.Persistence.Contexts
 		{
 			base.OnModelCreating(builder);
 
-
 			// Configure BaseEntity primary keys
 			builder.Model.GetEntityTypes()
 				.Where(t => typeof(BaseEntity<Guid>).IsAssignableFrom(t.ClrType))
@@ -576,7 +575,7 @@ namespace PerfumeGPT.Persistence.Contexts
 
 			builder.Entity<Voucher>()
 				.HasIndex(v => v.Code)
-				.IsUnique();
+				.IsUnique().HasFilter("[IsDeleted] = 0");
 
 			// Voucher -> LoyaltyTransaction (1:M)
 			builder.Entity<Voucher>()

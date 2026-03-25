@@ -29,7 +29,8 @@ namespace PerfumeGPT.API.Controllers
 			try
 			{
 				// Get frontend URL
-				string frontendUrl = _configuration["Front-end:webUrlHttps"] ?? "https://localhost:3000";
+				//string frontendUrl = _configuration["Front-end:webUrlHttps"] ?? "https://localhost:3000";
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
 
 				// Validate required parameters exist
 				if (!Request.Query.ContainsKey("vnp_ResponseCode") ||

@@ -2,8 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Campaigns;
-using PerfumeGPT.Application.DTOs.Requests.Promotions;
-using PerfumeGPT.Application.DTOs.Requests.Vouchers;
+using PerfumeGPT.Application.DTOs.Requests.Campaigns.Promotions;
+using PerfumeGPT.Application.DTOs.Requests.Campaigns.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Campaigns;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
@@ -16,12 +16,10 @@ namespace PerfumeGPT.API.Controllers
 	public class CampaignsController : BaseApiController
 	{
 		private readonly ICampaignService _campaignService;
-		private readonly IVoucherService _voucherService;
 
-		public CampaignsController(ICampaignService campaignService, IVoucherService voucherService)
+		public CampaignsController(ICampaignService campaignService)
 		{
 			_campaignService = campaignService;
-			_voucherService = voucherService;
 		}
 
 		[HttpPost]
@@ -42,9 +40,9 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-      [HttpGet]
+		[HttpGet]
 		[Authorize(Roles = "admin")]
-     [ProducesResponseType(typeof(BaseResponse<PagedResult<CampaignResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<CampaignResponse>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<CampaignResponse>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<PagedResult<CampaignResponse>>>> GetCampaigns([FromQuery] GetPagedCampaignsRequest request)
 		{
@@ -196,7 +194,7 @@ namespace PerfumeGPT.API.Controllers
 				return validation;
 			}
 
-			var response = await _voucherService.CreateCampaignVoucherAsync(id, request);
+			var response = await _campaignService.AddCampaignVoucherAsync(id, request);
 			return HandleResponse(response);
 		}
 
@@ -209,7 +207,7 @@ namespace PerfumeGPT.API.Controllers
 			[FromRoute] Guid id,
 			[FromRoute] Guid voucherId)
 		{
-			var response = await _voucherService.GetCampaignVoucherByIdAsync(id, voucherId);
+			var response = await _campaignService.GetCampaignVoucherByIdAsync(id, voucherId);
 			return HandleResponse(response);
 		}
 
@@ -231,7 +229,7 @@ namespace PerfumeGPT.API.Controllers
 				return validation;
 			}
 
-			var response = await _voucherService.UpdateCampaignVoucherAsync(id, voucherId, request);
+			var response = await _campaignService.UpdateCampaignVoucherAsync(id, voucherId, request);
 			return HandleResponse(response);
 		}
 
@@ -244,7 +242,7 @@ namespace PerfumeGPT.API.Controllers
 			[FromRoute] Guid id,
 			[FromRoute] Guid voucherId)
 		{
-			var response = await _voucherService.DeleteCampaignVoucherAsync(id, voucherId);
+			var response = await _campaignService.DeleteCampaignVoucherAsync(id, voucherId);
 			return HandleResponse(response);
 		}
 	}

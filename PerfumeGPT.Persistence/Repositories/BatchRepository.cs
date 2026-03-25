@@ -126,7 +126,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			=> await ExecuteWithRetryAsync(async () =>
 				{
 					var batch = await _context.Batches.FindAsync(batchId);
-					if (batch == null || !batch.CanIncreaseQuantity(quantity))
+					if (batch == null)
 					{
 						return false;
 					}
@@ -140,7 +140,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			=> await ExecuteWithRetryAsync(async () =>
 				{
 					var batch = await _context.Batches.FindAsync(batchId);
-					if (batch == null || !batch.CanDecreaseQuantity(quantity))
+					if (batch == null)
 					{
 						return false;
 					}

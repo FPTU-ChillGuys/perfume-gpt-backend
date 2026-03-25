@@ -1,5 +1,4 @@
 ﻿using Mapster;
-using PerfumeGPT.Application.DTOs.Requests.Brands;
 using PerfumeGPT.Application.DTOs.Responses.Brands;
 using PerfumeGPT.Domain.Entities;
 
@@ -11,12 +10,6 @@ namespace PerfumeGPT.Application.Mappings
 		{
 			config.NewConfig<Brand, BrandResponse>()
 				.Map(dest => dest.Id, src => src.Id)
-				.Map(dest => dest.Name, src => src.Name);
-
-			config.NewConfig<CreateBrandRequest, Brand>()
-				.Map(dest => dest.Name, src => src.Name);
-
-			config.NewConfig<UpdateBrandRequest, Brand>()
 				.Map(dest => dest.Name, src => src.Name);
 		}
 	}

@@ -5,10 +5,12 @@ using Microsoft.Extensions.AI;
 using Microsoft.SemanticKernel;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Media;
+using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
 using PerfumeGPT.Application.DTOs.Responses.Products;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
 using System.Text;
@@ -17,105 +19,346 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class ProductRepository : GenericRepository<Product>, IProductRepository
 	{
-		private readonly Kernel kernel;
+		private readonly Kernel _kernel;
 
 		public ProductRepository(PerfumeDbContext context, Kernel kernel) : base(context)
 		{
-			this.kernel = kernel;
+			_kernel = kernel;
 		}
 
 		public async Task<Product?> GetProductByIdWithAttributesAsync(Guid productId)
-		{
-			return await _context.Products.Include(p => p.ProductAttributes)
-				.FirstOrDefaultAsync(p => p.Id == productId && !p.IsDeleted);
-		}
+			=> await _context.Products
+				.Include(p => p.ProductAttributes)
+				.FirstOrDefaultAsync(p => p.Id == productId);
+
+		public async Task<bool> HasActiveVariantsAsync(Guid productId)
+			=> await _context.Products
+				.AnyAsync(p => p.Id == productId && p.Variants.Any(v => !v.IsDeleted));
 
 		public async Task<List<ProductLookupItem>> GetProductLookupListAsync()
-		{
-			return await _context.Products
-				.Where(p => !p.IsDeleted)
-				.ProjectToType<ProductLookupItem>()
+			=> await _context.Products
+				.Select(p => new ProductLookupItem
+				{
+					Id = p.Id,
+					Name = p.Name,
+					BrandName = p.Brand.Name,
+					PrimaryImageUrl = p.Media
+						.Where(m => m.IsPrimary && !m.IsDeleted)
+						.Select(m => m.Url)
+						.FirstOrDefault()
+				})
 				.AsNoTracking()
 				.ToListAsync();
-		}
 
-		public async Task<ProductResponse?> GetProductResponseAsync(Guid productId)
+     public async Task<ProductResponse?> GetProductResponseAsync(Guid productId)
 		{
-			return await _context.Products
-				.Where(p => p.Id == productId && !p.IsDeleted)
-				.ProjectToType<ProductResponse>()
+			var now = DateTime.UtcNow;
+
+			var raw = await _context.Products
 				.AsNoTracking()
+				.Where(p => p.Id == productId)
+				.Select(p => new
+				{
+					p.Id,
+					p.Name,
+					p.Gender,
+					p.Origin,
+					p.ReleaseYear,
+					p.BrandId,
+					BrandName = p.Brand.Name,
+					p.CategoryId,
+					CategoryName = p.Category.Name,
+					p.Description,
+					NumberOfVariants = p.Variants.Count(v => !v.IsDeleted),
+					Media = p.Media
+						.Where(m => !m.IsDeleted)
+						.Select(m => new MediaResponse
+						{
+							Id = m.Id,
+							Url = m.Url,
+							AltText = m.AltText,
+							IsPrimary = m.IsPrimary,
+							DisplayOrder = m.DisplayOrder,
+							MimeType = m.MimeType,
+							FileSize = m.FileSize
+						})
+						.ToList(),
+					Attributes = p.ProductAttributes
+						.Select(pa => new ProductAttributeResponse
+						{
+							Id = pa.Id,
+							AttributeId = pa.AttributeId,
+							ValueId = pa.ValueId,
+							Attribute = pa.Attribute.Name,
+							Description = pa.Attribute.Description ?? string.Empty,
+							Value = pa.Value.Value
+						})
+						.ToList(),
+					Variants = p.Variants
+						.Where(v => !v.IsDeleted)
+						.Select(v => new
+						{
+							Variant = new ProductVariantResponse
+							{
+								Id = v.Id,
+								ProductId = v.ProductId,
+								ProductName = p.Name,
+								Barcode = v.Barcode,
+								Sku = v.Sku,
+								VolumeMl = v.VolumeMl,
+								ConcentrationId = v.ConcentrationId,
+								ConcentrationName = v.Concentration.Name,
+								Type = v.Type,
+								BasePrice = v.BasePrice,
+								RetailPrice = v.RetailPrice,
+								Status = v.Status,
+								Sillage = v.Sillage,
+								Longevity = v.Longevity,
+								StockQuantity = v.Stock != null
+									? v.Stock.TotalQuantity - v.Stock.ReservedQuantity
+									: 0,
+								Media = v.Media
+									.Where(m => !m.IsDeleted)
+									.OrderBy(m => m.DisplayOrder)
+									.Select(m => new MediaResponse
+									{
+										Id = m.Id,
+										Url = m.Url,
+										AltText = m.AltText,
+										IsPrimary = m.IsPrimary,
+										DisplayOrder = m.DisplayOrder,
+										MimeType = m.MimeType,
+										FileSize = m.FileSize
+									})
+									.ToList(),
+								Attributes = v.ProductAttributes
+									.Select(pa => new ProductAttributeResponse
+									{
+										Id = pa.Id,
+										AttributeId = pa.AttributeId,
+										ValueId = pa.ValueId,
+										Attribute = pa.Attribute.Name,
+										Description = pa.Attribute.Description ?? string.Empty,
+										Value = pa.Value.Value
+									})
+									.ToList()
+							},
+							ActiveVoucher = v.PromotionItems
+								.Where(pi =>
+									!pi.IsDeleted &&
+									pi.IsActive &&
+									!pi.Campaign.IsDeleted &&
+									pi.Campaign.Status == CampaignStatus.Active &&
+									pi.Campaign.StartDate <= now &&
+									pi.Campaign.EndDate >= now)
+								.OrderByDescending(pi => pi.CreatedAt)
+								.SelectMany(pi => pi.Campaign.Vouchers
+									.Where(voucher =>
+										!voucher.IsDeleted &&
+										voucher.ExpiryDate >= now &&
+										voucher.ApplyType == VoucherType.Product &&
+										(voucher.RemainingQuantity == null || voucher.RemainingQuantity > 0) &&
+										(!voucher.TargetItemType.HasValue || voucher.TargetItemType == pi.ItemType))
+									.Select(voucher => new
+									{
+										CampaignName = pi.Campaign.Name,
+										voucher.Code,
+										voucher.DiscountType,
+										voucher.DiscountValue
+									}))
+								.OrderByDescending(x => x.DiscountValue)
+								.FirstOrDefault()
+						})
+						.ToList(),
+					OlfactoryFamilies = p.ProductFamilyMaps
+						.Select(pfm => new ProductOlfactoryFamilyResponse
+						{
+							OlfactoryFamilyId = pfm.OlfactoryFamilyId,
+							Name = pfm.OlfactoryFamily.Name
+						})
+						.ToList(),
+					ScentNotes = p.ProductScentMaps
+						.Select(psm => new ProductScentNoteResponse
+						{
+							NoteId = psm.ScentNoteId,
+							Name = psm.ScentNote.Name,
+							Type = psm.NoteType
+						})
+						.ToList()
+				})
+				.AsSplitQuery()
 				.FirstOrDefaultAsync();
+
+			if (raw == null)
+				return null;
+
+			var variants = raw.Variants
+				.Select(x =>
+				{
+					var variant = x.Variant;
+
+					if (x.ActiveVoucher != null)
+					{
+						variant.CampaignName = x.ActiveVoucher.CampaignName;
+						variant.VoucherCode = x.ActiveVoucher.Code;
+
+						var discounted = x.ActiveVoucher.DiscountType == DiscountType.Percentage
+							? variant.BasePrice * (1 - x.ActiveVoucher.DiscountValue / 100m)
+							: variant.BasePrice - x.ActiveVoucher.DiscountValue;
+
+						variant.DiscountedPrice = discounted < 0 ? 0 : discounted;
+					}
+
+					return variant;
+				})
+				.ToList();
+
+			return new ProductResponse
+			{
+				Id = raw.Id,
+				Name = raw.Name,
+				Gender = raw.Gender,
+				Origin = raw.Origin,
+				ReleaseYear = raw.ReleaseYear,
+				BrandId = raw.BrandId,
+				BrandName = raw.BrandName,
+				CategoryId = raw.CategoryId,
+				CategoryName = raw.CategoryName,
+				Description = raw.Description,
+				NumberOfVariants = raw.NumberOfVariants,
+				Media = raw.Media,
+				Variants = variants,
+				Attributes = raw.Attributes,
+				OlfactoryFamilies = raw.OlfactoryFamilies,
+				ScentNotes = raw.ScentNotes
+			};
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductListItemsAsync(GetPagedProductRequest request)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductListItemsAsync(
+		GetPagedProductRequest request)
 		{
-			var query = _context.Products
-				.Where(p => !p.IsDeleted);
+			var now = DateTime.UtcNow;
+
+			var query = _context.Products.AsQueryable();
 
 			if (request.Gender.HasValue)
-			{
 				query = query.Where(p => p.Gender == request.Gender.Value);
-			}
 
 			if (request.Volume.HasValue)
-			{
-				query = query.Where(p => p.Variants.Any(v => !v.IsDeleted && v.VolumeMl == request.Volume.Value));
-			}
+				query = query.Where(p =>
+					p.Variants.Any(v => !v.IsDeleted && v.VolumeMl == request.Volume.Value));
 
 			if (request.CategoryId.HasValue)
-			{
 				query = query.Where(p => p.CategoryId == request.CategoryId.Value);
-			}
 
 			if (request.BrandId.HasValue)
-			{
 				query = query.Where(p => p.BrandId == request.BrandId.Value);
-			}
 
 			if (request.FromPrice.HasValue)
-			{
-				query = query.Where(p => p.Variants.Any(v => !v.IsDeleted && v.BasePrice >= request.FromPrice.Value));
-			}
+				query = query.Where(p =>
+					p.Variants.Any(v => !v.IsDeleted && v.BasePrice >= request.FromPrice.Value));
 
 			if (request.ToPrice.HasValue)
-			{
-				query = query.Where(p => p.Variants.Any(v => !v.IsDeleted && v.BasePrice <= request.ToPrice.Value));
-			}
+				query = query.Where(p =>
+					p.Variants.Any(v => !v.IsDeleted && v.BasePrice <= request.ToPrice.Value));
 
-			if (request.IsAvailable.HasValue)
-			{
-				if (request.IsAvailable.Value)
-				{
-					query = query.Where(p => p.Variants.Any(v => !v.IsDeleted && (v.Stock.TotalQuantity - v.Stock.ReservedQuantity) > 0));
-				}
-			}
+			if (request.IsAvailable == true)
+				query = query.Where(p =>
+					p.Variants.Any(v =>
+						!v.IsDeleted &&
+						v.Stock.TotalQuantity - v.Stock.ReservedQuantity > 0));
 
 			var totalCount = await query.CountAsync();
 
-			var items = await query
-				.OrderByDescending(p => p.CreatedAt)
-				.Skip((request.PageNumber - 1) * request.PageSize)
-				.Take(request.PageSize)
-				.ProjectToType<ProductListItem>()
-				.AsSplitQuery()
-				.AsNoTracking()
-				.ToListAsync();
+			var itemsWithTags = await query
+				   .OrderByDescending(p => p.CreatedAt)
+				   .Skip((request.PageNumber - 1) * request.PageSize)
+				   .Take(request.PageSize)
+				   .Select(p => new
+				   {
+					   Item = new ProductListItem
+					   {
+						   Id = p.Id,
+						   Name = p.Name,
+						   BrandId = p.BrandId,
+						   BrandName = p.Brand.Name,
+						   CategoryId = p.CategoryId,
+						   CategoryName = p.Category.Name,
+						   Description = p.Description,
+						   NumberOfVariants = p.Variants.Count(v => !v.IsDeleted),
+						   VariantPrices = p.Variants
+							   .Where(v => !v.IsDeleted)
+							   .Select(v => v.BasePrice)
+							   .ToList(),
+						   PrimaryImage = p.Media
+							   .Where(m => m.IsPrimary && !m.IsDeleted)
+							   .Select(m => new MediaResponse
+							   {
+								   Id = m.Id,
+								   Url = m.Url,
+								   AltText = m.AltText,
+								   IsPrimary = m.IsPrimary,
+								   DisplayOrder = m.DisplayOrder,
+								   MimeType = m.MimeType,
+								   FileSize = m.FileSize
+							   })
+							   .FirstOrDefault()
+					   },
+					   HasSaleTag = p.Variants.Any(v =>
+						   !v.IsDeleted &&
+						   v.PromotionItems.Any(pi =>
+							   !pi.IsDeleted &&
+							   !pi.Campaign.IsDeleted &&
+							   pi.Campaign.Status == CampaignStatus.Active &&
+							   pi.Campaign.StartDate <= now &&
+							   pi.Campaign.EndDate >= now &&
+							   pi.IsActive)),
+					   HasNewTag = p.Variants.Any(v =>
+						   !v.IsDeleted &&
+						   v.PromotionItems.Any(pi =>
+							   !pi.IsDeleted &&
+							   !pi.Campaign.IsDeleted &&
+							   pi.ItemType == PromotionType.NewArrival &&
+							   pi.Campaign.Status == CampaignStatus.Active &&
+							   pi.Campaign.StartDate <= now &&
+							   pi.Campaign.EndDate >= now &&
+							   pi.IsActive))
+				   })
+				   .AsNoTracking()
+				   .ToListAsync();
+
+			var items = itemsWithTags
+				.Select(x =>
+				{
+					if (x.HasSaleTag)
+						x.Item.Tags.Add("sale");
+
+					if (x.HasNewTag)
+						x.Item.Tags.Add("new");
+
+					return x.Item;
+				})
+				.ToList();
 
 			return (items, totalCount);
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetBestSellerProductsAsync(GetPagedProductRequest request)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetBestSellerProductsAsync(
+		GetPagedProductRequest request)
 		{
-			// Best sellers: rank by total order count across all variants in the last 30 days (using Order.CreatedAt)
+			var now = DateTime.UtcNow;
+
 			var limitDate = DateTime.UtcNow.AddDays(-30);
+
 			var query = _context.Products
-				.Where(p => !p.IsDeleted)
+				.Where(p => p.Variants.Any(v =>
+					!v.IsDeleted &&
+					v.Stock.TotalQuantity - v.Stock.ReservedQuantity > 0))
 				.Select(p => new
 				{
 					Product = p,
 					OrderCount = p.Variants
-						.Where(v => !v.IsDeleted && p.Variants.Any(v => !v.IsDeleted && (v.Stock.TotalQuantity - v.Stock.ReservedQuantity) > 0))
+						.Where(v => !v.IsDeleted)
 						.SelectMany(v => v.OrderDetails)
 						.Count(od => od.Order != null && od.Order.CreatedAt >= limitDate)
 				})
@@ -123,71 +366,308 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Select(x => x.Product);
 
 			var totalCount = await query.CountAsync();
-			var items = await query
-				.Skip((request.PageNumber - 1) * request.PageSize)
-				.Take(request.PageSize)
-				.ProjectToType<ProductListItem>()
-				.AsNoTracking()
-				.AsSplitQuery()
-				.ToListAsync();
+
+			var itemsWithTags = await query
+				   .Skip((request.PageNumber - 1) * request.PageSize)
+				   .Take(request.PageSize)
+				   .Select(p => new
+				   {
+					   Item = new ProductListItem
+					   {
+						   Id = p.Id,
+						   Name = p.Name,
+						   BrandId = p.BrandId,
+						   BrandName = p.Brand.Name,
+						   CategoryId = p.CategoryId,
+						   CategoryName = p.Category.Name,
+						   Description = p.Description,
+						   NumberOfVariants = p.Variants.Count(v => !v.IsDeleted),
+						   VariantPrices = p.Variants
+							   .Where(v => !v.IsDeleted)
+							   .Select(v => v.BasePrice)
+							   .ToList(),
+						   PrimaryImage = p.Media
+							   .Where(m => m.IsPrimary && !m.IsDeleted)
+							   .Select(m => new MediaResponse
+							   {
+								   Id = m.Id,
+								   Url = m.Url,
+								   AltText = m.AltText,
+								   IsPrimary = m.IsPrimary,
+								   DisplayOrder = m.DisplayOrder,
+								   MimeType = m.MimeType,
+								   FileSize = m.FileSize
+							   })
+							   .FirstOrDefault()
+					   },
+					   HasSaleTag = p.Variants.Any(v =>
+						   !v.IsDeleted &&
+						   v.PromotionItems.Any(pi =>
+							   !pi.IsDeleted &&
+							   !pi.Campaign.IsDeleted &&
+							   pi.Campaign.Status == CampaignStatus.Active &&
+							   pi.Campaign.StartDate <= now &&
+							   pi.Campaign.EndDate >= now &&
+							   pi.IsActive)),
+					   HasNewTag = p.Variants.Any(v =>
+						   !v.IsDeleted &&
+						   v.PromotionItems.Any(pi =>
+							   !pi.IsDeleted &&
+							   !pi.Campaign.IsDeleted &&
+							   pi.ItemType == PromotionType.NewArrival &&
+							   pi.Campaign.Status == CampaignStatus.Active &&
+							   pi.Campaign.StartDate <= now &&
+							   pi.Campaign.EndDate >= now &&
+							   pi.IsActive))
+				   })
+				   .AsNoTracking()
+				   .ToListAsync();
+
+			var items = itemsWithTags
+				.Select(x =>
+				{
+					if (x.HasSaleTag)
+						x.Item.Tags.Add("sale");
+
+					if (x.HasNewTag)
+						x.Item.Tags.Add("new");
+
+					return x.Item;
+				})
+				.ToList();
+
 			return (items, totalCount);
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetNewArrivalProductsAsync(GetPagedProductRequest request)
+
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetNewArrivalProductsAsync(
+		GetPagedProductRequest request)
 		{
-			// New arrivals by most recent CreatedAt
+			var now = DateTime.UtcNow;
+
 			var query = _context.Products
-				.Where(p => !p.IsDeleted && p.Variants.Any(v => !v.IsDeleted && (v.Stock.TotalQuantity - v.Stock.ReservedQuantity) > 0))
+				.Where(p => p.Variants.Any(v =>
+					!v.IsDeleted &&
+					v.Stock.TotalQuantity - v.Stock.ReservedQuantity > 0))
 				.OrderByDescending(p => p.CreatedAt);
+
 			var totalCount = await query.CountAsync();
-			var items = await query
+
+			var itemsWithTags = await query
+				   .Skip((request.PageNumber - 1) * request.PageSize)
+				   .Take(request.PageSize)
+				   .Select(p => new
+				   {
+					   Item = new ProductListItem
+					   {
+						   Id = p.Id,
+						   Name = p.Name,
+						   BrandId = p.BrandId,
+						   BrandName = p.Brand.Name,
+						   CategoryId = p.CategoryId,
+						   CategoryName = p.Category.Name,
+						   Description = p.Description,
+						   NumberOfVariants = p.Variants.Count(v => !v.IsDeleted),
+						   VariantPrices = p.Variants
+							   .Where(v => !v.IsDeleted)
+							   .Select(v => v.BasePrice)
+							   .ToList(),
+						   PrimaryImage = p.Media
+							   .Where(m => m.IsPrimary && !m.IsDeleted)
+							   .Select(m => new MediaResponse
+							   {
+								   Id = m.Id,
+								   Url = m.Url,
+								   AltText = m.AltText,
+								   IsPrimary = m.IsPrimary,
+								   DisplayOrder = m.DisplayOrder,
+								   MimeType = m.MimeType,
+								   FileSize = m.FileSize
+							   })
+							   .FirstOrDefault()
+					   },
+					   HasSaleTag = p.Variants.Any(v =>
+						   !v.IsDeleted &&
+						   v.PromotionItems.Any(pi =>
+							   !pi.IsDeleted &&
+							   !pi.Campaign.IsDeleted &&
+							   pi.Campaign.Status == CampaignStatus.Active &&
+							   pi.Campaign.StartDate <= now &&
+							   pi.Campaign.EndDate >= now &&
+							   pi.IsActive))
+				   })
+				   .AsNoTracking()
+				   .ToListAsync();
+
+			var items = itemsWithTags
+				.Select(x =>
+				{
+					if (x.HasSaleTag)
+						x.Item.Tags.Add("sale");
+
+					x.Item.Tags.Add("new");
+
+					return x.Item;
+				})
+				.ToList();
+
+			return (items, totalCount);
+		}
+
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetCampaignProductsAsync(
+		Guid campaignId,
+		GetPagedProductRequest request)
+		{
+			var now = DateTime.UtcNow;
+
+			var query = _context.Products
+				.Where(p => p.Variants.Any(v =>
+					!v.IsDeleted &&
+					v.PromotionItems.Any(pi =>
+						!pi.IsDeleted &&
+						pi.IsActive &&
+						pi.CampaignId == campaignId &&
+						!pi.Campaign.IsDeleted &&
+						pi.Campaign.Status == CampaignStatus.Active &&
+						pi.Campaign.StartDate <= now &&
+						pi.Campaign.EndDate >= now)));
+
+			if (request.Gender.HasValue)
+				query = query.Where(p => p.Gender == request.Gender.Value);
+
+			if (request.Volume.HasValue)
+				query = query.Where(p =>
+					p.Variants.Any(v => !v.IsDeleted && v.VolumeMl == request.Volume.Value));
+
+			if (request.CategoryId.HasValue)
+				query = query.Where(p => p.CategoryId == request.CategoryId.Value);
+
+			if (request.BrandId.HasValue)
+				query = query.Where(p => p.BrandId == request.BrandId.Value);
+
+			if (request.FromPrice.HasValue)
+				query = query.Where(p =>
+					p.Variants.Any(v => !v.IsDeleted && v.BasePrice >= request.FromPrice.Value));
+
+			if (request.ToPrice.HasValue)
+				query = query.Where(p =>
+					p.Variants.Any(v => !v.IsDeleted && v.BasePrice <= request.ToPrice.Value));
+
+			if (request.IsAvailable == true)
+				query = query.Where(p =>
+					p.Variants.Any(v =>
+						!v.IsDeleted &&
+						v.Stock.TotalQuantity - v.Stock.ReservedQuantity > 0));
+
+			var totalCount = await query.CountAsync();
+
+			var itemsWithTags = await query
+				.OrderByDescending(p => p.CreatedAt)
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
-				.ProjectToType<ProductListItem>()
+				.Select(p => new
+				{
+					Item = new ProductListItem
+					{
+						Id = p.Id,
+						Name = p.Name,
+						BrandId = p.BrandId,
+						BrandName = p.Brand.Name,
+						CategoryId = p.CategoryId,
+						CategoryName = p.Category.Name,
+						Description = p.Description,
+						NumberOfVariants = p.Variants.Count(v => !v.IsDeleted),
+						VariantPrices = p.Variants
+							.Where(v => !v.IsDeleted)
+							.Select(v => v.BasePrice)
+							.ToList(),
+						PrimaryImage = p.Media
+							.Where(m => m.IsPrimary && !m.IsDeleted)
+							.Select(m => new MediaResponse
+							{
+								Id = m.Id,
+								Url = m.Url,
+								AltText = m.AltText,
+								IsPrimary = m.IsPrimary,
+								DisplayOrder = m.DisplayOrder,
+								MimeType = m.MimeType,
+								FileSize = m.FileSize
+							})
+							.FirstOrDefault()
+					},
+					HasSaleTag = p.Variants.Any(v =>
+						!v.IsDeleted &&
+						v.PromotionItems.Any(pi =>
+							!pi.IsDeleted &&
+							pi.IsActive &&
+							pi.CampaignId == campaignId &&
+							!pi.Campaign.IsDeleted &&
+							pi.Campaign.Status == CampaignStatus.Active &&
+							pi.Campaign.StartDate <= now &&
+							pi.Campaign.EndDate >= now)),
+					HasNewTag = p.Variants.Any(v =>
+						!v.IsDeleted &&
+						v.PromotionItems.Any(pi =>
+							!pi.IsDeleted &&
+							pi.IsActive &&
+							pi.CampaignId == campaignId &&
+							!pi.Campaign.IsDeleted &&
+							pi.ItemType == PromotionType.NewArrival &&
+							pi.Campaign.Status == CampaignStatus.Active &&
+							pi.Campaign.StartDate <= now &&
+							pi.Campaign.EndDate >= now))
+				})
 				.AsNoTracking()
-				.AsSplitQuery()
 				.ToListAsync();
+
+			var items = itemsWithTags
+				.Select(x =>
+				{
+					if (x.HasSaleTag)
+						x.Item.Tags.Add("sale");
+
+					if (x.HasNewTag)
+						x.Item.Tags.Add("new");
+
+					return x.Item;
+				})
+				.ToList();
+
 			return (items, totalCount);
 		}
 
 		public async Task<ProductInforResponse?> GetProductInfoAsync(Guid productId)
-		{
-			return await _context.Products
+			=> await _context.Products
 				.Where(p => p.Id == productId)
 				.ProjectToType<ProductInforResponse>()
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
-		}
 
 		public async Task<ProductFastLookResponse?> GetProductFastLookAsync(Guid productId)
-		{
-			var result = await _context.Products
-				.Where(p => p.Id == productId && !p.IsDeleted)
+			=> await _context.Products
+				.Where(p => p.Id == productId)
 				.Select(p => new ProductFastLookResponse
 				{
 					Id = p.Id,
 					Name = p.Name,
 					Description = p.Description != null
-						? p.Description.Substring(0, Math.Min(p.Description.Length, 100)) + (p.Description.Length > 100 ? "..." : "")
+						? p.Description.Substring(0, Math.Min(p.Description.Length, 100))
+						  + (p.Description.Length > 100 ? "..." : "")
 						: string.Empty,
 					BrandName = p.Brand.Name,
 					Gender = p.Gender,
 
-					// Calculate rating and review count
 					Rating = (int)Math.Round(
 						p.Variants
 							.Where(v => !v.IsDeleted)
 							.SelectMany(v => v.OrderDetails)
 							.Where(od => od.Review != null)
-							.Average(od => (double?)od.Review!.Rating) ?? 0
-					),
-
+							.Select(od => (double?)od.Review!.Rating)
+							.Average() ?? 0),
 					ReviewCount = p.Variants
 						.Where(v => !v.IsDeleted)
 						.SelectMany(v => v.OrderDetails)
 						.Count(od => od.Review != null),
-
-					// Map variants with their own media
 					Variants = p.Variants
 						.Where(v => !v.IsDeleted)
 						.Select(v => new VariantFastLookResponse
@@ -199,7 +679,7 @@ namespace PerfumeGPT.Persistence.Repositories
 							RetailPrice = v.RetailPrice,
 							StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
 							Media = v.Media
-								.Where(m => m.IsPrimary)
+								.Where(m => m.IsPrimary && !m.IsDeleted)
 								.Select(m => new MediaResponse
 								{
 									Id = m.Id,
@@ -212,62 +692,33 @@ namespace PerfumeGPT.Persistence.Repositories
 								})
 								.FirstOrDefault()
 						})
-						.ToList(),
+						.ToList()
 				})
+				.AsSplitQuery()
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
-			return result;
-		}
 
 		#region Vector Search Methods
-
-		public async Task<(List<ProductListItemWithVariants> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request)
+		public async Task<(List<ProductListItemWithVariants> Items, int TotalCount)>
+		GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request)
 		{
-			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+			if (string.IsNullOrEmpty(searchText))
+				return ([], 0);
 
-			if (String.IsNullOrEmpty(searchText))
-			{
-				return (new List<ProductListItemWithVariants>(), 0);
-			}
+			var embeddingGenerator = _kernel
+				.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
 			var searchEmbedding = await embeddingGenerator.GenerateVectorAsync(searchText);
-
 			var sqlVector = new SqlVector<float>(searchEmbedding);
+			const string metricType = "cosine";
 
-			var productQuery = _context.Products
-				.Where(p => !p.IsDeleted);
-
-
-			var threshold = 0.5;
-			var metricType = "cosine";
-			var topSimilarProductsQuery = productQuery
-				.Include(p => p.Brand)
-				.Include(p => p.Category)
-				.Include(p => p.Media)
-				.Include(p => p.ProductAttributes)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.Concentration)
-				//.Where(p => EF.Functions.VectorDistance(metricType, p.Embedding!.Value, sqlVector) <= threshold)
+			var query = _context.Products
 				.OrderBy(p => EF.Functions.VectorDistance(metricType, p.Embedding!.Value, sqlVector))
 				.AsNoTracking();
 
-			// Get distance from the most similar product to use for total count calculation
-			var productDistance = await productQuery
-				.Select(p => new
-				{
-					ProductName = p.Name,
-					Distance = EF.Functions.VectorDistance(metricType, p.Embedding!.Value, sqlVector)
-				})
-				.ToListAsync();
-
-			foreach (var item in productDistance)
-			{
-				Console.WriteLine($"{item.ProductName}: {item.Distance} compare to threshold: {threshold}");
-			}
-
 			var totalCount = await _context.Products.CountAsync();
 
-			var items = await topSimilarProductsQuery
+			var items = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
 				.ProjectToType<ProductListItemWithVariants>()
@@ -278,7 +729,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task AddAllProductEmbeddingsAsync()
 		{
-			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
 			var products = await _context.Products
 				.Include(p => p.Brand)
@@ -314,7 +765,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task AddProductEmbeddingsByIdAsync(Guid productId)
 		{
-			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 			var product = await _context.Products
 				.Include(p => p.Brand)
 				.Include(p => p.Category)
@@ -343,7 +794,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<Product> AddProductEmbeddingsByProductAsync(Product product)
 		{
-			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 			if (product != null)
 			{
 				// Reload with all related data for comprehensive embedding

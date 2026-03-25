@@ -5,8 +5,10 @@ namespace PerfumeGPT.Domain.Entities
 {
 	public class AttributeValue : BaseEntity<int>
 	{
-		public int AttributeId { get; set; }
-		public string Value { get; set; } = string.Empty;
+		private AttributeValue() { }
+
+		public int AttributeId { get; private set; }
+		public string Value { get; private set; } = string.Empty;
 
 		// Navigation properties
 		public virtual Attribute Attribute { get; set; } = null!;
@@ -14,10 +16,32 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<CustomerAttributePreference> CustomerAttributePreferences { get; set; } = [];
 
 		// Business logic methods
+		public static AttributeValue Create(int attributeId, string value)
+		{
+			if (string.IsNullOrWhiteSpace(value))
+				throw DomainException.BadRequest("Attribute value cannot be empty.");
+
+			return new AttributeValue
+			{
+				AttributeId = attributeId,
+				Value = value.Trim()
+			};
+		}
+
+		public void Update(string? value)
+		{
+			if (value == null) return;
+
+			if (string.IsNullOrWhiteSpace(value))
+				throw DomainException.BadRequest("Attribute value cannot be empty.");
+
+			Value = value.Trim();
+		}
+
 		public static void EnsureCanBeDeleted(bool isInUse)
 		{
 			if (isInUse)
-				throw DomainException.BadRequest("Attribute Value is in use and cannot be deleted.");
+				throw DomainException.BadRequest("Attribute value is in use and cannot be deleted.");
 		}
 	}
 }

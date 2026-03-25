@@ -2,8 +2,8 @@
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.ScentNotes;
-using PerfumeGPT.Application.DTOs.Requests.ScentNotes;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.DTOs.Requests.Metadatas.ScentNotes;
 
 namespace PerfumeGPT.API.Controllers
 {

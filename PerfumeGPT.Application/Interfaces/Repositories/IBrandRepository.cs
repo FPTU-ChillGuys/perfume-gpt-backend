@@ -9,5 +9,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<List<BrandLookupItem>> GetBrandLookupAsync();
 		Task<List<BrandResponse>> GetAllBrandsAsync();
 		Task<BrandResponse?> GetBrandByIdAsync(int id);
+		Task<bool> HasProductsAsync(int brandId);
 	}
 }

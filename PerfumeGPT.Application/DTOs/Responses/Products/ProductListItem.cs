@@ -13,6 +13,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Products
 		public string? Description { get; set; }
 		public int NumberOfVariants { get; set; }
 		public List<decimal> VariantPrices { get; set; } = [];
+		public List<string> Tags { get; set; } = [];
 		public MediaResponse? PrimaryImage { get; set; }
 	}
 }

@@ -2,9 +2,9 @@ using Mapster;
 using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Inventory;
 using PerfumeGPT.Application.DTOs.Responses.Inventory;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
-using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
@@ -17,65 +17,45 @@ namespace PerfumeGPT.Persistence.Repositories
 		private const int MaxRetryAttempts = 3;
 		private const int RetryDelayMilliseconds = 100;
 
-		public StockRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public StockRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<bool> IsLowStockAsync(Guid variantId)
-		{
-			var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
-			if (stock == null)
-			{
-				return false;
-			}
-			return stock.TotalQuantity <= stock.LowStockThreshold;
-		}
+			=> await _context.Stocks
+				.Where(s => s.VariantId == variantId)
+				.Select(s => s.TotalQuantity <= s.LowStockThreshold)
+				.FirstOrDefaultAsync();
 
 		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
-		{
-			var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
-			if (stock == null)
-			{
-				return false;
-			}
-			return (stock.TotalQuantity - stock.ReservedQuantity) >= requiredQuantity;
-		}
+			=> await _context.Stocks
+				.Where(s => s.VariantId == variantId)
+				.Select(s => (s.TotalQuantity - s.ReservedQuantity) >= requiredQuantity)
+				.FirstOrDefaultAsync();
 
-		public async Task<bool> UpdateStockAsync(Guid variantId)
+		public async Task UpdateStockAsync(Guid variantId)
 		{
 			var strategy = _context.Database.CreateExecutionStrategy();
 
-			return await strategy.ExecuteAsync(async () =>
+			await strategy.ExecuteAsync(async () =>
 			{
 				for (int attempt = 0; attempt < MaxRetryAttempts; attempt++)
 				{
 					try
 					{
+						// 1. Calculate total quantity from batches
 						var totalQuantity = await _context.Batches
 							.Where(b => b.VariantId == variantId && b.ExpiryDate > DateTime.UtcNow)
 							.SumAsync(b => b.RemainingQuantity);
 
-						var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
-						if (stock == null) return false;
+						// 2. Load Entity
+						var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
+							?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
 
-						stock.TotalQuantity = totalQuantity;
+						// 3. Sync quantity
+						stock.SyncQuantity(totalQuantity);
 
-						if (stock.TotalQuantity <= 0)
-						{
-							stock.TotalQuantity = 0;
-							stock.Status = StockStatus.OutOfStock;
-						}
-						else if (stock.TotalQuantity <= stock.LowStockThreshold)
-						{
-							stock.Status = StockStatus.LowStock;
-						}
-						else
-						{
-							stock.Status = StockStatus.Normal;
-						}
-
+						// 4. Save
 						await _context.SaveChangesAsync();
-						return true;
+						return;
 					}
 					catch (DbUpdateConcurrencyException) when (attempt < MaxRetryAttempts - 1)
 					{
@@ -84,38 +64,28 @@ namespace PerfumeGPT.Persistence.Repositories
 						{
 							entry.State = EntityState.Detached;
 						}
-						continue;
 					}
 				}
 
-				return false;
+				throw AppException.Conflict("A concurrency error occurred while syncing stock. Please try again.");
 			});
 		}
 
 		public async Task<(IEnumerable<StockResponse> Stocks, int TotalCount)> GetPagedInventoryAsync(GetPagedInventoryRequest request)
 		{
-			IQueryable<Stock> query = _context.Stocks
-				.AsNoTracking();
+			IQueryable<Stock> query = _context.Stocks.AsNoTracking();
 
 			if (request.CategoryId.HasValue)
-			{
 				query = query.Where(s => s.ProductVariant.Product.CategoryId == request.CategoryId.Value);
-			}
 
 			if (request.SKU != null)
-			{
 				query = query.Where(s => s.ProductVariant.Sku.Contains(request.SKU));
-			}
 
 			if (request.BatchCode != null)
-			{
 				query = query.Where(s => s.ProductVariant.Batches.Any(b => b.BatchCode.Contains(request.BatchCode)));
-			}
 
 			if (request.StockStatus != null)
-			{
 				query = query.Where(s => s.Status == request.StockStatus);
-			}
 
 			if (request.DaysUntilExpiry.HasValue)
 			{
@@ -131,19 +101,16 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 			else if (request.DaysUntilExpiry.HasValue)
 			{
-				// If sorting is not specified but filtering by expiry is applied, sort by nearest expiry date
 				query = query.OrderBy(s => s.ProductVariant.Batches
 					.Where(b => b.ExpiryDate > DateTime.UtcNow)
 					.Min(b => b.ExpiryDate));
 			}
 			else
 			{
-				// Default sorting by product name and volume
 				query = query.OrderBy(s => s.ProductVariant.Product.Name)
 					.ThenBy(s => s.ProductVariant.VolumeMl);
 			}
 
-			// Get total count before pagination
 			int totalCount = await query.CountAsync();
 
 			var stocks = await query
@@ -158,8 +125,8 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<StockResponse?> GetStockWithDetailsByVariantIdAsync(Guid variantId)
 		{
 			return await _context.Stocks
-				.ProjectToType<StockResponse>()
 				.AsNoTracking()
+				.ProjectToType<StockResponse>()
 				.FirstOrDefaultAsync(s => s.VariantId == variantId);
 		}
 

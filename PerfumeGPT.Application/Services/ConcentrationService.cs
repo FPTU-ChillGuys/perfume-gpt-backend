@@ -1,7 +1,9 @@
-﻿using MapsterMapper;
-using PerfumeGPT.Application.DTOs.Requests.Concentrations;
+﻿using FluentValidation;
+using Mapster;
+using PerfumeGPT.Application.DTOs.Requests.Metadatas.Concentrations;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Concentrations;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -10,14 +12,21 @@ namespace PerfumeGPT.Application.Services
 {
 	public class ConcentrationService : IConcentrationService
 	{
+		#region Dependencies
 		private readonly IConcentrationRepository _concentrationRepository;
-		private readonly IMapper _mapper;
+		private readonly IValidator<CreateConcentrationRequest> _createValidator;
+		private readonly IValidator<UpdateConcentrationRequest> _updateValidator;
 
-		public ConcentrationService(IConcentrationRepository concentrationRepository, IMapper mapper)
+		public ConcentrationService(
+			 IConcentrationRepository concentrationRepository,
+			 IValidator<CreateConcentrationRequest> createValidator,
+			 IValidator<UpdateConcentrationRequest> updateValidator)
 		{
 			_concentrationRepository = concentrationRepository;
-			_mapper = mapper;
+			_createValidator = createValidator;
+			_updateValidator = updateValidator;
 		}
+		#endregion Dependencies
 
 		public async Task<BaseResponse<List<ConcentrationLookupDto>>> GetConcentrationLookup()
 		{
@@ -26,9 +35,9 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ConcentrationResponse>> GetConcentrationByIdAsync(int id)
 		{
-			var result = await _concentrationRepository.GetConcentrationByIdAsync(id);
-			if (result == null)
-				return BaseResponse<ConcentrationResponse>.Fail("Concentration not found", ResponseErrorType.NotFound);
+			var result = await _concentrationRepository.GetConcentrationByIdAsync(id)
+				  ?? throw AppException.NotFound("Concentration not found");
+
 			return BaseResponse<ConcentrationResponse>.Ok(result);
 		}
 
@@ -40,36 +49,61 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ConcentrationResponse>> CreateConcentrationAsync(CreateConcentrationRequest request)
 		{
-			var entity = _mapper.Map<Concentration>(request);
+			var validationResult = await _createValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
+
+			var normalizedName = Concentration.NormalizeName(request.Name).ToUpperInvariant();
+			var exists = await _concentrationRepository.AnyAsync(c => c.Name.ToUpper() == normalizedName);
+			if (exists)
+				throw AppException.Conflict("Concentration name already exists.");
+
+			var entity = Concentration.Create(normalizedName);
 			await _concentrationRepository.AddAsync(entity);
-			await _concentrationRepository.SaveChangesAsync();
-			return BaseResponse<ConcentrationResponse>.Ok(_mapper.Map<ConcentrationResponse>(entity));
+
+			var saved = await _concentrationRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to create concentration");
+
+			return BaseResponse<ConcentrationResponse>.Ok(entity.Adapt<ConcentrationResponse>());
 		}
 
 		public async Task<BaseResponse<ConcentrationResponse>> UpdateConcentrationAsync(int id, UpdateConcentrationRequest request)
 		{
-			var entity = await _concentrationRepository.GetByIdAsync(id);
-			if (entity == null)
-				return BaseResponse<ConcentrationResponse>.Fail("Concentration not found", ResponseErrorType.NotFound);
+			var validationResult = await _updateValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-			_mapper.Map(request, entity);
+			var entity = await _concentrationRepository.GetByIdAsync(id)
+				?? throw AppException.NotFound("Concentration not found");
+
+			var normalizedName = Concentration.NormalizeName(request.Name).ToUpperInvariant();
+			var exists = await _concentrationRepository.AnyAsync(c => c.Id != id && c.Name.ToUpper() == normalizedName);
+			if (exists)
+				throw AppException.Conflict("Concentration name already exists.");
+
+			entity.Rename(normalizedName);
 			_concentrationRepository.Update(entity);
-			await _concentrationRepository.SaveChangesAsync();
 
-			return BaseResponse<ConcentrationResponse>.Ok(_mapper.Map<ConcentrationResponse>(entity));
+			var saved = await _concentrationRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to update concentration");
+
+			return BaseResponse<ConcentrationResponse>.Ok(entity.Adapt<ConcentrationResponse>());
 		}
 
 		public async Task<BaseResponse<bool>> DeleteConcentrationAsync(int id)
 		{
-			var entity = await _concentrationRepository.GetByIdAsync(id);
-			if (entity == null)
-				return BaseResponse<bool>.Fail("Concentration not found", ResponseErrorType.NotFound);
+			var entity = await _concentrationRepository.GetByIdAsync(id)
+				?? throw AppException.NotFound("Concentration not found");
 
-			if (entity.Variants != null && entity.Variants.Any())
-				return BaseResponse<bool>.Fail("Cannot delete concentration with associated product variants", ResponseErrorType.Conflict);
+			var hasVariants = await _concentrationRepository.HasVariantsAsync(id);
+			Concentration.EnsureCanBeDeleted(hasVariants);
 
 			_concentrationRepository.Remove(entity);
-			await _concentrationRepository.SaveChangesAsync();
+
+			var saved = await _concentrationRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to delete concentration");
 
 			return BaseResponse<bool>.Ok(true);
 		}
