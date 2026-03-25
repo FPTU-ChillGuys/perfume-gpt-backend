@@ -8,9 +8,7 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class ShippingInfoRepository : GenericRepository<ShippingInfo>, IShippingInfoRepository
 	{
-		public ShippingInfoRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public ShippingInfoRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<ShippingInfo?> GetByOrderIdAsync(Guid orderId)
 		{

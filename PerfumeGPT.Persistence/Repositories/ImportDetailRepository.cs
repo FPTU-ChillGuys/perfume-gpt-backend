@@ -7,8 +7,6 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class ImportDetailRepository : GenericRepository<ImportDetail>, IImportDetailRepository
 	{
-		public ImportDetailRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public ImportDetailRepository(PerfumeDbContext context) : base(context) { }
 	}
 }

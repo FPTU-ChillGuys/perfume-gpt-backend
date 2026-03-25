@@ -35,27 +35,26 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpPost("upload-excel")]
+		[HttpPost("excel-parser")]
 		[Authorize]
-       [ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<CreateImportTicketRequest>>> CreateImportTicketFromExcel([FromForm] CreateImportTicketFromExcelRequest request)
+		public async Task<ActionResult<BaseResponse<CreateImportTicketRequest>>> UploadImportTicketFromExcel([FromForm] UploadImportTicketFromExcelRequest request)
 		{
-			var validation = ValidateRequestBody<CreateImportTicketFromExcelRequest>(request);
+			var validation = ValidateRequestBody<UploadImportTicketFromExcelRequest>(request);
 			if (validation != null) return validation;
 
-			var userId = GetCurrentUserId();
-			var response = await _importTicketService.CreateImportTicketFromExcelAsync(request, userId);
+			var response = await _importTicketService.UploadImportTicketFromExcelAsync(request);
 			return HandleResponse(response);
 		}
 
-		[HttpGet("download-template")]
+		[HttpGet("excel-template")]
 		[AllowAnonymous]
 		[ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<ExcelTemplateResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<IActionResult> DownloadImportTemplate()
+		public async Task<ActionResult<FileContentResult>> DownloadImportTemplate()
 		{
 			var response = await _importTicketService.GenerateImportTemplateAsync();
 
@@ -64,7 +63,7 @@ namespace PerfumeGPT.API.Controllers
 				return File(response.Payload.FileContent, response.Payload.ContentType, response.Payload.FileName);
 			}
 
-			return HandleResponse(BaseResponse<ExcelTemplateResponse>.Fail(response.Message, response.ErrorType));
+			return HandleResponse(response);
 		}
 
 		[HttpPost("{ticketId:guid}/verify")]

@@ -70,7 +70,7 @@ namespace PerfumeGPT.Application.Services
 			var validationResult = await _updateValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 				throw AppException.BadRequest("Validation failed",
-					validationResult.Errors.Select(e => e.ErrorMessage).ToList());
+					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
 			var address = await _addressRepo.GetByIdAsync(addressId)
 				?? throw AppException.NotFound("Address not found");
@@ -139,7 +139,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<AddressResponse>> GetDefaultAddressAsync(Guid userId)
 		{
-			var address = await _addressRepo.GetDefaultAddress(userId)
+			var address = await _addressRepo.GetDefaultAddressAsync(userId)
 				?? throw AppException.NotFound("Default address not found");
 
 			return BaseResponse<AddressResponse>.Ok(address, "Default address retrieved successfully");

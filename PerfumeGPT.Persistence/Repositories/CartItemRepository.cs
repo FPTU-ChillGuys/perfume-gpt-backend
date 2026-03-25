@@ -10,9 +10,7 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class CartItemRepository : GenericRepository<CartItem>, ICartItemRepository
 	{
-		public CartItemRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public CartItemRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<List<GetCartItemResponse>> GetCartItemsByUserIdAsync(Guid userId, List<Guid>? itemIds = null)
 		{

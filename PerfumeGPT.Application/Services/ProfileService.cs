@@ -3,6 +3,7 @@ using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Profiles;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Profiles;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -15,7 +16,10 @@ namespace PerfumeGPT.Application.Services
 		private readonly IValidator<UpdateProfileRequest> _updateProfileValidator;
 		private readonly IMapper _mapper;
 
-		public ProfileService(IProfileRepository profileRepo, IMapper mapper, IValidator<UpdateProfileRequest> updateProfileValidator)
+		public ProfileService(
+				IProfileRepository profileRepo,
+				IMapper mapper,
+				IValidator<UpdateProfileRequest> updateProfileValidator)
 		{
 			_profileRepo = profileRepo;
 			_mapper = mapper;
@@ -26,17 +30,14 @@ namespace PerfumeGPT.Application.Services
 		{
 			var exists = await _profileRepo.AnyAsync(p => p.UserId == userId);
 			if (exists)
-				return BaseResponse<string>.Fail("Profile already exists for this user", ResponseErrorType.Conflict);
+				throw AppException.Conflict("Profile already exists for this user");
 
-			var profile = new CustomerProfile
-			{
-				UserId = userId
-			};
+			var profile = CustomerProfile.Create(userId);
 
 			await _profileRepo.AddAsync(profile);
 			var saved = await _profileRepo.SaveChangesAsync();
 			if (!saved)
-				return BaseResponse<string>.Fail("Failed to create profile", ResponseErrorType.InternalError);
+				throw AppException.Internal("Failed to create profile");
 
 			return BaseResponse<string>.Ok(profile.Id.ToString(), "Profile created successfully");
 		}
@@ -47,31 +48,67 @@ namespace PerfumeGPT.Application.Services
 			if (!validationResult.IsValid)
 			{
 				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed", ResponseErrorType.BadRequest, errors);
+				throw AppException.BadRequest("Validation failed", errors);
 			}
 
-			var profile = await _profileRepo.FirstOrDefaultAsync(p => p.UserId == userId);
-			if (profile == null)
-				return BaseResponse<string>.Fail("Profile not found", ResponseErrorType.NotFound);
+			var profile = await _profileRepo.GetByUserIdWithPreferencesAsync(userId) ?? throw AppException.NotFound("Profile not found");
 
-			_mapper.Map(request, profile);
+			var noteIds = request.NotePreferenceIds?.Distinct().ToList() ?? [];
+			var familyIds = request.FamilyPreferenceIds?.Distinct().ToList() ?? [];
+			var attributeIds = request.AttributePreferenceIds?.Distinct().ToList() ?? [];
+
+			await ValidatePreferenceIdsAsync(noteIds, familyIds, attributeIds);
+
+			profile.UpdateBasicInfo(request.DateOfBirth, request.MinBudget, request.MaxBudget);
+			profile.UpdatePreferences(noteIds, familyIds, attributeIds);
 
 			_profileRepo.Update(profile);
 			var saved = await _profileRepo.SaveChangesAsync();
 			if (!saved)
-				return BaseResponse<string>.Fail("Failed to update profile", ResponseErrorType.InternalError);
+				throw AppException.Internal("Failed to update profile");
 
 			return BaseResponse<string>.Ok(profile.Id.ToString(), "Profile updated successfully");
 		}
 
 		public async Task<BaseResponse<ProfileResponse>> GetProfileAsync(Guid userId)
 		{
-			var profile = await _profileRepo.FirstOrDefaultAsync(p => p.UserId == userId);
-			if (profile == null)
-				return BaseResponse<ProfileResponse>.Fail("Profile not found", ResponseErrorType.NotFound);
+			var profile = await _profileRepo.FirstOrDefaultAsync(p => p.UserId == userId) ?? throw AppException.NotFound("Profile not found");
 
 			var response = _mapper.Map<ProfileResponse>(profile);
 			return BaseResponse<ProfileResponse>.Ok(response, "Profile retrieved successfully");
+		}
+
+		private async Task ValidatePreferenceIdsAsync(
+			List<int> noteIds,
+			List<int> familyIds,
+			List<int> attributeIds)
+		{
+			if (noteIds.Count > 0)
+			{
+				var missingNoteIds = await _profileRepo.GetMissingNoteIdsAsync(noteIds);
+				if (missingNoteIds.Count > 0)
+				{
+					throw AppException.BadRequest($"Invalid note preference IDs: {string.Join(", ", missingNoteIds)}");
+				}
+			}
+
+			if (familyIds.Count > 0)
+			{
+				var missingFamilyIds = await _profileRepo.GetMissingFamilyIdsAsync(familyIds);
+				if (missingFamilyIds.Count > 0)
+				{
+					throw AppException.BadRequest($"Invalid family preference IDs: {string.Join(", ", missingFamilyIds)}");
+				}
+			}
+
+			if (attributeIds.Count > 0)
+			{
+				var missingAttributeIds = await _profileRepo.GetMissingAttributeValueIdsAsync(attributeIds);
+				if (missingAttributeIds.Count > 0)
+				{
+					throw AppException.BadRequest($"Invalid attribute preference IDs: {string.Join(", ", missingAttributeIds)}");
+				}
+			}
 		}
 	}
 }

@@ -50,7 +50,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsNoTracking()
 				.ToListAsync();
 
-     public async Task<ProductResponse?> GetProductResponseAsync(Guid productId)
+		public async Task<ProductResponse?> GetProductResponseAsync(Guid productId)
 		{
 			var now = DateTime.UtcNow;
 

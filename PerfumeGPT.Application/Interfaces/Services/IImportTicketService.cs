@@ -7,7 +7,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface IImportTicketService
 	{
 		Task<BaseResponse<string>> CreateImportTicketAsync(CreateImportTicketRequest request, Guid userId);
-       Task<BaseResponse<CreateImportTicketRequest>> CreateImportTicketFromExcelAsync(CreateImportTicketFromExcelRequest request, Guid userId);
+		Task<BaseResponse<CreateImportTicketRequest>> UploadImportTicketFromExcelAsync(UploadImportTicketFromExcelRequest request);
 		Task<BaseResponse<ExcelTemplateResponse>> GenerateImportTemplateAsync();
 		Task<BaseResponse<string>> VerifyImportTicketAsync(Guid ticketId, VerifyImportTicketRequest request, Guid verifiedByUserId);
 		Task<BaseResponse<ImportTicketResponse>> GetImportTicketByIdAsync(Guid id);

@@ -2,7 +2,7 @@
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Concentrations;
 using PerfumeGPT.Application.DTOs.Responses.Base;
-using PerfumeGPT.Application.DTOs.Responses.Concentrations;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.Concentrations;
 using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.API.Controllers
@@ -46,6 +46,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> CreateConcentrationAsync([FromBody] CreateConcentrationRequest request)
 		{
+			var validation = ValidateRequestBody<CreateConcentrationRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _concentrationService.CreateConcentrationAsync(request);
 			return HandleResponse(result);
 		}
@@ -55,6 +58,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status404NotFound)]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> UpdateConcentrationAsync(int id, [FromBody] UpdateConcentrationRequest request)
 		{
+			var validation = ValidateRequestBody<UpdateConcentrationRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _concentrationService.UpdateConcentrationAsync(id, request);
 			return HandleResponse(result);
 		}

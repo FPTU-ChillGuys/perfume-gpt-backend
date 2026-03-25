@@ -1,4 +1,4 @@
-using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 
@@ -20,7 +20,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			_variantService = variantService;
 		}
 
-		public async Task<BaseResponse<bool>> ValidateStockAvailabilityAsync(List<(Guid VariantId, int Quantity)> items)
+		public async Task<bool> ValidateStockAvailabilityAsync(List<(Guid VariantId, int Quantity)> items)
 		{
 			foreach (var item in items)
 			{
@@ -30,7 +30,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				{
 					var variantResponse = await _variantService.GetVariantByIdAsync(item.VariantId);
 					var productName = variantResponse.Payload != null ? $"Variant {variantResponse.Payload.Sku}" : "Unknown product";
-					return BaseResponse<bool>.Fail($"Insufficient stock for {productName}.", ResponseErrorType.BadRequest);
+					throw AppException.BadRequest($"Insufficient stock for {productName}.");
 				}
 
 				// Use BatchService to validate batch availability
@@ -39,14 +39,14 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				{
 					var variantResponse = await _variantService.GetVariantByIdAsync(item.VariantId);
 					var productName = variantResponse.Payload != null ? $"Variant {variantResponse.Payload.Sku}" : "Unknown product";
-					return BaseResponse<bool>.Fail($"Insufficient batch quantity for {productName}.", ResponseErrorType.BadRequest);
+					throw AppException.BadRequest($"Insufficient batch quantity for {productName}.");
 				}
 			}
 
-			return BaseResponse<bool>.Ok(true);
+			return true;
 		}
 
-		public async Task<BaseResponse<bool>> DeductInventoryAsync(List<(Guid VariantId, int Quantity)> items)
+		public async Task<bool> DeductInventoryAsync(List<(Guid VariantId, int Quantity)> items)
 		{
 			foreach (var item in items)
 			{
@@ -54,25 +54,11 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				var batchDeducted = await _batchService.DeductBatchesByVariantIdAsync(item.VariantId, item.Quantity);
 				if (!batchDeducted)
 				{
-					return BaseResponse<bool>.Fail($"Failed to deduct batch quantity for variant {item.VariantId}.", ResponseErrorType.InternalError);
+					throw AppException.Internal($"Failed to deduct batch quantity for variant {item.VariantId}.");
 				}
 			}
 
-			return BaseResponse<bool>.Ok(true);
-		}
-
-		public async Task<BaseResponse<bool>> RestoreInventoryAsync(List<(Guid VariantId, int Quantity)> items)
-		{
-			foreach (var item in items)
-			{
-				// Use StockService to increase stock
-             await _stockService.IncreaseStockAsync(item.VariantId, item.Quantity);
-
-				// Note: Batches are not restored as they follow FIFO and have already been consumed
-				// New batches should be created through the normal batch creation process
-			}
-
-			return BaseResponse<bool>.Ok(true);
+			return true;
 		}
 	}
 }

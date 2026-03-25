@@ -1,4 +1,4 @@
-﻿using PerfumeGPT.Application.DTOs.Responses.Concentrations;
+﻿using PerfumeGPT.Application.DTOs.Responses.Metadatas.Concentrations;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Domain.Entities;
 

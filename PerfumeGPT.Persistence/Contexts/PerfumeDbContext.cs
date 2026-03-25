@@ -690,11 +690,11 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey<Review>(r => r.OrderDetailId)
 				.OnDelete(DeleteBehavior.Restrict);
 
-			// Review -> ModeratedByStaff (M:1, nullable)
+			// Review -> StaffFeedbackByStaff (M:1, nullable)
 			builder.Entity<Review>()
-				.HasOne(r => r.ModeratedByStaff)
-				.WithMany(u => u.ModeratedReviews)
-				.HasForeignKey(r => r.ModeratedByStaffId)
+				.HasOne(r => r.StaffFeedbackByStaff)
+				.WithMany(u => u.AnswerReviews)
+				.HasForeignKey(r => r.StaffFeedbackByStaffId)
 				.OnDelete(DeleteBehavior.Restrict);
 
 			// OrderCancelRequest -> Order (M:1)
@@ -827,6 +827,8 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasColumnType("nvarchar(max)");
 			builder.Entity<Review>().Property(r => r.Comment)
 				.HasColumnType("nvarchar(max)");
+			builder.Entity<Review>().Property(r => r.StaffFeedbackComment)
+				   .HasColumnType("nvarchar(max)");
 			builder.Entity<Notification>().Property(n => n.Message)
 				.HasColumnType("nvarchar(max)");
 			builder.Entity<Attribute>().Property(a => a.Description)

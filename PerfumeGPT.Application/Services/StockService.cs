@@ -24,26 +24,6 @@ namespace PerfumeGPT.Application.Services
 		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
 			=> await _stockRepository.HasSufficientStockAsync(variantId, requiredQuantity);
 
-		public async Task IncreaseStockAsync(Guid variantId, int quantity)
-		{
-			var stock = await _stockRepository.FirstOrDefaultAsync(s => s.VariantId == variantId)
-				?? throw AppException.NotFound($"Stock for Variant ID {variantId} not found.");
-
-			stock.Increase(quantity);
-
-			_stockRepository.Update(stock);
-		}
-
-		public async Task DecreaseStockAsync(Guid variantId, int quantity)
-		{
-			var stock = await _stockRepository.FirstOrDefaultAsync(s => s.VariantId == variantId)
-				?? throw AppException.NotFound($"Stock for Variant ID {variantId} not found.");
-
-			stock.Decrease(quantity);
-
-			_stockRepository.Update(stock);
-		}
-
 		public async Task<BaseResponse<PagedResult<StockResponse>>> GetInventoryAsync(GetPagedInventoryRequest request)
 		{
 			var (stockResponses, totalCount) = await _stockRepository.GetPagedInventoryAsync(request);

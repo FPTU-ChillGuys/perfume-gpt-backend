@@ -126,22 +126,40 @@ namespace PerfumeGPT.Application.Services
 
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
-					var campaign = _mapper.Map<Campaign>(request);
-					campaign.Status = DateTime.UtcNow < request.StartDate ? CampaignStatus.Upcoming : CampaignStatus.Active;
-
-					foreach (var item in campaign.Items)
-					{
-						item.Campaign = campaign;
-						item.IsActive = campaign.Status == CampaignStatus.Active;
-					}
+					var campaignStatus = DateTime.UtcNow < request.StartDate ? CampaignStatus.Upcoming : CampaignStatus.Active;
+					var campaign = Campaign.Create(
+						request.Name,
+						request.Description,
+						request.StartDate,
+						request.EndDate,
+						request.Type,
+						campaignStatus);
 
 					await _campaignRepository.AddAsync(campaign);
 
+					foreach (var requestItem in request.Items)
+					{
+						var item = PromotionItem.Create(
+							campaign.Id,
+							requestItem.ProductVariantId,
+							requestItem.BatchId,
+							requestItem.PromotionType,
+							requestItem.MaxUsage,
+							campaign.Status == CampaignStatus.Active);
+						await _promotionItemRepository.AddAsync(item);
+					}
+
 					foreach (var voucherRequest in request.Vouchers)
 					{
-						var voucher = _mapper.Map<Voucher>(voucherRequest);
+						var voucher = Voucher.CreateCampaign(
+							   voucherRequest.Code,
+							   voucherRequest.DiscountValue,
+							   voucherRequest.DiscountType,
+							   voucherRequest.ApplyType,
+							   voucherRequest.TargetItemType,
+							   campaign.Id,
+							   campaign.EndDate);
 						voucher.Campaign = campaign;
-						voucher.ExpiryDate = campaign.EndDate;
 						await _voucherRepository.AddAsync(voucher);
 					}
 
@@ -162,25 +180,15 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Campaign not found.", ResponseErrorType.NotFound);
 			}
 
-			if (request.Status == CampaignStatus.Active && campaign.StartDate > DateTime.UtcNow)
-			{
-				return BaseResponse<string>.Fail("Cannot activate campaign before its start date.", ResponseErrorType.BadRequest);
-			}
-
-			if (request.Status < campaign.Status && (request.Status != CampaignStatus.Active && campaign.Status != CampaignStatus.Paused))
-			{
-				return BaseResponse<string>.Fail("Cannot revert campaign to a previous status.", ResponseErrorType.BadRequest);
-			}
-
 			var campaignItems = await _campaignRepository.GetCampaignItemsAsync(campaignId, asNoTracking: false);
 			var isItemActive = request.Status == CampaignStatus.Active;
 
-			campaign.Status = request.Status;
+			campaign.UpdateStatus(request.Status, DateTime.UtcNow);
 			_campaignRepository.Update(campaign);
 
 			foreach (var item in campaignItems)
 			{
-				item.IsActive = isItemActive;
+				item.SetActive(isItemActive);
 				_promotionItemRepository.Update(item);
 			}
 
@@ -260,7 +268,12 @@ namespace PerfumeGPT.Application.Services
 			{
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
-					_mapper.Map(request, campaign);
+					campaign.UpdateInfo(
+						   request.Name,
+						   request.Description,
+						   request.StartDate,
+						   request.EndDate,
+						   request.Type);
 					_campaignRepository.Update(campaign);
 
 					var existingItems = await _campaignRepository.GetCampaignItemsAsync(campaignId, asNoTracking: false);
@@ -282,27 +295,23 @@ namespace PerfumeGPT.Application.Services
 					{
 						if (requestItem.Id.HasValue && requestItem.Id.Value != Guid.Empty && existingItemById.TryGetValue(requestItem.Id.Value, out var existingItem))
 						{
-							existingItem.ProductVariantId = requestItem.ProductVariantId;
-							existingItem.BatchId = requestItem.BatchId;
-							existingItem.ItemType = requestItem.PromotionType;
-							existingItem.MaxUsage = requestItem.MaxUsage;
-							existingItem.AutoStopWhenBatchEmpty = requestItem.BatchId.HasValue;
-							existingItem.IsActive = campaign.Status == CampaignStatus.Active;
+							existingItem.UpdateConfiguration(
+								 requestItem.ProductVariantId,
+								 requestItem.BatchId,
+								 requestItem.PromotionType,
+								 requestItem.MaxUsage,
+								 campaign.Status == CampaignStatus.Active);
 							_promotionItemRepository.Update(existingItem);
 						}
 						else
 						{
-							var item = new PromotionItem
-							{
-								CampaignId = campaignId,
-								ProductVariantId = requestItem.ProductVariantId,
-								BatchId = requestItem.BatchId,
-								ItemType = requestItem.PromotionType,
-								MaxUsage = requestItem.MaxUsage,
-								CurrentUsage = 0,
-								AutoStopWhenBatchEmpty = requestItem.BatchId.HasValue,
-								IsActive = campaign.Status == CampaignStatus.Active
-							};
+							var item = PromotionItem.Create(
+								campaignId,
+								requestItem.ProductVariantId,
+								requestItem.BatchId,
+								requestItem.PromotionType,
+								requestItem.MaxUsage,
+								campaign.Status == CampaignStatus.Active);
 							await _promotionItemRepository.AddAsync(item);
 						}
 					}
@@ -319,16 +328,26 @@ namespace PerfumeGPT.Application.Services
 					{
 						if (voucherRequest.Id.HasValue && voucherRequest.Id.Value != Guid.Empty && existingVoucherById.TryGetValue(voucherRequest.Id.Value, out var existingVoucher))
 						{
-							_mapper.Map(voucherRequest, existingVoucher);
-							existingVoucher.CampaignId = campaignId;
-							existingVoucher.ExpiryDate = campaign.EndDate;
+							existingVoucher.UpdateCampaign(
+								 voucherRequest.Code,
+								 voucherRequest.DiscountValue,
+								 voucherRequest.DiscountType,
+								 voucherRequest.ApplyType,
+								 voucherRequest.TargetItemType,
+								 campaignId,
+								 campaign.EndDate);
 							_voucherRepository.Update(existingVoucher);
 						}
 						else
 						{
-							var newVoucher = _mapper.Map<Voucher>(voucherRequest);
-							newVoucher.CampaignId = campaignId;
-							newVoucher.ExpiryDate = campaign.EndDate;
+							var newVoucher = Voucher.CreateCampaign(
+								  voucherRequest.Code,
+								  voucherRequest.DiscountValue,
+								  voucherRequest.DiscountType,
+								  voucherRequest.ApplyType,
+								  voucherRequest.TargetItemType,
+								  campaignId,
+								  campaign.EndDate);
 							await _voucherRepository.AddAsync(newVoucher);
 						}
 					}
@@ -350,10 +369,7 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Campaign not found.", ResponseErrorType.NotFound);
 			}
 
-			if (campaign.Status == CampaignStatus.Active)
-			{
-				return BaseResponse<string>.Fail("Cannot delete an active campaign. Please pause the campaign before deleting.", ResponseErrorType.BadRequest);
-			}
+			campaign.EnsureDeletable();
 
 			_campaignRepository.Remove(campaign);
 			await _campaignRepository.SaveChangesAsync();
@@ -379,16 +395,19 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Campaign not found.", ResponseErrorType.NotFound);
 			}
 
-			var itemValidation = await ValidateCampaignItemAsync(request, campaign.StartDate, campaign.EndDate);
+			var itemValidation = await ValidateCampaignItemAsync(request);
 			if (itemValidation != null)
 			{
 				return itemValidation;
 			}
 
-			var item = _mapper.Map<PromotionItem>(request);
-			item.CampaignId = campaignId;
-			item.AutoStopWhenBatchEmpty = request.BatchId.HasValue;
-			item.IsActive = campaign.Status == CampaignStatus.Active;
+			var item = PromotionItem.Create(
+				   campaignId,
+				   request.ProductVariantId,
+				   request.BatchId,
+				   request.PromotionType,
+				   request.MaxUsage,
+				   campaign.Status == CampaignStatus.Active);
 
 			await _promotionItemRepository.AddAsync(item);
 			await _promotionItemRepository.SaveChangesAsync();
@@ -422,14 +441,18 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Campaign item not found.", ResponseErrorType.NotFound);
 			}
 
-			var itemValidation = await ValidateCampaignItemAsync(request, campaign.StartDate, campaign.EndDate);
+			var itemValidation = await ValidateCampaignItemAsync(request);
 			if (itemValidation != null)
 			{
 				return itemValidation;
 			}
 
-			_mapper.Map(request, item);
-			item.IsActive = campaign.Status == CampaignStatus.Active;
+			item.UpdateConfiguration(
+				   request.ProductVariantId,
+				   request.BatchId,
+				   request.PromotionType,
+				   request.MaxUsage,
+				   campaign.Status == CampaignStatus.Active);
 
 			_promotionItemRepository.Update(item);
 			await _promotionItemRepository.SaveChangesAsync();
@@ -487,9 +510,14 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Fail("Voucher code already exists", ResponseErrorType.Conflict);
 			}
 
-			var voucher = _mapper.Map<Voucher>(request);
-			voucher.CampaignId = campaignId;
-			voucher.ExpiryDate = campaign.EndDate;
+			var voucher = Voucher.CreateCampaign(
+				request.Code,
+				request.DiscountValue,
+				request.DiscountType,
+				request.ApplyType,
+				request.TargetItemType,
+				campaignId,
+				campaign.EndDate);
 
 			await _voucherRepository.AddAsync(voucher);
 			await _voucherRepository.SaveChangesAsync();
@@ -551,9 +579,14 @@ namespace PerfumeGPT.Application.Services
 				}
 			}
 
-			_mapper.Map(request, voucher);
-			voucher.CampaignId = campaignId;
-			voucher.ExpiryDate = campaign.EndDate;
+			voucher.UpdateCampaign(
+				  request.Code,
+				  request.DiscountValue,
+				  request.DiscountType,
+				  request.ApplyType,
+				  request.TargetItemType,
+				  campaignId,
+				  campaign.EndDate);
 			_voucherRepository.Update(voucher);
 			await _voucherRepository.SaveChangesAsync();
 
@@ -595,7 +628,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			foreach (var item in items)
 			{
-				var itemValidation = await ValidateCampaignItemAsync(item, campaignStartDate, campaignEndDate);
+				var itemValidation = await ValidateCampaignItemAsync(item);
 				if (itemValidation != null)
 				{
 					return itemValidation;
@@ -612,7 +645,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			foreach (var item in items)
 			{
-				var itemValidation = await ValidateCampaignItemAsync(item, campaignStartDate, campaignEndDate);
+				var itemValidation = await ValidateCampaignItemAsync(item);
 				if (itemValidation != null)
 				{
 					return itemValidation;
@@ -622,10 +655,7 @@ namespace PerfumeGPT.Application.Services
 			return null;
 		}
 
-		private async Task<BaseResponse<string>?> ValidateCampaignItemAsync(
-			CreateCampaignPromotionItemRequest item,
-			DateTime campaignStartDate,
-			DateTime campaignEndDate)
+		private async Task<BaseResponse<string>?> ValidateCampaignItemAsync(CreateCampaignPromotionItemRequest item)
 		{
 			var variant = await _variantRepository.GetByIdAsync(item.ProductVariantId);
 			if (variant == null)
@@ -650,10 +680,7 @@ namespace PerfumeGPT.Application.Services
 			return null;
 		}
 
-		private async Task<BaseResponse<string>?> ValidateCampaignItemAsync(
-			UpdateCampaignPromotionItemRequest item,
-			DateTime campaignStartDate,
-			DateTime campaignEndDate)
+		private async Task<BaseResponse<string>?> ValidateCampaignItemAsync(UpdateCampaignPromotionItemRequest item)
 		{
 			var variant = await _variantRepository.GetByIdAsync(item.ProductVariantId);
 			if (variant == null)

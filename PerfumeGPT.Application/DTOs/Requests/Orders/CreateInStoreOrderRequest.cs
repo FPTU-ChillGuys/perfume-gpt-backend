@@ -1,4 +1,4 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.OrderDetails;
+﻿using PerfumeGPT.Application.DTOs.Requests.Orders.OrderDetails;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Orders
 {

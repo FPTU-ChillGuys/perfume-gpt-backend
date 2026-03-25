@@ -1,12 +1,8 @@
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
-using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 
 namespace PerfumeGPT.Infrastructure.BackgroundJobs
 {
-	/// <summary>
-	/// Background job to cleanup expired temporary media
-	/// </summary>
 	public class TemporaryMediaCleanupJob
 	{
 		private readonly IUnitOfWork _unitOfWork;
@@ -18,9 +14,6 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 			_supabaseService = supabaseService;
 		}
 
-		/// <summary>
-		/// Cleanup expired temporary media - called by Hangfire scheduler
-		/// </summary>
 		public async Task CleanupExpiredMediaAsync()
 		{
 			try

@@ -169,6 +169,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> CancelOrder([FromRoute] Guid orderId, [FromBody] UserCancelOrderRequest request)
 		{
+			var validation = ValidateRequestBody<UserCancelOrderRequest>(request);
+			if (validation != null) return validation;
+
 			var userId = GetCurrentUserId();
 			var response = await _orderService.CancelOrderAsync(orderId, userId, request);
 			return HandleResponse(response);
@@ -183,7 +186,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateOrderAddress([FromRoute] Guid orderId, [FromBody] UpdateOrderAddressRequest request)
 		{
-			var validation = ValidateRequestBody<RecipientInformation>(request);
+			var validation = ValidateRequestBody<UpdateOrderAddressRequest>(request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();

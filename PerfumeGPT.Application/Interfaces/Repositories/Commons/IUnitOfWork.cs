@@ -11,7 +11,6 @@
 		IImportDetailRepository ImportDetails { get; }
 		ISupplierRepository Suppliers { get; }
 		IBatchRepository Batches { get; }
-		IAddressRepository Addresses { get; }
 		IRecipientInfoRepository RecipientInfos { get; }
 		IShippingInfoRepository ShippingInfos { get; }
 		IReceiptRepository Receipts { get; }
@@ -20,7 +19,6 @@
 		IStockAdjustmentRepository StockAdjustments { get; }
 		IStockAdjustmentDetailRepository StockAdjustmentDetails { get; }
 		IStockReservationRepository StockReservations { get; }
-		IReviewRepository Reviews { get; }
 		ITemporaryMediaRepository TemporaryMedia { get; }
 		IMediaRepository Media { get; }
 		ILoyaltyTransactionRepository LoyaltyTransactions { get; }

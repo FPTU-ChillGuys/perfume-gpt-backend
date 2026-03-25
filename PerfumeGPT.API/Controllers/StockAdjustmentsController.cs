@@ -19,9 +19,6 @@ namespace PerfumeGPT.API.Controllers
 			_stockAdjustmentService = stockAdjustmentService;
 		}
 
-		/// <summary>
-		/// Create a new stock adjustment
-		/// </summary>
 		[HttpPost]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
@@ -38,9 +35,6 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Verify stock adjustment and apply stock changes
-		/// </summary>
 		[HttpPost("{adjustmentId:guid}/verify")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
@@ -57,9 +51,6 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Get stock adjustment by ID
-		/// </summary>
 		[HttpGet("{id:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<StockAdjustmentResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<StockAdjustmentResponse>), StatusCodes.Status404NotFound)]
@@ -70,9 +61,6 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Get paged list of stock adjustments
-		/// </summary>
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<StockAdjustmentListItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<StockAdjustmentListItem>>), StatusCodes.Status500InternalServerError)]
@@ -82,9 +70,6 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Update stock adjustment status
-		/// </summary>
 		[HttpPut("{id:guid}/status")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
@@ -100,9 +85,6 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		/// <summary>
-		/// Delete a stock adjustment
-		/// </summary>
 		[HttpDelete("{id:guid}")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]

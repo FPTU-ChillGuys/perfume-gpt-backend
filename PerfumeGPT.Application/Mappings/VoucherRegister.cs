@@ -1,6 +1,4 @@
 ﻿using Mapster;
-using PerfumeGPT.Application.DTOs.Requests.Campaigns.Vouchers;
-using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Domain.Entities;
 
@@ -10,47 +8,6 @@ namespace PerfumeGPT.Application.Mappings
 	{
 		public void Register(TypeAdapterConfig config)
 		{
-			config.NewConfig<CreateVoucherRequest, Voucher>()
-				.Map(dest => dest.Code, src => src.Code.ToUpper())
-				.Map(dest => dest.DiscountValue, src => src.DiscountValue)
-				.Map(dest => dest.DiscountType, src => src.DiscountType)
-				.Map(dest => dest.ApplyType, src => src.ApplyType)
-				.Map(dest => dest.RequiredPoints, src => src.RequiredPoints)
-				.Map(dest => dest.MinOrderValue, src => src.MinOrderValue)
-				.Map(dest => dest.ExpiryDate, src => src.ExpiryDate)
-				.Map(dest => dest.TotalQuantity, src => src.TotalQuantity)
-				.Map(dest => dest.RemainingQuantity, src => src.TotalQuantity)
-				.Map(dest => dest.IsPublic, src => src.IsPublic);
-
-			config.NewConfig<CreateCampaignVoucherRequest, Voucher>()
-				.Map(dest => dest.Code, src => src.Code.ToUpper())
-				.Map(dest => dest.DiscountValue, src => src.DiscountValue)
-				.Map(dest => dest.DiscountType, src => src.DiscountType)
-				.Map(dest => dest.ApplyType, src => src.ApplyType)
-				.Map(dest => dest.TargetItemType, src => src.TargetItemType)
-				.Map(dest => dest.IsPublic, src => true);
-
-			config.NewConfig<UpdateVoucherRequest, Voucher>()
-				.Map(dest => dest.Code, src => src.Code.ToUpper())
-				.Map(dest => dest.DiscountValue, src => src.DiscountValue)
-				.Map(dest => dest.DiscountType, src => src.DiscountType)
-				.Map(dest => dest.ApplyType, src => src.ApplyType)
-				.Map(dest => dest.RequiredPoints, src => src.RequiredPoints)
-				.Map(dest => dest.MinOrderValue, src => src.MinOrderValue)
-				.Map(dest => dest.ExpiryDate, src => src.ExpiryDate)
-				.Map(dest => dest.TotalQuantity, src => src.TotalQuantity)
-				.Map(dest => dest.RemainingQuantity, src => src.RemainingQuantity)
-				.Map(dest => dest.IsPublic, src => src.IsPublic);
-
-			config.NewConfig<UpdateCampaignVoucherRequest, Voucher>()
-				.Map(dest => dest.Id, src => src.Id)
-				.Map(dest => dest.Code, src => src.Code.ToUpper())
-				.Map(dest => dest.DiscountValue, src => src.DiscountValue)
-				.Map(dest => dest.DiscountType, src => src.DiscountType)
-				.Map(dest => dest.ApplyType, src => src.ApplyType)
-				.Map(dest => dest.TargetItemType, src => src.TargetItemType)
-				.Map(dest => dest.IsPublic, src => true);
-
 			config.NewConfig<Voucher, VoucherResponse>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.Code, src => src.Code)
@@ -90,7 +47,8 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.MinOrderValue, src => src.MinOrderValue)
 				.Map(dest => dest.ExpiryDate, src => src.ExpiryDate)
 				.Map(dest => dest.IsExpired, src => src.ExpiryDate < DateTime.UtcNow)
-				.Map(dest => dest.RemainingQuantity, src => src.RemainingQuantity);
+				.Map(dest => dest.RemainingQuantity, src => src.RemainingQuantity)
+				.Map(dest => dest.CreatedAt, src => src.CreatedAt);
 		}
 	}
 }

@@ -1,5 +1,4 @@
 using Mapster;
-using PerfumeGPT.Application.DTOs.Requests.Reviews;
 using PerfumeGPT.Application.DTOs.Responses.Reviews;
 using PerfumeGPT.Domain.Entities;
 
@@ -9,7 +8,6 @@ namespace PerfumeGPT.Application.Mappings
 	{
 		public void Register(TypeAdapterConfig config)
 		{
-			// get by userid, variantid
 			config.NewConfig<Review, ReviewResponse>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.UserId, src => src.UserId)
@@ -23,11 +21,12 @@ namespace PerfumeGPT.Application.Mappings
 					src.OrderDetail.ProductVariant.Concentration.Name)
 				.Map(dest => dest.Rating, src => src.Rating)
 				.Map(dest => dest.Comment, src => src.Comment)
+				.Map(dest => dest.StaffFeedbackComment, src => src.StaffFeedbackComment)
+				.Map(dest => dest.StaffFeedbackAt, src => src.StaffFeedbackAt)
 				.Map(dest => dest.Images, src => src.ReviewImages.Where(ri => !ri.IsDeleted))
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt)
 				.Map(dest => dest.UpdatedAt, src => src.UpdatedAt);
 
-			// get by id
 			config.NewConfig<Review, ReviewDetailResponse>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.UserId, src => src.UserId)
@@ -48,14 +47,12 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Rating, src => src.Rating)
 				.Map(dest => dest.Comment, src => src.Comment)
 				.Map(dest => dest.Images, src => src.ReviewImages.Where(ri => !ri.IsDeleted))
-				.Map(dest => dest.ModeratedByStaffId, src => src.ModeratedByStaffId)
-				.Map(dest => dest.ModeratedByStaffName, src => src.ModeratedByStaff != null ? src.ModeratedByStaff.FullName : null)
-				.Map(dest => dest.ModeratedAt, src => src.ModeratedAt)
-				.Map(dest => dest.ModerationReason, src => src.ModerationReason)
+				.Map(dest => dest.StaffFeedbackComment, src => src.StaffFeedbackComment)
+				.Map(dest => dest.StaffFeedbackByStaffId, src => src.StaffFeedbackByStaffId)
+				.Map(dest => dest.StaffFeedbackAt, src => src.StaffFeedbackAt)
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt)
 				.Map(dest => dest.UpdatedAt, src => src.UpdatedAt);
 
-			// get paged, pending
 			config.NewConfig<Review, ReviewListItem>()
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.UserId, src => src.UserId)
@@ -67,16 +64,13 @@ namespace PerfumeGPT.Application.Mappings
 					src.OrderDetail.ProductVariant.VolumeMl + "ml " +
 					src.OrderDetail.ProductVariant.Concentration.Name)
 				.Map(dest => dest.Rating, src => src.Rating)
-				.Map(dest => dest.CommentPreview, src =>
-					src.Comment.Length > 100 ? $"{src.Comment.Substring(0, 100)}..." : src.Comment)
+				.Map(dest => dest.CommentPreview, src => src.Comment != null
+					? src.Comment.Length > 100
+						? $"{src.Comment.Substring(0, 100)}..."
+						: src.Comment
+					: string.Empty)
 				.Map(dest => dest.ImageCount, src => src.ReviewImages.Count(ri => !ri.IsDeleted))
-				.Map(dest => dest.CreatedAt, src => src.CreatedAt)
-				.Map(dest => dest.ModeratedAt, src => src.ModeratedAt);
-
-			config.NewConfig<CreateReviewRequest, Review>()
-				.Map(dest => dest.OrderDetailId, src => src.OrderDetailId)
-				.Map(dest => dest.Rating, src => src.Rating)
-				.Map(dest => dest.Comment, src => src.Comment);
+				.Map(dest => dest.CreatedAt, src => src.CreatedAt);
 		}
 	}
 }

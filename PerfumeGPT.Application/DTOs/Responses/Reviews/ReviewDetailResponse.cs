@@ -29,11 +29,10 @@ namespace PerfumeGPT.Application.DTOs.Responses.Reviews
 		public string Comment { get; set; } = string.Empty;
 		public List<MediaResponse> Images { get; set; } = [];
 
-		// Moderation information
-		public Guid? ModeratedByStaffId { get; set; }
-		public string? ModeratedByStaffName { get; set; }
-		public DateTime? ModeratedAt { get; set; }
-		public string? ModerationReason { get; set; }
+		// Staff feedback information
+		public string? StaffFeedbackComment { get; set; }
+		public Guid? StaffFeedbackByStaffId { get; set; }
+		public DateTime? StaffFeedbackAt { get; set; }
 
 		// Timestamps
 		public DateTime CreatedAt { get; set; }

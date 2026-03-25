@@ -1,7 +1,7 @@
 ﻿using FluentValidation;
-using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -13,26 +13,20 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IVariantService _variantService;
 		private readonly IStockService _stockService;
 		private readonly IValidator<CreateCartItemRequest> _createCartItemValidator;
 		private readonly IValidator<UpdateCartItemRequest> _updateCartItemValidator;
-		private readonly IMapper _mapper;
 
 		public CartItemService(
 			IUnitOfWork unitOfWork,
-			IVariantService variantService,
 			IStockService stockService,
 			IValidator<CreateCartItemRequest> createCartItemValidator,
-			IValidator<UpdateCartItemRequest> updateCartItemValidator,
-			IMapper mapper)
+			IValidator<UpdateCartItemRequest> updateCartItemValidator)
 		{
 			_unitOfWork = unitOfWork;
-			_variantService = variantService;
 			_stockService = stockService;
 			_createCartItemValidator = createCartItemValidator;
 			_updateCartItemValidator = updateCartItemValidator;
-			_mapper = mapper;
 		}
 
 		#endregion
@@ -43,110 +37,66 @@ namespace PerfumeGPT.Application.Services
 			if (!validationResult.IsValid)
 			{
 				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed", ResponseErrorType.BadRequest, errors);
+				throw AppException.BadRequest("Validation failed", errors);
 			}
 
-			try
+			var variant = await _unitOfWork.Variants.GetByIdAsync(request.VariantId) ?? throw AppException.NotFound("Product variant not found");
+
+			variant.EnsureAvailableForCart();
+
+			var existing = await _unitOfWork.CartItems.FirstOrDefaultAsync(
+				ci => ci.UserId == userId && ci.VariantId == request.VariantId);
+
+			var totalQuantity = existing != null ? existing.Quantity + request.Quantity : request.Quantity;
+
+			var hasStock = await _stockService.HasSufficientStockAsync(request.VariantId, totalQuantity);
+			if (!hasStock)
 			{
-				var variant = await _unitOfWork.Variants.GetByIdAsync(request.VariantId);
-				if (variant == null)
-				{
-					return BaseResponse<string>.Fail("Product variant not found", ResponseErrorType.NotFound);
-				}
-
-				var (IsValid, ErrorMessage) = _variantService.ValidateVariantForCart(variant);
-				if (!IsValid)
-				{
-					return BaseResponse<string>.Fail(ErrorMessage!, ResponseErrorType.BadRequest);
-				}
-
-				var existing = await _unitOfWork.CartItems.FirstOrDefaultAsync(
-					ci => ci.UserId == userId && ci.VariantId == request.VariantId);
-
-				var totalQuantity = existing != null ? existing.Quantity + request.Quantity : request.Quantity;
-
-				var hasStock = await _stockService.HasSufficientStockAsync(request.VariantId, totalQuantity);
-				if (!hasStock)
-				{
-					return BaseResponse<string>.Fail(
-						"Insufficient stock for the requested quantity",
-						ResponseErrorType.BadRequest);
-				}
-
-				if (existing != null)
-				{
-					existing.Quantity = totalQuantity;
-					_unitOfWork.CartItems.Update(existing);
-					var updated = await _unitOfWork.SaveChangesAsync();
-
-					if (!updated)
-					{
-						return BaseResponse<string>.Fail(
-							"Could not update cart item",
-							ResponseErrorType.InternalError);
-					}
-
-					return BaseResponse<string>.Ok(existing.Id.ToString(), "Cart item quantity updated successfully");
-				}
-
-				var cartItem = _mapper.Map<CartItem>(request);
-				cartItem.UserId = userId;
-
-				await _unitOfWork.CartItems.AddAsync(cartItem);
-				var saved = await _unitOfWork.SaveChangesAsync();
-
-				if (!saved)
-				{
-					return BaseResponse<string>.Fail(
-						"Could not add item to cart",
-						ResponseErrorType.InternalError);
-				}
-
-				return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Item added to cart successfully");
+				throw AppException.BadRequest("Insufficient stock for the requested quantity");
 			}
-			catch (Exception ex)
+
+			if (existing != null)
 			{
-				return BaseResponse<string>.Fail(
-					$"Error adding item to cart: {ex.Message}",
-					ResponseErrorType.InternalError);
+				existing.SetQuantity(totalQuantity);
+				_unitOfWork.CartItems.Update(existing);
+				var updated = await _unitOfWork.SaveChangesAsync();
+
+				if (!updated)
+				{
+					throw AppException.Internal("Could not update cart item");
+				}
+
+				return BaseResponse<string>.Ok(existing.Id.ToString(), "Cart item quantity updated successfully");
 			}
+
+			var cartItem = CartItem.Create(userId, request.VariantId, request.Quantity);
+
+			await _unitOfWork.CartItems.AddAsync(cartItem);
+			var saved = await _unitOfWork.SaveChangesAsync();
+
+			if (!saved)
+			{
+				throw AppException.Internal("Could not add item to cart");
+			}
+
+			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Item added to cart successfully");
 		}
 
 		public async Task<BaseResponse<string>> RemoveFromCartAsync(Guid userId, Guid cartItemId)
 		{
-			try
+			var cartItem = await _unitOfWork.CartItems.GetByIdAsync(cartItemId) ?? throw AppException.NotFound("Cart item not found");
+			if (!cartItem.IsOwnedBy(userId))
+				throw AppException.Forbidden("Cart item does not belong to user");
+
+			_unitOfWork.CartItems.Remove(cartItem);
+			var saved = await _unitOfWork.SaveChangesAsync();
+
+			if (!saved)
 			{
-				var cartItem = await _unitOfWork.CartItems.GetByIdAsync(cartItemId);
-				if (cartItem == null)
-				{
-					return BaseResponse<string>.Fail("Cart item not found", ResponseErrorType.NotFound);
-				}
-
-				if (cartItem.UserId != userId)
-				{
-					return BaseResponse<string>.Fail(
-						"Cart item does not belong to user",
-						ResponseErrorType.Forbidden);
-				}
-
-				_unitOfWork.CartItems.Remove(cartItem);
-				var saved = await _unitOfWork.SaveChangesAsync();
-
-				if (!saved)
-				{
-					return BaseResponse<string>.Fail(
-						"Could not remove item from cart",
-						ResponseErrorType.InternalError);
-				}
-
-				return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Item removed from cart successfully");
+				throw AppException.Internal("Could not remove item from cart");
 			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail(
-					$"Error removing item from cart: {ex.Message}",
-					ResponseErrorType.InternalError);
-			}
+
+			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Item removed from cart successfully");
 		}
 
 		public async Task<BaseResponse<string>> UpdateCartItemAsync(Guid userId, Guid cartItemId, UpdateCartItemRequest request)
@@ -155,61 +105,39 @@ namespace PerfumeGPT.Application.Services
 			if (!validationResult.IsValid)
 			{
 				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed", ResponseErrorType.BadRequest, errors);
+				throw AppException.BadRequest("Validation failed", errors);
 			}
 
-			try
+			var cartItem = await _unitOfWork.CartItems.FirstOrDefaultAsync(
+					ci => ci.Id == cartItemId && ci.UserId == userId) ?? throw AppException.NotFound("Cart item not found");
+
+			if (request.Quantity == 0)
 			{
-				var cartItem = await _unitOfWork.CartItems.FirstOrDefaultAsync(
-					ci => ci.Id == cartItemId && ci.UserId == userId);
+				_unitOfWork.CartItems.Remove(cartItem);
+				var removed = await _unitOfWork.SaveChangesAsync();
 
-				if (cartItem == null)
-				{
-					return BaseResponse<string>.Fail("Cart item not found", ResponseErrorType.NotFound);
-				}
+				if (!removed)
+					throw AppException.Internal("Could not remove cart item");
 
-				if (request.Quantity == 0)
-				{
-					_unitOfWork.CartItems.Remove(cartItem);
-					var removed = await _unitOfWork.SaveChangesAsync();
-
-					if (!removed)
-					{
-						return BaseResponse<string>.Fail(
-							"Could not remove cart item",
-							ResponseErrorType.InternalError);
-					}
-
-					return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Item removed from cart successfully");
-				}
-
-				var hasStock = await _stockService.HasSufficientStockAsync(cartItem.VariantId, request.Quantity);
-				if (!hasStock)
-				{
-					return BaseResponse<string>.Fail(
-						"Insufficient stock for the requested quantity",
-						ResponseErrorType.BadRequest);
-				}
-
-				cartItem.Quantity = request.Quantity;
-				_unitOfWork.CartItems.Update(cartItem);
-
-				var saved = await _unitOfWork.SaveChangesAsync();
-				if (!saved)
-				{
-					return BaseResponse<string>.Fail(
-						"Could not update cart item",
-						ResponseErrorType.InternalError);
-				}
-
-				return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Cart item updated successfully");
+				return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Item removed from cart successfully");
 			}
-			catch (Exception ex)
+
+			var hasStock = await _stockService.HasSufficientStockAsync(cartItem.VariantId, request.Quantity);
+			if (!hasStock)
 			{
-				return BaseResponse<string>.Fail(
-					$"Error updating cart item: {ex.Message}",
-					ResponseErrorType.InternalError);
+				throw AppException.BadRequest("Insufficient stock for the requested quantity");
 			}
+
+			cartItem.SetQuantity(request.Quantity);
+			_unitOfWork.CartItems.Update(cartItem);
+
+			var saved = await _unitOfWork.SaveChangesAsync();
+			if (!saved)
+			{
+				throw AppException.Internal("Could not update cart item");
+			}
+
+			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Cart item updated successfully");
 		}
 	}
 }

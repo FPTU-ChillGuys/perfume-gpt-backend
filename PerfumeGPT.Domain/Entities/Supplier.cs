@@ -13,10 +13,10 @@ namespace PerfumeGPT.Domain.Entities
 		public string Phone { get; private set; } = null!;
 		public string Address { get; private set; } = null!;
 
-		// Navigation
+		// Navigation property
 		public virtual ICollection<ImportTicket> ImportTickets { get; set; } = [];
 
-		// Business logic methods
+		// Factory methods
 		public static Supplier Create(string name, string contactEmail, string phone, string address)
 		{
 			return new Supplier
@@ -36,6 +36,7 @@ namespace PerfumeGPT.Domain.Entities
 			Address = NormalizeAddress(address);
 		}
 
+		// Business logic methods
 		public static string NormalizeName(string name)
 		{
 			var normalized = name?.Trim() ?? string.Empty;

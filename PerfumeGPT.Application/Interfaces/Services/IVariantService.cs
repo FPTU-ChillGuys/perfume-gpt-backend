@@ -2,7 +2,6 @@
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
-using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Interfaces.Services
 {
@@ -16,7 +15,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<BulkActionResult<string>>> UpdateVariantAsync(Guid variantId, UpdateVariantRequest request);
 		Task<BaseResponse<string>> DeleteVariantAsync(Guid variantId);
 		Task<BaseResponse<List<MediaResponse>>> GetVariantImagesAsync(Guid variantId);
-		(bool IsValid, string? ErrorMessage) ValidateVariantForCart(ProductVariant variant);
 		Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId);
 	}
 }

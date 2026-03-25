@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
-using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
@@ -25,32 +25,16 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			_httpContextAccessor = httpContextAccessor;
 		}
 
-		public async Task<BaseResponse<string>> CreatePaymentAndGenerateResponseAsync(
-			Guid orderId,
-			decimal amount,
-			PaymentMethod paymentMethod,
-			string successMessage)
+		public async Task<string> CreatePaymentAndGenerateResponseAsync(Guid orderId, decimal amount, PaymentMethod paymentMethod)
 		{
-			var payment = new PaymentTransaction
-			{
-				OrderId = orderId,
-				Method = paymentMethod,
-				TransactionStatus = TransactionStatus.Pending,
-				Amount = amount
-			};
+			var payment = PaymentTransaction.Create(orderId, paymentMethod, amount);
 
 			await _unitOfWork.Payments.AddAsync(payment);
 			// Don't save - let transaction orchestrator handle it
 
 			if (paymentMethod == PaymentMethod.VnPay)
 			{
-				var httpContext = _httpContextAccessor.HttpContext;
-				if (httpContext == null)
-				{
-					return BaseResponse<string>.Fail(
-						"HttpContext is not available.",
-						ResponseErrorType.InternalError);
-				}
+				var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("Unable to access HTTP context for VnPay integration.");
 
 				var vnPayRequest = new VnPaymentRequest
 				{
@@ -60,14 +44,14 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				};
 
 				var checkoutResponse = await _vnPayService.CreatePaymentUrlAsync(httpContext, vnPayRequest);
-				return BaseResponse<string>.Ok(checkoutResponse.PaymentUrl, $"{successMessage} Please complete payment.");
+				return checkoutResponse.PaymentUrl;
 			}
 			else if (paymentMethod == PaymentMethod.Momo)
 			{
-				return BaseResponse<string>.Fail("Momo payment not yet implemented.", ResponseErrorType.InternalError);
+				throw AppException.BadRequest("Momo payment method is currently not supported.");
 			}
 
-			return BaseResponse<string>.Ok(orderId.ToString(), successMessage);
+			return orderId.ToString();
 		}
 	}
 }

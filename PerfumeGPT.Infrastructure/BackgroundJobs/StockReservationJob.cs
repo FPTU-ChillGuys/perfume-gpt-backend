@@ -2,9 +2,6 @@ using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.Infrastructure.BackgroundJobs
 {
-	/// <summary>
-	/// Background job to process expired stock reservations
-	/// </summary>
 	public class StockReservationJob
 	{
 		private readonly IStockReservationService _stockReservationService;
@@ -14,22 +11,19 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 			_stockReservationService = stockReservationService;
 		}
 
-		/// <summary>
-		/// Process expired reservations - called by Hangfire scheduler
-		/// </summary>
 		public async Task ProcessExpiredReservationsAsync()
 		{
 			try
 			{
 				var result = await _stockReservationService.ProcessExpiredReservationsAsync();
-				
-				if (result.Success)
+
+				if (result > 0)
 				{
-					Console.WriteLine($"[StockReservationJob] Processed {result.Payload} expired reservations at {DateTime.UtcNow}");
+					Console.WriteLine($"[StockReservationJob] Processed {result} expired reservations at {DateTime.UtcNow}");
 				}
 				else
 				{
-					Console.WriteLine($"[StockReservationJob] Failed to process expired reservations: {result.Message}");
+					Console.WriteLine($"[StockReservationJob] Failed to process expired reservations: {result}");
 				}
 			}
 			catch (Exception ex)

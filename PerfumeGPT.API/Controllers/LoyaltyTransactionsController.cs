@@ -19,51 +19,51 @@ namespace PerfumeGPT.API.Controllers
 			_loyaltyTransactionService = loyaltyTransactionService;
 		}
 
-		[HttpGet("me")]
+		[HttpGet("me/history")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<GetLoyaltyPointResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<GetLoyaltyPointResponse>), StatusCodes.Status400BadRequest)]
-		public async Task<ActionResult<BaseResponse<GetLoyaltyPointResponse>>> GetCurrentUserLoyaltyPoints()
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>), StatusCodes.Status400BadRequest)]
+		public async Task<ActionResult<BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>>> GetMyLoyaltyHistory([FromQuery] GetPagedUserLoyaltyTransactionsRequest request)
 		{
 			var userId = GetCurrentUserId();
-			var response = await _loyaltyTransactionService.GetLoyaltyPointsAsync(userId);
+			var response = await _loyaltyTransactionService.GetLoyaltyHistoryAsync(userId, request);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("me/total")]
+		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<LoyaltyTransactionTotalsResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<LoyaltyTransactionTotalsResponse>), StatusCodes.Status400BadRequest)]
+		public async Task<ActionResult<BaseResponse<LoyaltyTransactionTotalsResponse>>> GetMyLoyaltyTotals()
+		{
+			var userId = GetCurrentUserId();
+			var response = await _loyaltyTransactionService.GetLoyaltyTotalsAsync(userId);
 			return HandleResponse(response);
 		}
 
 		#region Admin Endpoints
-
-		[HttpPost("{userId:guid}/plus")]
+		[HttpGet]
 		[Authorize(Roles = "admin")]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status400BadRequest)]
-		public async Task<ActionResult<BaseResponse<bool>>> PlusPoints(Guid userId, [FromBody] PointsRequest request)
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>), StatusCodes.Status400BadRequest)]
+		public async Task<ActionResult<BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>>> GetLoyaltyTransactions([FromQuery] GetPagedLoyaltyTransactionsRequest request)
 		{
-			var validation = ValidateRequestBody<PointsRequest>(request);
-			if (validation != null)
-				return validation;
-
-			var result = await _loyaltyTransactionService.PlusPointAsync(userId, request.Points, null);
-			return result
-				? HandleResponse(BaseResponse<bool>.Ok(true, $"Successfully added {request.Points} points"))
-				: HandleResponse(BaseResponse<bool>.Fail("Failed to add points", ResponseErrorType.InternalError));
+			var response = await _loyaltyTransactionService.GetPagedLoyaltyTransactionsAsync(request);
+			return HandleResponse(response);
 		}
 
-		[HttpPost("{userId:guid}/redeem")]
+		[HttpPost("{userId:guid}/manual-change")]
 		[Authorize(Roles = "admin")]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status400BadRequest)]
-		public async Task<ActionResult<BaseResponse<bool>>> RedeemPoints(Guid userId, [FromBody] PointsRequest request)
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		public async Task<ActionResult<BaseResponse<string>>> ManualChangePoints(Guid userId, [FromBody] ManualChangeRequest request)
 		{
-			var validation = ValidateRequestBody<PointsRequest>(request);
-			if (validation != null)
-				return validation;
+			var validation = ValidateRequestBody<ManualChangeRequest>(request);
+			if (validation != null) return validation;
 
-			var result = await _loyaltyTransactionService.RedeemPointAsync(userId, request.Points, null, null);
-			return result
-				? HandleResponse(BaseResponse<bool>.Ok(true, $"Successfully redeemed {request.Points} points"))
-				: HandleResponse(BaseResponse<bool>.Fail("Failed to redeem points. User may not exist or has insufficient balance.", ResponseErrorType.BadRequest));
+			var response = await _loyaltyTransactionService.ManualChangeAsync(userId, request);
+			return HandleResponse(response);
 		}
-
 		#endregion
 	}
 }

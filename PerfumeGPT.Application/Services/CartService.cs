@@ -3,6 +3,7 @@ using PerfumeGPT.Application.DTOs.Responses.CartItems;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Carts;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -30,156 +31,115 @@ namespace PerfumeGPT.Application.Services
 
 		#endregion Dependencies
 
-		public async Task<BaseResponse<CartCheckoutResponse>> GetCartForCheckoutAsync(Guid userId, GetCartTotalRequest request)
+		public async Task<CartCheckoutResponse> GetCartForCheckoutAsync(Guid userId, GetCartTotalRequest request)
 		{
-			try
+			var items = await _unitOfWork.CartItems.GetCartCheckoutItemsAsync(userId, request.ItemIds);
+			if (items == null || items.Count == 0)
 			{
-				var items = await _unitOfWork.CartItems.GetCartCheckoutItemsAsync(userId, request.ItemIds);
-				if (items == null || items.Count == 0)
+				return new CartCheckoutResponse
 				{
-					return BaseResponse<CartCheckoutResponse>.Ok(new CartCheckoutResponse
-					{
-						Items = [],
-						ShippingFee = 0m,
-						TotalPrice = 0m
-					}, "Cart is empty");
-				}
-
-				var totalResult = await GetCartTotalAsync(userId, request);
-				if (!totalResult.Success || totalResult.Payload == null)
-				{
-					return BaseResponse<CartCheckoutResponse>.Fail(totalResult.Message, totalResult.ErrorType);
-				}
-
-				var response = new CartCheckoutResponse
-				{
-					Items = items,
-					ShippingFee = totalResult.Payload.ShippingFee,
-					TotalPrice = totalResult.Payload.TotalPrice
+					Items = [],
+					ShippingFee = 0m,
+					TotalPrice = 0m
 				};
+			}
 
-				return BaseResponse<CartCheckoutResponse>.Ok(
-					  response,
-					  string.IsNullOrWhiteSpace(totalResult.Message)
-						  ? "Cart retrieved for checkout"
-						  : totalResult.Message);
-			}
-			catch (Exception ex)
+			var totalResult = await GetCartTotalAsync(userId, request);
+			if (!totalResult.Success || totalResult.Payload == null)
 			{
-				return BaseResponse<CartCheckoutResponse>.Fail(
-					$"Error retrieving cart for checkout: {ex.Message}",
-					ResponseErrorType.InternalError);
+				throw AppException.BadRequest(totalResult.Message);
 			}
+
+			var response = new CartCheckoutResponse
+			{
+				Items = items,
+				ShippingFee = totalResult.Payload.ShippingFee,
+				TotalPrice = totalResult.Payload.TotalPrice
+			};
+
+			return response;
 		}
 
 		public async Task<BaseResponse<GetCartItemsResponse>> GetCartItemsAsync(Guid userId, List<Guid>? itemIds = null)
 		{
-			try
+			var items = await _unitOfWork.CartItems.GetCartItemsByUserIdAsync(userId, itemIds);
+			if (items == null || items.Count == 0)
 			{
-				var items = await _unitOfWork.CartItems.GetCartItemsByUserIdAsync(userId, itemIds);
-				if (items == null || items.Count == 0)
-				{
-					return BaseResponse<GetCartItemsResponse>.Ok(
-						new GetCartItemsResponse { Items = [] },
-						"Cart is empty");
-				}
-
 				return BaseResponse<GetCartItemsResponse>.Ok(
-					new GetCartItemsResponse { Items = items },
-					"Cart items retrieved successfully");
+					new GetCartItemsResponse { Items = [] },
+					"Cart is empty");
 			}
-			catch (Exception ex)
-			{
-				return BaseResponse<GetCartItemsResponse>.Fail(
-					$"Error retrieving cart items: {ex.Message}",
-					ResponseErrorType.InternalError);
-			}
+
+			return BaseResponse<GetCartItemsResponse>.Ok(
+				new GetCartItemsResponse { Items = items },
+				"Cart items retrieved successfully");
 		}
 
 		public async Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, GetCartTotalRequest request)
 		{
-			try
+			// 1. Get cart items
+			var items = await _unitOfWork.CartItems.GetCartItemPricesAsync(userId, request.ItemIds);
+			if (items == null || items.Count == 0)
 			{
-				// 2. Get cart items
-				var items = await _unitOfWork.CartItems.GetCartItemPricesAsync(userId, request.ItemIds);
-				if (items == null || items.Count == 0)
-				{
-					return BaseResponse<GetCartTotalResponse>.Ok(
-						new GetCartTotalResponse
-						{
-							Subtotal = 0m,
-							ShippingFee = 0m,
-							TotalPrice = 0m
-						},
-						"Cart is empty");
-				}
-
-				// 3. Calculate subtotal
-				var subtotal = items.Sum(item => item.SubTotal);
-
-				// 5. Apply voucher discount if provided
-				decimal finalAmount = subtotal;
-				string? voucherMessage = null;
-				if (!string.IsNullOrWhiteSpace(request.VoucherCode))
-				{
-
-					var voucher = await _voucherService.GetVoucherByCodeAsync(request.VoucherCode);
-					if (voucher == null)
-					{
-						return BaseResponse<GetCartTotalResponse>.Fail(
-							"Voucher not found",
-							ResponseErrorType.NotFound);
-					}
-
-					var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(
-						request.VoucherCode,
-						userId,
-						subtotal,
-						null,
-						items.Select(x => x.VariantId)); // Cart for signed-in users, not guests
-
-					if (!voucherValidation.Success)
-					{
-						return BaseResponse<GetCartTotalResponse>.Fail(
-							voucherValidation.Message ?? "Voucher validation failed",
-							voucherValidation.ErrorType);
-					}
-
-					if (voucher.ApplyType == VoucherType.Product && voucher.CampaignId.HasValue)
-					{
-						var (CalculatedfinalAmount, message) = await CalculateProductLevelVoucherAmountAsync(voucher, items);
-						finalAmount = CalculatedfinalAmount;
-						voucherMessage = message;
-					}
-					else
-					{
-						finalAmount = await _voucherService.CalculateVoucherDiscountAsync(
-							request.VoucherCode,
-							subtotal);
-					}
-				}
-
-				// 6. Build response
-				var response = new GetCartTotalResponse
-				{
-					Subtotal = subtotal,
-					ShippingFee = 0,
-					Discount = subtotal - finalAmount,
-					TotalPrice = finalAmount + 0
-				};
-
 				return BaseResponse<GetCartTotalResponse>.Ok(
-					 response,
-					 string.IsNullOrWhiteSpace(voucherMessage)
-						 ? "Cart total calculated successfully"
-						 : voucherMessage);
+					new GetCartTotalResponse
+					{
+						Subtotal = 0m,
+						ShippingFee = 0m,
+						TotalPrice = 0m
+					},
+					"Cart is empty");
 			}
-			catch (Exception)
+
+			// 2. Calculate subtotal
+			var subtotal = items.Sum(item => item.SubTotal);
+
+			// 3. Apply voucher discount if provided
+			decimal finalAmount = subtotal;
+			string? voucherMessage = null;
+			if (!string.IsNullOrWhiteSpace(request.VoucherCode))
 			{
-				return BaseResponse<GetCartTotalResponse>.Fail(
-					"An error occurred while calculating cart total",
-					ResponseErrorType.InternalError);
+
+				var voucher = await _voucherService.GetVoucherByCodeAsync(request.VoucherCode) ?? throw AppException.NotFound("Voucher not found");
+
+				var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(
+					request.VoucherCode,
+					userId,
+					subtotal,
+					null,  // Cart for signed-in users, not guests
+					items.Select(x => x.VariantId));
+
+				if (!voucherValidation)
+					throw AppException.BadRequest("Voucher validation failed");
+
+				if (voucher.ApplyType == VoucherType.Product && voucher.CampaignId.HasValue)
+				{
+					var (CalculatedfinalAmount, message) = await CalculateProductLevelVoucherAmountAsync(voucher, items);
+					finalAmount = CalculatedfinalAmount;
+					voucherMessage = message;
+				}
+				else
+				{
+					finalAmount = await _voucherService.CalculateVoucherDiscountAsync(
+						request.VoucherCode,
+						subtotal);
+				}
 			}
+
+			// 4. Build response
+			var response = new GetCartTotalResponse
+			{
+				Subtotal = subtotal,
+				ShippingFee = 0,
+				Discount = subtotal - finalAmount,
+				TotalPrice = finalAmount + 0
+			};
+
+			return BaseResponse<GetCartTotalResponse>.Ok(
+				 response,
+				 string.IsNullOrWhiteSpace(voucherMessage)
+					 ? "Cart total calculated successfully"
+					 : voucherMessage);
 		}
 
 		private async Task<(decimal FinalAmount, string? Message)> CalculateProductLevelVoucherAmountAsync(
@@ -303,23 +263,16 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> ClearCartAsync(Guid userId, List<Guid>? itemIds)
 		{
-			try
+			var hasItems = await _unitOfWork.CartItems.HasItemsAsync(userId);
+			if (hasItems)
 			{
-				var hasItems = await _unitOfWork.CartItems.HasItemsAsync(userId);
-				if (hasItems)
+				var result = await _unitOfWork.CartItems.ClearCartByUserIdAsync(userId, itemIds);
+				if (!result)
 				{
-					var result = await _unitOfWork.CartItems.ClearCartByUserIdAsync(userId, itemIds);
-					if (!result)
-					{
-						return BaseResponse<string>.Fail("Could not clear cart", ResponseErrorType.InternalError);
-					}
+					throw AppException.Internal("Could not clear cart");
 				}
-				return BaseResponse<string>.Ok("Cart cleared successfully");
 			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail($"Error clearing cart: {ex.Message}", ResponseErrorType.InternalError);
-			}
+			return BaseResponse<string>.Ok("Cart cleared successfully");
 		}
 	}
 }

@@ -3,6 +3,6 @@
 	public enum LoyaltyTransactionType
 	{
 		Spend = 1,
-		Earn = 2
+		Earn
 	}
 }

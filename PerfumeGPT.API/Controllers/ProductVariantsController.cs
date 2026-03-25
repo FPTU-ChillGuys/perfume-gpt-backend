@@ -61,10 +61,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> CreateVariant([FromBody] CreateVariantRequest request)
 		{
 			var validation = ValidateRequestBody<CreateVariantRequest>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			if (validation != null) return validation;
 
 			var result = await _variantService.CreateVariantAsync(request);
 			return HandleResponse(result);
@@ -78,10 +75,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> UpdateVariant(Guid variantId, [FromBody] UpdateVariantRequest request)
 		{
 			var validation = ValidateRequestBody<UpdateVariantRequest>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			if (validation != null) return validation;
 
 			var result = await _variantService.UpdateVariantAsync(variantId, request);
 			return HandleResponse(result);

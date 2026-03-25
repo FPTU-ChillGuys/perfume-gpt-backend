@@ -7,8 +7,6 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class PaymentRepository : GenericRepository<PaymentTransaction>, IPaymentRepository
 	{
-		public PaymentRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public PaymentRepository(PerfumeDbContext context) : base(context) { }
 	}
 }

@@ -1,6 +1,6 @@
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
-using PerfumeGPT.Application.DTOs.Responses.Suppliers;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.Suppliers;
 
 namespace PerfumeGPT.Application.Interfaces.Repositories
 {

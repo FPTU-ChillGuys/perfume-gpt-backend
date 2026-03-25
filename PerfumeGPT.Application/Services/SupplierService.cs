@@ -2,7 +2,7 @@ using FluentValidation;
 using Mapster;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Suppliers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
-using PerfumeGPT.Application.DTOs.Responses.Suppliers;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.Suppliers;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;

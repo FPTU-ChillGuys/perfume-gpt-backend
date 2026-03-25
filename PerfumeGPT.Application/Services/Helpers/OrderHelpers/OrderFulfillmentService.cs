@@ -119,8 +119,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				   await _stockReservationService.CommitReservationAsync(order.Id);
 
 				   // Update order status
-				   order.Status = OrderStatus.Delivering;
-				   order.StaffId = staffId;
+				   order.SetStatus(OrderStatus.Delivering);
+				   order.SetStaff(staffId);
 				   _unitOfWork.Orders.Update(order);
 
 				   await ProcessShippingAsync(order);
@@ -233,7 +233,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		{
 			if (order.ShippingInfo != null)
 			{
-				order.ShippingInfo.Status = ShippingStatus.Delivering;
+                order.ShippingInfo.MarkAsDelivering();
 				_unitOfWork.ShippingInfos.Update(order.ShippingInfo);
 
 				var recipientInfo = await _unitOfWork.RecipientInfos.GetByOrderIdAsync(order.Id);
@@ -342,25 +342,23 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			int quantity,
 			string? damageNote)
 		{
-			var stockAdjustment = new StockAdjustment
-			{
-				CreatedById = staffId,
-				AdjustmentDate = DateTime.UtcNow,
-				Reason = StockAdjustmentReason.Damage,
-				Note = damageNote ?? $"Damaged during order picking for Order {orderId}",
-				Status = StockAdjustmentStatus.Completed,
-				AdjustmentDetails =
-				[
-					new StockAdjustmentDetail
-					{
-						ProductVariantId = variantId,
-						BatchId = batchId,
-						AdjustmentQuantity = -quantity,
-						ApprovedQuantity = -quantity,
-						Note = damageNote
-					}
-				]
-			};
+           var stockAdjustment = StockAdjustment.Create(
+				staffId,
+				DateTime.UtcNow,
+				StockAdjustmentReason.Damage,
+				damageNote ?? $"Damaged during order picking for Order {orderId}");
+
+			var adjustmentDetail = StockAdjustmentDetail.Create(
+				stockAdjustment.Id,
+				variantId,
+				batchId,
+				-quantity,
+				damageNote);
+			adjustmentDetail.Approve(-quantity, damageNote);
+			stockAdjustment.AddDetail(adjustmentDetail);
+
+			stockAdjustment.UpdateStatus(StockAdjustmentStatus.InProgress);
+			stockAdjustment.Complete(staffId);
 
 			await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
 		}

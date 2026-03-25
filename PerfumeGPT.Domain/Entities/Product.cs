@@ -19,7 +19,7 @@ namespace PerfumeGPT.Domain.Entities
 		public Gender Gender { get; private set; }
 		public int ReleaseYear { get; private set; }
 
-		// Navigation
+		// Navigation properties
 		public virtual Brand Brand { get; set; } = null!;
 		public virtual Category Category { get; set; } = null!;
 		public virtual ICollection<ProductVariant> Variants { get; set; } = [];
@@ -28,11 +28,11 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<ProductNoteMap> ProductScentMaps { get; set; } = [];
 		public virtual ICollection<ProductFamilyMap> ProductFamilyMaps { get; set; } = [];
 
-		// ISoftDelete
+		// ISoftDelete implementation
 		public bool IsDeleted { get; set; }
 		public DateTime? DeletedAt { get; set; }
 
-		// IHasTimestamps
+		// IHasTimestamps implementation
 		public DateTime CreatedAt { get; set; }
 		public DateTime? UpdatedAt { get; set; }
 
@@ -63,7 +63,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		// Domain methods
+		// Business logic methods
 		public void Update(
 			string? name,
 			int? brandId,
@@ -115,16 +115,22 @@ namespace PerfumeGPT.Domain.Entities
 
 		public void ReplaceScentMaps(IEnumerable<(int NoteId, NoteType Type)> scentNotes)
 		{
+			if (scentNotes == null)
+				throw DomainException.BadRequest("Scent notes are required.");
+
 			ProductScentMaps.Clear();
 			foreach (var (noteId, type) in scentNotes)
-				ProductScentMaps.Add(new ProductNoteMap { ScentNoteId = noteId, NoteType = type });
+				ProductScentMaps.Add(ProductNoteMap.Create(noteId, type));
 		}
 
 		public void ReplaceFamilyMaps(IEnumerable<int> olfactoryFamilyIds)
 		{
+			if (olfactoryFamilyIds == null)
+				throw DomainException.BadRequest("Olfactory families are required.");
+
 			ProductFamilyMaps.Clear();
 			foreach (var familyId in olfactoryFamilyIds)
-				ProductFamilyMaps.Add(new ProductFamilyMap { OlfactoryFamilyId = familyId });
+				ProductFamilyMaps.Add(ProductFamilyMap.Create(familyId));
 		}
 
 		public void UpdateEmbedding(SqlVector<float> embedding)

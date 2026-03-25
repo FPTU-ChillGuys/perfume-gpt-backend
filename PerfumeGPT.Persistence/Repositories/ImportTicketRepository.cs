@@ -11,34 +11,26 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class ImportTicketRepository : GenericRepository<ImportTicket>, IImportTicketRepository
 	{
-		public ImportTicketRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public ImportTicketRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<ImportTicket?> GetByIdWithDetailsAsync(Guid id)
-		{
-			return await _context.ImportTickets
+			=> await _context.ImportTickets
 				.AsNoTracking()
 				.Include(it => it.ImportDetails)
 				.FirstOrDefaultAsync(it => it.Id == id);
-		}
 
 		public async Task<ImportTicketResponse?> GetResponseByIdAsync(Guid id)
-		{
-			return await _context.ImportTickets
-			.AsNoTracking()
-			.Where(it => it.Id == id)
-			.ProjectToType<ImportTicketResponse>()
-			.FirstOrDefaultAsync();
-		}
+			=> await _context.ImportTickets
+				.AsNoTracking()
+				.Where(it => it.Id == id)
+				.ProjectToType<ImportTicketResponse>()
+				.FirstOrDefaultAsync();
 
 		public async Task<ImportTicket?> GetByIdWithDetailsAndBatchesAsync(Guid id)
-		{
-			return await _context.ImportTickets
+			=> await _context.ImportTickets
 				.Include(it => it.ImportDetails)
 					.ThenInclude(d => d.Batches)
 				.FirstOrDefaultAsync(it => it.Id == id);
-		}
 
 		public async Task<(List<ImportTicketListItem> Items, int TotalCount)> GetPagedAsync(GetPagedImportTicketsRequest request)
 		{

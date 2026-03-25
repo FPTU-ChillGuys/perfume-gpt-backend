@@ -2,7 +2,7 @@
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Categories;
 using PerfumeGPT.Application.DTOs.Responses.Base;
-using PerfumeGPT.Application.DTOs.Responses.Categories;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.Categories;
 using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.API.Controllers
@@ -47,6 +47,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<CategoryResponse>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<CategoryResponse>>> CreateCategoryAsync([FromBody] CreateCategoryRequest request)
 		{
+			var validation = ValidateRequestBody<CreateCategoryRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _categoryService.CreateCategoryAsync(request);
 			return HandleResponse(result);
 		}
@@ -56,6 +59,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<CategoryResponse>), StatusCodes.Status404NotFound)]
 		public async Task<ActionResult<BaseResponse<CategoryResponse>>> UpdateCategoryAsync(int id, [FromBody] UpdateCategoryRequest request)
 		{
+			var validation = ValidateRequestBody<UpdateCategoryRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _categoryService.UpdateCategoryAsync(id, request);
 			return HandleResponse(result);
 		}

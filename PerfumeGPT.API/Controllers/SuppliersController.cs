@@ -2,7 +2,7 @@
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Suppliers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
-using PerfumeGPT.Application.DTOs.Responses.Suppliers;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.Suppliers;
 using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.API.Controllers
@@ -47,6 +47,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<SupplierResponse>>> CreateSupplierAsync([FromBody] CreateSupplierRequest request)
 		{
+			var validation = ValidateRequestBody<CreateSupplierRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _supplierService.CreateSupplierAsync(request);
 			return HandleResponse(result);
 		}
@@ -56,6 +59,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status404NotFound)]
 		public async Task<ActionResult<BaseResponse<SupplierResponse>>> UpdateSupplierAsync(int id, [FromBody] UpdateSupplierRequest request)
 		{
+			var validation = ValidateRequestBody<UpdateSupplierRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _supplierService.UpdateSupplierAsync(id, request);
 			return HandleResponse(result);
 		}

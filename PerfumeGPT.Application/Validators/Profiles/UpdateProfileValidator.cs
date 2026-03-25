@@ -12,7 +12,9 @@ namespace PerfumeGPT.Application.Validators.Profiles
 				.When(x => x.MinBudget.HasValue);
 			RuleFor(x => x.MaxBudget)
 				.GreaterThanOrEqualTo(0).WithMessage("MaxBudget must be greater than or equal to 0.");
-
+			RuleFor(x => x.DateOfBirth)
+				.LessThan(DateTime.UtcNow.AddYears(16))
+				.When(x => x.DateOfBirth.HasValue).WithMessage("You must be at least 16 years old.");
 		}
 	}
 }

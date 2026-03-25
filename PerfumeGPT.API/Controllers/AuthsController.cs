@@ -14,12 +14,10 @@ namespace PerfumeGPT.API.Controllers
 	public class AuthsController : BaseApiController
 	{
 		private readonly IAuthService _authService;
-		private readonly IUserService _userService;
 
-		public AuthsController(IAuthService authService, IUserService userService)
+		public AuthsController(IAuthService authService)
 		{
 			_authService = authService;
-			_userService = userService;
 		}
 
 		[HttpPost("login")]
@@ -31,11 +29,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<TokenResponse>>> Login([FromBody] LoginRequest request)
 		{
-			var validation = ValidateRequestBody<TokenResponse>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			var validation = ValidateRequestBody<LoginRequest>(request);
+			if (validation != null) return validation;
 
 			var result = await _authService.LoginAsync(request);
 			return HandleResponse(result);
@@ -49,11 +44,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> Register([FromBody] RegisterRequest request)
 		{
-			var validation = ValidateRequestBody<string>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			var validation = ValidateRequestBody<RegisterRequest>(request);
+			if (validation != null) return validation;
 
 			var result = await _authService.RegisterAsync(request, null);
 			return HandleResponse(result);
@@ -67,7 +59,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> RegisterByAdmin([FromBody] RegisterRequest request, [FromQuery] UserRole role)
 		{
-			var validation = ValidateRequestBody<string>(request);
+			var validation = ValidateRequestBody<RegisterRequest>(request);
 			if (validation != null)
 			{
 				return validation;
@@ -85,22 +77,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> VerifyEmail([FromQuery] string email, [FromQuery] string token)
 		{
-			var validation = ValidateRequestBody<string>(email);
-			if (validation != null)
-			{
-				return validation;
-			}
-
-			var validationToken = ValidateRequestBody<string>(token);
-			if (validationToken != null)
-			{
-				return validationToken;
-			}
-
 			var result = await _authService.VerifyEmailAsync(email, token);
 			return HandleResponse(result);
 		}
-
 
 		[HttpPost("google-login")]
 		[AllowAnonymous]
@@ -110,16 +89,10 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<TokenResponse>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<TokenResponse>>> GoogleLogin([FromBody] GoogleLoginRequest request)
 		{
-			var validation = ValidateRequestBody<TokenResponse>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			var validation = ValidateRequestBody<GoogleLoginRequest>(request);
+			if (validation != null) return validation;
 
 			var result = await _authService.LoginWithGoogleAsync(request);
-			if (!result.Success)
-				return HandleResponse(result);
-
 			return HandleResponse(result);
 		}
 
@@ -132,13 +105,8 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<TokenResponse>>> CreateApiToken()
 		{
 			var userId = GetCurrentUserId();
-			var emailResult = await _userService.GetEmailByIdAsync(userId);
 
-			if (emailResult == null)
-			{
-				return HandleResponse(BaseResponse<TokenResponse>.Fail("User not found", ResponseErrorType.NotFound));
-			}
-			var tokenResult = await _authService.CreateApiTokenAsync(emailResult?.Payload!);
+			var tokenResult = await _authService.CreateApiTokenAsync(userId);
 			return HandleResponse(tokenResult);
 		}
 
@@ -149,11 +117,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		public async Task<ActionResult<BaseResponse<string>>> ForgotPassword([FromBody] ForgotPasswordRequest request)
 		{
-			var validation = ValidateRequestBody<string>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			var validation = ValidateRequestBody<ForgotPasswordRequest>(request);
+			if (validation != null) return validation;
 
 			var result = await _authService.ForgotPasswordAsync(request);
 			return HandleResponse(result);
@@ -165,11 +130,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		public async Task<ActionResult<BaseResponse<string>>> ResetPassword([FromBody] ResetPasswordRequest request)
 		{
-			var validation = ValidateRequestBody<string>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			var validation = ValidateRequestBody<ResetPasswordRequest>(request);
+			if (validation != null) return validation;
 
 			var result = await _authService.ResetPasswordAsync(request);
 			return HandleResponse(result);

@@ -8,23 +8,13 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class TemporaryMediaRepository : GenericRepository<TemporaryMedia>, ITemporaryMediaRepository
 	{
-		public TemporaryMediaRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public TemporaryMediaRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<List<TemporaryMedia>> GetExpiredMediaAsync()
 		{
 			var now = DateTime.UtcNow;
 			return await _context.TemporaryMedia
 				.Where(tm => tm.ExpiresAt < now)
-				.ToListAsync();
-		}
-
-		public async Task<List<TemporaryMedia>> GetByUserIdAsync(Guid userId)
-		{
-			return await _context.TemporaryMedia
-				.Where(tm => tm.UploadedByUserId == userId)
-				.OrderByDescending(tm => tm.CreatedAt)
 				.ToListAsync();
 		}
 
@@ -35,7 +25,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Where(tm => tm.ExpiresAt < now)
 				.ToListAsync();
 
-			if (!expiredMedia.Any())
+			if (expiredMedia.Count == 0)
 			{
 				return 0;
 			}

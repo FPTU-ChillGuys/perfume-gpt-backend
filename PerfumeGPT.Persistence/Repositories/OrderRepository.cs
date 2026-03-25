@@ -12,9 +12,7 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class OrderRepository : GenericRepository<Order>, IOrderRepository
 	{
-		public OrderRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public OrderRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<(List<OrderListItem> Orders, int TotalCount)> GetPagedOrdersAsync(
 			GetPagedOrdersRequest request,
@@ -86,42 +84,32 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		public async Task<OrderResponse?> GetOrderWithFullDetailsAsync(Guid orderId)
-		{
-			return await _context.Orders
+			=> await _context.Orders
 				.Where(o => o.Id == orderId)
 				.ProjectToType<OrderResponse>()
 				.AsSplitQuery()
 				.FirstOrDefaultAsync();
-		}
 
 		public async Task<UserOrderResponse?> GetUserOrderWithFullDetailsAsync(Guid orderId, Guid userId)
-		{
-			return await _context.Orders
+			=> await _context.Orders
 				.Where(o => o.Id == orderId && o.CustomerId == userId)
 				.ProjectToType<UserOrderResponse>()
 				.FirstOrDefaultAsync();
-		}
 
 		public async Task<Order?> GetOrderForStatusUpdateAsync(Guid orderId)
-		{
-			return await _context.Orders
+			=> await _context.Orders
 				.Include(o => o.ShippingInfo)
 				.Include(o => o.OrderDetails)
 				.FirstOrDefaultAsync(o => o.Id == orderId);
-		}
 
 		public async Task<Order?> GetOrderForCancellationAsync(Guid orderId)
-		{
-			return await _context.Orders
+			=> await _context.Orders
 				.Include(o => o.ShippingInfo)
 				.FirstOrDefaultAsync(o => o.Id == orderId);
-		}
 
 		public async Task<Order?> GetOrderForMarkUsedVoucherAsync(Guid orderId)
-		{
-			return await _context.Orders
+			=> await _context.Orders
 				.Include(o => o.UserVoucher)
 				.FirstOrDefaultAsync(o => o.Id == orderId);
-		}
 	}
 }

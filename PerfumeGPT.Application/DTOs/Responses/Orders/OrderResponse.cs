@@ -51,6 +51,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public decimal ShippingFee { get; set; }
 		public ShippingStatus Status { get; set; }
 		public int? LeadTime { get; set; }
+		public DateTime? ShippedDate { get; set; }
 	}
 
 	public class RecipientInfoResponse

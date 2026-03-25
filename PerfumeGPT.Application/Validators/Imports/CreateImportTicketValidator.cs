@@ -1,6 +1,6 @@
 using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Imports;
-using PerfumeGPT.Application.Validators.ImportDetails;
+using PerfumeGPT.Application.Validators.Imports.ImportDetails.Batches;
 
 namespace PerfumeGPT.Application.Validators.Imports
 {

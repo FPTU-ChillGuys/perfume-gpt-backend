@@ -8,6 +8,7 @@ namespace PerfumeGPT.Application.Services
 {
 	public class ProductAttributeService : IProductAttributeService
 	{
+		#region Dependencies
 		private readonly IAttributeRepository _attributeRepo;
 		private readonly IAttributeValueRepository _attributeValueRepo;
 		private readonly IProductAttributeRepository _productAttributeRepo;
@@ -21,6 +22,7 @@ namespace PerfumeGPT.Application.Services
 			_attributeValueRepo = attributeValueRepo;
 			_productAttributeRepo = productAttributeRepo;
 		}
+		#endregion Dependencies
 
 		public async Task<List<string>> ValidateAttributesAsync(List<ProductAttributeDto>? attributes, bool isForVariant = false)
 		{
@@ -100,7 +102,7 @@ namespace PerfumeGPT.Application.Services
 			product.ProductAttributes ??= [];
 			foreach (var a in attributes)
 			{
-				product.ProductAttributes.Add(new ProductAttribute { AttributeId = a.AttributeId, ValueId = a.ValueId });
+				product.ProductAttributes.Add(ProductAttribute.Create(a.AttributeId, a.ValueId));
 			}
 		}
 
@@ -111,7 +113,7 @@ namespace PerfumeGPT.Application.Services
 			variant.ProductAttributes ??= [];
 			foreach (var a in attributes)
 			{
-				variant.ProductAttributes.Add(new ProductAttribute { AttributeId = a.AttributeId, ValueId = a.ValueId });
+				variant.ProductAttributes.Add(ProductAttribute.Create(a.AttributeId, a.ValueId));
 			}
 		}
 
@@ -128,13 +130,11 @@ namespace PerfumeGPT.Application.Services
 
 			if (attributes != null && attributes.Count > 0)
 			{
-				var newEntities = attributes.Select(a => new ProductAttribute
-				{
-					ProductId = isVariant ? null : entityId,
-					VariantId = isVariant ? entityId : null,
-					AttributeId = a.AttributeId,
-					ValueId = a.ValueId
-				}).ToList();
+				var newEntities = attributes
+					 .Select(a => isVariant
+						 ? ProductAttribute.CreateForVariant(entityId, a.AttributeId, a.ValueId)
+						 : ProductAttribute.CreateForProduct(entityId, a.AttributeId, a.ValueId))
+					 .ToList();
 
 				await _productAttributeRepo.AddRangeAsync(newEntities);
 			}

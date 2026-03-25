@@ -8,13 +8,9 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class ReceiptRepository : GenericRepository<Receipt>, IReceiptRepository
 	{
-		public ReceiptRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public ReceiptRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<Receipt?> GetByTransactionIdAsync(Guid transactionId)
-		{
-			return await _context.Receipts.FirstOrDefaultAsync(r => r.TransactionId == transactionId);
-		}
+			=> await _context.Receipts.FirstOrDefaultAsync(r => r.TransactionId == transactionId);
 	}
 }

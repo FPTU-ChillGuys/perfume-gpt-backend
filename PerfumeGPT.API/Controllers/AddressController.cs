@@ -90,6 +90,7 @@ namespace PerfumeGPT.API.Controllers
 		{
 			var validation = ValidateRequestBody<UpdateAddressRequest>(request);
 			if (validation != null) return validation;
+
 			var userId = GetCurrentUserId();
 			var result = await _addressService.UpdateAddressAsync(userId, id, request);
 			return HandleResponse(result);
@@ -127,20 +128,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<List<ProvinceResponse>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<List<ProvinceResponse>>>> GetProvincesAsync()
 		{
-			try
-			{
-				var result = await _ghnService.GetProvincesAsync();
-				var response = BaseResponse<List<ProvinceResponse>>.Ok(result, "Provinces retrieved successfully");
-				return HandleResponse(response);
-			}
-			catch (Exception ex)
-			{
-				var errorResponse = BaseResponse<List<ProvinceResponse>>.Fail(
-					$"Failed to get provinces: {ex.Message}",
-					ResponseErrorType.InternalError
-				);
-				return HandleResponse(errorResponse);
-			}
+			var result = await _ghnService.GetProvincesAsync();
+			var response = BaseResponse<List<ProvinceResponse>>.Ok(result, "Provinces retrieved successfully");
+			return HandleResponse(response);
 		}
 
 		[HttpGet("districts")]
@@ -158,20 +148,9 @@ namespace PerfumeGPT.API.Controllers
 				return HandleResponse(badRequestResponse);
 			}
 
-			try
-			{
-				var result = await _ghnService.GetDistrictsByProvinceIdAsync(provinceId);
-				var response = BaseResponse<List<DistrictResponse>>.Ok(result, "Districts retrieved successfully");
-				return HandleResponse(response);
-			}
-			catch (Exception ex)
-			{
-				var errorResponse = BaseResponse<List<DistrictResponse>>.Fail(
-					$"Failed to get districts: {ex.Message}",
-					ResponseErrorType.InternalError
-				);
-				return HandleResponse(errorResponse);
-			}
+			var result = await _ghnService.GetDistrictsByProvinceIdAsync(provinceId);
+			var response = BaseResponse<List<DistrictResponse>>.Ok(result, "Districts retrieved successfully");
+			return HandleResponse(response);
 		}
 
 		[HttpGet("wards")]
@@ -188,21 +167,9 @@ namespace PerfumeGPT.API.Controllers
 				);
 				return HandleResponse(badRequestResponse);
 			}
-
-			try
-			{
-				var result = await _ghnService.GetWardsByDistrictIdAsync(districtId);
-				var response = BaseResponse<List<WardResponse>>.Ok(result, "Wards retrieved successfully");
-				return HandleResponse(response);
-			}
-			catch (Exception ex)
-			{
-				var errorResponse = BaseResponse<List<WardResponse>>.Fail(
-					$"Failed to get wards: {ex.Message}",
-					ResponseErrorType.InternalError
-				);
-				return HandleResponse(errorResponse);
-			}
+			var result = await _ghnService.GetWardsByDistrictIdAsync(districtId);
+			var response = BaseResponse<List<WardResponse>>.Ok(result, "Wards retrieved successfully");
+			return HandleResponse(response);
 		}
 
 		[HttpGet("streets")]
@@ -212,19 +179,8 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<AddressLevel4Response>>> GetStreetsAsync(
 			[FromQuery] AddressLevel4Request request)
 		{
-			try
-			{
-				var result = await _ghtkService.GetAddressLevel4Async(request);
-				return HandleResponse(BaseResponse<AddressLevel4Response>.Ok(result, "Streets retrieved successfully"));
-			}
-			catch (Exception ex)
-			{
-				var errorResponse = BaseResponse<AddressLevel4Response>.Fail(
-					$"Failed to get streets: {ex.Message}",
-					ResponseErrorType.InternalError
-				);
-				return HandleResponse(errorResponse);
-			}
+			var result = await _ghtkService.GetAddressLevel4Async(request);
+			return HandleResponse(BaseResponse<AddressLevel4Response>.Ok(result, "Streets retrieved successfully"));
 		}
 	}
 }

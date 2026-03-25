@@ -142,30 +142,6 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			}
 		}
 
-		public async Task<string?> UploadVariantImageAsync(Stream fileStream, string fileName)
-		   => await UploadImageAsync(fileStream, fileName, _settings.BucketVariantName);
-
-		public async Task<string?> UploadProductImageAsync(Stream fileStream, string fileName)
-		   => await UploadImageAsync(fileStream, fileName, _settings.BucketProductName);
-
-		public async Task<string?> UploadPreviewImageAsync(Stream fileStream, string fileName)
-		   => await UploadImageAsync(fileStream, fileName, _settings.BucketPreviewName);
-
-		public async Task<string?> UploadAvatarImageAsync(Stream fileStream, string fileName)
-		   => await UploadImageAsync(fileStream, fileName, _settings.BucketAvatarName);
-
-		public async Task<bool> DeleteVariantImageAsync(string filePath)
-		   => await DeleteImageAsync(filePath, _settings.BucketVariantName);
-
-		public async Task<bool> DeleteProductImageAsync(string filePath)
-		   => await DeleteImageAsync(filePath, _settings.BucketProductName);
-
-		public async Task<bool> DeletePreviewImageAsync(string filePath)
-		   => await DeleteImageAsync(filePath, _settings.BucketPreviewName);
-
-		public async Task<bool> DeleteAvatarImageAsync(string filePath)
-		   => await DeleteImageAsync(filePath, _settings.BucketAvatarName);
-
 		private async Task EnsureInitializedAsync()
 		{
 			await _initializeTask;

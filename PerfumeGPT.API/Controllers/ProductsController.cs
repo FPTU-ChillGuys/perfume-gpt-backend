@@ -78,10 +78,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> CreateProduct([FromBody] CreateProductRequest request)
 		{
 			var validation = ValidateRequestBody<CreateProductRequest>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			if (validation != null) return validation;
 
 			var response = await _productService.CreateProductAsync(request);
 			return HandleResponse(response);
@@ -95,10 +92,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> UpdateProduct(Guid productId, [FromBody] UpdateProductRequest request)
 		{
 			var validation = ValidateRequestBody<UpdateProductRequest>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			if (validation != null) return validation;
 
 			var response = await _productService.UpdateProductAsync(productId, request);
 			return HandleResponse(response);

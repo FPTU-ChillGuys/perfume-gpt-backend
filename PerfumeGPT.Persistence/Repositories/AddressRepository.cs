@@ -18,7 +18,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			.ProjectToType<AddressResponse>()
 			.FirstOrDefaultAsync();
 
-		public async Task<AddressResponse?> GetDefaultAddress(Guid userId)
+		public async Task<AddressResponse?> GetDefaultAddressAsync(Guid userId)
 		=> await _context.Addresses
 			.Where(a => a.UserId == userId && a.IsDefault)
 			.ProjectToType<AddressResponse>()

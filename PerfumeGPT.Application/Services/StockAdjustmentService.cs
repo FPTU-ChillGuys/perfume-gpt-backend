@@ -2,10 +2,10 @@ using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.StockAdjustments;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.StockAdjustments;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
-using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -35,290 +35,192 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> CreateStockAdjustmentAsync(CreateStockAdjustmentRequest request, Guid userId)
 		{
-			try
+			var validationResult = await _createValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
 			{
-				var validationResult = await _createValidator.ValidateAsync(request);
-				if (!validationResult.IsValid)
-				{
-					var errors = string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage));
-					return BaseResponse<string>.Fail(errors, ResponseErrorType.BadRequest);
-				}
-
-				var duplicateVariants = request.AdjustmentDetails
-					.GroupBy(d => d.VariantId)
-					.Where(g => g.Count() > 1)
-					.Select(g => g.Key)
-					.ToList();
-
-				if (duplicateVariants.Count != 0)
-				{
-					var duplicateIds = string.Join(", ", duplicateVariants);
-					return BaseResponse<string>.Fail($"Duplicate variant IDs found: {duplicateIds}. Each variant can only appear once per adjustment.", ResponseErrorType.BadRequest);
-				}
-
-				foreach (var detail in request.AdjustmentDetails)
-				{
-					var variant = await _unitOfWork.Variants.GetByIdAsync(detail.VariantId);
-					if (variant == null)
-					{
-						return BaseResponse<string>.Fail($"Variant with ID {detail.VariantId} not found.", ResponseErrorType.NotFound);
-					}
-
-					var batch = await _unitOfWork.Batches.GetByIdAsync(detail.BatchId);
-					if (batch == null)
-					{
-						return BaseResponse<string>.Fail($"Batch with ID {detail.BatchId} not found.", ResponseErrorType.NotFound);
-					}
-
-					if (batch.VariantId != detail.VariantId)
-					{
-						return BaseResponse<string>.Fail($"Batch {detail.BatchId} does not belong to variant {detail.VariantId}.", ResponseErrorType.BadRequest);
-					}
-				}
-
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-				{
-					var stockAdjustment = new StockAdjustment
-					{
-						CreatedById = userId,
-						AdjustmentDate = request.AdjustmentDate,
-						Reason = request.Reason,
-						Note = request.Note,
-						Status = StockAdjustmentStatus.Pending
-					};
-
-					await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
-
-					foreach (var detailRequest in request.AdjustmentDetails)
-					{
-						var adjustmentDetail = new StockAdjustmentDetail
-						{
-							StockAdjustmentId = stockAdjustment.Id,
-							ProductVariantId = detailRequest.VariantId,
-							BatchId = detailRequest.BatchId,
-							AdjustmentQuantity = detailRequest.AdjustmentQuantity,
-							ApprovedQuantity = 0,
-							Note = detailRequest.Note
-						};
-
-						await _unitOfWork.StockAdjustmentDetails.AddAsync(adjustmentDetail);
-					}
-
-					return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), "Stock adjustment created successfully.");
-				});
+				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+				throw AppException.BadRequest("Validation failed", errors);
 			}
-			catch (Exception ex)
+
+			var duplicateVariants = request.AdjustmentDetails
+				.GroupBy(d => d.VariantId)
+				.Where(g => g.Count() > 1)
+				.Select(g => g.Key)
+				.ToList();
+
+			if (duplicateVariants.Count != 0)
 			{
-				return BaseResponse<string>.Fail($"Error creating stock adjustment: {ex.Message}", ResponseErrorType.InternalError);
+				var duplicateIds = string.Join(", ", duplicateVariants);
+				throw AppException.BadRequest($"Duplicate variant IDs found: {duplicateIds}. Each variant can only appear once per adjustment.");
 			}
+
+			foreach (var detail in request.AdjustmentDetails)
+			{
+				var variant = await _unitOfWork.Variants.GetByIdAsync(detail.VariantId) ?? throw AppException.NotFound($"Variant with ID {detail.VariantId} not found.");
+
+				var batch = await _unitOfWork.Batches.GetByIdAsync(detail.BatchId) ?? throw AppException.NotFound($"Batch with ID {detail.BatchId} not found.");
+
+				if (batch.VariantId != detail.VariantId)
+				{
+					throw AppException.BadRequest($"Batch {detail.BatchId} does not belong to variant {detail.VariantId}.");
+				}
+			}
+
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				var stockAdjustment = StockAdjustment.Create(
+						 userId,
+						 request.AdjustmentDate,
+						 request.Reason,
+						 request.Note);
+
+				await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
+
+				foreach (var detailRequest in request.AdjustmentDetails)
+				{
+					var adjustmentDetail = StockAdjustmentDetail.Create(
+						stockAdjustment.Id,
+						detailRequest.VariantId,
+						detailRequest.BatchId,
+						detailRequest.AdjustmentQuantity,
+						detailRequest.Note);
+
+					stockAdjustment.AddDetail(adjustmentDetail);
+
+					await _unitOfWork.StockAdjustmentDetails.AddAsync(adjustmentDetail);
+				}
+
+				return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), "Stock adjustment created successfully.");
+			});
 		}
 
 		public async Task<BaseResponse<string>> VerifyStockAdjustmentAsync(Guid adjustmentId, VerifyStockAdjustmentRequest request, Guid verifiedByUserId)
 		{
-			try
+			var validationResult = await _verifyValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
 			{
-				var validationResult = await _verifyValidator.ValidateAsync(request);
-				if (!validationResult.IsValid)
-				{
-					var errors = string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage));
-					return BaseResponse<string>.Fail(errors, ResponseErrorType.BadRequest);
-				}
+				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+				throw AppException.BadRequest("Validation failed", errors);
+			}
 
-				var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdWithDetailsAsync(adjustmentId);
+			var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdWithDetailsAsync(adjustmentId) ?? throw AppException.NotFound("Stock adjustment not found.");
 
-				if (stockAdjustment == null)
-				{
-					return BaseResponse<string>.Fail("Stock adjustment not found.", ResponseErrorType.NotFound);
-				}
+			stockAdjustment.EnsureVerifiable();
 
-				if (stockAdjustment.Status != StockAdjustmentStatus.InProgress)
-				{
-					return BaseResponse<string>.Fail("Only in progress stock adjustments can be verified.", ResponseErrorType.BadRequest);
-				}
+			if (request.AdjustmentDetails.Count != stockAdjustment.AdjustmentDetails.Count)
+			{
+				throw AppException.BadRequest("Mismatch in number of adjustment details for verification.");
+			}
 
-				if (request.AdjustmentDetails.Count != stockAdjustment.AdjustmentDetails.Count)
-				{
-					return BaseResponse<string>.Fail("Mismatch in number of adjustment details for verification.", ResponseErrorType.BadRequest);
-				}
+			// Check for duplicate import detail IDs in request
+			var duplicateDetailIds = request.AdjustmentDetails
+				.GroupBy(d => d.DetailId)
+				.Where(g => g.Count() > 1)
+				.Select(g => g.Key)
+				.ToList();
 
-				// Check for duplicate import detail IDs in request
-				var duplicateDetailIds = request.AdjustmentDetails
-					.GroupBy(d => d.DetailId)
-					.Where(g => g.Count() > 1)
-					.Select(g => g.Key)
-					.ToList();
+			if (duplicateDetailIds.Count != 0)
+			{
+				var duplicateIds = string.Join(", ", duplicateDetailIds);
+				throw AppException.BadRequest($"Duplicate adjust detail IDs found in request: {duplicateIds}. Each import detail can only appear once.");
+			}
 
-				if (duplicateDetailIds.Count != 0)
-				{
-					var duplicateIds = string.Join(", ", duplicateDetailIds);
-					return BaseResponse<string>.Fail($"Duplicate adjust detail IDs found in request: {duplicateIds}. Each import detail can only appear once.", ResponseErrorType.BadRequest);
-				}
+			// Validate all adjustment details exist and match request
+			foreach (var verifyDetail in request.AdjustmentDetails)
+			{
+				var adjustmentDetail = stockAdjustment.AdjustmentDetails.FirstOrDefault(d => d.Id == verifyDetail.DetailId)
+					?? throw AppException.NotFound($"Adjustment detail with ID {verifyDetail.DetailId} not found.");
+			}
 
-				// Validate all adjustment details exist and match request
+			// Execute within transaction
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
 				foreach (var verifyDetail in request.AdjustmentDetails)
 				{
-					var adjustmentDetail = stockAdjustment.AdjustmentDetails.FirstOrDefault(d => d.Id == verifyDetail.DetailId);
-					if (adjustmentDetail == null)
+					var adjustmentDetail = stockAdjustment.AdjustmentDetails.First(d => d.Id == verifyDetail.DetailId);
+
+					// Update adjustment detail
+					adjustmentDetail.Approve(verifyDetail.ApprovedQuantity, verifyDetail.Note);
+					_unitOfWork.StockAdjustmentDetails.Update(adjustmentDetail);
+
+					// Apply stock adjustment
+					if (verifyDetail.ApprovedQuantity > 0)
 					{
-						return BaseResponse<string>.Fail($"Adjustment detail with ID {verifyDetail.DetailId} not found.", ResponseErrorType.NotFound);
+						// Update batch quantity - this will also recalculate and update stock quantity automatically
+						await _batchService.IncreaseBatchQuantityAsync(adjustmentDetail.BatchId, verifyDetail.ApprovedQuantity);
+					}
+					else if (verifyDetail.ApprovedQuantity < 0)
+					{
+						// Update batch quantity - this will also recalculate and update stock quantity automatically
+						await _batchService.DecreaseBatchQuantityAsync(adjustmentDetail.BatchId, Math.Abs(verifyDetail.ApprovedQuantity));
 					}
 				}
 
-				// Execute within transaction
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-				{
-					foreach (var verifyDetail in request.AdjustmentDetails)
-					{
-						var adjustmentDetail = stockAdjustment.AdjustmentDetails.First(d => d.Id == verifyDetail.DetailId);
+				stockAdjustment.Complete(verifiedByUserId);
+				_unitOfWork.StockAdjustments.Update(stockAdjustment);
 
-						// Update adjustment detail
-						adjustmentDetail.ApprovedQuantity = verifyDetail.ApprovedQuantity;
-						adjustmentDetail.Note = verifyDetail.Note;
-						_unitOfWork.StockAdjustmentDetails.Update(adjustmentDetail);
-
-						// Apply stock adjustment
-						if (verifyDetail.ApprovedQuantity > 0)
-						{
-							// Update batch quantity - this will also recalculate and update stock quantity automatically
-							await _batchService.IncreaseBatchQuantityAsync(adjustmentDetail.BatchId, verifyDetail.ApprovedQuantity);
-						}
-						else if (verifyDetail.ApprovedQuantity < 0)
-						{
-							// Update batch quantity - this will also recalculate and update stock quantity automatically
-							await _batchService.DecreaseBatchQuantityAsync(adjustmentDetail.BatchId, Math.Abs(verifyDetail.ApprovedQuantity));
-						}
-					}
-
-					stockAdjustment.Status = StockAdjustmentStatus.Completed;
-					stockAdjustment.VerifiedById = verifiedByUserId;
-					_unitOfWork.StockAdjustments.Update(stockAdjustment);
-
-					return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), "Stock adjustment verified successfully.");
-				});
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail($"Error verifying stock adjustment: {ex.Message}", ResponseErrorType.InternalError);
-			}
+				return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), "Stock adjustment verified successfully.");
+			});
 		}
 
 		public async Task<BaseResponse<StockAdjustmentResponse>> GetStockAdjustmentByIdAsync(Guid id)
 		{
-			try
-			{
-				var response = await _unitOfWork.StockAdjustments.GetByIdToViewAsync(id);
+			var response = await _unitOfWork.StockAdjustments.GetByIdToViewAsync(id)
+				   ?? throw AppException.NotFound("Stock adjustment not found.");
 
-				if (response == null)
-				{
-					return BaseResponse<StockAdjustmentResponse>.Fail("Stock adjustment not found.", ResponseErrorType.NotFound);
-				}
-
-				return BaseResponse<StockAdjustmentResponse>.Ok(response, "Stock adjustment retrieved successfully.");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<StockAdjustmentResponse>.Fail($"Error retrieving stock adjustment: {ex.Message}", ResponseErrorType.InternalError);
-			}
+			return BaseResponse<StockAdjustmentResponse>.Ok(response, "Stock adjustment retrieved successfully.");
 		}
 
 		public async Task<BaseResponse<PagedResult<StockAdjustmentListItem>>> GetPagedStockAdjustmentsAsync(GetPagedStockAdjustmentsRequest request)
 		{
-			try
-			{
-				var (items, totalCount) = await _unitOfWork.StockAdjustments.GetPagedAsync(request);
+			var (items, totalCount) = await _unitOfWork.StockAdjustments.GetPagedAsync(request);
 
-				var pagedResult = new PagedResult<StockAdjustmentListItem>(
-					items,
-					request.PageNumber,
-					request.PageSize,
-					totalCount
-				);
+			var pagedResult = new PagedResult<StockAdjustmentListItem>(
+				items,
+				request.PageNumber,
+				request.PageSize,
+				totalCount
+			);
 
-				return BaseResponse<PagedResult<StockAdjustmentListItem>>.Ok(pagedResult, "Stock adjustments retrieved successfully.");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<PagedResult<StockAdjustmentListItem>>.Fail($"Error retrieving stock adjustments: {ex.Message}", ResponseErrorType.InternalError);
-			}
+			return BaseResponse<PagedResult<StockAdjustmentListItem>>.Ok(pagedResult, "Stock adjustments retrieved successfully.");
 		}
 
 		public async Task<BaseResponse<string>> UpdateAdjustmentStatusAsync(Guid id, UpdateStockAdjustmentStatusRequest request)
 		{
-			try
+			var validationResult = await _updateStatusValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
 			{
-				var validationResult = await _updateStatusValidator.ValidateAsync(request);
-				if (!validationResult.IsValid)
-				{
-					var errors = string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage));
-					return BaseResponse<string>.Fail(errors, ResponseErrorType.BadRequest);
-				}
-
-				var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdAsync(id);
-
-				if (stockAdjustment == null)
-				{
-					return BaseResponse<string>.Fail("Stock adjustment not found.", ResponseErrorType.NotFound);
-				}
-
-				if (stockAdjustment.Status == StockAdjustmentStatus.Completed)
-				{
-					return BaseResponse<string>.Fail("Completed stock adjustments cannot have their status updated.", ResponseErrorType.BadRequest);
-				}
-
-				if (stockAdjustment.Status > request.Status)
-				{
-					return BaseResponse<string>.Fail("Cannot revert stock adjustment to a previous status.", ResponseErrorType.BadRequest);
-				}
-
-				stockAdjustment.Status = request.Status;
-				_unitOfWork.StockAdjustments.Update(stockAdjustment);
-				await _unitOfWork.SaveChangesAsync();
-
-				return BaseResponse<string>.Ok(id.ToString(), "Stock adjustment status updated successfully.");
+				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+				throw AppException.BadRequest("Validation failed", errors);
 			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail($"Error updating stock adjustment status: {ex.Message}", ResponseErrorType.InternalError);
-			}
+
+			var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdAsync(id) ?? throw AppException.NotFound("Stock adjustment not found.");
+			stockAdjustment.UpdateStatus(request.Status);
+
+			_unitOfWork.StockAdjustments.Update(stockAdjustment);
+			var saved = await _unitOfWork.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to update stock adjustment status.");
+
+			return BaseResponse<string>.Ok(id.ToString(), "Stock adjustment status updated successfully.");
 		}
 
 		public async Task<BaseResponse<bool>> DeleteStockAdjustmentAsync(Guid id)
 		{
-			try
+			var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdWithDetailsAsync(id)
+					?? throw AppException.NotFound("Stock adjustment not found.");
+			stockAdjustment.EnsureDeletable();
+
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdWithDetailsAsync(id);
-
-				if (stockAdjustment == null)
+				foreach (var detail in stockAdjustment.AdjustmentDetails)
 				{
-					return BaseResponse<bool>.Fail("Stock adjustment not found.", ResponseErrorType.NotFound);
+					_unitOfWork.StockAdjustmentDetails.Remove(detail);
 				}
 
-				if (stockAdjustment.Status == StockAdjustmentStatus.Completed)
-				{
-					return BaseResponse<bool>.Fail("Completed stock adjustments cannot be deleted.", ResponseErrorType.BadRequest);
-				}
+				_unitOfWork.StockAdjustments.Remove(stockAdjustment);
 
-				if (stockAdjustment.Status == StockAdjustmentStatus.InProgress)
-				{
-					return BaseResponse<bool>.Fail("In-progress stock adjustments cannot be deleted.", ResponseErrorType.BadRequest);
-				}
-
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-				{
-					foreach (var detail in stockAdjustment.AdjustmentDetails)
-					{
-						_unitOfWork.StockAdjustmentDetails.Remove(detail);
-					}
-
-					_unitOfWork.StockAdjustments.Remove(stockAdjustment);
-
-					return BaseResponse<bool>.Ok(true, "Stock adjustment deleted successfully.");
-				});
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<bool>.Fail($"Error deleting stock adjustment: {ex.Message}", ResponseErrorType.InternalError);
-			}
+				return BaseResponse<bool>.Ok(true, "Stock adjustment deleted successfully.");
+			});
 		}
 	}
 }

@@ -1,9 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
-using PerfumeGPT.Application.DTOs.Responses.Base;
-using PerfumeGPT.Application.DTOs.Responses.ScentNotes;
-using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.ScentNotes;
+using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.ScentNotes;
+using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.API.Controllers
 {
@@ -48,6 +48,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> CreateScentNoteAsync([FromBody] CreateScentNoteRequest request)
 		{
+			var validation = ValidateRequestBody<CreateScentNoteRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _scentNoteService.CreateScentNoteAsync(request);
 			return HandleResponse(result);
 		}
@@ -57,6 +60,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status404NotFound)]
 		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> UpdateScentNoteAsync(int id, [FromBody] UpdateScentNoteRequest request)
 		{
+			var validation = ValidateRequestBody<UpdateScentNoteRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _scentNoteService.UpdateScentNoteAsync(id, request);
 			return HandleResponse(result);
 		}

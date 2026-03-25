@@ -21,12 +21,13 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime ExpiresAt { get; private set; }
 		public bool IsExpired => DateTime.UtcNow > ExpiresAt;
 
+		// Navigation properties
+		public virtual User? UploadedByUser { get; set; }
+
 		// IHasCreatedAt implementation
 		public DateTime CreatedAt { get; set; }
 
-		// Business logic methods
-		public virtual User? UploadedByUser { get; set; }
-
+		// Factory methods
 		public static TemporaryMedia Create(
 			string url,
 			string fileName,
@@ -63,6 +64,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
+		// Business logic methods
 		public void EnsureNotExpired()
 		{
 			if (IsExpired)

@@ -50,23 +50,27 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _reviewService.CreateReviewAsync(userId, request);
 			return HandleResponse(response);
 		}
+		#endregion
 
-		[HttpDelete("{reviewId:guid}")]
-		[Authorize(Roles = "user")]
+		#region STAFF ENDPOINTS
+		[HttpPost("{reviewId:guid}/answer")]
+		[Authorize(Roles = "staff")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> DeleteReview(Guid reviewId)
+		public async Task<ActionResult<BaseResponse<string>>> AnswerReview([FromRoute] Guid reviewId, [FromBody] AnswerReviewRequest request)
 		{
-			var userId = GetCurrentUserId();
-			var response = await _reviewService.DeleteReviewAsync(userId, reviewId);
+			var validation = ValidateRequestBody<AnswerReviewRequest>(request);
+			if (validation != null) return validation;
+
+			var staffId = GetCurrentUserId();
+			var response = await _reviewService.AnswerReviewAsync(reviewId, staffId, request);
 			return HandleResponse(response);
 		}
 		#endregion
 
 		#region PUBLIC ENDPOINTS
-
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ReviewListItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ReviewListItem>>), StatusCodes.Status400BadRequest)]
@@ -105,6 +109,19 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpDelete("{reviewId:guid}")]
+		[Authorize(Roles = "user,staff,admin")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<string>>> DeleteReview(Guid reviewId)
+		{
+			var userId = GetCurrentUserId();
+			var canDeleteAny = User.IsInRole("staff") || User.IsInRole("admin");
+			var response = await _reviewService.DeleteReviewAsync(userId, reviewId, canDeleteAny);
+			return HandleResponse(response);
+		}
 		#endregion
 
 		#region MEDIA ENDPOINTS

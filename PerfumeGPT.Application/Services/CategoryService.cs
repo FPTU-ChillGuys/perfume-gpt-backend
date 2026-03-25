@@ -2,7 +2,7 @@
 using Mapster;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Categories;
 using PerfumeGPT.Application.DTOs.Responses.Base;
-using PerfumeGPT.Application.DTOs.Responses.Categories;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.Categories;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;

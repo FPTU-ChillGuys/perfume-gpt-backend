@@ -219,9 +219,6 @@ namespace PerfumeGPT.Application.Services
 				lookupItems, "Variant lookup list retrieved successfully");
 		}
 
-		public (bool IsValid, string? ErrorMessage) ValidateVariantForCart(ProductVariant variant)
-			=> variant.ValidateForCart();
-
 		#region Media Management
 		public async Task<BaseResponse<List<MediaResponse>>> GetVariantImagesAsync(Guid variantId)
 		{
