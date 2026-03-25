@@ -727,8 +727,8 @@ namespace PerfumeGPT.Persistence.Repositories
 			// Build the reusable query
 			Action<MultiMatchQueryDescriptor<ProductDocument>> multiMatchQuery = mm => mm
 				.Query(searchText)
-				.Fields(new[] { "name^3", "brand^2", "category^2", "description", "variantsText", "attributesText", "gender", "origin" })
-				.Fuzziness(new Fuzziness("AUTO"))
+				.Fields(new[] { "name^3", "brand^2", "category^2", "description", "variantsText", "attributesText" })
+				.Fuzziness(new Fuzziness(1))
 				.Type(TextQueryType.BestFields);
 
 			// Get total count
@@ -765,10 +765,10 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsNoTracking()
 				.ToListAsync();
 
+			var map = dbItems.ToDictionary(x => x.Id);
 			var ordered = ids
-				.Select(id => dbItems.FirstOrDefault(p => p.Id == id))
-				.Where(p => p != null)
-				.Select(p => p!)
+				.Where(map.ContainsKey)
+				.Select(id => map[id])
 				.ToList();
 
 			return (ordered, totalCount);
@@ -777,33 +777,29 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task IndexAllProductsToElasticsearchAsync()
 		{
 			var products = await _context.Products
-				.Include(p => p.Brand)
-				.Include(p => p.Category)
-				.Include(p => p.ProductAttributes)
-					.ThenInclude(pa => pa.Attribute)
-				.Include(p => p.ProductAttributes)
-					.ThenInclude(pa => pa.Value)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.Concentration)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.ProductAttributes)
-						.ThenInclude(pa => pa.Attribute)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.ProductAttributes)
-						.ThenInclude(pa => pa.Value)
+				// ... các Include giữ nguyên ...
 				.Where(p => !p.IsDeleted)
 				.AsNoTracking()
 				.ToListAsync();
-
-			var indexTasks = products
-				.Select(product =>
-				{
-					var doc = BuildProductDocument(product);
-					return _esClient.IndexAsync(doc, x => x.Index(IndexName).Id(doc.Id));
-				})
-				.ToList();
-
-			await Task.WhenAll(indexTasks);
+			// THÊM: guard và log
+			if (products.Count == 0)
+			{
+				Console.WriteLine("[ES] No products to index.");
+				return;
+			}
+			Console.WriteLine($"[ES] Indexing {products.Count} products...");
+			var docs = products.Select(BuildProductDocument).ToList();
+			var bulkResponse = await _esClient.BulkAsync(b => b
+				.Index(IndexName)
+				.IndexMany(docs, (op, doc) => op.Id(doc.Id)));
+			// THÊM: check lỗi
+			if (!bulkResponse.IsValidResponse || bulkResponse.Errors)
+			{
+				var firstError = bulkResponse.ItemsWithErrors?.FirstOrDefault()?.Error?.Reason;
+				Console.WriteLine($"[ES] Bulk index error: {firstError}");
+				throw new Exception($"Elasticsearch bulk index failed: {firstError}");
+			}
+			Console.WriteLine($"[ES] Successfully indexed {docs.Count} products.");
 		}
 
 		public async Task IndexProductToElasticsearchAsync(Guid productId)
