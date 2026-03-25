@@ -19,24 +19,19 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<ProductFastLookResponse?> GetProductFastLookAsync(Guid productId);
 
 		/// <summary>
-		///	Get paged products based on semantic search of the provided text.
+		///	Get paged products based on full-text search via Elasticsearch.
 		///	</summary>
 		Task<(List<ProductListItemWithVariants> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request);
 
 		/// <summary>
-		///	Add embeddings for all products in the database.
+		/// Index all products into Elasticsearch.
 		/// </summary>
-		Task AddAllProductEmbeddingsAsync();
+		Task IndexAllProductsToElasticsearchAsync();
 
 		/// <summary>
-		/// Add embedding for a specific product by its ID.
+		/// Index a specific product into Elasticsearch by its ID.
 		/// </summary>
-		Task AddProductEmbeddingsByIdAsync(Guid productId);
-
-		/// <summary>
-		/// Add embedding for a specific product by passing the entire product entity. This can be useful when you already have the product data loaded and want to avoid an additional database query.
-		/// </summary>
-		Task<Product> AddProductEmbeddingsByProductAsync(Product product);
+		Task IndexProductToElasticsearchAsync(Guid productId);
 
 		Task<List<ProductDailySaleFigureResponse>> GetProductDailySaleFiguresAsync(DateOnly date);
 	}

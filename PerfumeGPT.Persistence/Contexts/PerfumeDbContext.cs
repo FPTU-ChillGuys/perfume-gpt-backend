@@ -411,10 +411,7 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(p => p.BrandId)
 				.OnDelete(DeleteBehavior.Restrict);
 
-			// Product embedding 
-			builder.Entity<Product>()
-				.Property(p => p.Embedding)
-				.HasColumnType("vector(1024)");
+
 
 			builder.Entity<Category>()
 				.HasMany(c => c.Products)

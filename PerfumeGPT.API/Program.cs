@@ -91,6 +91,8 @@ builder.Services.AddApplicationServices();
 builder.Services.AddIdentityServices(builder.Configuration);
 // Add Semantic Kernel services
 builder.Services.AddSemanticKernelServices(builder.Configuration);
+// Add Elasticsearch services
+builder.Services.AddElasticsearchServices(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
 

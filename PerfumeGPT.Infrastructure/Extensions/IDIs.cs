@@ -1,4 +1,6 @@
-﻿using Hangfire;
+﻿using Elastic.Clients.Elasticsearch;
+using Elastic.Transport;
+using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
@@ -235,6 +237,20 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			kernalBulder.AddOpenAIEmbeddingGenerator(modelId: "text-embedding-3-small", apiKey: openAIApiKey, dimensions: 1024);
 #pragma warning restore SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
+		}
+
+		public static void AddElasticsearchServices(this IServiceCollection services, IConfiguration configuration)
+		{
+			var url = Environment.GetEnvironmentVariable("ELASTICSEARCH__URL")
+				?? configuration["Elasticsearch:Url"]
+				?? "http://localhost:9200";
+
+			var settings = new ElasticsearchClientSettings(new Uri(url))
+				.DefaultIndex(Environment.GetEnvironmentVariable("ELASTICSEARCH__INDEX_NAME")
+					?? configuration["Elasticsearch:IndexName"]
+					?? "products");
+
+			services.AddSingleton(new ElasticsearchClient(settings));
 		}
 	}
 }

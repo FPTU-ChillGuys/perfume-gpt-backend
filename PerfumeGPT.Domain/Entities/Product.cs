@@ -1,5 +1,4 @@
-﻿using Microsoft.Data.SqlTypes;
-using PerfumeGPT.Domain.Commons;
+﻿using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Domain.Exceptions;
@@ -36,8 +35,7 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime CreatedAt { get; set; }
 		public DateTime? UpdatedAt { get; set; }
 
-		// Embedding
-		public SqlVector<float>? Embedding { get; set; }
+
 
 		// Factory method
 		public static Product Create(
@@ -127,10 +125,7 @@ namespace PerfumeGPT.Domain.Entities
 				ProductFamilyMaps.Add(new ProductFamilyMap { OlfactoryFamilyId = familyId });
 		}
 
-		public void UpdateEmbedding(SqlVector<float> embedding)
-		{
-			Embedding = embedding;
-		}
+
 
 		public void EnsureNotDeleted()
 		{

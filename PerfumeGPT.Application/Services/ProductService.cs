@@ -83,7 +83,7 @@ namespace PerfumeGPT.Application.Services
 						BulkOperationResult.FromBulkActionResponse("Media Upload", conversionResult));
 			}
 
-			await _productRepo.AddProductEmbeddingsByIdAsync(product.Id);
+			await _productRepo.IndexProductToElasticsearchAsync(product.Id);
 
 			var result = new BulkActionResult<string>(
 				product.Id.ToString(),
@@ -157,7 +157,7 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _productRepo.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update product");
 
-			await _productRepo.AddProductEmbeddingsByIdAsync(productId);
+			await _productRepo.IndexProductToElasticsearchAsync(productId);
 
 			var result = new BulkActionResult<string>(
 				productId.ToString(),
@@ -284,14 +284,14 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse> UpdateAllProductsEmbeddingAsync()
 		{
-			await _productRepo.AddAllProductEmbeddingsAsync();
-			return BaseResponse.Ok("All product embeddings updated successfully");
+			await _productRepo.IndexAllProductsToElasticsearchAsync();
+			return BaseResponse.Ok("All products indexed to Elasticsearch successfully");
 		}
 
 		public async Task<BaseResponse> UpdateProductEmbeddingAsync(Guid productId)
 		{
-			await _productRepo.AddProductEmbeddingsByIdAsync(productId);
-			return BaseResponse.Ok("Product embedding updated successfully");
+			await _productRepo.IndexProductToElasticsearchAsync(productId);
+			return BaseResponse.Ok("Product indexed to Elasticsearch successfully");
 		}
 		#endregion
 
