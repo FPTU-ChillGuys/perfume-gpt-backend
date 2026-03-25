@@ -245,8 +245,12 @@ namespace PerfumeGPT.Infrastructure.Extensions
 				?? configuration["Elasticsearch:Url"]
 				?? "http://localhost:9200";
 
-			var settings = new ElasticsearchClientSettings(new Uri(url))
-				.DefaultIndex(Environment.GetEnvironmentVariable("ELASTICSEARCH__INDEX_NAME")
+			var username = Environment.GetEnvironmentVariable("ELASTICSEARCH__USERNAME") ?? configuration["Elasticsearch:Username"];
+			var password = Environment.GetEnvironmentVariable("ELASTICSEARCH__PASSWORD") ?? configuration["Elasticsearch:Password"];
+
+            var settings = new ElasticsearchClientSettings(new Uri(url))
+				.Authentication(new BasicAuthentication(username!, password!))
+                .DefaultIndex(Environment.GetEnvironmentVariable("ELASTICSEARCH__INDEX_NAME")
 					?? configuration["Elasticsearch:IndexName"]
 					?? "products");
 
