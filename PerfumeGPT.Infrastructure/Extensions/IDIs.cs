@@ -249,7 +249,6 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			var password = Environment.GetEnvironmentVariable("ELASTICSEARCH__PASSWORD") ?? configuration["Elasticsearch:Password"];
 
             var settings = new ElasticsearchClientSettings(new Uri(url))
-				.Authentication(new BasicAuthentication(username!, password!))
                 .ServerCertificateValidationCallback((o, cert, chain, errors) => true)
                 .DefaultIndex(Environment.GetEnvironmentVariable("ELASTICSEARCH__INDEX_NAME")
 					?? configuration["Elasticsearch:IndexName"]

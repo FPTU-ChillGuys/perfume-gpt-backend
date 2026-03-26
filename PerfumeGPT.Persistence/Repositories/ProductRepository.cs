@@ -1,4 +1,4 @@
-﻿using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +14,7 @@ using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -714,8 +715,11 @@ namespace PerfumeGPT.Persistence.Repositories
             string Gender,
             int ReleaseYear,
             string Origin,
-            string VariantsText,
-            string AttributesText);
+            IEnumerable<string> Attributes,
+            IEnumerable<string> Concentrations,
+            IEnumerable<string> Volumes,
+            IEnumerable<string> Skus,
+            IEnumerable<string> Barcodes);
 
         public async Task<(List<ProductListItemWithVariants> Items, int TotalCount)>
             GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request)
@@ -725,17 +729,62 @@ namespace PerfumeGPT.Persistence.Repositories
 
             var from = (request.PageNumber - 1) * request.PageSize;
 
-            // Build the reusable query
-            Action<MultiMatchQueryDescriptor<ProductDocument>> multiMatchQuery = mm => mm
-                .Query(searchText)
-                .Fields(new[] { "name^3", "brand^2", "category^2", "description", "variantsText", "attributesText" })
-                .Fuzziness(new Fuzziness(1))
-                .Type(TextQueryType.BestFields);
+            var processedText = searchText.ToLowerInvariant();
+            var isOrQuery = processedText.Contains(" ho\u1eb7c ");
+
+            // Pre-process Text: Extract age and volume intent
+            // Ví dụ: người dùng gõ "nước hoa nam 20 tuổi 100ml"
+            var ageMatch = Regex.Match(processedText, @"(\d+)\s*tu\u1ed5i");
+            if (ageMatch.Success)
+            {
+                var ageNum = ageMatch.Groups[1].Value;
+                processedText = processedText.Replace(ageMatch.Value, $"age_{ageNum}");
+            }
+
+            var volumeMatch = Regex.Match(processedText, @"(\d+)\s*ml");
+            if (volumeMatch.Success)
+            {
+                var volNum = volumeMatch.Groups[1].Value;
+                processedText = processedText.Replace(volumeMatch.Value, $"volume_{volNum}");
+            }
+
+            // Dọn dẹp từ khoá "và" / "hoặc" dư thừa
+            processedText = processedText
+                .Replace(" v\u00e0 ", " ")
+                .Replace(" ho\u1eb7c ", " ");
+
+            var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "có", "co", "và", "va", "hoặc", "hoac", "hương", "huong", "mùi", "mui"
+            };
+
+            var normalizedTerms = processedText
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(t => !stopWords.Contains(t))
+                .ToArray();
+
+            processedText = normalizedTerms.Length > 0
+                ? string.Join(' ', normalizedTerms)
+                : processedText;
+
+            // N?u ngu?i dùng nh?p "ho?c" thì dùng Operator.Or, còn m?c d?nh là Operator.And (ph?i th?a mãn t?t c?)
+            var defaultOp = Operator.Or;
+            var minimumShouldMatch = isOrQuery ? "1" : normalizedTerms.Length <= 2 ? "100%" : normalizedTerms.Length <= 4 ? "75%" : "60%";
+
+            Action<QueryDescriptor<ProductDocument>> queryDesc = q => q
+                .MultiMatch(sq => sq
+                    .Query(processedText)
+                    .Fields(new[] { "name^5", "brand^4", "attributes^3", "concentrations^2", "category^2", "description", "gender^2", "origin", "volumes", "skus", "barcodes" })
+                    .Operator(defaultOp)
+                    .Type(TextQueryType.BestFields)
+                    .MinimumShouldMatch(minimumShouldMatch)
+                    .Fuzziness(new Fuzziness(1))
+                );
 
             // Get total count
             var countResponse = await _esClient.CountAsync<ProductDocument>(c => c
                 .Indices(IndexName)
-                .Query(q => q.MultiMatch(multiMatchQuery)));
+                .Query(queryDesc));
             var totalCount = countResponse.IsValidResponse ? (int)countResponse.Count : 0;
 
             if (totalCount == 0)
@@ -746,7 +795,7 @@ namespace PerfumeGPT.Persistence.Repositories
                 .Indices(IndexName)
                 .From(from)
                 .Size(request.PageSize)
-                .Query(q => q.MultiMatch(multiMatchQuery)));
+                .Query(queryDesc));
 
             if (!esResponse.IsValidResponse)
                 return ([], totalCount);
@@ -897,40 +946,121 @@ namespace PerfumeGPT.Persistence.Repositories
 
         private static ProductDocument BuildProductDocument(Product product)
         {
-            var attributesText = string.Join(", ",
-                product.ProductAttributes?
-                    .Where(pa => pa.Attribute != null && pa.Value != null)
-                    .Select(pa => $"{pa.Attribute.Name}: {pa.Value.Value}")
-                ?? []);
+            var attributes = new HashSet<string>();
 
-            var variantsText = string.Join("; ",
-                product.Variants?.Select(v =>
+            if (product.ProductAttributes != null)
+            {
+                foreach (var pa in product.ProductAttributes.Where(pa => pa.Attribute != null && pa.Value != null))
                 {
-                    var parts = new List<string>();
-                    if (v.Concentration != null) parts.Add(v.Concentration.Name);
-                    parts.Add($"{v.VolumeMl}ml");
-                    parts.Add(v.Type.ToString());
-                    parts.Add($"{v.BasePrice:N0} VND");
-                    if (v.ProductAttributes?.Count > 0)
-                        parts.AddRange(v.ProductAttributes
-                            .Where(pa => pa.Attribute != null && pa.Value != null)
-                            .Select(pa => $"{pa.Attribute.Name}: {pa.Value.Value}"));
-                    return string.Join(", ", parts);
-                }) ?? []);
+                    attributes.Add($"{pa.Attribute.Name}: {pa.Value.Value}");
+                    attributes.Add(pa.Value.Value);
+
+                    // Xử lý dải tuổi mở rộng
+                    if (pa.Attribute.Name.Contains("tu\u1ed5i", StringComparison.OrdinalIgnoreCase) || 
+                        pa.Value.Value.Contains("tu\u1ed5i", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var valStr = pa.Value.Value.ToLower();
+
+                        // Trường hợp "trên X tuổi"
+                        var matchOver = Regex.Match(valStr, @"tr\u00ean\s+(\d+)"); // "trên"
+                        if (matchOver.Success && int.TryParse(matchOver.Groups[1].Value, out int minOver))
+                        {
+                            for (int i = minOver; i <= 60; i++) attributes.Add($"age_{i}");
+                            continue;
+                        }
+
+                        // Trường hợp "dưới Y tuổi"
+                        var matchUnder = Regex.Match(valStr, @"d\u01b0\u1edbi\s+(\d+)"); // "dưới"
+                        if (matchUnder.Success && int.TryParse(matchUnder.Groups[1].Value, out int maxUnder))
+                        {
+                            for (int i = 12; i <= maxUnder; i++) attributes.Add($"age_{i}");
+                            continue;
+                        }
+
+                        // Trường hợp "mọi lứa tuổi"
+                        if (valStr.Contains("m\u1ecdi l\u1ee9a tu\u1ed5i")) // "mọi lứa tuổi"
+                        {
+                            for (int i = 12; i <= 60; i++) attributes.Add($"age_{i}");
+                            continue;
+                        }
+
+                        // Phân tích dải tuổi (VD: "20-29" hoặc "15-19")
+                        var matchRange = Regex.Match(valStr, @"(\d+)\s*[-–]\s*(\d+)");
+                        if (matchRange.Success)
+                        {
+                            if (int.TryParse(matchRange.Groups[1].Value, out int min) && 
+                                int.TryParse(matchRange.Groups[2].Value, out int max))
+                            {
+                                for (int i = min; i <= max; i++)
+                                {
+                                    attributes.Add($"age_{i}");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            var concentrations = new HashSet<string>();
+            var volumes = new HashSet<string>();
+            var skus = new HashSet<string>();
+            var barcodes = new HashSet<string>();
+
+            if (product.Variants != null)
+            {
+                foreach (var v in product.Variants)
+                {
+                    if (v.Concentration != null) concentrations.Add(v.Concentration.Name);
+
+                    // Thêm prefix cho thể tích để tránh lẫn lộn với tuổi (VD: volume_100)
+                    volumes.Add($"volume_{v.VolumeMl}");
+                    volumes.Add($"{v.VolumeMl}ml");
+
+                    if (!string.IsNullOrEmpty(v.Sku)) skus.Add(v.Sku);
+                    if (!string.IsNullOrEmpty(v.Barcode)) barcodes.Add(v.Barcode);
+
+                    if (v.ProductAttributes != null)
+                    {
+                        foreach (var pa in v.ProductAttributes.Where(pa => pa.Attribute != null && pa.Value != null))
+                        {
+                            attributes.Add($"{pa.Attribute.Name}: {pa.Value.Value}");
+                            attributes.Add(pa.Value.Value);
+                        }
+                    }
+                }
+            }
+
+            var genderText = product.Gender switch
+            {
+                Gender.Male => "Male Nam ng\u01b0\u1eddi nam cho nam",
+                Gender.Female => "Female N\u1eef ng\u01b0\u1eddi n\u1eef cho n\u1eef",
+                Gender.Unisex => "Unisex Nam N\u1eef c\u1ea3 nam v\u00e0 n\u1eef",
+                _ => product.Gender.ToString()
+            };
 
             return new ProductDocument(
                 Id: product.Id.ToString(),
-                Name: product.Name,
+                Name: product.Name ?? string.Empty,
                 Brand: product.Brand?.Name ?? string.Empty,
                 Category: product.Category?.Name ?? string.Empty,
                 Description: product.Description,
-                Gender: product.Gender.ToString(),
+                Gender: genderText,
                 ReleaseYear: product.ReleaseYear,
-                Origin: product.Origin,
-                VariantsText: variantsText,
-                AttributesText: attributesText);
+                Origin: product.Origin ?? string.Empty,
+                Attributes: attributes.ToList(),
+                Concentrations: concentrations.ToList(),
+                Volumes: volumes.ToList(),
+                Skus: skus.ToList(),
+                Barcodes: barcodes.ToList());
         }
 
         #endregion Private Methods
     }
 }
+
+
+
+
+
+
+

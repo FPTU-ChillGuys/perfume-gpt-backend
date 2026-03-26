@@ -487,4 +487,6 @@ $RECYCLE.BIN/
 # Docs folder
 Docs/
 
-/temp
+temp/
+/cai-thien.md
+/product.json

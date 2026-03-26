@@ -7,6 +7,11 @@
     <File Path="public_key.pem" />
     <File Path="readme.md" />
   </Folder>
+  <Folder Name="/temp/">
+    <File Path="cai-thien.md" />
+    <File Path="product.json" />
+    <File Path="tich-hop.md" />
+  </Folder>
   <Project Path="PerfumeGPT.API/PerfumeGPT.API.csproj" Id="d45e4b51-40aa-44d2-8fb9-a7905fc4eb1f" />
   <Project Path="PerfumeGPT.Application/PerfumeGPT.Application.csproj" Id="02a8c806-30b6-46b8-8e73-f0ae2f5f6fea" />
   <Project Path="PerfumeGPT.Domain/PerfumeGPT.Domain.csproj" Id="ca75c6f7-261b-424d-be06-7a2c100ac445" />
