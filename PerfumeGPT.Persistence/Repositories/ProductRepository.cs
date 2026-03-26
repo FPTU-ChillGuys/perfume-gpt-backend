@@ -644,6 +644,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			=> await _context.Products
 			  .Where(p => !p.IsDeleted && p.Id == productId)
 				.ProjectToType<ProductInforResponse>()
+				.AsSplitQuery()
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
 
@@ -719,7 +720,8 @@ namespace PerfumeGPT.Persistence.Repositories
 			var query = _context.Products
 			   .Where(p => !p.IsDeleted)
 				.OrderBy(p => EF.Functions.VectorDistance(metricType, p.Embedding!.Value, sqlVector))
-				.AsNoTracking();
+				.AsNoTracking()
+				.AsSplitQuery();
 
 			var totalCount = await query.CountAsync();
 
@@ -736,101 +738,51 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
-			var products = await _context.Products
-				.Include(p => p.Brand)
-				.Include(p => p.Category)
-				.Include(p => p.ProductAttributes)
-					.ThenInclude(pa => pa.Attribute)
-				.Include(p => p.ProductAttributes)
-					.ThenInclude(pa => pa.Value)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.Concentration)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.ProductAttributes)
-						.ThenInclude(pa => pa.Attribute)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.ProductAttributes)
-						.ThenInclude(pa => pa.Value)
+			var productIds = await _context.Products
 				.Where(p => !p.IsDeleted)
+				.Select(p => p.Id)
 				.ToListAsync();
 
-			foreach (var product in products)
+			const int batchSize = 50;
+
+			for (int i = 0; i < productIds.Count; i += batchSize)
 			{
-				var textToEmbed = BuildEmbeddingText(product);
+				var batchIds = productIds.Skip(i).Take(batchSize).ToList();
 
-				var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed);
+				var productsBatch = await BuildFullProductDetailsQuery()
+					.Where(p => batchIds.Contains(p.Id))
+					.ToListAsync();
 
-				product.Embedding = new SqlVector<float>(embedding);
+				foreach (var product in productsBatch)
+				{
+					var textToEmbed = BuildEmbeddingText(product);
+					var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed);
 
-				_context.Update(product);
+					product.Embedding = new SqlVector<float>(embedding);
+					_context.Update(product);
+				}
 
+				await _context.SaveChangesAsync();
+				_context.ChangeTracker.Clear();
 			}
-			await _context.SaveChangesAsync();
 		}
 
 		public async Task AddProductEmbeddingsByIdAsync(Guid productId)
 		{
-			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
-			var product = await _context.Products
-				.Include(p => p.Brand)
-				.Include(p => p.Category)
-				.Include(p => p.ProductAttributes)
-					.ThenInclude(pa => pa.Attribute)
-				.Include(p => p.ProductAttributes)
-					.ThenInclude(pa => pa.Value)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.Concentration)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.ProductAttributes)
-						.ThenInclude(pa => pa.Attribute)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.ProductAttributes)
-						.ThenInclude(pa => pa.Value)
+			var embeddingGenerator = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+
+			var product = await BuildFullProductDetailsQuery()
 				.FirstOrDefaultAsync(p => p.Id == productId && !p.IsDeleted);
+
 			if (product != null)
 			{
 				var textToEmbed = BuildEmbeddingText(product);
 				var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed);
+
 				product.Embedding = new SqlVector<float>(embedding);
 				_context.Update(product);
 				await _context.SaveChangesAsync();
 			}
-		}
-
-		public async Task<Product> AddProductEmbeddingsByProductAsync(Product product)
-		{
-			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
-			if (product != null)
-			{
-				// Reload with all related data for comprehensive embedding
-				var fullProduct = await _context.Products
-					.Include(p => p.Brand)
-					.Include(p => p.Category)
-					.Include(p => p.ProductAttributes)
-						.ThenInclude(pa => pa.Attribute)
-					.Include(p => p.ProductAttributes)
-						.ThenInclude(pa => pa.Value)
-					.Include(p => p.Variants.Where(v => !v.IsDeleted))
-						.ThenInclude(v => v.Concentration)
-					.Include(p => p.Variants.Where(v => !v.IsDeleted))
-						.ThenInclude(v => v.ProductAttributes)
-							.ThenInclude(pa => pa.Attribute)
-					.Include(p => p.Variants.Where(v => !v.IsDeleted))
-						.ThenInclude(v => v.ProductAttributes)
-							.ThenInclude(pa => pa.Value)
-					.FirstOrDefaultAsync(p => p.Id == product.Id && !p.IsDeleted);
-
-				if (fullProduct != null)
-				{
-					var textToEmbed = BuildEmbeddingText(fullProduct);
-					var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed);
-					fullProduct.Embedding = new SqlVector<float>(embedding);
-					_context.Update(fullProduct);
-					await _context.SaveChangesAsync();
-					return fullProduct;
-				}
-			}
-			return product!;
 		}
 
 		public async Task<List<ProductDailySaleFigureResponse>> GetProductDailySaleFiguresAsync(DateOnly date)
@@ -865,6 +817,26 @@ namespace PerfumeGPT.Persistence.Repositories
 		#endregion Vector Search Methods
 
 		#region Private Methods
+		private IQueryable<Product> BuildFullProductDetailsQuery()
+		{
+			return _context.Products
+				.Include(p => p.Brand)
+				.Include(p => p.Category)
+				.Include(p => p.ProductAttributes)
+					.ThenInclude(pa => pa.Attribute)
+				.Include(p => p.ProductAttributes)
+					.ThenInclude(pa => pa.Value)
+				.Include(p => p.Variants.Where(v => !v.IsDeleted))
+					.ThenInclude(v => v.Concentration)
+				.Include(p => p.Variants.Where(v => !v.IsDeleted))
+					.ThenInclude(v => v.ProductAttributes)
+						.ThenInclude(pa => pa.Attribute)
+				.Include(p => p.Variants.Where(v => !v.IsDeleted))
+					.ThenInclude(v => v.ProductAttributes)
+						.ThenInclude(pa => pa.Value)
+				.AsSplitQuery();
+		}
+
 
 		private static string BuildEmbeddingText(Product product)
 		{

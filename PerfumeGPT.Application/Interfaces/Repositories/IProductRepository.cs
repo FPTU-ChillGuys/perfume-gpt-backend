@@ -33,11 +33,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		/// </summary>
 		Task AddProductEmbeddingsByIdAsync(Guid productId);
 
-		/// <summary>
-		/// Add embedding for a specific product by passing the entire product entity. This can be useful when you already have the product data loaded and want to avoid an additional database query.
-		/// </summary>
-		Task<Product> AddProductEmbeddingsByProductAsync(Product product);
-
 		Task<List<ProductDailySaleFigureResponse>> GetProductDailySaleFiguresAsync(DateOnly date);
 	}
 }
