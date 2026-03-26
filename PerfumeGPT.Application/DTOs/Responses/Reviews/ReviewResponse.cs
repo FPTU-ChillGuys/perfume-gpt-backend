@@ -13,6 +13,8 @@ namespace PerfumeGPT.Application.DTOs.Responses.Reviews
 		public string VariantName { get; set; } = null!;
 		public int Rating { get; set; }
 		public string Comment { get; set; } = string.Empty;
+		public string? StaffFeedbackComment { get; set; }
+		public DateTime? StaffFeedbackAt { get; set; }
 		public List<MediaResponse> Images { get; set; } = [];
 		public DateTime CreatedAt { get; set; }
 		public DateTime? UpdatedAt { get; set; }

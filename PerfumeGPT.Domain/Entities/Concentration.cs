@@ -12,7 +12,7 @@ namespace PerfumeGPT.Domain.Entities
 		// Navigation
 		public virtual ICollection<ProductVariant> Variants { get; set; } = [];
 
-		// Business logic methods
+		// Factory methods
 		public static Concentration Create(string name)
 		{
 			return new Concentration
@@ -21,6 +21,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
+		// Business logic methods
 		public static string NormalizeName(string name)
 		{
 			var normalized = name?.Trim() ?? string.Empty;

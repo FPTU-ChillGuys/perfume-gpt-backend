@@ -7,18 +7,8 @@ namespace PerfumeGPT.Application.Interfaces.Services.OrderHelpers
 {
 	public interface IOrderShippingHelper
 	{
-		Task<BaseResponse<decimal>> SetupShippingInfoAsync(
-			Guid orderId,
-			RecipientInformation? recipientRequest,
-			Guid? customerId,
-			Guid? savedAddressId,
-			decimal? preCalculatedShippingFee = null,
-			Order? orderToUpdate = null);
-
-		Task<BaseResponse<string>> CreateGHNShippingOrderAsync(
-			Order order,
-			RecipientInfo recipientInfo);
-
+		Task SetupShippingInfoAsync(Guid orderId, RecipientInformation? recipientRequest, Guid? customerId, Guid? savedAddressId);
+		Task<BaseResponse<string>> CreateGHNShippingOrderAsync(Order order, RecipientInfo recipientInfo);
 		ShippingStatus? MapOrderStatusToShippingStatus(OrderStatus orderStatus);
 	}
 }

@@ -27,7 +27,7 @@ namespace PerfumeGPT.Domain.Entities
 		// Navigation property
 		public virtual User User { get; set; } = null!;
 
-		// Business logic methods
+		// Factory methods
 		public static Address CreateForUser(
 			 Guid userId,
 			 string recipientName,
@@ -79,6 +79,7 @@ namespace PerfumeGPT.Domain.Entities
 			ProvinceId = provinceId;
 		}
 
+		// Business logic methods
 		public void EnsureOwnedBy(Guid userId)
 		{
 			if (UserId != userId)

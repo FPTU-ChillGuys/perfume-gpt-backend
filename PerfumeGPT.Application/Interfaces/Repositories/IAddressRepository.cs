@@ -8,6 +8,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	{
 		Task<List<AddressResponse>> GetUserAddresses(Guid userId);
 		Task<AddressResponse?> GetUserAddressById(Guid userId, Guid addressId);
-		Task<AddressResponse?> GetDefaultAddress(Guid userId);
+		Task<AddressResponse?> GetDefaultAddressAsync(Guid userId);
 	}
 }

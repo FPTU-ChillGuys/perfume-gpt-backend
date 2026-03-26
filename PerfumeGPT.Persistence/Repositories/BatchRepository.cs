@@ -1,6 +1,6 @@
 using Mapster;
 using Microsoft.EntityFrameworkCore;
-using PerfumeGPT.Application.DTOs.Requests.Inventory;
+using PerfumeGPT.Application.DTOs.Requests.Inventory.Batches;
 using PerfumeGPT.Application.DTOs.Responses.Batches;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
@@ -89,14 +89,6 @@ namespace PerfumeGPT.Persistence.Repositories
 			=> await _context.Batches
 				.ProjectToType<BatchLookupResponse>()
 				.AsNoTracking().ToListAsync();
-
-		public async Task<List<BatchDetailResponse>> GetBatchesByVariantIdAsync(Guid variantId)
-			=> await _context.Batches
-				.Where(b => b.VariantId == variantId)
-				.OrderBy(b => b.ExpiryDate)
-				.AsNoTracking()
-				.ProjectToType<BatchDetailResponse>()
-				.ToListAsync();
 
 		public async Task<BatchDetailResponse?> GetBatchByIdAsync(Guid batchId)
 			=> await _context.Batches

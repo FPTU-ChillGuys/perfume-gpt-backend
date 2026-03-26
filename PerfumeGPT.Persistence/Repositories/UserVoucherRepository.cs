@@ -14,9 +14,7 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class UserVoucherRepository : GenericRepository<UserVoucher>, IUserVoucherRepository
 	{
-		public UserVoucherRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public UserVoucherRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task MigrateGuestVouchersAsync(Guid userId, string email, string phoneNumber)
 		{
@@ -30,7 +28,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			foreach (var voucher in guestVouchers)
 			{
-				voucher.UserId = userId;
+                voucher.AssignToUser(userId);
 			}
 
 			await _context.SaveChangesAsync();

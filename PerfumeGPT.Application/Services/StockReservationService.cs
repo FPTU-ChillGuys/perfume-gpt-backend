@@ -1,4 +1,3 @@
-using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -136,110 +135,100 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<BaseResponse<int>> ProcessExpiredReservationsAsync()
+		public async Task<int> ProcessExpiredReservationsAsync()
 		{
-			try
+			var expiredReservations = await _unitOfWork.StockReservations.GetExpiredReservationsAsync();
+
+			if (!expiredReservations.Any())
+				return 0;
+
+
+			// Calculate total reserved quantities per variant BEFORE changing status
+			// Only count reservations that will actually be released (exclude paid orders)
+			var variantIds = expiredReservations.Select(r => r.VariantId).Distinct();
+			var reservedByVariant = new Dictionary<Guid, int>();
+
+			foreach (var variantId in variantIds)
 			{
-				var expiredReservations = await _unitOfWork.StockReservations.GetExpiredReservationsAsync();
+				var totalReserved = expiredReservations
+					.Where(r => r.VariantId == variantId
+						&& r.Status == ReservationStatus.Reserved
+						&& (r.Order == null || r.Order.PaymentStatus != PaymentStatus.Paid))
+					.Sum(r => r.ReservedQuantity);
 
-				if (!expiredReservations.Any())
-				{
-					return BaseResponse<int>.Ok(0, "No expired reservations to process.");
-				}
-
-				// Calculate total reserved quantities per variant BEFORE changing status
-				// Only count reservations that will actually be released (exclude paid orders)
-				var variantIds = expiredReservations.Select(r => r.VariantId).Distinct();
-				var reservedByVariant = new Dictionary<Guid, int>();
-
-				foreach (var variantId in variantIds)
-				{
-					var totalReserved = expiredReservations
-						.Where(r => r.VariantId == variantId
-							&& r.Status == ReservationStatus.Reserved
-							&& (r.Order == null || r.Order.PaymentStatus != PaymentStatus.Paid))
-						.Sum(r => r.ReservedQuantity);
-
-					reservedByVariant[variantId] = totalReserved;
-				}
-
-				// Collect affected orders for status update
-				var affectedOrders = new HashSet<Guid>();
-				var count = 0;
-
-				foreach (var reservation in expiredReservations)
-				{
-					if (reservation.Status != ReservationStatus.Reserved)
-					{
-						continue;
-					}
-
-					// Skip reservations for paid orders - they are waiting for staff to package
-					if (reservation.Order != null && reservation.Order.PaymentStatus == PaymentStatus.Paid)
-					{
-						continue;
-					}
-
-					// Update batch: decrease reserved quantity
-					var batch = reservation.Batch;
-					batch.Release(reservation.ReservedQuantity);
-					_unitOfWork.Batches.Update(batch);
-
-					reservation.Release();
-					_unitOfWork.StockReservations.Update(reservation);
-
-					// Track order for cancellation
-					if (reservation.Order != null && reservation.Order.Status == OrderStatus.Pending)
-					{
-						affectedOrders.Add(reservation.OrderId);
-					}
-
-					count++;
-				}
-
-				// Update stock: decrease reserved quantity using pre-calculated totals
-				foreach (var variantId in variantIds)
-				{
-					var totalReserved = reservedByVariant[variantId];
-
-					if (totalReserved <= 0) continue;
-
-					var stock = await _unitOfWork.Stocks
-						.FirstOrDefaultAsync(s => s.VariantId == variantId);
-
-					if (stock != null)
-					{
-						stock.ReleaseReservation(totalReserved);
-						_unitOfWork.Stocks.Update(stock);
-					}
-				}
-
-				// Update affected orders to Canceled status
-				foreach (var orderId in affectedOrders)
-				{
-					var order = await _unitOfWork.Orders
-						.FirstOrDefaultAsync(o => o.Id == orderId);
-
-					if (order != null && order.Status == OrderStatus.Pending)
-					{
-						order.Status = OrderStatus.Canceled;
-						_unitOfWork.Orders.Update(order);
-					}
-				}
-
-				if (count > 0)
-				{
-					await _unitOfWork.SaveChangesAsync();
-				}
-
-				return BaseResponse<int>.Ok(count, $"Processed {count} expired reservations.");
+				reservedByVariant[variantId] = totalReserved;
 			}
-			catch (Exception ex)
+
+			// Collect affected orders for status update
+			var affectedOrders = new HashSet<Guid>();
+			var count = 0;
+
+			foreach (var reservation in expiredReservations)
 			{
-				return BaseResponse<int>.Fail(
-					$"Error processing expired reservations: {ex.Message}",
-					ResponseErrorType.InternalError);
+				if (reservation.Status != ReservationStatus.Reserved)
+				{
+					continue;
+				}
+
+				// Skip reservations for paid orders - they are waiting for staff to package
+				if (reservation.Order != null && reservation.Order.PaymentStatus == PaymentStatus.Paid)
+				{
+					continue;
+				}
+
+				// Update batch: decrease reserved quantity
+				var batch = reservation.Batch;
+				batch.Release(reservation.ReservedQuantity);
+				_unitOfWork.Batches.Update(batch);
+
+				reservation.Release();
+				_unitOfWork.StockReservations.Update(reservation);
+
+				// Track order for cancellation
+				if (reservation.Order != null && reservation.Order.Status == OrderStatus.Pending)
+				{
+					affectedOrders.Add(reservation.OrderId);
+				}
+
+				count++;
 			}
+
+			// Update stock: decrease reserved quantity using pre-calculated totals
+			foreach (var variantId in variantIds)
+			{
+				var totalReserved = reservedByVariant[variantId];
+
+				if (totalReserved <= 0) continue;
+
+				var stock = await _unitOfWork.Stocks
+					.FirstOrDefaultAsync(s => s.VariantId == variantId);
+
+				if (stock != null)
+				{
+					stock.ReleaseReservation(totalReserved);
+					_unitOfWork.Stocks.Update(stock);
+				}
+			}
+
+			// Update affected orders to Canceled status
+			foreach (var orderId in affectedOrders)
+			{
+				var order = await _unitOfWork.Orders
+					.FirstOrDefaultAsync(o => o.Id == orderId);
+
+				if (order != null && order.Status == OrderStatus.Pending)
+				{
+					order.SetStatus(OrderStatus.Canceled);
+					_unitOfWork.Orders.Update(order);
+				}
+			}
+
+			if (count > 0)
+			{
+				await _unitOfWork.SaveChangesAsync();
+			}
+
+			return count;
 		}
 	}
 }

@@ -1,23 +1,26 @@
 ﻿using PerfumeGPT.Application.DTOs.Responses.Base;
-using PerfumeGPT.Application.DTOs.Responses.ScentNotes;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using Mapster;
-using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.ScentNotes;
 using PerfumeGPT.Application.Interfaces.Services;
+using FluentValidation;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.ScentNotes;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class ScentNoteService : IScentNoteService
 	{
 		private readonly IScentNoteRepository _scentNoteRepository;
-		private readonly IMapper _mapper;
+		private readonly IValidator<CreateScentNoteRequest> _createValidator;
+		private readonly IValidator<UpdateScentNoteRequest> _updateValidator;
 
-		public ScentNoteService(IScentNoteRepository scentNoteRepository, IMapper mapper)
+		public ScentNoteService(IScentNoteRepository scentNoteRepository, IValidator<UpdateScentNoteRequest> updateValidator, IValidator<CreateScentNoteRequest> createValidator)
 		{
 			_scentNoteRepository = scentNoteRepository;
-			_mapper = mapper;
+			_updateValidator = updateValidator;
+			_createValidator = createValidator;
 		}
 
 		public async Task<BaseResponse<List<ScentNoteLookupResponse>>> GetScentNoteLookupListAsync()
@@ -35,60 +38,66 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ScentNoteResponse>> GetScentNoteByIdAsync(int id)
 		{
-			var result = await _scentNoteRepository.GetScentNoteByIdAsync(id);
-			if (result == null)
-				return BaseResponse<ScentNoteResponse>.Fail("ScentNote not found", ResponseErrorType.NotFound);
+			var result = await _scentNoteRepository.GetScentNoteByIdAsync(id) ?? throw AppException.NotFound("ScentNote not found");
 			return BaseResponse<ScentNoteResponse>.Ok(result);
 		}
 
 		public async Task<BaseResponse<ScentNoteResponse>> CreateScentNoteAsync(CreateScentNoteRequest request)
 		{
+			var validationResult = await _createValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+			{
+				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+				throw AppException.BadRequest("Invalid request", errors);
+			}
 			var normalizedName = request.Name.Trim();
 
 			var exists = await _scentNoteRepository.AnyAsync(s => s.Name.ToLower() == normalizedName.ToLower());
 			if (exists)
-				return BaseResponse<ScentNoteResponse>.Fail("ScentNote name already exists.", ResponseErrorType.Conflict);
+				throw AppException.Conflict("ScentNote name already exists.");
 
-			var entity = _mapper.Map<ScentNote>(request);
-			entity.Name = normalizedName;
+			var entity = ScentNote.Create(request.Name);
 
 			await _scentNoteRepository.AddAsync(entity);
-			await _scentNoteRepository.SaveChangesAsync();
+			var saved = await _scentNoteRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Could not create ScentNote.");
 			return BaseResponse<ScentNoteResponse>.Ok(entity.Adapt<ScentNoteResponse>());
 		}
 
 		public async Task<BaseResponse<ScentNoteResponse>> UpdateScentNoteAsync(int id, UpdateScentNoteRequest request)
 		{
+			var validationResult = await _updateValidator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+			{
+				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+				throw AppException.BadRequest("Invalid request", errors);
+			}
+
 			var normalizedName = request.Name.Trim();
 
 			var exists = await _scentNoteRepository.AnyAsync(s => s.Name.ToLower() == normalizedName.ToLower() && s.Id != id);
 			if (exists)
-				return BaseResponse<ScentNoteResponse>.Fail("ScentNote name already exists.", ResponseErrorType.Conflict);
+				throw AppException.Conflict("ScentNote name already exists.");
 
-			var entity = await _scentNoteRepository.GetByIdAsync(id);
-			if (entity == null)
-				return BaseResponse<ScentNoteResponse>.Fail("ScentNote not found", ResponseErrorType.NotFound);
-
-			_mapper.Map(request, entity);
-			entity.Name = normalizedName;
+			var entity = await _scentNoteRepository.GetByIdAsync(id) ?? throw AppException.NotFound("ScentNote not found");
+			entity.Rename(request.Name);
 
 			_scentNoteRepository.Update(entity);
-			await _scentNoteRepository.SaveChangesAsync();
+			var saved = await _scentNoteRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Could not update ScentNote.");
 
 			return BaseResponse<ScentNoteResponse>.Ok(entity.Adapt<ScentNoteResponse>());
 		}
 
 		public async Task<BaseResponse<bool>> DeleteScentNoteAsync(int id)
 		{
-			var entity = await _scentNoteRepository.GetByIdAsync(id);
-			if (entity == null)
-				return BaseResponse<bool>.Fail("ScentNote not found", ResponseErrorType.NotFound);
-
-			if (entity.ProductScentNoteMaps.Count != 0 || entity.CustomerScentNotePreferences.Count != 0)
-				return BaseResponse<bool>.Fail("Cannot delete ScentNote that is associated with products.", ResponseErrorType.BadRequest);
+			var entity = await _scentNoteRepository.GetByIdAsync(id) ?? throw AppException.NotFound("ScentNote not found");
+			var hasAssociations = await _scentNoteRepository.HasAssociationsAsync(id);
+			ScentNote.EnsureCanDelete(hasAssociations);
 
 			_scentNoteRepository.Remove(entity);
-			await _scentNoteRepository.SaveChangesAsync();
+			var saved = await _scentNoteRepository.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Could not delete ScentNote.");
 
 			return BaseResponse<bool>.Ok(true);
 		}

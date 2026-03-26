@@ -524,6 +524,9 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<int>("NoteId")
                         .HasColumnType("int");
 
+                    b.Property<int>("NoteType")
+                        .HasColumnType("int");
+
                     b.Property<Guid>("ProfileId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1357,7 +1360,6 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Comment")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
@@ -1369,20 +1371,20 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<DateTime?>("ModeratedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("ModeratedByStaffId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ModerationReason")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<Guid>("OrderDetailId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Rating")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("StaffFeedbackAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("StaffFeedbackByStaffId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("StaffFeedbackComment")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -1392,12 +1394,12 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ModeratedByStaffId");
-
                     b.HasIndex("OrderDetailId")
                         .IsUnique();
 
                     b.HasIndex("Rating");
+
+                    b.HasIndex("StaffFeedbackByStaffId");
 
                     b.HasIndex("UserId");
 
@@ -2528,16 +2530,16 @@ namespace PerfumeGPT.Persistence.Migrations
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Review", b =>
                 {
-                    b.HasOne("PerfumeGPT.Domain.Entities.User", "ModeratedByStaff")
-                        .WithMany("ModeratedReviews")
-                        .HasForeignKey("ModeratedByStaffId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("PerfumeGPT.Domain.Entities.OrderDetail", "OrderDetail")
                         .WithOne("Review")
                         .HasForeignKey("PerfumeGPT.Domain.Entities.Review", "OrderDetailId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("PerfumeGPT.Domain.Entities.User", "StaffFeedbackByStaff")
+                        .WithMany("AnswerReviews")
+                        .HasForeignKey("StaffFeedbackByStaffId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PerfumeGPT.Domain.Entities.User", "User")
                         .WithMany("Reviews")
@@ -2545,9 +2547,9 @@ namespace PerfumeGPT.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("ModeratedByStaff");
-
                     b.Navigation("OrderDetail");
+
+                    b.Navigation("StaffFeedbackByStaff");
 
                     b.Navigation("User");
                 });
@@ -2866,6 +2868,8 @@ namespace PerfumeGPT.Persistence.Migrations
                 {
                     b.Navigation("Addresses");
 
+                    b.Navigation("AnswerReviews");
+
                     b.Navigation("CartItems");
 
                     b.Navigation("CustomerProfile");
@@ -2873,8 +2877,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("ImportTickets");
 
                     b.Navigation("LoyaltyTransactions");
-
-                    b.Navigation("ModeratedReviews");
 
                     b.Navigation("Notifications");
 

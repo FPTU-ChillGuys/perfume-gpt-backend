@@ -8,7 +8,7 @@ using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.API.Controllers
 {
-	[Route("api/admin/dashboard")]
+	[Route("api/[controller]")]
 	[ApiController]
 	[Authorize(Roles = "admin")]
 	public class AdminDashboardController : BaseApiController

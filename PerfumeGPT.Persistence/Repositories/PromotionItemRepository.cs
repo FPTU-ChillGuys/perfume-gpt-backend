@@ -7,8 +7,6 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class PromotionItemRepository : GenericRepository<PromotionItem>, IPromotionItemRepository
 	{
-		public PromotionItemRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public PromotionItemRepository(PerfumeDbContext context) : base(context) { }
 	}
 }

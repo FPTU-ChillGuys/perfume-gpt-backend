@@ -3,6 +3,7 @@ using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.VNPays;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
@@ -14,10 +15,8 @@ namespace PerfumeGPT.Application.Services
 	public class PaymentService : IPaymentService
 	{
 		#region Dependencies
-
 		private readonly IVnPayService _vnPayService;
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IVoucherService _voucherService;
 
@@ -25,55 +24,34 @@ namespace PerfumeGPT.Application.Services
 			IVnPayService vnPayService,
 			IUnitOfWork unitOfWork,
 			IHttpContextAccessor httpContextAccessor,
-			IVoucherService voucherService,
-			ILoyaltyTransactionService loyaltyTransactionService)
+			IVoucherService voucherService)
 		{
 			_vnPayService = vnPayService;
 			_unitOfWork = unitOfWork;
 			_httpContextAccessor = httpContextAccessor;
 			_voucherService = voucherService;
-			_loyaltyTransactionService = loyaltyTransactionService;
 		}
-
 		#endregion Dependencies
 
 		public async Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, bool isSuccess, string? failureReason = null)
 		{
-			try
-			{
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-				{
-					var payment = await _unitOfWork.Payments.GetByIdAsync(paymentId);
-					if (payment == null)
-					{
-						return BaseResponse<bool>.Fail("Payment record not found.", ResponseErrorType.NotFound);
-					}
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			   {
+				   var payment = await _unitOfWork.Payments.GetByIdAsync(paymentId)
+					   ?? throw AppException.NotFound("Payment record not found.");
 
-					if (payment.TransactionStatus != TransactionStatus.Pending)
-					{
-						return BaseResponse<bool>.Ok(true, "Payment already processed.");
-					}
+				   if (!payment.IsPending())
+				   {
+					   return BaseResponse<bool>.Ok(true, "Payment already processed.");
+				   }
 
-					var order = await _unitOfWork.Orders.GetByIdAsync(payment.OrderId);
-					if (order == null)
-					{
-						return BaseResponse<bool>.Fail("Order not found.", ResponseErrorType.NotFound);
-					}
+				   var order = await _unitOfWork.Orders.GetByIdAsync(payment.OrderId)
+					   ?? throw AppException.NotFound("Order not found.");
 
-					if (isSuccess)
-					{
-						return await CompleteSuccessfulPayment(payment, order);
-					}
-					else
-					{
-						return await HandleFailedPayment(payment, order, failureReason);
-					}
-				});
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<bool>.Fail($"An error occurred while updating payment status: {ex.Message}", ResponseErrorType.InternalError);
-			}
+				   return isSuccess
+					   ? await CompleteSuccessfulPayment(payment, order)
+					   : await HandleFailedPayment(payment, order, failureReason);
+			   });
 		}
 
 		// change or retry payment methods
@@ -93,14 +71,11 @@ namespace PerfumeGPT.Application.Services
 			var vnPayResponse = _vnPayService.GetPaymentResponseAsync(queryParameters);
 			if (vnPayResponse == null || vnPayResponse.PaymentId == Guid.Empty)
 			{
-				return BaseResponse<VnPayReturnResponse>.Fail("Invalid VNPay response.", ResponseErrorType.BadRequest);
+				throw AppException.BadRequest("Invalid VNPay response.");
 			}
 
-			var payment = await _unitOfWork.Payments.GetByIdAsync(vnPayResponse.PaymentId);
-			if (payment == null)
-			{
-				return BaseResponse<VnPayReturnResponse>.Fail("Payment record not found.", ResponseErrorType.NotFound);
-			}
+			var payment = await _unitOfWork.Payments.GetByIdAsync(vnPayResponse.PaymentId)
+				   ?? throw AppException.NotFound("Payment record not found.");
 
 			var orderId = payment.OrderId;
 
@@ -112,13 +87,7 @@ namespace PerfumeGPT.Application.Services
 
 			if (vnPayResponse.IsSuccess == false)
 			{
-				return new BaseResponse<VnPayReturnResponse>
-				{
-					Success = false,
-					Message = "VNPay payment failed: " + vnPayResponse.Message,
-					ErrorType = ResponseErrorType.BadRequest,
-					Payload = payload
-				};
+				throw AppException.BadRequest("VNPay payment failed: " + vnPayResponse.Message);
 			}
 
 			return BaseResponse<VnPayReturnResponse>.Ok(payload, "VNPay payment processed successfully.");
@@ -129,171 +98,106 @@ namespace PerfumeGPT.Application.Services
 			var vnPayResponse = _vnPayService.GetPaymentResponseAsync(queryParameters);
 			if (vnPayResponse == null || vnPayResponse.PaymentId == Guid.Empty)
 			{
-				return BaseResponse<bool>.Fail("VNPay payment failed", ResponseErrorType.BadRequest);
+				throw AppException.BadRequest("VNPay payment failed");
 			}
 
-			try
-			{
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-				{
-					var payment = await _unitOfWork.Payments.GetByIdAsync(vnPayResponse.PaymentId);
-					if (payment == null)
-					{
-						return BaseResponse<bool>.Fail("Payment record not found.", ResponseErrorType.NotFound);
-					}
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			   {
+				   var payment = await _unitOfWork.Payments.GetByIdAsync(vnPayResponse.PaymentId)
+					   ?? throw AppException.NotFound("Payment record not found.");
 
-					if (payment.TransactionStatus != TransactionStatus.Pending)
-					{
-						return BaseResponse<bool>.Ok(true, "Payment already processed.");
-					}
+				   if (!payment.IsPending())
+				   {
+					   return BaseResponse<bool>.Ok(true, "Payment already processed.");
+				   }
 
-					if (payment.Amount != vnPayResponse.Amount)
-					{
-						return BaseResponse<bool>.Fail("Payment amount mismatch.", ResponseErrorType.BadRequest);
-					}
+				   if (payment.Amount != vnPayResponse.Amount)
+				   {
+					   throw AppException.BadRequest("Payment amount mismatch.");
+				   }
 
-					var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId);
-					if (order == null)
-					{
-						return BaseResponse<bool>.Fail("Order not found.", ResponseErrorType.NotFound);
-					}
+				   var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
+					   ?? throw AppException.NotFound("Order not found.");
 
-					if (vnPayResponse.IsSuccess)
-					{
-						return await CompleteSuccessfulPayment(payment, order);
-					}
-					else
-					{
-						return await HandleFailedPayment(payment, order, vnPayResponse.Message);
-					}
-				});
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<bool>.Fail($"An error occurred while processing payment: {ex.Message}", ResponseErrorType.InternalError);
-			}
+				   return vnPayResponse.IsSuccess
+					   ? await CompleteSuccessfulPayment(payment, order)
+					   : await HandleFailedPayment(payment, order, vnPayResponse.Message);
+			   });
 		}
 
 		// private methods
 		private async Task<BaseResponse<string>> ProcessPaymentRetryAsync(Guid paymentId, PaymentInformation? newMethod = null, bool requirePending = false)
 		{
-			try
-			{
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-				{
-					// 1. Get current payment transaction
-					var currentPayment = await _unitOfWork.Payments.GetByIdAsync(paymentId);
-					if (currentPayment == null)
-					{
-						return BaseResponse<string>.Fail("Payment record not found.", ResponseErrorType.NotFound);
-					}
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			   {
+				   var currentPayment = await _unitOfWork.Payments.GetByIdAsync(paymentId)
+					   ?? throw AppException.NotFound("Payment record not found.");
 
-					// 2. Validate payment status - cannot retry completed payments
-					if (currentPayment.TransactionStatus == TransactionStatus.Success)
-					{
-						return BaseResponse<string>.Fail("Cannot retry completed payments.", ResponseErrorType.BadRequest);
-					}
+				   if (currentPayment.TransactionStatus == TransactionStatus.Success)
+				   {
+					   throw AppException.BadRequest("Cannot retry completed payments.");
+				   }
 
-					// 3. Validate based on operation type
-					if (requirePending)
-					{
-						// ChangePaymentMethod: only for Pending payments
-						if (currentPayment.TransactionStatus != TransactionStatus.Pending)
-						{
-							return BaseResponse<string>.Fail(
-								"Only pending payments can change payment methods. Use RetryPaymentWithMethod for failed payments.",
-								ResponseErrorType.BadRequest);
-						}
+				   if (requirePending)
+				   {
+					   if (!currentPayment.IsPending())
+					   {
+						   throw AppException.BadRequest(
+							   "Only pending payments can change payment methods. Use RetryPaymentWithMethod for failed payments.");
+					   }
 
-						// Additional validation: method must be different
-						if (newMethod != null && currentPayment.Method == newMethod.Method)
-						{
-							return BaseResponse<string>.Fail("New payment method is the same as current method.", ResponseErrorType.BadRequest);
-						}
-					}
-					else
-					{
-						// RetryPaymentWithMethod: only for Failed payments
-						if (currentPayment.TransactionStatus != TransactionStatus.Failed)
-						{
-							return BaseResponse<string>.Fail(
-								"Only failed payments can be retried. Use ChangePaymentMethod to switch payment methods for pending payments.",
-								ResponseErrorType.BadRequest);
-						}
-					}
+					   if (newMethod != null && currentPayment.Method == newMethod.Method)
+					   {
+						   throw AppException.BadRequest("New payment method is the same as current method.");
+					   }
+				   }
+				   else if (currentPayment.TransactionStatus != TransactionStatus.Failed)
+				   {
+					   throw AppException.BadRequest(
+						   "Only failed payments can be retried. Use ChangePaymentMethod to switch payment methods for pending payments.");
+				   }
 
-					// 4. Get order
-					var order = await _unitOfWork.Orders.GetByIdAsync(currentPayment.OrderId);
-					if (order == null)
-					{
-						return BaseResponse<string>.Fail("Order not found.", ResponseErrorType.NotFound);
-					}
+				   var order = await _unitOfWork.Orders.GetByIdAsync(currentPayment.OrderId)
+					   ?? throw AppException.NotFound("Order not found.");
 
-					// 5. Cancel any existing pending payments for this order
-					var existingPendingPayments = await _unitOfWork.Payments
-						.GetAllAsync(p => p.OrderId == order.Id &&
-										  p.TransactionStatus == TransactionStatus.Pending &&
-										  p.Id != paymentId);
+				   var existingPendingPayments = await _unitOfWork.Payments
+					   .GetAllAsync(p => p.OrderId == order.Id &&
+										 p.TransactionStatus == TransactionStatus.Pending &&
+										 p.Id != paymentId);
 
-					foreach (var pendingPayment in existingPendingPayments)
-					{
-						pendingPayment.TransactionStatus = TransactionStatus.Cancelled;
-						pendingPayment.FailureReason = "Superseded by new payment attempt.";
-						_unitOfWork.Payments.Update(pendingPayment);
-					}
+				   foreach (var pendingPayment in existingPendingPayments)
+				   {
+					   pendingPayment.MarkCancelled("Superseded by new payment attempt.");
+					   _unitOfWork.Payments.Update(pendingPayment);
+				   }
 
-					// 6. Update current payment status based on state
-					if (currentPayment.TransactionStatus == TransactionStatus.Pending)
-					{
-						currentPayment.TransactionStatus = TransactionStatus.Cancelled;
-						currentPayment.FailureReason = "Superseded by new payment attempt.";
-						_unitOfWork.Payments.Update(currentPayment);
-					}
-					// If Failed, keep it as Failed for history tracking
+				   if (currentPayment.IsPending())
+				   {
+					   currentPayment.MarkCancelled("Superseded by new payment attempt.");
+					   _unitOfWork.Payments.Update(currentPayment);
+				   }
 
-					// 7. Determine new payment method
-					var paymentMethod = newMethod?.Method ?? currentPayment.Method;
+				   var paymentMethod = newMethod?.Method ?? currentPayment.Method;
+				   var newPayment = currentPayment.CreateRetry(paymentMethod);
 
-					// 8. Prepare new payment transaction
-					var rootPaymentId = currentPayment.OriginalPaymentId ?? currentPayment.Id;
-					var retryAttempt = currentPayment.RetryAttempt + 1;
+				   await _unitOfWork.Payments.AddAsync(newPayment);
 
-					var newPayment = new PaymentTransaction
-					{
-						OrderId = currentPayment.OrderId,
-						Method = paymentMethod,
-						Amount = currentPayment.Amount,
-						TransactionStatus = TransactionStatus.Pending,
-						OriginalPaymentId = rootPaymentId,
-						RetryAttempt = retryAttempt
-					};
+				   order.MarkUnpaid();
+				   _unitOfWork.Orders.Update(order);
 
-					await _unitOfWork.Payments.AddAsync(newPayment);
+				   var methodChanged = currentPayment.Method != paymentMethod;
+				   var methodMessage = methodChanged
+					   ? $" (changed from {currentPayment.Method} to {paymentMethod})"
+					   : "";
 
-					// 9. Update order payment status
-					order.PaymentStatus = PaymentStatus.Unpaid;
-					_unitOfWork.Orders.Update(order);
-
-					// 10. Generate response message
-					var methodChanged = currentPayment.Method != paymentMethod;
-					var methodMessage = methodChanged
-						? $" (changed from {currentPayment.Method} to {paymentMethod})"
-						: "";
-
-					return await GeneratePaymentResponse(newPayment, order, retryAttempt, methodMessage);
-				});
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail($"Error processing payment retry: {ex.Message}", ResponseErrorType.InternalError);
-			}
+				   return await GeneratePaymentResponse(newPayment, order, newPayment.RetryAttempt, methodMessage);
+			   });
 		}
 
 		private async Task<BaseResponse<bool>> CompleteSuccessfulPayment(PaymentTransaction payment, Order order)
 		{
-			payment.TransactionStatus = TransactionStatus.Success;
-			order.PaymentStatus = PaymentStatus.Paid;
-			order.PaidAt = DateTime.UtcNow;
+			payment.MarkSuccess();
+			order.MarkPaid(DateTime.UtcNow);
 
 			if (order.UserVoucher != null)
 			{
@@ -302,10 +206,10 @@ namespace PerfumeGPT.Application.Services
 
 			if (payment.Method == PaymentMethod.CashInStore)
 			{
-				order.Status = OrderStatus.Delivered;
+				order.SetStatus(OrderStatus.Delivered);
 			}
 			else
-				order.Status = OrderStatus.Pending;
+				order.SetStatus(OrderStatus.Pending);
 
 			_unitOfWork.Payments.Update(payment);
 			_unitOfWork.Orders.Update(order);
@@ -313,11 +217,7 @@ namespace PerfumeGPT.Application.Services
 			var existingReceipt = await _unitOfWork.Receipts.FirstOrDefaultAsync(r => r.TransactionId == payment.Id);
 			if (existingReceipt == null)
 			{
-				var receipt = new Receipt
-				{
-					TransactionId = payment.Id,
-					ReceiptNumber = GenerateReceiptNumber(),
-				};
+				var receipt = Receipt.Create(payment.Id);
 
 				await _unitOfWork.Receipts.AddAsync(receipt);
 			}
@@ -327,9 +227,8 @@ namespace PerfumeGPT.Application.Services
 
 		private async Task<BaseResponse<bool>> HandleFailedPayment(PaymentTransaction payment, Order order, string? reason = null)
 		{
-			payment.TransactionStatus = TransactionStatus.Failed;
-			payment.FailureReason = reason;
-			order.PaymentStatus = PaymentStatus.Unpaid;
+			payment.MarkFailed(reason);
+			order.MarkUnpaid();
 
 			_unitOfWork.Payments.Update(payment);
 			_unitOfWork.Orders.Update(order);
@@ -343,12 +242,7 @@ namespace PerfumeGPT.Application.Services
 			switch (payment.Method)
 			{
 				case PaymentMethod.VnPay:
-					var httpContext = _httpContextAccessor.HttpContext;
-					if (httpContext == null)
-					{
-						return BaseResponse<string>.Fail("HttpContext is not available.", ResponseErrorType.InternalError);
-					}
-
+					var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext is not available.");
 					var vnPayRequest = new VnPaymentRequest
 					{
 						OrderId = order.Id,
@@ -360,17 +254,15 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Ok(paymentUrlResponse.PaymentUrl, $"Payment transaction #{retryAttempt} created{methodMessage}. Redirecting to VnPay.");
 
 				case PaymentMethod.Momo:
-					return BaseResponse<string>.Fail("Momo payment not yet implemented.", ResponseErrorType.InternalError);
+					throw AppException.Internal("Momo payment not yet implemented.");
 
 				case PaymentMethod.CashOnDelivery:
 				case PaymentMethod.CashInStore:
 					return BaseResponse<string>.Ok(payment.Id.ToString(), $"Payment transaction #{retryAttempt} created{methodMessage}. Cash payment is pending confirmation.");
 
 				default:
-					return BaseResponse<string>.Fail("Unsupported payment method.", ResponseErrorType.BadRequest);
+					throw AppException.BadRequest("Unsupported payment method.");
 			}
 		}
-
-		private static string GenerateReceiptNumber() => $"RCP-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper()}";
 	}
 }

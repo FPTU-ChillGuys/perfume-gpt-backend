@@ -17,12 +17,12 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			get
 			{
 				var key = typeof(IOrderRepository);
-				if (!_repositories.ContainsKey(key))
+				if (!_repositories.TryGetValue(key, out var repo))
 				{
 					var repository = new OrderRepository(_context);
-					_repositories[key] = repository;
+					_repositories[key] = repository!;
 				}
-				return (IOrderRepository)_repositories[key];
+				return (IOrderRepository)repo!;
 			}
 		}
 
@@ -152,20 +152,6 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			}
 		}
 
-		public IAddressRepository Addresses
-		{
-			get
-			{
-				var key = typeof(IAddressRepository);
-				if (!_repositories.TryGetValue(key, out var repo))
-				{
-					repo = new AddressRepository(_context);
-					_repositories[key] = repo!;
-				}
-				return (IAddressRepository)repo!;
-			}
-		}
-
 		public IShippingInfoRepository ShippingInfos
 		{
 			get
@@ -261,20 +247,6 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 					_repositories[key] = repo!;
 				}
 				return (IStockReservationRepository)repo!;
-			}
-		}
-
-		public IReviewRepository Reviews
-		{
-			get
-			{
-				var key = typeof(IReviewRepository);
-				if (!_repositories.TryGetValue(key, out var repo))
-				{
-					repo = new ReviewRepository(_context);
-					_repositories[key] = repo!;
-				}
-				return (IReviewRepository)repo!;
 			}
 		}
 

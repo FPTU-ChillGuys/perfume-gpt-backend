@@ -1,4 +1,4 @@
-﻿using PerfumeGPT.Application.DTOs.Responses.ScentNotes;
+﻿using PerfumeGPT.Application.DTOs.Responses.Metadatas.ScentNotes;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Domain.Entities;
 
@@ -9,5 +9,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<List<ScentNoteLookupResponse>> GetScentNoteLookupListAsync();
 		Task<List<ScentNoteResponse>> GetAllScentNotesAsync();
 		Task<ScentNoteResponse?> GetScentNoteByIdAsync(int id);
+		Task<bool> HasAssociationsAsync(int scentNoteId);
 	}
 }

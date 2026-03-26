@@ -1,10 +1,10 @@
 using PerfumeGPT.Application.Interfaces.Repositories;
-using PerfumeGPT.Application.DTOs.Responses.Suppliers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.Suppliers;
 
 namespace PerfumeGPT.Persistence.Repositories
 {

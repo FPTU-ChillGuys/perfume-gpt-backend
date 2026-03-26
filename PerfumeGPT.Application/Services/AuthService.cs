@@ -26,6 +26,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IValidator<RegisterRequest> _registerValidator;
 		private readonly IUserVoucherRepository _userVoucherRepository;
 		private readonly IValidator<LoginRequest> _loginValidator;
+		private readonly IValidator<ResetPasswordRequest> _resetPasswordValidator;
 
 		public AuthService(IEmailTemplateService templateService,
 			UserManager<User> userManager,
@@ -35,7 +36,8 @@ namespace PerfumeGPT.Application.Services
 			IUserRepository userRepository,
 			IValidator<RegisterRequest> registerValidator,
 			IUserVoucherRepository userVoucherRepository,
-			IValidator<LoginRequest> loginValidator)
+			IValidator<LoginRequest> loginValidator,
+			IValidator<ResetPasswordRequest> resetPasswordValidator)
 		{
 			_templateService = templateService;
 			_userManager = userManager;
@@ -46,6 +48,7 @@ namespace PerfumeGPT.Application.Services
 			_registerValidator = registerValidator;
 			_userVoucherRepository = userVoucherRepository;
 			_loginValidator = loginValidator;
+			_resetPasswordValidator = resetPasswordValidator;
 		}
 		#endregion
 
@@ -70,12 +73,9 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<TokenResponse>.Ok(tokenResponse);
 		}
 
-		public async Task<BaseResponse<TokenResponse>> CreateApiTokenAsync(string email)
+		public async Task<BaseResponse<TokenResponse>> CreateApiTokenAsync(Guid userId)
 		{
-			if (string.IsNullOrWhiteSpace(email))
-				throw AppException.BadRequest("Email is required");
-
-			var user = await _userManager.FindByEmailAsync(email) ?? throw AppException.NotFound("User not found");
+			var user = await _userManager.FindByIdAsync(userId.ToString()) ?? throw AppException.NotFound("User not found");
 			user.EnsureActive();
 
 			var tokenResponse = await GenerateTokenResponseAsync(user);
@@ -218,10 +218,13 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> ResetPasswordAsync(ResetPasswordRequest request)
 		{
-			if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.Password))
-				throw AppException.BadRequest("Email, token and password are required");
+			var validationResults = await _resetPasswordValidator.ValidateAsync(request);
+			if (!validationResults.IsValid)
+				throw AppException.BadRequest("Validation failed",
+					[.. validationResults.Errors.Select(e => e.ErrorMessage)]);
 
 			var user = await _userManager.FindByEmailAsync(request.Email!) ?? throw AppException.NotFound("User not found");
+
 			var resetResult = await _userManager.ResetPasswordAsync(user, request.Token!, request.Password!);
 			if (!resetResult.Succeeded)
 				throw AppException.BadRequest(

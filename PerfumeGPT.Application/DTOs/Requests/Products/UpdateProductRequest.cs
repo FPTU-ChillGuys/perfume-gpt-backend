@@ -1,5 +1,5 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
-using PerfumeGPT.Application.DTOs.Requests.Products.ScentNotes;
+﻿using PerfumeGPT.Application.DTOs.Requests.Metadatas.ScentNotes;
+using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Products

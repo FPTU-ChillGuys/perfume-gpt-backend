@@ -17,7 +17,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<ProductAttribute> ProductAttributes { get; set; } = [];
 		public virtual ICollection<AttributeValue> AttributeValues { get; set; } = [];
 
-		// Business logic methods
+		// Factory method
 		public static Attribute Create(string? internalCode, string name, string? description, bool isVariantLevel)
 		{
 			if (string.IsNullOrWhiteSpace(name))
@@ -36,6 +36,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
+		// Business logic methods
 		public void Update(string? name, string? description, bool? isVariantLevel)
 		{
 			if (name != null)

@@ -1,9 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
-using PerfumeGPT.Application.DTOs.Responses.Base;
-using PerfumeGPT.Application.DTOs.Responses.OlfactoryFamilies;
-using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.OlfactoryFamilies;
+using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.OlfactoryFamilies;
+using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.API.Controllers
 {
@@ -48,6 +48,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<OlfactoryFamilyResponse>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<OlfactoryFamilyResponse>>> CreateOlfactoryFamilyAsync([FromBody] CreateOlfactoryFamilyRequest request)
 		{
+			var validation = ValidateRequestBody<CreateOlfactoryFamilyRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _olfactoryFamilyService.CreateOlfactoryFamilyAsync(request);
 			return HandleResponse(result);
 		}
@@ -57,6 +60,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<OlfactoryFamilyResponse>), StatusCodes.Status404NotFound)]
 		public async Task<ActionResult<BaseResponse<OlfactoryFamilyResponse>>> UpdateOlfactoryFamilyAsync(int id, [FromBody] UpdateOlfactoryFamilyRequest request)
 		{
+			var validation = ValidateRequestBody<UpdateOlfactoryFamilyRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _olfactoryFamilyService.UpdateOlfactoryFamilyAsync(id, request);
 			return HandleResponse(result);
 		}

@@ -11,9 +11,7 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class VoucherRepository : GenericRepository<Voucher>, IVoucherRepository
 	{
-		public VoucherRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public VoucherRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<bool> CodeExistsAsync(string code, Guid? excludeVoucherId = null)
 		{

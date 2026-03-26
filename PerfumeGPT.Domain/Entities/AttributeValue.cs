@@ -15,7 +15,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<ProductAttribute> ProductAttributes { get; set; } = [];
 		public virtual ICollection<CustomerAttributePreference> CustomerAttributePreferences { get; set; } = [];
 
-		// Business logic methods
+		// Factory methods
 		public static AttributeValue Create(int attributeId, string value)
 		{
 			if (string.IsNullOrWhiteSpace(value))
@@ -38,6 +38,7 @@ namespace PerfumeGPT.Domain.Entities
 			Value = value.Trim();
 		}
 
+		// Business logic methods
 		public static void EnsureCanBeDeleted(bool isInUse)
 		{
 			if (isInUse)

@@ -1,6 +1,6 @@
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Suppliers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
-using PerfumeGPT.Application.DTOs.Responses.Suppliers;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.Suppliers;
 
 namespace PerfumeGPT.Application.Interfaces.Services
 {

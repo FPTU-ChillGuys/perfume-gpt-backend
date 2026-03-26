@@ -3,6 +3,6 @@
 	public enum DeliveryMethod
 	{
 		Delivery = 1,
-		PickupInStore = 2
+		PickupInStore
 	}
 }

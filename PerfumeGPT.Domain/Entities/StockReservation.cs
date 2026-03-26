@@ -7,6 +7,8 @@ namespace PerfumeGPT.Domain.Entities
 {
 	public class StockReservation : BaseEntity<Guid>, IHasTimestamps
 	{
+		protected StockReservation() { }
+
 		public Guid OrderId { get; private set; }
 		public Guid BatchId { get; private set; }
 		public Guid VariantId { get; private set; }
@@ -14,16 +16,14 @@ namespace PerfumeGPT.Domain.Entities
 		public ReservationStatus Status { get; private set; }
 		public DateTime ExpiresAt { get; private set; }
 
-		// Navigation
+		// Navigation properties
 		public virtual Order Order { get; private set; } = null!;
 		public virtual Batch Batch { get; private set; } = null!;
 		public virtual ProductVariant ProductVariant { get; private set; } = null!;
 
-		// IHasTimestamps
+		// IHasTimestamps implementation
 		public DateTime? UpdatedAt { get; set; }
 		public DateTime CreatedAt { get; set; }
-
-		protected StockReservation() { }
 
 		// Factory method
 		public StockReservation(Guid orderId, Guid batchId, Guid variantId, int quantity, DateTime expiresAt)
@@ -39,6 +39,7 @@ namespace PerfumeGPT.Domain.Entities
 			ExpiresAt = expiresAt;
 		}
 
+		// Business logic methods
 		public void Commit()
 		{
 			if (Status != ReservationStatus.Reserved)

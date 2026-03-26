@@ -1,17 +1,21 @@
 ﻿using Mapster;
-using PerfumeGPT.Application.DTOs.Responses.ScentNotes;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.ScentNotes;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
 	public class ScentNoteRepository : GenericRepository<ScentNote>, IScentNoteRepository
 	{
-		public ScentNoteRepository(PerfumeDbContext context) : base(context)
+		public ScentNoteRepository(PerfumeDbContext context) : base(context) { }
+
+		public async Task<bool> HasAssociationsAsync(int scentNoteId)
 		{
+			return await _context.ProductNoteMaps.AnyAsync(x => x.ScentNoteId == scentNoteId)
+				|| await _context.CustomerNotePreferences.AnyAsync(x => x.NoteId == scentNoteId);
 		}
 
 		public async Task<List<ScentNoteLookupResponse>> GetScentNoteLookupListAsync()

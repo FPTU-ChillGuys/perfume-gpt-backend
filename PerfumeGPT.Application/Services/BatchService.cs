@@ -1,6 +1,5 @@
 using FluentValidation;
-using PerfumeGPT.Application.DTOs.Requests.Batches;
-using PerfumeGPT.Application.DTOs.Requests.Inventory;
+using PerfumeGPT.Application.DTOs.Requests.Inventory.Batches;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Batches;
 using PerfumeGPT.Application.Exceptions;
@@ -123,12 +122,6 @@ namespace PerfumeGPT.Application.Services
 		{
 			var batchLookup = await _batchRepository.GetBatchLookupAsync();
 			return BaseResponse<List<BatchLookupResponse>>.Ok(batchLookup);
-		}
-
-		public async Task<BaseResponse<List<BatchDetailResponse>>> GetBatchesByVariantIdAsync(Guid variantId)
-		{
-			var batchDetailResponses = await _batchRepository.GetBatchesByVariantIdAsync(variantId);
-			return BaseResponse<List<BatchDetailResponse>>.Ok(batchDetailResponses);
 		}
 
 		public async Task<BaseResponse<BatchDetailResponse>> GetBatchByIdAsync(Guid batchId)

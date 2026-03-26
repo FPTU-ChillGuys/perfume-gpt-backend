@@ -1,5 +1,5 @@
 ﻿using Mapster;
-using PerfumeGPT.Application.DTOs.Responses.Categories;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.Categories;
 using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Mappings

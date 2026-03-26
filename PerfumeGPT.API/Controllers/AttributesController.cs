@@ -40,13 +40,15 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpPost]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status201Created)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		public async Task<ActionResult<BaseResponse<string>>> CreateAttribute([FromBody] CreateAttributeRequest request)
 		{
+			var validation = ValidateRequestBody<CreateAttributeRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _attributeService.CreateAttributeAsync(request);
-			if (!result.Success) return HandleResponse(result);
-			return CreatedAtAction(nameof(GetAttributeLookupList), new { }, result);
+			return HandleResponse(result);
 		}
 
 		[HttpPut("{attributeId:int}")]
@@ -54,6 +56,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateAttribute([FromRoute] int attributeId, [FromBody] UpdateAttributeRequest request)
 		{
+			var validation = ValidateRequestBody<UpdateAttributeRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _attributeService.UpdateAttributeAsync(attributeId, request);
 			return HandleResponse(result);
 		}

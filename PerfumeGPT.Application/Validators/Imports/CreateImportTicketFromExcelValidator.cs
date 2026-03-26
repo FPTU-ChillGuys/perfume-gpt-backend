@@ -3,7 +3,7 @@ using PerfumeGPT.Application.DTOs.Requests.Imports;
 
 namespace PerfumeGPT.Application.Validators.Imports
 {
-	public class CreateImportTicketFromExcelValidator : AbstractValidator<CreateImportTicketFromExcelRequest>
+	public class CreateImportTicketFromExcelValidator : AbstractValidator<UploadImportTicketFromExcelRequest>
 	{
 		public CreateImportTicketFromExcelValidator()
 		{

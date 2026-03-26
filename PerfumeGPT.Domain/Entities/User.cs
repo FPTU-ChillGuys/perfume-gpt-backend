@@ -11,7 +11,7 @@ namespace PerfumeGPT.Domain.Entities
 		public int PointBalance { get; private set; } = 0;
 		public bool IsActive { get; private set; } = true;
 
-		// Navigations
+		// Navigation properties
 		public virtual CustomerProfile? CustomerProfile { get; set; }
 		public virtual ICollection<LoyaltyTransaction> LoyaltyTransactions { get; set; } = [];
 		public virtual ICollection<Address> Addresses { get; set; } = [];
@@ -23,15 +23,15 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual Media? ProfilePicture { get; set; }
 		public virtual ICollection<Order> Orders { get; set; } = [];
 		public virtual ICollection<Review> Reviews { get; set; } = [];
-		public virtual ICollection<Review> ModeratedReviews { get; set; } = [];
+		public virtual ICollection<Review> AnswerReviews { get; set; } = [];
 		public virtual ICollection<OrderCancelRequest> RequestedCancelRequests { get; set; } = [];
 		public virtual ICollection<OrderCancelRequest> ProcessedCancelRequests { get; set; } = [];
 
-		// IHasTimestamps
+		// IHasTimestamps implementation
 		public DateTime CreatedAt { get; set; }
 		public DateTime? UpdatedAt { get; set; }
 
-		// ISoftDelete
+		// ISoftDelete implementation
 		public bool IsDeleted { get; set; }
 		public DateTime? DeletedAt { get; set; }
 
@@ -55,7 +55,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		// Domain methods
+		// Business logic methods
 		public void EnsureActive()
 		{
 			if (!IsActive)

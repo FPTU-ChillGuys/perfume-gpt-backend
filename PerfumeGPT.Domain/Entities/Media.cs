@@ -101,7 +101,7 @@ namespace PerfumeGPT.Domain.Entities
 			return media;
 		}
 
-		// Domain methods
+		// Business logic methods
 		public void SetAsPrimary() => IsPrimary = true;
 		public void UnsetPrimary() => IsPrimary = false;
 

@@ -2,7 +2,7 @@
 {
 	public enum DiscountType
 	{
-		Percentage,
+		Percentage = 1,
 		FixedAmount
 	}
 }

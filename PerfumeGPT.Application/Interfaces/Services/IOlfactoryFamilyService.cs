@@ -1,6 +1,6 @@
 ﻿using PerfumeGPT.Application.DTOs.Responses.Base;
-using PerfumeGPT.Application.DTOs.Responses.OlfactoryFamilies;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.OlfactoryFamilies;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.OlfactoryFamilies;
 
 namespace PerfumeGPT.Application.Interfaces.Services
 {

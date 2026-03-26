@@ -22,12 +22,12 @@ namespace PerfumeGPT.Application.Interfaces.Services
 
 		// Apply voucher logic
 		Task<BaseResponse<PagedResult<AvailableVoucherResponse>>> GetAvailableVouchersAsync(Guid userId, GetPagedAvailableVouchersRequest request);
-		Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null, IEnumerable<Guid>? cartVariantIds = null);
+		Task<bool> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null, IEnumerable<Guid>? cartVariantIds = null);
 
 		// Voucher status management
-		Task<BaseResponse<UserVoucher>> MarkVoucherAsReservedAsync(Guid? userId, string? emailOrPhone, Guid voucherId, Guid orderId);
-		Task<BaseResponse<bool>> MarkVoucherAsUsedAsync(Guid orderId);
-		Task<BaseResponse<bool>> ReleaseReservedVoucherAsync(Guid orderId);
+		Task<UserVoucher> MarkVoucherAsReservedAsync(Guid? userId, string? emailOrPhone, Guid voucherId, Guid orderId);
+		Task<bool> MarkVoucherAsUsedAsync(Guid orderId);
+		Task<bool> ReleaseReservedVoucherAsync(Guid orderId);
 
 		Task<decimal> CalculateVoucherDiscountAsync(string voucherCode, decimal totalPrice);
 	}

@@ -13,7 +13,7 @@ namespace PerfumeGPT.Domain.Entities
 
 		public virtual ICollection<Product> Products { get; set; } = [];
 
-		// Business logic methods
+		// Factory methods
 		public static Brand Create(string name)
 		{
 			return new Brand
@@ -22,6 +22,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
+		// Business logic methods
 		public static string NormalizeName(string name)
 		{
 			var normalized = name?.Trim() ?? string.Empty;

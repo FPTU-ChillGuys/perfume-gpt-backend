@@ -7,8 +7,6 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class StockAdjustmentDetailRepository : GenericRepository<StockAdjustmentDetail>, IStockAdjustmentDetailRepository
 	{
-		public StockAdjustmentDetailRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public StockAdjustmentDetailRepository(PerfumeDbContext context) : base(context) { }
 	}
 }

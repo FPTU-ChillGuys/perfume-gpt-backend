@@ -1,7 +1,8 @@
 ﻿using FluentValidation;
 using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
-using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -10,133 +11,101 @@ namespace PerfumeGPT.Application.Services
 {
 	public class RecipientService : IRecipientService
 	{
+		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IAddressService _addressService;
+		private readonly IAddressRepository _addressRepository;
 		private readonly IValidator<RecipientInformation> _validator;
 		private readonly IMapper _mapper;
 
-		public RecipientService(IUnitOfWork unitOfWork, IAddressService addressService, IValidator<RecipientInformation> validator, IMapper mapper)
+		public RecipientService(IUnitOfWork unitOfWork, IValidator<RecipientInformation> validator, IMapper mapper, IAddressRepository addressRepository)
 		{
 			_unitOfWork = unitOfWork;
-			_addressService = addressService;
 			_validator = validator;
 			_mapper = mapper;
+			_addressRepository = addressRepository;
 		}
+		#endregion Dependencies
 
-		public async Task<BaseResponse<RecipientInformation>> ResolveRecipientDataAsync(
-			RecipientInformation? recipientInfo,
-			Guid? savedAddressId,
-			Guid? customerId)
+		public async Task<RecipientInformation> ResolveRecipientDataAsync(RecipientInformation? recipientInfo, Guid? savedAddressId, Guid? customerId)
 		{
-			// 1) If request includes AddressId -> must have customerId and we load saved address
+			// If request includes AddressId -> must have customerId and we load saved address
 			if (savedAddressId.HasValue == true)
 			{
 				if (!customerId.HasValue)
-				{
-					return BaseResponse<RecipientInformation>.Fail("Customer ID required when using saved address.", ResponseErrorType.BadRequest);
-				}
+					throw AppException.BadRequest("Customer ID required when using saved address.");
 
-				var savedAddress = await _unitOfWork.Addresses.GetUserAddressById(customerId.Value, savedAddressId.Value);
-				if (savedAddress == null)
-				{
-					return BaseResponse<RecipientInformation>.Fail("Saved address not found.", ResponseErrorType.NotFound);
-				}
-
-				return BaseResponse<RecipientInformation>.Ok(_mapper.Map<RecipientInformation>(savedAddress));
+				var savedAddress = await _addressRepository.GetUserAddressById(customerId.Value, savedAddressId.Value);
+				return savedAddress == null
+					? throw AppException.NotFound("Saved address not found.")
+					: _mapper.Map<RecipientInformation>(savedAddress);
 			}
 
-			// 2) If request provided without AddressId -> validate and use it
+			// If request provided without AddressId -> validate and use it
 			if (recipientInfo != null)
 			{
 				var validationResult = await _validator.ValidateAsync(recipientInfo);
 				if (!validationResult.IsValid)
 				{
 					var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-					return BaseResponse<RecipientInformation>.Fail(
-						"Recipient information validation failed.",
-						ResponseErrorType.BadRequest,
-						errors);
+					throw AppException.BadRequest("Recipient information validation failed.", errors);
 				}
 
-				return BaseResponse<RecipientInformation>.Ok(recipientInfo);
+				return recipientInfo;
 			}
 
-			// 3) No request -> try customer's default address if available
+			// Try customer's default address if available
 			if (customerId.HasValue)
 			{
-				var customerAddress = await _addressService.GetDefaultAddressAsync(customerId.Value);
-				if (!customerAddress.Success || customerAddress.Payload == null)
-				{
-					return BaseResponse<RecipientInformation>.Fail(
-						"Customer default address not found. Please provide recipient information.",
-						customerAddress.ErrorType,
-						customerAddress.Errors);
-				}
+				var customerAddress = await _addressRepository.GetDefaultAddressAsync(customerId.Value)
+					?? throw AppException.NotFound("No default address found for customer.");
 
-				var response = _mapper.Map<RecipientInformation>(customerAddress.Payload);
-				return BaseResponse<RecipientInformation>.Ok(response);
+				var response = _mapper.Map<RecipientInformation>(customerAddress);
+				return response;
 			}
 
-			// 4) Nothing provided
-			return BaseResponse<RecipientInformation>.Fail(
-				"Either recipient information or customer ID must be provided.");
+			// Nothing provided
+			throw AppException.BadRequest("Either recipient information or customer ID must be provided.");
 		}
 
-		public async Task<BaseResponse<RecipientInfo>> CreateRecipientInfoAsync(
-			Guid orderId,
-			RecipientInformation? request,
-			Guid? savedAddressId = null,
-			Guid? customerId = null)
+		public async Task<RecipientInfo> CreateRecipientInfoAsync(Guid orderId, RecipientInformation? request, Guid? savedAddressId = null, Guid? customerId = null)
 		{
-			var resolvedData = await ResolveRecipientDataAsync(request, savedAddressId, customerId);
-			if (!resolvedData.Success)
-			{
-				return BaseResponse<RecipientInfo>.Fail(resolvedData.Message, resolvedData.ErrorType, resolvedData.Errors);
-			}
+			var recipientData = await ResolveRecipientDataAsync(request, savedAddressId, customerId);
 
-			var recipientData = resolvedData.Payload!;
-			var recipientInfo = new RecipientInfo
-			{
-				OrderId = orderId,
-				RecipientName = recipientData.RecipientName,
-				RecipientPhoneNumber = recipientData.RecipientPhoneNumber,
-				DistrictId = recipientData.DistrictId,
-				DistrictName = recipientData.DistrictName,
-				WardCode = recipientData.WardCode,
-				WardName = recipientData.WardName,
-				ProvinceName = recipientData.ProvinceName,
-				FullAddress = recipientData.FullAddress
-			};
+			var recipientInfo = RecipientInfo.Create(
+				 orderId,
+				 recipientData.RecipientName,
+				 recipientData.RecipientPhoneNumber,
+				 recipientData.DistrictId,
+				 recipientData.DistrictName,
+				 recipientData.WardCode,
+				 recipientData.WardName,
+				 recipientData.ProvinceName,
+				 recipientData.FullAddress);
 
 			await _unitOfWork.RecipientInfos.AddAsync(recipientInfo);
-			return BaseResponse<RecipientInfo>.Ok(recipientInfo);
+			return recipientInfo;
 		}
 
-		public async Task<BaseResponse<RecipientInfo>> UpdateRecipientInfoAsync(
+		public async Task<RecipientInfo> UpdateRecipientInfoAsync(
 			RecipientInfo existingRecipient,
 			RecipientInformation? request,
 			Guid? savedAddressId,
 			Guid userId)
 		{
-			var resolvedData = await ResolveRecipientDataAsync(request, savedAddressId, userId);
-			if (!resolvedData.Success)
-			{
-				return BaseResponse<RecipientInfo>.Fail(resolvedData.Message, resolvedData.ErrorType, resolvedData.Errors);
-			}
+			var recipientData = await ResolveRecipientDataAsync(request, savedAddressId, userId);
 
-			var recipientData = resolvedData.Payload!;
-
-			existingRecipient.RecipientName = recipientData.RecipientName;
-			existingRecipient.RecipientPhoneNumber = recipientData.RecipientPhoneNumber;
-			existingRecipient.DistrictId = recipientData.DistrictId;
-			existingRecipient.DistrictName = recipientData.DistrictName;
-			existingRecipient.WardCode = recipientData.WardCode;
-			existingRecipient.WardName = recipientData.WardName;
-			existingRecipient.ProvinceName = recipientData.ProvinceName;
-			existingRecipient.FullAddress = recipientData.FullAddress;
+			existingRecipient.UpdateRecipient(
+				  recipientData.RecipientName,
+				  recipientData.RecipientPhoneNumber,
+				  recipientData.DistrictId,
+				  recipientData.DistrictName,
+				  recipientData.WardCode,
+				  recipientData.WardName,
+				  recipientData.ProvinceName,
+				  recipientData.FullAddress);
 
 			_unitOfWork.RecipientInfos.Update(existingRecipient);
-			return BaseResponse<RecipientInfo>.Ok(existingRecipient);
+			return existingRecipient;
 		}
 	}
 }

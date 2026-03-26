@@ -1,19 +1,87 @@
 ﻿using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Enums;
+using PerfumeGPT.Domain.Exceptions;
 
 namespace PerfumeGPT.Domain.Entities
 {
 	public class ShippingInfo : BaseEntity<Guid>
 	{
-		public Guid OrderId { get; set; }
-		public CarrierName CarrierName { get; set; }
-		public string? TrackingNumber { get; set; }
-		public decimal ShippingFee { get; set; }
-		public ShippingStatus Status { get; set; }
-		public int? LeadTime { get; set; }
-		public DateTime? ShippedDate { get; set; }
+		protected ShippingInfo() { }
 
-		// Navigation
+		public Guid OrderId { get; private set; }
+		public CarrierName CarrierName { get; private set; }
+		public string? TrackingNumber { get; private set; }
+		public decimal ShippingFee { get; private set; }
+		public ShippingStatus Status { get; private set; }
+		public int? LeadTime { get; private set; }
+		public DateTime? ShippedDate { get; private set; }
+
+		// Navigation properties
 		public virtual Order Order { get; set; } = null!;
+
+		// Factory method
+		public static ShippingInfo Create(Guid orderId, CarrierName carrierName, decimal shippingFee = 0, int? leadTime = null)
+		{
+			if (orderId == Guid.Empty)
+				throw DomainException.BadRequest("Order ID is required.");
+
+			if (shippingFee < 0)
+				throw DomainException.BadRequest("Shipping fee cannot be negative.");
+
+			if (leadTime.HasValue && leadTime <= 0)
+				throw DomainException.BadRequest("Lead time must be positive.");
+
+			return new ShippingInfo
+			{
+				OrderId = orderId,
+				CarrierName = carrierName,
+				ShippingFee = shippingFee,
+				Status = ShippingStatus.Pending,
+				LeadTime = leadTime
+			};
+		}
+
+		// Business logic methods
+		public void MarkAsDelivered(DateTime? deliveredDateUtc = null)
+		{
+			if (Status != ShippingStatus.Delivering)
+				throw DomainException.BadRequest("Cannot mark as delivered if not in Delivering status.");
+
+			Status = ShippingStatus.Delivered;
+			ShippedDate = deliveredDateUtc ?? DateTime.UtcNow;
+		}
+
+		public void Cancel()
+		{
+			if (Status == ShippingStatus.Delivered)
+				throw DomainException.BadRequest("Cannot cancel a shipment that has already been delivered.");
+
+			Status = ShippingStatus.Cancelled;
+		}
+
+		public void MarkAsDelivering(DateTime? shippedDateUtc = null)
+		{
+			if (Status == ShippingStatus.Delivered)
+				throw DomainException.BadRequest("Cannot set shipment to delivering after it is delivered.");
+
+			Status = ShippingStatus.Delivering;
+			ShippedDate ??= shippedDateUtc ?? DateTime.UtcNow;
+		}
+
+		public void MarkAsReturned()
+		{
+			if (Status != ShippingStatus.Delivering && Status != ShippingStatus.Delivered)
+				throw DomainException.BadRequest("Cannot mark as returned if shipment is not delivering or delivered.");
+
+			Status = ShippingStatus.Returned;
+		}
+
+		public void SetTrackingNumber(string trackingNumber)
+		{
+			if (string.IsNullOrWhiteSpace(trackingNumber))
+				throw DomainException.BadRequest("Tracking number is required.");
+
+			TrackingNumber = trackingNumber.Trim();
+		}
 	}
 }

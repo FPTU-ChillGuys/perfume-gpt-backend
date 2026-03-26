@@ -1,5 +1,4 @@
-using PerfumeGPT.Application.DTOs.Requests.Batches;
-using PerfumeGPT.Application.DTOs.Requests.Inventory;
+using PerfumeGPT.Application.DTOs.Requests.Inventory.Batches;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Batches;
 using PerfumeGPT.Domain.Entities;
@@ -17,7 +16,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		// Retrieval methods
 		Task<BaseResponse<List<BatchLookupResponse>>> GetBatchLookupAsync();
 		Task<BaseResponse<PagedResult<BatchDetailResponse>>> GetBatchesAsync(GetBatchesRequest request);
-		Task<BaseResponse<List<BatchDetailResponse>>> GetBatchesByVariantIdAsync(Guid variantId);
 		Task<BaseResponse<BatchDetailResponse>> GetBatchByIdAsync(Guid batchId);
 
 		// Calculation methods

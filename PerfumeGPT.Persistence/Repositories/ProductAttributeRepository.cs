@@ -8,9 +8,7 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class ProductAttributeRepository : GenericRepository<ProductAttribute>, IProductAttributeRepository
 	{
-		public ProductAttributeRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public ProductAttributeRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<List<ProductAttribute>> GetByProductIdAsync(Guid productId)
 		{

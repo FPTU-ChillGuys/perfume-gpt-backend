@@ -1,6 +1,6 @@
 using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.StockAdjustments;
-using PerfumeGPT.Application.Validators.AdjustmentDetails;
+using PerfumeGPT.Application.Validators.StockAdjustments.Details;
 
 namespace PerfumeGPT.Application.Validators.StockAdjustments
 {

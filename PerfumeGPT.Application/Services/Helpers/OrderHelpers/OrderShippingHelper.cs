@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
@@ -27,55 +28,18 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			_recipientService = recipientService;
 		}
 
-		public async Task<BaseResponse<decimal>> SetupShippingInfoAsync(
-		Guid orderId,
-		RecipientInformation? recipientRequest,
-		Guid? customerId,
-		Guid? savedAddressId,
-		decimal? preCalculatedShippingFee = null,
-		Order? orderToUpdate = null)
+		public async Task SetupShippingInfoAsync(Guid orderId, RecipientInformation? recipientRequest, Guid? customerId, Guid? savedAddressId)
 		{
 			// 1. Create recipient info
-			var recipientResult = await _recipientService.CreateRecipientInfoAsync(
-				orderId,
-				recipientRequest,
-				savedAddressId,
-				customerId);
+			var recipientInfo = await _recipientService.CreateRecipientInfoAsync(orderId, recipientRequest, savedAddressId, customerId);
 
-			if (!recipientResult.Success)
-			{
-				return BaseResponse<decimal>.Fail(
-					recipientResult.Errors?.FirstOrDefault() ?? recipientResult.Message,
-					recipientResult.ErrorType,
-					recipientResult.Errors);
-			}
-
-			var recipientInfo = recipientResult.Payload!;
-
-			// 3. Get lead time
+			// 2. Get lead time
 			var leadTimeDays = await GetLeadTimeAsync(recipientInfo.DistrictId, recipientInfo.WardCode);
 
-			// 4. Create shipping info
-			var shippingInfo = new ShippingInfo
-			{
-				OrderId = orderId,
-				CarrierName = CarrierName.GHN,
-				TrackingNumber = null,
-				ShippingFee = 0,
-				Status = ShippingStatus.Pending,
-				LeadTime = leadTimeDays
-			};
+			// 3. Create shipping info
+			var shippingInfo = ShippingInfo.Create(orderId, CarrierName.GHN, 0, leadTimeDays);
 
 			await _unitOfWork.ShippingInfos.AddAsync(shippingInfo);
-
-			// 5. Update order total if needed
-			if (orderToUpdate != null)
-			{
-				orderToUpdate.TotalAmount += 0;
-				_unitOfWork.Orders.Update(orderToUpdate);
-			}
-
-			return BaseResponse<decimal>.Ok(0);
 		}
 
 		private async Task<int?> GetLeadTimeAsync(int districtId, string wardCode)
@@ -134,11 +98,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				// Load order details with variant information
 				var orderWithDetails = await _unitOfWork.Orders.FirstOrDefaultAsync(o => o.Id == order.Id, o => o.Include(o => o.OrderDetails));
 				if (orderWithDetails?.OrderDetails == null || orderWithDetails.OrderDetails.Count == 0)
-				{
-					return BaseResponse<string>.Fail(
-						"Order details not found.",
-						ResponseErrorType.NotFound);
-				}
+					throw AppException.NotFound("Order details not found.");
 
 				// Calculate total weight and dimensions from order items
 				int totalWeight = 0;
@@ -181,27 +141,25 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				// Call GHN API to create shipping order
 				var ghnResponse = await _ghnService.CreateShippingOrderAsync(ghnRequest);
 				if (ghnResponse == null)
-				{
-					return BaseResponse<string>.Fail(
-						"Failed to create GHN shipping order.",
-						ResponseErrorType.InternalError);
-				}
+					throw AppException.Internal("Failed to create GHN shipping order.");
 
 				// Update shipping info with tracking number
 				var shippingInfo = await _unitOfWork.ShippingInfos.GetByOrderIdAsync(order.Id);
 				if (shippingInfo != null)
 				{
-					shippingInfo.TrackingNumber = ghnResponse.OrderCode;
+					shippingInfo.SetTrackingNumber(ghnResponse.OrderCode);
 					_unitOfWork.ShippingInfos.Update(shippingInfo);
 				}
 
 				return BaseResponse<string>.Ok(ghnResponse.OrderCode, "GHN shipping order created successfully.");
 			}
+			catch (AppException)
+			{
+				throw;
+			}
 			catch (Exception ex)
 			{
-				return BaseResponse<string>.Fail(
-					$"Error creating GHN shipping order: {ex.Message}",
-					ResponseErrorType.InternalError);
+				throw AppException.Internal($"Error creating GHN shipping order: {ex.Message}");
 			}
 		}
 	}

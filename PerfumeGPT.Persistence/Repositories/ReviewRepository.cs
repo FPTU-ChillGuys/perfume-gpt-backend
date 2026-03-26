@@ -12,18 +12,14 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class ReviewRepository : GenericRepository<Review>, IReviewRepository
 	{
-		public ReviewRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public ReviewRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<ReviewDetailResponse?> GetReviewWithDetailsAsync(Guid reviewId)
-		{
-			return await _context.Reviews
+			=> await _context.Reviews
 				.Where(r => r.Id == reviewId && !r.IsDeleted)
 				.ProjectToType<ReviewDetailResponse>()
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
-		}
 
 		public async Task<(List<ReviewListItem> Items, int TotalCount)> GetPagedReviewsAsync(GetPagedReviewsRequest request)
 		{
@@ -87,26 +83,20 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		public async Task<List<ReviewResponse>> GetReviewsByVariantIdAsync(Guid variantId)
-		{
-			var query = _context.Reviews
+			=> await _context.Reviews
 				.Where(r => r.OrderDetail.VariantId == variantId && !r.IsDeleted)
-				.ProjectToType<ReviewResponse>();
-
-			return await query
+				.ProjectToType<ReviewResponse>()
 				.OrderByDescending(r => r.CreatedAt)
 				.AsNoTracking()
 				.ToListAsync();
-		}
 
 		public async Task<List<ReviewResponse>> GetReviewsByUserIdAsync(Guid userId)
-		{
-			return await _context.Reviews
+			=> await _context.Reviews
 				.Where(r => r.UserId == userId && !r.IsDeleted)
 				.ProjectToType<ReviewResponse>()
 				.OrderByDescending(r => r.CreatedAt)
 				.AsNoTracking()
 				.ToListAsync();
-		}
 
 		public async Task<(int TotalReviews, double AverageRating, int[] StarCounts)> GetVariantReviewStatisticsAsync(Guid variantId)
 		{
@@ -154,9 +144,6 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		public async Task<bool> HasUserReviewedOrderDetailAsync(Guid userId, Guid orderDetailId)
-		{
-			return await _context.Reviews
-				.AnyAsync(r => r.UserId == userId && r.OrderDetailId == orderDetailId && !r.IsDeleted);
-		}
+			=> await _context.Reviews.AnyAsync(r => r.UserId == userId && r.OrderDetailId == orderDetailId && !r.IsDeleted);
 	}
 }

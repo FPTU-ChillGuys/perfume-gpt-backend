@@ -32,7 +32,7 @@ namespace PerfumeGPT.API.Controllers
 			var validation = ValidateRequestBody<CreateVoucherRequest>(request);
 			if (validation != null) return validation;
 
-           var response = await _voucherService.CreateRegularVoucherAsync(request);
+			var response = await _voucherService.CreateRegularVoucherAsync(request);
 			return HandleResponse(response);
 		}
 
@@ -43,9 +43,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status409Conflict)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UpdateVoucher(
-			Guid voucherId,
-			[FromBody] UpdateVoucherRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> UpdateVoucher(Guid voucherId, [FromBody] UpdateVoucherRequest request)
 		{
 			var validation = ValidateRequestBody<UpdateVoucherRequest>(request);
 			if (validation != null) return validation;
@@ -126,7 +124,7 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpGet("my-vouchers")]
+		[HttpGet("me")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status500InternalServerError)]

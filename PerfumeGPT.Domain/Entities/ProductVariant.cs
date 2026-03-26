@@ -21,7 +21,7 @@ namespace PerfumeGPT.Domain.Entities
 		public decimal? RetailPrice { get; private set; }
 		public VariantStatus Status { get; private set; }
 
-		// Navigation
+		// Navigation properties
 		public virtual Product Product { get; set; } = null!;
 		public virtual Concentration Concentration { get; set; } = null!;
 		public virtual ICollection<ImportDetail> ImportDetails { get; set; } = [];
@@ -35,11 +35,11 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<ProductAttribute> ProductAttributes { get; set; } = [];
 		public virtual ICollection<PromotionItem> PromotionItems { get; set; } = [];
 
-		// ISoftDelete
+		// ISoftDelete implementation
 		public bool IsDeleted { get; set; }
 		public DateTime? DeletedAt { get; set; }
 
-		// IHasTimestamps
+		// IHasTimestamps implementation
 		public DateTime CreatedAt { get; set; }
 		public DateTime? UpdatedAt { get; set; }
 
@@ -94,7 +94,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		// Domain methods
+		// Business logic methods
 		public void Update(
 			string? barcode,
 			string? sku,
@@ -175,16 +175,6 @@ namespace PerfumeGPT.Domain.Entities
 
 			if (Status == VariantStatus.out_of_stock)
 				throw DomainException.BadRequest("This product variant is out of stock.");
-		}
-
-		// Dùng cho ValidateVariantForCart nếu cần result thay vì exception
-		public (bool IsValid, string? ErrorMessage) ValidateForCart()
-		{
-			if (IsDeleted) return (false, "This product variant is no longer available.");
-			if (Status == VariantStatus.Discontinued) return (false, "This product variant has been discontinued.");
-			if (Status == VariantStatus.Inactive) return (false, "This product variant is currently inactive.");
-			if (Status == VariantStatus.out_of_stock) return (false, "This product variant is out of stock.");
-			return (true, null);
 		}
 	}
 }

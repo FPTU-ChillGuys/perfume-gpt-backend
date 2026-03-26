@@ -1,5 +1,4 @@
 ﻿using Mapster;
-using PerfumeGPT.Application.DTOs.Requests.Profiles;
 using PerfumeGPT.Application.DTOs.Responses.Profiles;
 using PerfumeGPT.Domain.Entities;
 
@@ -9,8 +8,6 @@ namespace PerfumeGPT.Application.Mappings
 	{
 		public void Register(TypeAdapterConfig config)
 		{
-			config.NewConfig<UpdateProfileRequest, CustomerProfile>();
-
 			config.NewConfig<CustomerProfile, ProfileResponse>()
 				.Map(dest => dest.MinBudget, src => src.MinBudget)
 				.Map(dest => dest.MaxBudget, src => src.MaxBudget)
@@ -18,7 +15,8 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.NotePreferences, src => src.NotePreferences.Select(np => new CustomerNotePreferenceResponse
 				{
 					NoteId = np.NoteId,
-					NoteName = np.ScentNote.Name
+					NoteName = np.ScentNote.Name,
+					NoteType = np.NoteType
 				}).ToList())
 				.Map(dest => dest.FamilyPreferences, src => src.FamilyPreferences.Select(bp => new CustomerFamilyPreferenceRespone
 				{
@@ -29,9 +27,7 @@ namespace PerfumeGPT.Application.Mappings
 				{
 					AttributeValueId = ap.AttributeValueId,
 					AttributeValueName = ap.AttributeValue.Value
-
 				}).ToList());
-
 		}
 	}
 }

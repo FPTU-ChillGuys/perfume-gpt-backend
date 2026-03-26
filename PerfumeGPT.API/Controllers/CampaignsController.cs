@@ -31,10 +31,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<string>>> CreateCampaign([FromBody] CreateCampaignRequest request)
 		{
 			var validation = ValidateRequestBody<CreateCampaignRequest>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			if (validation != null) return validation;
 
 			var response = await _campaignService.CreateCampaignAsync(request);
 			return HandleResponse(response);
@@ -78,15 +75,10 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UpdateCampaignStatus(
-			[FromRoute] Guid campaignId,
-			[FromBody] UpdateCampaignStatusRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> UpdateCampaignStatus([FromRoute] Guid campaignId, [FromBody] UpdateCampaignStatusRequest request)
 		{
 			var validation = ValidateRequestBody<UpdateCampaignStatusRequest>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			if (validation != null) return validation;
 
 			var response = await _campaignService.UpdateCampaignStatusAsync(campaignId, request);
 			return HandleResponse(response);
@@ -98,15 +90,10 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UpdateCampaign(
-			[FromRoute] Guid campaignId,
-			[FromBody] UpdateCampaignRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> UpdateCampaign([FromRoute] Guid campaignId, [FromBody] UpdateCampaignRequest request)
 		{
 			var validation = ValidateRequestBody<UpdateCampaignRequest>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			if (validation != null) return validation;
 
 			var response = await _campaignService.UpdateCampaignAsync(campaignId, request);
 			return HandleResponse(response);
@@ -129,15 +116,10 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> AddCampaignItem(
-			[FromRoute] Guid id,
-			[FromBody] CreateCampaignPromotionItemRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> AddCampaignItem([FromRoute] Guid id, [FromBody] CreateCampaignPromotionItemRequest request)
 		{
 			var validation = ValidateRequestBody<CreateCampaignPromotionItemRequest>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			if (validation != null) return validation;
 
 			var response = await _campaignService.AddCampaignItemAsync(id, request);
 			return HandleResponse(response);
@@ -149,16 +131,10 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UpdateCampaignItem(
-			[FromRoute] Guid id,
-			[FromRoute] Guid itemId,
-			[FromBody] CreateCampaignPromotionItemRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> UpdateCampaignItem([FromRoute] Guid id, [FromRoute] Guid itemId, [FromBody] CreateCampaignPromotionItemRequest request)
 		{
 			var validation = ValidateRequestBody<CreateCampaignPromotionItemRequest>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			if (validation != null) return validation;
 
 			var response = await _campaignService.UpdateCampaignItemAsync(id, itemId, request);
 			return HandleResponse(response);
@@ -169,9 +145,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> DeleteCampaignItem(
-			[FromRoute] Guid id,
-			[FromRoute] Guid itemId)
+		public async Task<ActionResult<BaseResponse<string>>> DeleteCampaignItem([FromRoute] Guid id, [FromRoute] Guid itemId)
 		{
 			var response = await _campaignService.DeleteCampaignItemAsync(id, itemId);
 			return HandleResponse(response);
@@ -184,15 +158,10 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status409Conflict)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> AddCampaignVoucher(
-			[FromRoute] Guid id,
-			[FromBody] CreateCampaignVoucherRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> AddCampaignVoucher([FromRoute] Guid id, [FromBody] CreateCampaignVoucherRequest request)
 		{
 			var validation = ValidateRequestBody<CreateCampaignVoucherRequest>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			if (validation != null) return validation;
 
 			var response = await _campaignService.AddCampaignVoucherAsync(id, request);
 			return HandleResponse(response);
@@ -203,9 +172,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<VoucherResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<VoucherResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<VoucherResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<VoucherResponse>>> GetCampaignVoucherById(
-			[FromRoute] Guid id,
-			[FromRoute] Guid voucherId)
+		public async Task<ActionResult<BaseResponse<VoucherResponse>>> GetCampaignVoucherById([FromRoute] Guid id, [FromRoute] Guid voucherId)
 		{
 			var response = await _campaignService.GetCampaignVoucherByIdAsync(id, voucherId);
 			return HandleResponse(response);
@@ -218,16 +185,10 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status409Conflict)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UpdateCampaignVoucher(
-			[FromRoute] Guid id,
-			[FromRoute] Guid voucherId,
-			[FromBody] UpdateCampaignVoucherRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> UpdateCampaignVoucher([FromRoute] Guid id, [FromRoute] Guid voucherId, [FromBody] UpdateCampaignVoucherRequest request)
 		{
 			var validation = ValidateRequestBody<UpdateCampaignVoucherRequest>(request);
-			if (validation != null)
-			{
-				return validation;
-			}
+			if (validation != null) return validation;
 
 			var response = await _campaignService.UpdateCampaignVoucherAsync(id, voucherId, request);
 			return HandleResponse(response);
@@ -238,9 +199,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> DeleteCampaignVoucher(
-			[FromRoute] Guid id,
-			[FromRoute] Guid voucherId)
+		public async Task<ActionResult<BaseResponse<string>>> DeleteCampaignVoucher([FromRoute] Guid id, [FromRoute] Guid voucherId)
 		{
 			var response = await _campaignService.DeleteCampaignVoucherAsync(id, voucherId);
 			return HandleResponse(response);

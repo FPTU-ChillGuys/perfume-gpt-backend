@@ -2,7 +2,7 @@
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Brands;
 using PerfumeGPT.Application.DTOs.Responses.Base;
-using PerfumeGPT.Application.DTOs.Responses.Brands;
+using PerfumeGPT.Application.DTOs.Responses.Metadatas.Brands;
 using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.API.Controllers
@@ -47,6 +47,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<BrandResponse>>> CreateBrandAsync([FromBody] CreateBrandRequest request)
 		{
+			var validation = ValidateRequestBody<CreateBrandRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _brandService.CreateBrandAsync(request);
 			return HandleResponse(result);
 		}
@@ -56,6 +59,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status404NotFound)]
 		public async Task<ActionResult<BaseResponse<BrandResponse>>> UpdateBrandAsync(int id, [FromBody] UpdateBrandRequest request)
 		{
+			var validation = ValidateRequestBody<UpdateBrandRequest>(request);
+			if (validation != null) return validation;
+
 			var result = await _brandService.UpdateBrandAsync(id, request);
 			return HandleResponse(result);
 		}
@@ -68,7 +74,5 @@ namespace PerfumeGPT.API.Controllers
 			var result = await _brandService.DeleteBrandAsync(id);
 			return HandleResponse(result);
 		}
-
-
 	}
 }

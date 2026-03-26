@@ -1,3 +1,5 @@
+using PerfumeGPT.Domain.Enums;
+
 namespace PerfumeGPT.Application.DTOs.Responses.Profiles
 {
 	public class ProfileResponse
@@ -15,7 +17,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Profiles
 	{
 		public int NoteId { get; set; }
 		public string NoteName { get; set; } = string.Empty;
-		public int PreferenceLevel { get; set; }
+		public NoteType NoteType { get; set; }
 	}
 
 	public class CustomerFamilyPreferenceRespone

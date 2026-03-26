@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
-using PerfumeGPT.Application.DTOs.Requests.Inventory;
+using PerfumeGPT.Application.DTOs.Requests.Inventory.Batches;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Batches;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -37,16 +37,6 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<BatchDetailResponse>>> GetBatchById(Guid id)
 		{
 			var response = await _batchService.GetBatchByIdAsync(id);
-			return HandleResponse(response);
-		}
-
-		[HttpGet("variant/{variantId:guid}")]
-		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<List<BatchDetailResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<BatchDetailResponse>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<List<BatchDetailResponse>>>> GetBatchesByVariantId(Guid variantId)
-		{
-			var response = await _batchService.GetBatchesByVariantIdAsync(variantId);
 			return HandleResponse(response);
 		}
 

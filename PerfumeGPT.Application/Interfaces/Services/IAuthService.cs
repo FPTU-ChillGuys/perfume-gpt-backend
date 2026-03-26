@@ -11,7 +11,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<string>> VerifyEmailAsync(string email, string token);
 		Task<BaseResponse<TokenResponse>> LoginAsync(LoginRequest login);
 		Task<BaseResponse<TokenResponse>> LoginWithGoogleAsync(GoogleLoginRequest request);
-		Task<BaseResponse<TokenResponse>> CreateApiTokenAsync(string email);
+		Task<BaseResponse<TokenResponse>> CreateApiTokenAsync(Guid userId);
 		Task<BaseResponse<string>> ForgotPasswordAsync(ForgotPasswordRequest request);
 		Task<BaseResponse<string>> ResetPasswordAsync(ResetPasswordRequest request);
 	}

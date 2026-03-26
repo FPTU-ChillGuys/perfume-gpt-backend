@@ -18,7 +18,8 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<List<VariantLookupItem>> GetLookupList(Guid? productId = null)
 		{
 			return await _context.ProductVariants
-				.Where(v => v.Status != VariantStatus.Discontinued
+			  .Where(v => !v.IsDeleted
+					&& v.Status != VariantStatus.Discontinued
 					&& (!productId.HasValue || v.ProductId == productId.Value))
 				.Select(v => new VariantLookupItem
 				{
@@ -41,7 +42,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<ProductVariantResponse?> GetByBarcodeAsync(string barcode)
 		{
 			return await _context.ProductVariants
-				.Where(v => v.Barcode == barcode)
+			   .Where(v => !v.IsDeleted && v.Barcode == barcode)
 				.Select(v => new ProductVariantResponse
 				{
 					Id = v.Id,
@@ -86,7 +87,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<ProductVariant?> GetBySkuAsync(string sku)
 			=> await _context.ProductVariants
-				.Where(v => v.Sku == sku)
+			   .Where(v => !v.IsDeleted && v.Sku == sku)
 				.FirstOrDefaultAsync();
 
 		public async Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId)
@@ -95,7 +96,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var raw = await _context.ProductVariants
 				.AsNoTracking()
-				.Where(v => v.Id == variantId)
+			  .Where(v => !v.IsDeleted && v.Id == variantId)
 				.Select(v => new
 				{
 					Variant = new ProductVariantResponse
@@ -193,7 +194,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId)
 			=> await _context.ProductVariants
-				.Where(v => v.Id == variantId)
+			  .Where(v => !v.IsDeleted && v.Id == variantId)
 				.Select(v => new VariantCreateOrder
 				{
 					Id = v.Id,
@@ -206,7 +207,9 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(
 		GetPagedVariantsRequest request)
 		{
-			var query = _context.ProductVariants.AsQueryable();
+			var query = _context.ProductVariants
+				   .Where(v => !v.IsDeleted)
+				   .AsQueryable();
 
 			var totalCount = await query.CountAsync();
 
@@ -248,7 +251,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<List<Guid>> GetExistingIdsAsync(List<Guid> ids)
 			=> await _context.ProductVariants
-				.Where(v => ids.Contains(v.Id))
+			 .Where(v => !v.IsDeleted && ids.Contains(v.Id))
 				.Select(v => v.Id)
 				.ToListAsync();
 	}

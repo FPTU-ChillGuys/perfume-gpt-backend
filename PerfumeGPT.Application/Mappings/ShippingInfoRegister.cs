@@ -14,7 +14,8 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.TrackingNumber, src => src.TrackingNumber)
 				.Map(dest => dest.ShippingFee, src => src.ShippingFee)
 				.Map(dest => dest.Status, src => src.Status)
-				.Map(dest => dest.LeadTime, src => src.LeadTime);
+				.Map(dest => dest.LeadTime, src => src.LeadTime)
+				.Map(dest => dest.ShippedDate, src => src.ShippedDate);
 		}
 	}
 }

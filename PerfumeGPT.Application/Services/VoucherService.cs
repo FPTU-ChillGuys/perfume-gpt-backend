@@ -3,6 +3,7 @@ using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -14,7 +15,6 @@ namespace PerfumeGPT.Application.Services
 	public class VoucherService : IVoucherService
 	{
 		#region Dependencies
-
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly ICampaignRepository _campaignRepository;
 		private readonly IPromotionItemRepository _promotionItemRepository;
@@ -27,12 +27,12 @@ namespace PerfumeGPT.Application.Services
 		public VoucherService(
 			IUnitOfWork unitOfWork,
 			ICampaignRepository campaignRepository,
-          IPromotionItemRepository promotionItemRepository,
+			IPromotionItemRepository promotionItemRepository,
 			IMapper mapper,
 			IValidator<CreateVoucherRequest> createValidator,
 			IValidator<UpdateVoucherRequest> updateValidator,
 			IUserService userService,
-           ILoyaltyTransactionService loyaltyTransactionService)
+		   ILoyaltyTransactionService loyaltyTransactionService)
 		{
 			_unitOfWork = unitOfWork;
 			_campaignRepository = campaignRepository;
@@ -43,48 +43,40 @@ namespace PerfumeGPT.Application.Services
 			_userService = userService;
 			_loyaltyTransactionService = loyaltyTransactionService;
 		}
-
 		#endregion Dependencies
 
-		#region Admin Operations
 
+		#region Admin Operations
 		public async Task<BaseResponse<string>> CreateRegularVoucherAsync(CreateVoucherRequest request)
 		{
 			var validationResult = await _createValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 			{
-				return BaseResponse<string>.Fail(
-					"Validation failed",
-					ResponseErrorType.BadRequest,
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]
-				);
+				throw AppException.BadRequest("Validation failed", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 			}
 
-			try
+			var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code);
+			if (codeExists)
 			{
-				var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code);
-				if (codeExists)
-				{
-					return BaseResponse<string>.Fail(
-						"Voucher code already exists",
-						ResponseErrorType.Conflict
-					);
-				}
-
-				var voucher = _mapper.Map<Voucher>(request);
-
-				await _unitOfWork.Vouchers.AddAsync(voucher);
-				await _unitOfWork.SaveChangesAsync();
-
-				return BaseResponse<string>.Ok(voucher.Id.ToString(), "Regular voucher created successfully");
+				throw AppException.Conflict("Voucher code already exists");
 			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail(
-					$"Error creating regular voucher: {ex.Message}",
-					ResponseErrorType.InternalError
-				);
-			}
+
+			var voucher = Voucher.CreateRegular(
+				request.Code,
+				request.DiscountValue,
+				request.DiscountType,
+				request.ApplyType,
+				request.RequiredPoints,
+				request.MinOrderValue,
+				request.ExpiryDate,
+				request.TotalQuantity,
+				request.IsPublic);
+
+			await _unitOfWork.Vouchers.AddAsync(voucher);
+			var saved = await _unitOfWork.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to create voucher");
+
+			return BaseResponse<string>.Ok(voucher.Id.ToString(), "Regular voucher created successfully");
 		}
 
 		public async Task<BaseResponse<string>> UpdateVoucherAsync(Guid voucherId, UpdateVoucherRequest request)
@@ -92,82 +84,66 @@ namespace PerfumeGPT.Application.Services
 			var validationResult = await _updateValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 			{
-				return BaseResponse<string>.Fail(
-					"Validation failed",
-					ResponseErrorType.BadRequest,
-					validationResult.Errors.Select(e => e.ErrorMessage).ToList()
-				);
+				throw AppException.BadRequest("Validation failed", validationResult.Errors.Select(e => e.ErrorMessage).ToList());
 			}
 
-			try
+			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
+			if (voucher == null || voucher.IsDeleted)
 			{
-				var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
-				if (voucher == null || voucher.IsDeleted)
-				{
-					return BaseResponse<string>.Fail("Voucher not found", ResponseErrorType.NotFound);
-				}
-
-				if (request.Code != voucher.Code)
-				{
-					var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code, voucherId);
-					if (codeExists)
-					{
-						return BaseResponse<string>.Fail("Voucher code already exists", ResponseErrorType.Conflict);
-					}
-				}
-
-				_mapper.Map(request, voucher);
-				_unitOfWork.Vouchers.Update(voucher);
-				await _unitOfWork.SaveChangesAsync();
-
-				return BaseResponse<string>.Ok(voucherId.ToString(), "Voucher updated successfully");
+				throw AppException.NotFound("Voucher not found");
 			}
-			catch (Exception ex)
+
+			if (request.Code != voucher.Code)
 			{
-				return BaseResponse<string>.Fail($"Error updating voucher: {ex.Message}", ResponseErrorType.InternalError);
+				var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code, voucherId);
+				if (codeExists)
+				{
+					throw AppException.Conflict("Voucher code already exists");
+				}
 			}
+
+			voucher.UpdateRegular(
+				  request.Code,
+				  request.DiscountValue,
+				  request.DiscountType,
+				  request.ApplyType,
+				  request.RequiredPoints,
+				  request.MinOrderValue,
+				  request.ExpiryDate,
+				  request.TotalQuantity,
+				  request.RemainingQuantity,
+				  request.IsPublic);
+			_unitOfWork.Vouchers.Update(voucher);
+			var saved = await _unitOfWork.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to update voucher");
+
+			return BaseResponse<string>.Ok(voucherId.ToString(), "Voucher updated successfully");
 		}
 
 		public async Task<BaseResponse<string>> DeleteVoucherAsync(Guid voucherId)
 		{
-			try
+			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
+			if (voucher == null || voucher.IsDeleted)
 			{
-				var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
-				if (voucher == null || voucher.IsDeleted)
-				{
-					return BaseResponse<string>.Fail("Voucher not found", ResponseErrorType.NotFound);
-				}
-
-				if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && !uv.IsUsed))
-				{
-					return BaseResponse<string>.Fail("Cannot delete voucher that has been redeemed by users", ResponseErrorType.BadRequest);
-				}
-
-				_unitOfWork.Vouchers.Remove(voucher);
-				await _unitOfWork.SaveChangesAsync();
-
-				return BaseResponse<string>.Ok(voucherId.ToString(), "Voucher deleted successfully");
+				throw AppException.NotFound("Voucher not found");
 			}
-			catch (Exception ex)
+
+			if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && !uv.IsUsed))
 			{
-				return BaseResponse<string>.Fail($"Error deleting voucher: {ex.Message}", ResponseErrorType.InternalError);
+				throw AppException.BadRequest("Cannot delete voucher that has been redeemed by users");
 			}
+
+			_unitOfWork.Vouchers.Remove(voucher);
+			var saved = await _unitOfWork.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to delete voucher");
+
+			return BaseResponse<string>.Ok(voucherId.ToString(), "Voucher deleted successfully");
 		}
 
 		public async Task<BaseResponse<VoucherResponse>> GetVoucherByIdAsync(Guid voucherId)
 		{
-			var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
-                v => v.Id == voucherId && !v.IsDeleted,
-				asNoTracking: true
-			);
-
-			if (voucher == null)
-			{
-				return BaseResponse<VoucherResponse>.Fail(
-					"Voucher not found",
-					ResponseErrorType.NotFound
-				);
-			}
+			var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(v => v.Id == voucherId && !v.IsDeleted, asNoTracking: true)
+				?? throw AppException.NotFound("Voucher not found");
 
 			var response = _mapper.Map<VoucherResponse>(voucher);
 			return BaseResponse<VoucherResponse>.Ok(response, "Voucher retrieved successfully");
@@ -186,16 +162,12 @@ namespace PerfumeGPT.Application.Services
 				totalCount
 			);
 
-			return BaseResponse<PagedResult<VoucherResponse>>.Ok(
-				pagedResult,
-				"Vouchers retrieved successfully"
-			);
+			return BaseResponse<PagedResult<VoucherResponse>>.Ok(pagedResult, "Vouchers retrieved successfully");
 		}
-
 		#endregion
 
-		#region User Operations
 
+		#region User Operations
 		public async Task<BaseResponse<PagedResult<RedeemableVoucherResponse>>> GetRedeemableVouchersAsync(GetPagedRedeemableVouchersRequest request)
 		{
 			var (items, totalCount) = await _unitOfWork.Vouchers.GetPagedRedeemableVouchersAsync(request);
@@ -206,10 +178,7 @@ namespace PerfumeGPT.Application.Services
 				request.PageSize,
 				totalCount
 			);
-			return BaseResponse<PagedResult<RedeemableVoucherResponse>>.Ok(
-				pagedResult,
-				"Redeemable vouchers retrieved successfully"
-			);
+			return BaseResponse<PagedResult<RedeemableVoucherResponse>>.Ok(pagedResult, "Redeemable vouchers retrieved successfully");
 		}
 
 		public async Task<BaseResponse<string>> RedeemVoucherAsync(Guid userId, RedeemVoucherRequest request)
@@ -221,51 +190,20 @@ namespace PerfumeGPT.Application.Services
 					var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
 						v => v.Id == request.VoucherId && !v.IsDeleted,
 						asNoTracking: false
-					);
+					) ?? throw AppException.NotFound("Voucher not found");
 
-					if (voucher == null)
-					{
-						return BaseResponse<string>.Fail(
-							"Voucher not found",
-							ResponseErrorType.NotFound
-						);
-					}
-
-					if (voucher.ExpiryDate < DateTime.UtcNow)
-					{
-						return BaseResponse<string>.Fail(
-							"Voucher has expired",
-							ResponseErrorType.BadRequest
-						);
-					}
-
-					if (voucher.RemainingQuantity <= 0)
-					{
-						return BaseResponse<string>.Fail(
-							"Voucher is out of stock",
-							ResponseErrorType.BadRequest
-						);
-					}
+					voucher.EnsureNotExpired(DateTime.UtcNow);
+					voucher.EnsureInStock();
 
 					// Use repository method to check if user already redeemed this voucher
 					var hasRedeemed = await _unitOfWork.UserVouchers.HasRedeemedVoucherAsync(userId, request.VoucherId, request.ReceiverEmailOrPhone);
 					if (hasRedeemed)
 					{
-						return BaseResponse<string>.Fail(
-							"Voucher already redeemed",
-							ResponseErrorType.Conflict
-						);
+						throw AppException.Conflict("Voucher already redeemed");
 					}
 
 					// Use LoyaltyPointService to deduct points
-					var remainingPoints = await _loyaltyTransactionService.RedeemPointAsync(userId, voucher.RequiredPoints, voucher.Id, null, false);
-					if (!remainingPoints)
-					{
-						return BaseResponse<string>.Fail(
-							"Insufficient loyalty points",
-							ResponseErrorType.BadRequest
-						);
-					}
+					await _loyaltyTransactionService.RedeemPointAsync(userId, voucher.RequiredPoints, voucher.Id, null, false);
 
 					Guid? finalOwnerId = userId;
 					if (!string.IsNullOrEmpty(request.ReceiverEmailOrPhone))
@@ -279,36 +217,29 @@ namespace PerfumeGPT.Application.Services
 						}
 					}
 
-					var userVoucher = new UserVoucher
-					{
-						UserId = finalOwnerId,
-						VoucherId = request.VoucherId,
-						IsUsed = false,
-						GuestEmailOrPhone = request.ReceiverEmailOrPhone ?? null,
-						Status = UsageStatus.Available
-					};
+					var userVoucher = UserVoucher.CreateAvailable(
+						 finalOwnerId,
+						 request.VoucherId,
+						 request.ReceiverEmailOrPhone ?? null);
 
 					// Decrement voucher remaining quantity
-					voucher.RemainingQuantity -= 1;
-					if (voucher.RemainingQuantity < 0) voucher.RemainingQuantity = 0;
+					voucher.DecreaseRemainingQuantity();
 					_unitOfWork.Vouchers.Update(voucher);
 
 					await _unitOfWork.UserVouchers.AddAsync(userVoucher);
 
 					// Notification logic can be added here if needed
 
-					return BaseResponse<string>.Ok(
-						userVoucher.Id.ToString(),
-						"Voucher redeemed successfully"
-					);
+					return BaseResponse<string>.Ok(userVoucher.Id.ToString(), "Voucher redeemed successfully");
 				});
+			}
+			catch (AppException)
+			{
+				throw;
 			}
 			catch (Exception ex)
 			{
-				return BaseResponse<string>.Fail(
-					$"Error redeeming voucher: {ex.Message}",
-					ResponseErrorType.InternalError
-				);
+				throw AppException.Internal($"Error redeeming voucher: {ex.Message}");
 			}
 		}
 
@@ -325,16 +256,12 @@ namespace PerfumeGPT.Application.Services
 				totalCount
 			);
 
-			return BaseResponse<PagedResult<UserVoucherResponse>>.Ok(
-				pagedResult,
-				"User vouchers retrieved successfully"
-			);
+			return BaseResponse<PagedResult<UserVoucherResponse>>.Ok(pagedResult, "User vouchers retrieved successfully");
 		}
-
 		#endregion
 
-		#region Apply Voucher Logic
 
+		#region Apply Voucher Logic
 		public async Task<BaseResponse<PagedResult<AvailableVoucherResponse>>> GetAvailableVouchersAsync(Guid userId, GetPagedAvailableVouchersRequest request)
 		{
 			var (items, totalCount) = await _unitOfWork.UserVouchers.GetPagedAvailableVouchersAsync(userId, request);
@@ -351,42 +278,23 @@ namespace PerfumeGPT.Application.Services
 			);
 		}
 
-		public async Task<BaseResponse<bool>> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null, IEnumerable<Guid>? cartVariantIds = null)
+		public async Task<bool> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null, IEnumerable<Guid>? cartVariantIds = null)
 		{
 			// 1. Validate voucher existence
-			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode);
-			if (voucher == null)
-			{
-				return BaseResponse<bool>.Fail(
-					"Invalid voucher code",
-					ResponseErrorType.NotFound
-				);
-			}
+			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode) ?? throw AppException.NotFound("Voucher not found");
 
 			// 2. Check expiry
 			if (voucher.ExpiryDate < DateTime.UtcNow)
-			{
-				return BaseResponse<bool>.Fail(
-					"Voucher has expired",
-					ResponseErrorType.BadRequest
-				);
-			}
+				throw AppException.NotFound("Voucher not found or has expired");
 
 			// 2.1 If voucher belongs to a campaign, validate campaign/item scope
-			var campaignScopeValidation = await ValidateCampaignVoucherScopeAsync(voucher, cartVariantIds);
-			if (campaignScopeValidation != null)
-			{
-				return campaignScopeValidation;
-			}
+			await ValidateCampaignVoucherScopeAsync(voucher, cartVariantIds);
 
 			// 3. Check minimum order value
 			var minOrderValue = voucher.MinOrderValue ?? 0m;
 			if (orderAmount < minOrderValue)
 			{
-				return BaseResponse<bool>.Fail(
-				 $"Order amount must be at least {minOrderValue:C} to use this voucher",
-					ResponseErrorType.BadRequest
-				);
+				throw AppException.BadRequest($"Order amount must be at least {minOrderValue:C} to use this voucher");
 			}
 
 			// 4. Determine user type and effective userId
@@ -400,28 +308,14 @@ namespace PerfumeGPT.Application.Services
 			{
 				if (isAnonymousGuest)
 				{
-					return BaseResponse<bool>.Fail(
-						"Login required to use this reward voucher",
-						ResponseErrorType.Unauthorized
-					);
+					throw AppException.Unauthorized("Login required to use this reward voucher");
 				}
 
-				var ownedVoucher = await FindUserVoucherAsync(
-					voucher.Id,
-					effectiveUserId,
-					emailOrPhone,
-					isGuest,
-					UsageStatus.Available);
-
-				if (ownedVoucher == null)
-				{
-					return BaseResponse<bool>.Fail(
-					  requiredPoints > 0
-							? "You must redeem this voucher with points before using it"
-							: "You do not own this private voucher",
-						ResponseErrorType.Forbidden
-					);
-				}
+				var ownedVoucher = await FindUserVoucherAsync(voucher.Id, effectiveUserId, emailOrPhone, isGuest, UsageStatus.Available)
+					?? throw AppException.Forbidden(
+						   requiredPoints > 0
+							   ? "You must redeem this voucher with points before using it"
+							   : "You do not own this private voucher");
 			}
 			else
 			{
@@ -439,49 +333,38 @@ namespace PerfumeGPT.Application.Services
 
 				if (alreadyUsed)
 				{
-					return BaseResponse<bool>.Fail(
-						"You have already used this promotion",
-						ResponseErrorType.BadRequest
-					);
+					throw AppException.BadRequest("You have already used this promotion");
 				}
 
 				if (voucher.RemainingQuantity.HasValue && voucher.RemainingQuantity.Value <= 0)
 				{
-					return BaseResponse<bool>.Fail(
-						"Voucher is out of stock",
-						ResponseErrorType.BadRequest
-					);
+					throw AppException.BadRequest("Voucher is out of stock");
 				}
 			}
 
-			return BaseResponse<bool>.Ok(true, "Voucher can be applied");
+			return true;
 		}
 
-		private async Task<BaseResponse<bool>?> ValidateCampaignVoucherScopeAsync(VoucherResponse voucher, IEnumerable<Guid>? cartVariantIds)
+		private async Task ValidateCampaignVoucherScopeAsync(VoucherResponse voucher, IEnumerable<Guid>? cartVariantIds)
 		{
 			if (!voucher.CampaignId.HasValue)
 			{
-				return null;
+				return;
 			}
 
 			var campaign = await _campaignRepository.FirstOrDefaultAsync(
 				c => c.Id == voucher.CampaignId.Value && !c.IsDeleted,
-				asNoTracking: true);
-
-			if (campaign == null)
-			{
-				return BaseResponse<bool>.Fail("Campaign not found for this voucher", ResponseErrorType.NotFound);
-			}
+				asNoTracking: true) ?? throw AppException.NotFound("Campaign not found for this voucher");
 
 			var now = DateTime.UtcNow;
 			if (campaign.Status != CampaignStatus.Active || now < campaign.StartDate || now > campaign.EndDate)
 			{
-				return BaseResponse<bool>.Fail("Campaign is not active for this voucher", ResponseErrorType.BadRequest);
+				throw AppException.BadRequest("Campaign is not active for this voucher");
 			}
 
 			if (campaign.Status == CampaignStatus.Paused)
 			{
-				return BaseResponse<bool>.Fail("Campaign is currently paused, voucher cannot be applied", ResponseErrorType.BadRequest);
+				throw AppException.BadRequest("Campaign is currently paused, voucher cannot be applied");
 			}
 
 			var cartVariantSet = cartVariantIds?
@@ -491,7 +374,7 @@ namespace PerfumeGPT.Application.Services
 
 			if (voucher.ApplyType == VoucherType.Product && (cartVariantSet == null || cartVariantSet.Count == 0))
 			{
-				return BaseResponse<bool>.Fail("Cart items are required for product-level voucher validation", ResponseErrorType.BadRequest);
+				throw AppException.BadRequest("Cart items are required for product-level voucher validation");
 			}
 
 			var hasMatchingActiveItem = await _promotionItemRepository.AnyAsync(
@@ -507,224 +390,129 @@ namespace PerfumeGPT.Application.Services
 				var message = voucher.ApplyType == VoucherType.Product
 					? "No active campaign product item matches this voucher"
 					: "No active campaign order item matches this voucher";
-
-				return BaseResponse<bool>.Fail(message, ResponseErrorType.BadRequest);
-			}
-
-			return null;
-		}
-
-		public async Task<BaseResponse<UserVoucher>> MarkVoucherAsReservedAsync(Guid? userId, string? emailOrPhone, Guid voucherId, Guid orderId)
-		{
-			try
-			{
-				var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
-				if (voucher == null || voucher.IsDeleted)
-				{
-					return BaseResponse<UserVoucher>.Fail(
-						"Voucher not found",
-						ResponseErrorType.NotFound
-					);
-				}
-
-				var (effectiveUserId, isGuest, isAnonymousGuest) = await ResolveEffectiveUserAsync(userId, emailOrPhone);
-				UserVoucher actionedUserVoucher = null!;
-
-				bool requiresPriorOwnership = !voucher.IsPublic || voucher.RequiredPoints > 0;
-
-				if (requiresPriorOwnership)
-				{
-					if (isAnonymousGuest)
-					{
-						return BaseResponse<UserVoucher>.Fail(
-							"Login required to use this reward voucher",
-							ResponseErrorType.Unauthorized
-						);
-					}
-
-					var userVoucher = await FindUserVoucherAsync(
-						voucherId,
-						effectiveUserId,
-						emailOrPhone,
-						isGuest,
-						UsageStatus.Available);
-
-					if (userVoucher == null)
-					{
-						return BaseResponse<UserVoucher>.Fail(
-							voucher.RequiredPoints > 0
-								? "You must redeem this voucher with points before using it"
-								: "You do not own this private voucher",
-							ResponseErrorType.Forbidden
-						);
-					}
-
-					// Mark as reserved
-					userVoucher.Status = UsageStatus.Reserved;
-					userVoucher.OrderId = orderId;
-					_unitOfWork.UserVouchers.Update(userVoucher);
-
-					actionedUserVoucher = userVoucher;
-				}
-				else
-				{
-					// Check stock
-					if (voucher.RemainingQuantity <= 0)
-					{
-						return BaseResponse<UserVoucher>.Fail(
-							"Voucher is out of stock",
-							ResponseErrorType.BadRequest
-						);
-					}
-
-					// Check duplicate usage/reservation for identified users
-					if (!isAnonymousGuest)
-					{
-						bool alreadyExists = await _unitOfWork.UserVouchers.AnyAsync(uv =>
-							uv.VoucherId == voucherId &&
-							(
-								(effectiveUserId.HasValue && uv.UserId == effectiveUserId.Value) ||
-								(!string.IsNullOrEmpty(emailOrPhone) && uv.GuestEmailOrPhone == emailOrPhone)
-							)
-						);
-
-						if (alreadyExists)
-						{
-							return BaseResponse<UserVoucher>.Fail(
-								"You have already reserved or used this promotion",
-								ResponseErrorType.BadRequest
-							);
-						}
-					}
-
-					// Create new UserVoucher and reserve
-					var publicUserVoucher = new UserVoucher
-					{
-						UserId = effectiveUserId,
-						VoucherId = voucherId,
-						OrderId = orderId,
-						GuestEmailOrPhone = isAnonymousGuest ? null : emailOrPhone,
-						IsUsed = false,
-						Status = UsageStatus.Reserved
-					};
-
-					await _unitOfWork.UserVouchers.AddAsync(publicUserVoucher);
-
-					// Decrement quantity
-					voucher.RemainingQuantity -= 1;
-					if (voucher.RemainingQuantity < 0) voucher.RemainingQuantity = 0;
-					_unitOfWork.Vouchers.Update(voucher);
-
-					actionedUserVoucher = publicUserVoucher;
-				}
-
-				return BaseResponse<UserVoucher>.Ok(actionedUserVoucher, "Voucher marked as reserved successfully");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<UserVoucher>.Fail(
-					$"Error marking voucher as reserved: {ex.Message}",
-					ResponseErrorType.InternalError
-				);
+				throw AppException.BadRequest(message);
 			}
 		}
 
-		public async Task<BaseResponse<bool>> MarkVoucherAsUsedAsync(Guid orderId)
+		public async Task<UserVoucher> MarkVoucherAsReservedAsync(Guid? userId, string? emailOrPhone, Guid voucherId, Guid orderId)
 		{
-			try
+			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
+			if (voucher == null || voucher.IsDeleted)
 			{
-				var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
-					uv => uv.OrderId == orderId && !uv.IsUsed,
-					asNoTracking: false
-				);
+				throw AppException.NotFound("Voucher not found");
+			}
 
-				if (userVoucher == null)
+			var (effectiveUserId, isGuest, isAnonymousGuest) = await ResolveEffectiveUserAsync(userId, emailOrPhone);
+			UserVoucher actionedUserVoucher = null!;
+
+			bool requiresPriorOwnership = !voucher.IsPublic || voucher.RequiredPoints > 0;
+
+			if (requiresPriorOwnership)
+			{
+				if (isAnonymousGuest)
 				{
-					return BaseResponse<bool>.Fail(
-						"User voucher not found or already used",
-						ResponseErrorType.NotFound
-					);
+					throw AppException.Unauthorized("Login required to use this reward voucher");
 				}
 
-				if (userVoucher.Status != UsageStatus.Reserved)
-				{
-					return BaseResponse<bool>.Fail(
-						"Voucher must be reserved before marking as used",
-						ResponseErrorType.BadRequest
-					);
-				}
+				var userVoucher = await FindUserVoucherAsync(voucherId, effectiveUserId, emailOrPhone, isGuest, UsageStatus.Available)
+					?? throw AppException.Forbidden(
+						  voucher.RequiredPoints > 0
+							  ? "You must redeem this voucher with points before using it"
+							  : "You do not own this private voucher");
 
-				userVoucher.OrderId = orderId;
-				userVoucher.IsUsed = true;
-				userVoucher.Status = UsageStatus.Used;
+				// Mark as reserved
+				userVoucher.Reserve(orderId);
 				_unitOfWork.UserVouchers.Update(userVoucher);
 
-				return BaseResponse<bool>.Ok(true, "Voucher marked as used successfully");
+				actionedUserVoucher = userVoucher;
 			}
-			catch (Exception ex)
+			else
 			{
-				return BaseResponse<bool>.Fail(
-					$"Error marking voucher as used: {ex.Message}",
-					ResponseErrorType.InternalError
-				);
+				// Check stock
+				if (voucher.RemainingQuantity <= 0)
+				{
+					throw AppException.BadRequest("Voucher is out of stock");
+				}
+
+				// Check duplicate usage/reservation for identified users
+				if (!isAnonymousGuest)
+				{
+					bool alreadyExists = await _unitOfWork.UserVouchers.AnyAsync(uv =>
+						uv.VoucherId == voucherId &&
+						(
+							(effectiveUserId.HasValue && uv.UserId == effectiveUserId.Value) ||
+							(!string.IsNullOrEmpty(emailOrPhone) && uv.GuestEmailOrPhone == emailOrPhone)
+						)
+					);
+
+					if (alreadyExists)
+					{
+						throw AppException.BadRequest("You have already reserved or used this promotion");
+					}
+				}
+
+				// Create new UserVoucher and reserve
+				var publicUserVoucher = UserVoucher.CreateReserved(
+					   effectiveUserId,
+					   voucherId,
+					   orderId,
+					   isAnonymousGuest ? null : emailOrPhone);
+
+				await _unitOfWork.UserVouchers.AddAsync(publicUserVoucher);
+
+				// Decrement quantity
+				voucher.DecreaseRemainingQuantity();
+				_unitOfWork.Vouchers.Update(voucher);
+
+				actionedUserVoucher = publicUserVoucher;
 			}
+
+			return actionedUserVoucher;
 		}
 
-		public async Task<BaseResponse<bool>> ReleaseReservedVoucherAsync(Guid orderId)
+		public async Task<bool> MarkVoucherAsUsedAsync(Guid orderId)
 		{
-			try
+			var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(uv => uv.OrderId == orderId && !uv.IsUsed)
+				?? throw AppException.NotFound("User voucher not found or already used");
+			if (userVoucher.Status != UsageStatus.Reserved)
 			{
-				var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
-					uv => uv.OrderId == orderId && !uv.IsUsed,
-					asNoTracking: false
-				);
-
-				if (userVoucher == null)
-				{
-					return BaseResponse<bool>.Fail(
-						"Voucher not reserved or already used",
-						ResponseErrorType.NotFound
-					);
-				}
-
-				if (userVoucher.Status != UsageStatus.Reserved)
-				{
-					return BaseResponse<bool>.Ok(true, "Voucher was not reserved, no action needed");
-				}
-
-				var voucher = await _unitOfWork.Vouchers.GetByIdAsync(userVoucher.VoucherId);
-				if (voucher == null)
-				{
-					return BaseResponse<bool>.Fail(
-						"Voucher not found",
-						ResponseErrorType.NotFound
-					);
-				}
-
-				if (voucher.IsPublic)
-				{
-					// Public voucher: remove the UserVoucher record and restore quantity
-					_unitOfWork.UserVouchers.Remove(userVoucher);
-					voucher.RemainingQuantity += 1;
-					_unitOfWork.Vouchers.Update(voucher);
-				}
-				else
-				{
-					// Private voucher: reset status to Available so user can reuse
-					userVoucher.Status = UsageStatus.Available;
-					userVoucher.OrderId = null;
-					_unitOfWork.UserVouchers.Update(userVoucher);
-				}
-
-				return BaseResponse<bool>.Ok(true, "Voucher released successfully");
+				throw AppException.BadRequest("Voucher must be reserved before marking as used");
 			}
-			catch (Exception ex)
+
+			userVoucher.MarkUsed(orderId);
+			_unitOfWork.UserVouchers.Update(userVoucher);
+
+			return true;
+		}
+
+		public async Task<bool> ReleaseReservedVoucherAsync(Guid orderId)
+		{
+			var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(uv => uv.OrderId == orderId && !uv.IsUsed)
+								?? throw AppException.NotFound("Voucher not reserved or already used");
+
+			if (userVoucher.Status != UsageStatus.Reserved)
 			{
-				return BaseResponse<bool>.Fail(
-					$"Error releasing voucher: {ex.Message}",
-					ResponseErrorType.InternalError
-				);
+				return true;
 			}
+
+			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(userVoucher.VoucherId)
+				?? throw AppException.NotFound("Voucher not found");
+
+			if (voucher.IsPublic)
+			{
+				// Public voucher: remove the UserVoucher record and restore quantity
+				_unitOfWork.UserVouchers.Remove(userVoucher);
+				voucher.IncreaseRemainingQuantity();
+				_unitOfWork.Vouchers.Update(voucher);
+			}
+			else
+			{
+				// Private voucher: reset status to Available so user can reuse
+				userVoucher.ReleaseReservation();
+				_unitOfWork.UserVouchers.Update(userVoucher);
+			}
+
+			return true;
 		}
 
 		public async Task<decimal> CalculateVoucherDiscountAsync(string voucherCode, decimal totalPrice)
@@ -757,11 +545,10 @@ namespace PerfumeGPT.Application.Services
 		{
 			return await _unitOfWork.Vouchers.GetByCodeAsync(code);
 		}
-
 		#endregion Apply Voucher Logic
 
-		#region Private Helper Methods
 
+		#region Private Helper Methods
 		private async Task<(Guid? EffectiveUserId, bool IsGuest, bool IsAnonymousGuest)> ResolveEffectiveUserAsync(Guid? userId, string? emailOrPhone)
 		{
 			bool isGuest = !userId.HasValue;
@@ -809,7 +596,6 @@ namespace PerfumeGPT.Application.Services
 				);
 			}
 		}
-
 		#endregion Private Helper Methods
 	}
 }

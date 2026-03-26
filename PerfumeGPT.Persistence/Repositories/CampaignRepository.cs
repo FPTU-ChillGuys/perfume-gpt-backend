@@ -9,9 +9,7 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class CampaignRepository : GenericRepository<Campaign>, ICampaignRepository
 	{
-		public CampaignRepository(PerfumeDbContext context) : base(context)
-		{
-		}
+		public CampaignRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<(IEnumerable<Campaign> Items, int TotalCount)> GetPagedCampaignsAsync(GetPagedCampaignsRequest request)
 		{
