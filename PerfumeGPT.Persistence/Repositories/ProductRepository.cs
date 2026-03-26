@@ -15,6 +15,7 @@ using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
 using System.Text;
 using System.Text.RegularExpressions;
+using PerfumeGPT.Persistence.Repositories.Elasticsearch;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -706,20 +707,7 @@ namespace PerfumeGPT.Persistence.Repositories
         #region Search Methods (Elasticsearch)
 
         /// <summary>Document shape stored in Elasticsearch "products" index.</summary>
-        private sealed record ProductDocument(
-            string Id,
-            string Name,
-            string Brand,
-            string Category,
-            string? Description,
-            string Gender,
-            int ReleaseYear,
-            string Origin,
-            IEnumerable<string> Attributes,
-            IEnumerable<string> Concentrations,
-            IEnumerable<string> Volumes,
-            IEnumerable<string> Skus,
-            IEnumerable<string> Barcodes);
+        // ProductDocument moved to Infrastructure namespace
 
         public async Task<(List<ProductListItemWithVariants> Items, int TotalCount)>
             GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request)
@@ -771,15 +759,8 @@ namespace PerfumeGPT.Persistence.Repositories
             var defaultOp = Operator.Or;
             var minimumShouldMatch = isOrQuery ? "1" : normalizedTerms.Length <= 2 ? "75%" : normalizedTerms.Length <= 4 ? "67%" : "60%";
 
-            Action<QueryDescriptor<ProductDocument>> queryDesc = q => q
-                .MultiMatch(sq => sq
-                    .Query(processedText)
-                    .Fields(new[] { "name^5", "brand^4", "attributes^3", "concentrations^2", "category^2", "description", "gender^2", "origin", "volumes", "skus", "barcodes" })
-                    .Operator(defaultOp)
-                    .Type(TextQueryType.BestFields)
-                    .MinimumShouldMatch(minimumShouldMatch)
-                    .Fuzziness(new Fuzziness("AUTO"))
-                );
+            // Gọi Modular Query Builder để xây dựng truy vấn đa lớp
+            var queryDesc = ProductSearchQueryBuilder.BuildQuery(processedText, minimumShouldMatch, defaultOp);
 
             // Get total count
             var countResponse = await _esClient.CountAsync<ProductDocument>(c => c
@@ -800,23 +781,23 @@ namespace PerfumeGPT.Persistence.Repositories
             if (!esResponse.IsValidResponse)
                 return ([], totalCount);
 
-            var ids = esResponse.Hits
-                .Where(h => h.Source != null)
+            var idsAndScores = esResponse.Hits
+                .Where(h => h.Source != null && h.Score >= 1.5) // Áp dụng min_score
                 .Select(h => Guid.Parse(h.Source!.Id))
                 .ToList();
 
-            if (ids.Count == 0)
+            if (idsAndScores.Count == 0)
                 return ([], totalCount);
 
             // Preserve ES ranking order
             var dbItems = await _context.Products
-                .Where(p => ids.Contains(p.Id))
+                .Where(p => idsAndScores.Contains(p.Id))
                 .ProjectToType<ProductListItemWithVariants>()
                 .AsNoTracking()
                 .ToListAsync();
 
             var map = dbItems.ToDictionary(x => x.Id);
-            var ordered = ids
+            var ordered = idsAndScores
                 .Where(map.ContainsKey)
                 .Select(id => map[id])
                 .ToList();
@@ -841,6 +822,10 @@ namespace PerfumeGPT.Persistence.Repositories
                 .Include(p => p.Variants.Where(v => !v.IsDeleted))
                     .ThenInclude(v => v.ProductAttributes)
                         .ThenInclude(pa => pa.Value)
+                .Include(p => p.ProductScentMaps)
+                    .ThenInclude(psm => psm.ScentNote)
+                .Include(p => p.ProductFamilyMaps)
+                    .ThenInclude(pfm => pfm.OlfactoryFamily)
                 .Where(p => !p.IsDeleted)
                 .AsNoTracking()
                 .ToListAsync();
@@ -902,6 +887,10 @@ namespace PerfumeGPT.Persistence.Repositories
                 .Include(p => p.Variants.Where(v => !v.IsDeleted))
                     .ThenInclude(v => v.ProductAttributes)
                         .ThenInclude(pa => pa.Value)
+                .Include(p => p.ProductScentMaps)
+                    .ThenInclude(psm => psm.ScentNote)
+                .Include(p => p.ProductFamilyMaps)
+                    .ThenInclude(pfm => pfm.OlfactoryFamily)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == productId && !p.IsDeleted);
 
@@ -1038,12 +1027,14 @@ namespace PerfumeGPT.Persistence.Repositories
                 _ => product.Gender.ToString()
             };
 
+            var scentNotes = product.ProductScentMaps?.Select(sm => sm.ScentNote?.Name).Where(x => x != null).ToList() ?? [];
+            var olfactoryFamilies = product.ProductFamilyMaps?.Select(fm => fm.OlfactoryFamily?.Name).Where(x => x != null).ToList() ?? [];
+
             return new ProductDocument(
                 Id: product.Id.ToString(),
                 Name: product.Name ?? string.Empty,
                 Brand: product.Brand?.Name ?? string.Empty,
                 Category: product.Category?.Name ?? string.Empty,
-                Description: product.Description,
                 Gender: genderText,
                 ReleaseYear: product.ReleaseYear,
                 Origin: product.Origin ?? string.Empty,
@@ -1051,16 +1042,12 @@ namespace PerfumeGPT.Persistence.Repositories
                 Concentrations: concentrations.ToList(),
                 Volumes: volumes.ToList(),
                 Skus: skus.ToList(),
-                Barcodes: barcodes.ToList());
+                Barcodes: barcodes.ToList(),
+                ScentNotes: scentNotes!,
+                OlfactoryFamilies: olfactoryFamilies!);
         }
-
         #endregion Private Methods
     }
 }
-
-
-
-
-
 
 

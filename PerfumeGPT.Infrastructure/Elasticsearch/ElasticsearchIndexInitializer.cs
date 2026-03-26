@@ -57,6 +57,9 @@ namespace PerfumeGPT.Infrastructure.Elasticsearch
                     "spice, spicy, cay, hương cay",
                     "mint, bạc hà, menthol",
                     "nước hoa, perfume, fragrance, cologne",
+                    "chanell => chanel",
+                    "diorr => dior",
+                    "đi tiệc => party, ban đêm, tiệc tùng"
                 };
 
                 var createResponse = await _esClient.Indices.CreateAsync(IndexName, c => c
@@ -86,7 +89,6 @@ namespace PerfumeGPT.Infrastructure.Elasticsearch
                             )
                             .Text("brand", t => t.Analyzer("vi_perfume_analyzer"))
                             .Text("category", t => t.Analyzer("vi_perfume_analyzer"))
-                            .Text("description", t => t.Analyzer("vi_perfume_analyzer"))
                             .Text("gender", t => t.Analyzer("vi_perfume_analyzer"))
                             .Text("origin", t => t.Analyzer("vi_perfume_analyzer"))
                             .IntegerNumber("releaseYear")
@@ -95,6 +97,8 @@ namespace PerfumeGPT.Infrastructure.Elasticsearch
                             .Text("volumes")
                             .Keyword("skus")
                             .Keyword("barcodes")
+                            .Text("scentNotes", t => t.Analyzer("vi_perfume_analyzer"))
+                            .Text("olfactoryFamilies", t => t.Analyzer("vi_perfume_analyzer"))
                         )
                     ),
                     cancellationToken);
