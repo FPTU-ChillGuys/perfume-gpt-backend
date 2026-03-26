@@ -1,5 +1,6 @@
 ﻿using Elastic.Clients.Elasticsearch;
 using Elastic.Transport;
+using PerfumeGPT.Infrastructure.Elasticsearch;
 using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -248,13 +249,14 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			var username = Environment.GetEnvironmentVariable("ELASTICSEARCH__USERNAME") ?? configuration["Elasticsearch:Username"];
 			var password = Environment.GetEnvironmentVariable("ELASTICSEARCH__PASSWORD") ?? configuration["Elasticsearch:Password"];
 
-            var settings = new ElasticsearchClientSettings(new Uri(url))
-                .ServerCertificateValidationCallback((o, cert, chain, errors) => true)
-                .DefaultIndex(Environment.GetEnvironmentVariable("ELASTICSEARCH__INDEX_NAME")
+			var settings = new ElasticsearchClientSettings(new Uri(url))
+				.ServerCertificateValidationCallback((o, cert, chain, errors) => true)
+				.DefaultIndex(Environment.GetEnvironmentVariable("ELASTICSEARCH__INDEX_NAME")
 					?? configuration["Elasticsearch:IndexName"]
 					?? "products");
 
 			services.AddSingleton(new ElasticsearchClient(settings));
+			services.AddHostedService<ElasticsearchIndexInitializer>();
 		}
 	}
 }

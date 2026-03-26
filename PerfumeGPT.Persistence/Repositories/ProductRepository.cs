@@ -1,4 +1,4 @@
-using Elastic.Clients.Elasticsearch;
+﻿using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
@@ -769,7 +769,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
             // N?u ngu?i dùng nh?p "ho?c" thì dùng Operator.Or, còn m?c d?nh là Operator.And (ph?i th?a mãn t?t c?)
             var defaultOp = Operator.Or;
-            var minimumShouldMatch = isOrQuery ? "1" : normalizedTerms.Length <= 2 ? "100%" : normalizedTerms.Length <= 4 ? "75%" : "60%";
+            var minimumShouldMatch = isOrQuery ? "1" : normalizedTerms.Length <= 2 ? "75%" : normalizedTerms.Length <= 4 ? "67%" : "60%";
 
             Action<QueryDescriptor<ProductDocument>> queryDesc = q => q
                 .MultiMatch(sq => sq
@@ -778,7 +778,7 @@ namespace PerfumeGPT.Persistence.Repositories
                     .Operator(defaultOp)
                     .Type(TextQueryType.BestFields)
                     .MinimumShouldMatch(minimumShouldMatch)
-                    .Fuzziness(new Fuzziness(1))
+                    .Fuzziness(new Fuzziness("AUTO"))
                 );
 
             // Get total count
@@ -956,7 +956,7 @@ namespace PerfumeGPT.Persistence.Repositories
                     attributes.Add(pa.Value.Value);
 
                     // Xử lý dải tuổi mở rộng
-                    if (pa.Attribute.Name.Contains("tu\u1ed5i", StringComparison.OrdinalIgnoreCase) || 
+                    if (pa.Attribute.Name.Contains("tu\u1ed5i", StringComparison.OrdinalIgnoreCase) ||
                         pa.Value.Value.Contains("tu\u1ed5i", StringComparison.OrdinalIgnoreCase))
                     {
                         var valStr = pa.Value.Value.ToLower();
@@ -988,7 +988,7 @@ namespace PerfumeGPT.Persistence.Repositories
                         var matchRange = Regex.Match(valStr, @"(\d+)\s*[-–]\s*(\d+)");
                         if (matchRange.Success)
                         {
-                            if (int.TryParse(matchRange.Groups[1].Value, out int min) && 
+                            if (int.TryParse(matchRange.Groups[1].Value, out int min) &&
                                 int.TryParse(matchRange.Groups[2].Value, out int max))
                             {
                                 for (int i = min; i <= max; i++)
