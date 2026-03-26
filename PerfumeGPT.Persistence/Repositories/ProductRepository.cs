@@ -28,15 +28,17 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<Product?> GetProductByIdWithAttributesAsync(Guid productId)
 			=> await _context.Products
+			  .Where(p => !p.IsDeleted)
 				.Include(p => p.ProductAttributes)
 				.FirstOrDefaultAsync(p => p.Id == productId);
 
 		public async Task<bool> HasActiveVariantsAsync(Guid productId)
 			=> await _context.Products
-				.AnyAsync(p => p.Id == productId && p.Variants.Any(v => !v.IsDeleted));
+			 .AnyAsync(p => !p.IsDeleted && p.Id == productId && p.Variants.Any(v => !v.IsDeleted));
 
 		public async Task<List<ProductLookupItem>> GetProductLookupListAsync()
 			=> await _context.Products
+			  .Where(p => !p.IsDeleted)
 				.Select(p => new ProductLookupItem
 				{
 					Id = p.Id,
@@ -56,7 +58,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var raw = await _context.Products
 				.AsNoTracking()
-				.Where(p => p.Id == productId)
+			  .Where(p => !p.IsDeleted && p.Id == productId)
 				.Select(p => new
 				{
 					p.Id,
@@ -239,7 +241,9 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			var now = DateTime.UtcNow;
 
-			var query = _context.Products.AsQueryable();
+			var query = _context.Products
+				.Where(p => !p.IsDeleted)
+				.AsQueryable();
 
 			if (request.Gender.HasValue)
 				query = query.Where(p => p.Gender == request.Gender.Value);
@@ -351,7 +355,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			var limitDate = DateTime.UtcNow.AddDays(-30);
 
 			var query = _context.Products
-				.Where(p => p.Variants.Any(v =>
+			 .Where(p => !p.IsDeleted && p.Variants.Any(v =>
 					!v.IsDeleted &&
 					v.Stock.TotalQuantity - v.Stock.ReservedQuantity > 0))
 				.Select(p => new
@@ -446,7 +450,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			var now = DateTime.UtcNow;
 
 			var query = _context.Products
-				.Where(p => p.Variants.Any(v =>
+			 .Where(p => !p.IsDeleted && p.Variants.Any(v =>
 					!v.IsDeleted &&
 					v.Stock.TotalQuantity - v.Stock.ReservedQuantity > 0))
 				.OrderByDescending(p => p.CreatedAt);
@@ -521,7 +525,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			var now = DateTime.UtcNow;
 
 			var query = _context.Products
-				.Where(p => p.Variants.Any(v =>
+			 .Where(p => !p.IsDeleted && p.Variants.Any(v =>
 					!v.IsDeleted &&
 					v.PromotionItems.Any(pi =>
 						!pi.IsDeleted &&
@@ -638,14 +642,14 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<ProductInforResponse?> GetProductInfoAsync(Guid productId)
 			=> await _context.Products
-				.Where(p => p.Id == productId)
+			  .Where(p => !p.IsDeleted && p.Id == productId)
 				.ProjectToType<ProductInforResponse>()
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
 
 		public async Task<ProductFastLookResponse?> GetProductFastLookAsync(Guid productId)
 			=> await _context.Products
-				.Where(p => p.Id == productId)
+			  .Where(p => !p.IsDeleted && p.Id == productId)
 				.Select(p => new ProductFastLookResponse
 				{
 					Id = p.Id,
@@ -713,10 +717,11 @@ namespace PerfumeGPT.Persistence.Repositories
 			const string metricType = "cosine";
 
 			var query = _context.Products
+			   .Where(p => !p.IsDeleted)
 				.OrderBy(p => EF.Functions.VectorDistance(metricType, p.Embedding!.Value, sqlVector))
 				.AsNoTracking();
 
-			var totalCount = await _context.Products.CountAsync();
+			var totalCount = await query.CountAsync();
 
 			var items = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)
