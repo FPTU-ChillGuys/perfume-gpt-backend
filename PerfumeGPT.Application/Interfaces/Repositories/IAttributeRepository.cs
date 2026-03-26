@@ -9,5 +9,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<List<int>> GetExistingIdsAsync(IEnumerable<int> ids);
 		Task<List<AttributeLookupItem>> GetLookupListAsync(bool? isVariantLevel = null);
 		Task<List<Attribute>> GetByIdsAsync(IEnumerable<int> ids);
+		Task<bool> IsInUseAsync(int attributeId);
 	}
 }

@@ -28,10 +28,9 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			foreach (var voucher in guestVouchers)
 			{
-                voucher.AssignToUser(userId);
+				voucher.AssignToUser(userId);
+				_context.UserVouchers.Update(voucher);
 			}
-
-			await _context.SaveChangesAsync();
 		}
 
 		public async Task<(List<UserVoucher> Items, int TotalCount)> GetPagedWithVouchersAsync(Guid userId, GetPagedUserVouchersRequest request)

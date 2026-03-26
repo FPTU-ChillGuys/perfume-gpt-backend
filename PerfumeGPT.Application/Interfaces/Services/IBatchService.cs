@@ -1,16 +1,14 @@
 using PerfumeGPT.Application.DTOs.Requests.Inventory.Batches;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Batches;
-using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Interfaces.Services
 {
 	public interface IBatchService
 	{
-		Task<List<Batch>> CreateBatchesAsync(Guid variantId, Guid importDetailId, List<CreateBatchRequest> batchRequests);
+		Task CreateBatchesAsync(Guid variantId, Guid importDetailId, List<CreateBatchRequest> batchRequests);
 
 		// Validation methods
-		bool IsTotalQuantityValid(List<CreateBatchRequest> batchRequests, int expectedTotalQuantity);
 		Task<bool> ValidateBatchAvailabilityAsync(Guid variantId, int requiredQuantity);
 
 		// Retrieval methods

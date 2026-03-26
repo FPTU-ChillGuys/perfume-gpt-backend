@@ -3,7 +3,7 @@ using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.ProductAttributes.Attributes;
 using PerfumeGPT.Application.Exceptions;
-using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using Attribute = PerfumeGPT.Domain.Entities.Attribute;
 
@@ -12,19 +12,16 @@ namespace PerfumeGPT.Application.Services
 	public class AttributeService : IAttributeService
 	{
 		#region Dependencies
-		private readonly IAttributeRepository _attributeRepository;
-		private readonly IProductAttributeRepository _productAttributeRepository;
+		private readonly IUnitOfWork _unitOfWork;
 		private readonly IValidator<CreateAttributeRequest> _createValidator;
 		private readonly IValidator<UpdateAttributeRequest> _updateValidator;
 
 		public AttributeService(
-			IAttributeRepository attributeRepository,
-			IProductAttributeRepository productAttributeRepository,
+			IUnitOfWork unitOfWork,
 			IValidator<CreateAttributeRequest> createValidator,
 			IValidator<UpdateAttributeRequest> updateValidator)
 		{
-			_attributeRepository = attributeRepository;
-			_productAttributeRepository = productAttributeRepository;
+			_unitOfWork = unitOfWork;
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
 		}
@@ -32,7 +29,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<List<AttributeLookupItem>>> GetLookupListAsync(bool? isVariantLevel = null)
 		{
-			var lookupList = await _attributeRepository.GetLookupListAsync(isVariantLevel);
+			var lookupList = await _unitOfWork.Attributes.GetLookupListAsync(isVariantLevel);
 			return BaseResponse<List<AttributeLookupItem>>.Ok(
 				lookupList,
 				"Attribute lookup list retrieved successfully.");
@@ -51,8 +48,8 @@ namespace PerfumeGPT.Application.Services
 				request.Description,
 				request.IsVariantLevel);
 
-			await _attributeRepository.AddAsync(entity);
-			var saved = await _attributeRepository.SaveChangesAsync();
+			await _unitOfWork.Attributes.AddAsync(entity);
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create attribute");
 
 			return BaseResponse<string>.Ok(entity.Id.ToString(), "Attribute created successfully");
@@ -65,13 +62,13 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Validation failed",
 					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-			var entity = await _attributeRepository.GetByIdAsync(attributeId)
-				?? throw AppException.NotFound("Attribute not found");
+			var entity = await _unitOfWork.Attributes.GetByIdAsync(attributeId)
+				 ?? throw AppException.NotFound("Attribute not found");
 
 			entity.Update(request.Name, request.Description, request.IsVariantLevel);
-			_attributeRepository.Update(entity);
+			_unitOfWork.Attributes.Update(entity);
 
-			var saved = await _attributeRepository.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update attribute");
 
 			return BaseResponse<string>.Ok(attributeId.ToString(), "Attribute updated successfully");
@@ -79,15 +76,14 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> DeleteAttributeAsync(int attributeId)
 		{
-			var entity = await _attributeRepository.GetByIdAsync(attributeId)
-				?? throw AppException.NotFound("Attribute not found");
+			var entity = await _unitOfWork.Attributes.GetByIdAsync(attributeId)
+				 ?? throw AppException.NotFound("Attribute not found");
 
-			var isInUse = await _productAttributeRepository.AnyAsync(
-				pa => pa.AttributeId == attributeId);
+			var isInUse = await _unitOfWork.Attributes.IsInUseAsync(attributeId);
 			Attribute.EnsureCanBeDeleted(isInUse);
 
-			_attributeRepository.Remove(entity);
-			var saved = await _attributeRepository.SaveChangesAsync();
+			_unitOfWork.Attributes.Remove(entity);
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete attribute");
 
 			return BaseResponse<string>.Ok(attributeId.ToString(), "Attribute deleted successfully");

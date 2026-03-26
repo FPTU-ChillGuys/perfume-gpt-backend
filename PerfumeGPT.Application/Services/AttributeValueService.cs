@@ -3,7 +3,7 @@ using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.ProductAttributes.Values;
 using PerfumeGPT.Application.Exceptions;
-using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using AttributeValue = PerfumeGPT.Domain.Entities.AttributeValue;
 
@@ -12,16 +12,16 @@ namespace PerfumeGPT.Application.Services
 	public class AttributeValueService : IAttributeValueService
 	{
 		#region Depedencies
-		private readonly IAttributeValueRepository _attributeValueRepo;
+		private readonly IUnitOfWork _unitOfWork;
 		private readonly IValidator<CreateAttributeValueRequest> _createValidator;
 		private readonly IValidator<UpdateAttributeValueRequest> _updateValidator;
 
 		public AttributeValueService(
-			  IAttributeValueRepository attributeValueRepo,
+		   IUnitOfWork unitOfWork,
 			  IValidator<CreateAttributeValueRequest> createValidator,
 			  IValidator<UpdateAttributeValueRequest> updateValidator)
 		{
-			_attributeValueRepo = attributeValueRepo;
+			_unitOfWork = unitOfWork;
 			_createValidator = createValidator;
 			_updateValidator = updateValidator;
 		}
@@ -29,7 +29,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<List<AttributeValueLookupItem>>> GetLookupListByAttributeIdAsync(int attributeId)
 		{
-			var values = await _attributeValueRepo.GetLookupListByAttributeIdAsync(attributeId);
+			var values = await _unitOfWork.AttributeValues.GetLookupListByAttributeIdAsync(attributeId);
 			return BaseResponse<List<AttributeValueLookupItem>>.Ok(values);
 		}
 
@@ -42,8 +42,8 @@ namespace PerfumeGPT.Application.Services
 
 			var entity = AttributeValue.Create(attributeId, request.Value);
 
-			await _attributeValueRepo.AddAsync(entity);
-			var saved = await _attributeValueRepo.SaveChangesAsync();
+			await _unitOfWork.AttributeValues.AddAsync(entity);
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create attribute value");
 
 			return BaseResponse<string>.Ok(entity.Id.ToString(), "Attribute value created successfully");
@@ -56,13 +56,13 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Validation failed",
 					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-			var entity = await _attributeValueRepo.GetByIdAsync(valueId)
+			var entity = await _unitOfWork.AttributeValues.GetByIdAsync(valueId)
 				?? throw AppException.NotFound("Attribute value not found");
 
 			entity.Update(request.Value);
-			_attributeValueRepo.Update(entity);
+			_unitOfWork.AttributeValues.Update(entity);
 
-			var saved = await _attributeValueRepo.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update attribute value");
 
 			return BaseResponse<string>.Ok(valueId.ToString(), "Attribute value updated successfully");
@@ -70,14 +70,14 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> DeleteAttributeValueAsync(int valueId)
 		{
-			var entity = await _attributeValueRepo.GetByIdAsync(valueId)
+			var entity = await _unitOfWork.AttributeValues.GetByIdAsync(valueId)
 			?? throw AppException.NotFound("Attribute value not found");
 
-			var isInUse = await _attributeValueRepo.IsInUseAsync(valueId);
+			var isInUse = await _unitOfWork.AttributeValues.IsInUseAsync(valueId);
 			AttributeValue.EnsureCanBeDeleted(isInUse);
 
-			_attributeValueRepo.Remove(entity);
-			var saved = await _attributeValueRepo.SaveChangesAsync();
+			_unitOfWork.AttributeValues.Remove(entity);
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete attribute value");
 
 			return BaseResponse<string>.Ok(valueId.ToString(), "Attribute value deleted successfully");

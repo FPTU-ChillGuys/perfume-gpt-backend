@@ -8,6 +8,7 @@ using Microsoft.OpenApi;
 using PerfumeGPT.API.Middlewares;
 using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Infrastructure.Extensions;
+using PerfumeGPT.Infrastructure.Hubs;
 using PerfumeGPT.Persistence.Contexts;
 using Scalar.AspNetCore;
 using System.Collections.Concurrent;
@@ -136,6 +137,8 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 });
 
 app.MapControllers();
+
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 ApplyMigration();
 app.Run();

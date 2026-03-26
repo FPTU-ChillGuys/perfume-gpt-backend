@@ -32,7 +32,7 @@ namespace PerfumeGPT.Application.Services
 			IValidator<CreateVoucherRequest> createValidator,
 			IValidator<UpdateVoucherRequest> updateValidator,
 			IUserService userService,
-		   ILoyaltyTransactionService loyaltyTransactionService)
+			ILoyaltyTransactionService loyaltyTransactionService)
 		{
 			_unitOfWork = unitOfWork;
 			_campaignRepository = campaignRepository;

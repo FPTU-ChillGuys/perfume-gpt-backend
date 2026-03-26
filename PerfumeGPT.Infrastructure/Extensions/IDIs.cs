@@ -37,11 +37,13 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			services.AddHttpClient<IGHTKService, GHTKService>();
 			services.AddSingleton<ISupabaseService, SupabaseService>();
 			services.AddScoped<IVnPayService, VnPayService>();
+			services.AddScoped<ISignalRService, SignalRService>();
 
 			// Convention-based registration for repository implementations in the Persistence assembly.
 			// It will register classes where an interface named "I{ClassName}" exists.
 			RegisterRepositoriesByConvention(services, typeof(UnitOfWork).Assembly);
 
+			services.AddScoped<IBaseUnitOfWork, UnitOfWork>();
 			services.AddScoped<IUnitOfWork, UnitOfWork>();
 			services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 			services.AddHttpClient();
@@ -121,6 +123,15 @@ namespace PerfumeGPT.Infrastructure.Extensions
 						.AllowCredentials();
 				});
 			});
+
+			// SignalR - Allow same origins for SignalR hubs
+			services.AddSignalR(options =>
+			{
+				options.EnableDetailedErrors = true;
+			}).AddJsonProtocol(options =>
+			{
+				options.PayloadSerializerOptions.PropertyNamingPolicy = null;
+			});
 		}
 
 		public static void AddIdentityServices(this IServiceCollection services, IConfiguration configuration)
@@ -163,6 +174,17 @@ namespace PerfumeGPT.Infrastructure.Extensions
 						context.Response.StatusCode = StatusCodes.Status403Forbidden;
 						context.Response.ContentType = "application/json";
 						return context.Response.WriteAsJsonAsync(BaseResponse<string>.Fail("You are not authorized to access this resource", ResponseErrorType.Forbidden));
+					},
+					OnMessageReceived = context =>
+					{
+						// read token from query string for SignalR hubs (e.g. /hubs/notifications?access_token=xxx)
+						var accessToken = context.Request.Query["access_token"];
+						var path = context.HttpContext.Request.Path;
+						if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+						{
+							context.Token = accessToken;
+						}
+						return Task.CompletedTask;
 					}
 				};
 

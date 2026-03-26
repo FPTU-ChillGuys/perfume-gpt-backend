@@ -253,22 +253,13 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Validation failed", errors);
 			}
 
-			var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAsync(ticketId);
-
-			if (importTicket == null)
-			{
-				throw AppException.NotFound("Import ticket not found.");
-			}
+			var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAsync(ticketId) ?? throw AppException.NotFound("Import ticket not found.");
 
 			if (importTicket.Status != ImportStatus.InProgress)
-			{
 				throw AppException.BadRequest("Only in progress import tickets can be verified.");
-			}
 
 			if (request.ImportDetails.Count != importTicket.ImportDetails.Count)
-			{
 				throw AppException.BadRequest("Mismatch in number of import details for verification.");
-			}
 
 			// Check for duplicate import detail IDs in request
 			var duplicateDetailIds = request.ImportDetails
@@ -331,7 +322,7 @@ namespace PerfumeGPT.Application.Services
 				{
 					validationErrors.Add($"Batches for import detail {verifyDetail.ImportDetailId} cannot be empty when there is accepted quantity.");
 				}
-				else if (!_batchService.IsTotalQuantityValid(verifyDetail.Batches, acceptedQuantity))
+				else if (!IsTotalQuantityValid(verifyDetail.Batches, acceptedQuantity))
 				{
 					validationErrors.Add($"Total batch quantity does not match accepted quantity ({acceptedQuantity}) for import detail {verifyDetail.ImportDetailId}.");
 				}
@@ -531,6 +522,7 @@ namespace PerfumeGPT.Application.Services
 			});
 		}
 
+		#region Private Helpers
 		private static List<CreateBatchRequest> MergeBatchesBySameCode(List<CreateBatchRequest> batches)
 		{
 			var groupedBatches = batches
@@ -562,6 +554,19 @@ namespace PerfumeGPT.Application.Services
 
 			return groupedBatches;
 		}
+
+		private bool IsTotalQuantityValid(List<CreateBatchRequest> batchRequests, int expectedTotalQuantity)
+		{
+			if (batchRequests == null || batchRequests.Count == 0)
+				return false;
+
+			if (expectedTotalQuantity <= 0)
+				return false;
+
+			var totalQuantity = batchRequests.Sum(b => b.Quantity);
+			return totalQuantity == expectedTotalQuantity;
+		}
+		#endregion Private Helpers
 	}
 }
 

@@ -7,6 +7,7 @@ using PerfumeGPT.Application.DTOs.Responses.Products;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
@@ -22,6 +23,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IValidator<UpdateProductRequest> _updateValidator;
 		private readonly MediaBulkActionHelper _helper;
 		private readonly IProductAttributeService _productAttributeService;
+		private readonly ISignalRService _signalRService;
 
 		public ProductService(
 			IProductRepository productRepo,
@@ -29,7 +31,8 @@ namespace PerfumeGPT.Application.Services
 			IValidator<CreateProductRequest> createValidator,
 			IValidator<UpdateProductRequest> updateValidator,
 			MediaBulkActionHelper helper,
-			IProductAttributeService productAttributeService)
+			IProductAttributeService productAttributeService,
+			ISignalRService signalRService)
 		{
 			_productRepo = productRepo;
 			_mediaService = mediaService;
@@ -37,6 +40,7 @@ namespace PerfumeGPT.Application.Services
 			_updateValidator = updateValidator;
 			_helper = helper;
 			_productAttributeService = productAttributeService;
+			_signalRService = signalRService;
 		}
 		#endregion Dependencies
 
@@ -92,6 +96,8 @@ namespace PerfumeGPT.Application.Services
 			var message = metadata.HasPartialFailure
 				? $"Product created successfully with {metadata.TotalFailed} media upload failure(s)."
 				: "Product created successfully";
+
+			await _signalRService.NotifyProductCreated(product.Id);
 
 			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
 		}
