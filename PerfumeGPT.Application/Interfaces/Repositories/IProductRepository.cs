@@ -21,7 +21,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		/// <summary>
 		///	Get paged products based on full-text search via Elasticsearch.
 		///	</summary>
-		Task<(List<ProductListItemWithVariants> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request);
+		Task<(List<SemanticSearchProductResponse> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request);
 
 		/// <summary>
 		/// Index all products into Elasticsearch.

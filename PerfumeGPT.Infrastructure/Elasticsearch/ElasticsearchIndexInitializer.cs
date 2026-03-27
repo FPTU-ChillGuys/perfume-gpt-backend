@@ -87,8 +87,16 @@ namespace PerfumeGPT.Infrastructure.Elasticsearch
                                 .Analyzer("vi_perfume_analyzer")
                                 .Fields(f => f.Keyword("keyword"))
                             )
-                            .Text("brand", t => t.Analyzer("vi_perfume_analyzer"))
-                            .Text("category", t => t.Analyzer("vi_perfume_analyzer"))
+                            .Text("brand", t => t
+                                .Analyzer("vi_perfume_analyzer")
+                                .Fields(f => f.Keyword("keyword"))
+                            )
+                            .Keyword("brandId")
+                            .Text("category", t => t
+                                .Analyzer("vi_perfume_analyzer")
+                                .Fields(f => f.Keyword("keyword"))
+                            )
+                            .Keyword("categoryId")
                             .Text("gender", t => t.Analyzer("vi_perfume_analyzer"))
                             .Text("origin", t => t.Analyzer("vi_perfume_analyzer"))
                             .IntegerNumber("releaseYear")
@@ -99,6 +107,12 @@ namespace PerfumeGPT.Infrastructure.Elasticsearch
                             .Keyword("barcodes")
                             .Text("scentNotes", t => t.Analyzer("vi_perfume_analyzer"))
                             .Text("olfactoryFamilies", t => t.Analyzer("vi_perfume_analyzer"))
+                            .DoubleNumber("variantPrices")
+                            .DenseVector("embedding", v => v
+                                .Index(true)
+                                .Dims(1024)
+                                .Similarity(DenseVectorSimilarity.Cosine)
+                            )
                         )
                     ),
                     cancellationToken);

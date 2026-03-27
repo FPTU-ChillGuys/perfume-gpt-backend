@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.SemanticKernel;
+using Microsoft.Extensions.AI;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.ThirdParties;

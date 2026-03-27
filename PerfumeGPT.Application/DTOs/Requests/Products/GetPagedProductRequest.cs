@@ -12,5 +12,6 @@ namespace PerfumeGPT.Application.DTOs.Requests.Products
 		public decimal? FromPrice { get; set; }
 		public decimal? ToPrice { get; set; }
 		public bool? IsAvailable { get; set; }
+		public bool? IsOrSearch { get; set; }
 	}
 }

@@ -16,6 +16,7 @@ using PerfumeGPT.Persistence.Repositories.Commons;
 using System.Text;
 using System.Text.RegularExpressions;
 using PerfumeGPT.Persistence.Repositories.Elasticsearch;
+using Microsoft.Extensions.AI;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -709,80 +710,99 @@ namespace PerfumeGPT.Persistence.Repositories
         /// <summary>Document shape stored in Elasticsearch "products" index.</summary>
         // ProductDocument moved to Infrastructure namespace
 
-        public async Task<(List<ProductListItemWithVariants> Items, int TotalCount)>
-            GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request)
+        public async Task<(List<SemanticSearchProductResponse> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request)
         {
             if (string.IsNullOrWhiteSpace(searchText))
                 return ([], 0);
 
             var from = (request.PageNumber - 1) * request.PageSize;
 
-            var processedText = searchText.ToLowerInvariant();
-            var isOrQuery = processedText.Contains(" ho\u1eb7c ");
-
-            // Pre-process Text: Extract age and volume intent
-            // Ví dụ: người dùng gõ "nước hoa nam 20 tuổi 100ml"
-            var ageMatch = Regex.Match(processedText, @"(\d+)\s*tu\u1ed5i");
-            if (ageMatch.Success)
-            {
-                var ageNum = ageMatch.Groups[1].Value;
-                processedText = processedText.Replace(ageMatch.Value, $"age_{ageNum}");
-            }
-
-            var volumeMatch = Regex.Match(processedText, @"(\d+)\s*ml");
-            if (volumeMatch.Success)
-            {
-                var volNum = volumeMatch.Groups[1].Value;
-                processedText = processedText.Replace(volumeMatch.Value, $"volume_{volNum}");
-            }
-
-            // Dọn dẹp từ khoá "và" / "hoặc" dư thừa
-            processedText = processedText
-                .Replace(" v\u00e0 ", " ")
-                .Replace(" ho\u1eb7c ", " ");
-
-            var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "có", "co", "và", "va", "hoặc", "hoac", "hương", "huong", "mùi", "mui"
-            };
-
-            var normalizedTerms = processedText
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(t => !stopWords.Contains(t))
-                .ToArray();
-
-            processedText = normalizedTerms.Length > 0
-                ? string.Join(' ', normalizedTerms)
-                : processedText;
-
-            // N?u ngu?i dùng nh?p "ho?c" thì dùng Operator.Or, còn m?c d?nh là Operator.And (ph?i th?a mãn t?t c?)
+            // Dọn dẹp Text Search
+            var processedText = searchText.Trim();
+            var isOrQuery = request.IsOrSearch ?? false;
+            var normalizedTerms = processedText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             var defaultOp = Operator.Or;
             var minimumShouldMatch = isOrQuery ? "1" : normalizedTerms.Length <= 2 ? "75%" : normalizedTerms.Length <= 4 ? "67%" : "60%";
 
-            // Gọi Modular Query Builder để xây dựng truy vấn đa lớp
-            var queryDesc = ProductSearchQueryBuilder.BuildQuery(processedText, minimumShouldMatch, defaultOp);
+            // 2. Sinh Query Vector để thực hiện Hybrid Search (Text + Vector)
+            var embeddingService = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+            var embeddings = await embeddingService.GenerateAsync(processedText);
+            var queryVectorArray = embeddings.Vector.ToArray();
 
-            // Get total count
-            var countResponse = await _esClient.CountAsync<ProductDocument>(c => c
+            // 3. Thực hiện Diagnostic Search (Debug từng stage)
+            var queryDesc = ProductSearchQueryBuilder.BuildQuery(processedText, minimumShouldMatch, defaultOp, request);
+
+            var logDir = Path.Combine(Directory.GetCurrentDirectory(), "temp");
+            if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
+            var logPath = Path.Combine(logDir, "es_diagnostics.txt");
+            var sbLog = new StringBuilder();
+            sbLog.AppendLine($"\n[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] QUERY: '{searchText}' ------------------------------");
+
+            // --- STAGE 1: kNN Only (Retrieval) ---
+            var knnOnlyResponse = await _esClient.SearchAsync<ProductDocument>(s => s
                 .Indices(IndexName)
-                .Query(queryDesc));
-            var totalCount = countResponse.IsValidResponse ? (int)countResponse.Count : 0;
+                .Size(5)
+                .Knn(k => k
+                    .Field("embedding")
+                    .QueryVector(queryVectorArray)
+                    .K(20)
+                    .NumCandidates(100)
+                )
+                .Query(q => q.MatchAll())
+            );
+            sbLog.AppendLine($"[STAGE 1] kNN Only (Retrieval) found: {knnOnlyResponse.Total} hits");
+            foreach (var h in knnOnlyResponse.Hits) sbLog.AppendLine($"  - Found ID: {h.Id} | Score: {h.Score}");
 
-            if (totalCount == 0)
-                return ([], 0);
+            // --- STAGE 2: BM25 Only (Precision & Filters) ---
+            var textOnlyResponse = await _esClient.SearchAsync<ProductDocument>(s => s
+                .Indices(IndexName)
+                .Size(5)
+                .Query(queryDesc)
+            );
+            sbLog.AppendLine($"[STAGE 2] BM25/Filter Only found: {textOnlyResponse.Total} hits");
+            foreach (var h in textOnlyResponse.Hits) sbLog.AppendLine($"  - Found ID: {h.Id} | Score: {h.Score}");
 
-            // Get paged results
+            // --- STAGE 3: Hybrid Final (Combined) ---
             var esResponse = await _esClient.SearchAsync<ProductDocument>(s => s
                 .Indices(IndexName)
                 .From(from)
                 .Size(request.PageSize)
-                .Query(queryDesc));
+                .Explain(true)
+                .Profile(true)
+                .Knn(k => k
+                    .Field("embedding")
+                    .QueryVector(queryVectorArray)
+                    .K(20)
+                    .NumCandidates(100)
+                    .Boost(0.6f)
+                )
+                .Query(queryDesc)
+            );
+
+            sbLog.AppendLine($"[STAGE 3] Final Hybrid search found: {esResponse.Total} hits");
 
             if (!esResponse.IsValidResponse)
-                return ([], totalCount);
+            {
+                sbLog.AppendLine($"[ES ERROR] {esResponse.DebugInformation}");
+                await File.AppendAllTextAsync(logPath, sbLog.ToString());
+                return ([], 0);
+            }
+
+            // Log detailed explanation for top hits
+            foreach (var hit in esResponse.Hits.Take(3))
+            {
+                sbLog.AppendLine($"\n--- Explanation for ID: {hit.Id} (Score: {hit.Score}) ---");
+                // if (hit.Explanation != null) PrintExplanation(hit.Explanation.Description, hit.Explanation.Value, hit.Explanation.Details, 0);
+            }
+
+            await File.AppendAllTextAsync(logPath, sbLog.ToString());
+
+            var totalCount = (int)esResponse.Total;
+            if (totalCount == 0)
+                return ([], 0);
 
             var idsAndScores = esResponse.Hits
-                .Where(h => h.Source != null && h.Score >= 1.5) // Áp dụng min_score
+                .Where(h => h.Source != null && h.Score >= 1.0) // Giảm min_score để dễ debug
                 .Select(h => Guid.Parse(h.Source!.Id))
                 .ToList();
 
@@ -792,14 +812,28 @@ namespace PerfumeGPT.Persistence.Repositories
             // Preserve ES ranking order
             var dbItems = await _context.Products
                 .Where(p => idsAndScores.Contains(p.Id))
-                .ProjectToType<ProductListItemWithVariants>()
+                .ProjectToType<SemanticSearchProductResponse>()
                 .AsNoTracking()
                 .ToListAsync();
+
+            // Lấy nhãn nốt hương và nhóm hương từ ES hits để gán vào response (vì DB ProjectToType có thể thiếu cấu hình phức tạp)
+            var esSourceMap = esResponse.Hits
+                .Where(h => h.Source != null)
+                .ToDictionary(h => Guid.Parse(h.Source!.Id), h => h.Source!);
 
             var map = dbItems.ToDictionary(x => x.Id);
             var ordered = idsAndScores
                 .Where(map.ContainsKey)
-                .Select(id => map[id])
+                .Select(id =>
+                {
+                    var item = map[id];
+                    if (esSourceMap.TryGetValue(id, out var source))
+                    {
+                        item.ScentNotes = source.ScentNotes?.ToList() ?? [];
+                        item.OlfactoryFamilies = source.OlfactoryFamilies?.ToList() ?? [];
+                    }
+                    return item;
+                })
                 .ToList();
 
             return (ordered, totalCount);
@@ -836,8 +870,23 @@ namespace PerfumeGPT.Persistence.Repositories
                 return;
             }
 
-            Console.WriteLine($"[ES] Indexing {products.Count} products...");
-            var docs = products.Select(BuildProductDocument).ToList();
+            Console.WriteLine($"[ES] Indexing {products.Count} products with embeddings...");
+            var embeddingService = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+            var docs = new List<ProductDocument>();
+
+            foreach (var p in products)
+            {
+                var textToEmbed = $"{p.Name} {p.Brand?.Name} {string.Join(' ', p.ProductScentMaps?.Select(sm => sm.ScentNote?.Name) ?? [])}";
+                var embeddings = await embeddingService.GenerateAsync(textToEmbed);
+
+                var doc = BuildProductDocument(p, embeddings.Vector.ToArray());
+                docs.Add(doc);
+
+                if (docs.Count % 10 == 0)
+                {
+                    Console.WriteLine($"  - Prepared {docs.Count}/{products.Count} documents...");
+                }
+            }
 
             var bulkResponse = await _esClient.BulkAsync(b => b
                 .Index(IndexName)
@@ -896,7 +945,11 @@ namespace PerfumeGPT.Persistence.Repositories
 
             if (product == null) return;
 
-            var doc = BuildProductDocument(product);
+            var embeddingService = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+            var textToEmbed = $"{product.Name} {product.Brand?.Name} {string.Join(' ', product.ProductScentMaps?.Select(sm => sm.ScentNote?.Name) ?? [])}";
+            var embeddings = await embeddingService.GenerateAsync([textToEmbed]);
+
+            var doc = BuildProductDocument(product, embeddings[0].Vector.ToArray());
             await _esClient.IndexAsync(doc, x => x.Index(IndexName).Id(doc.Id));
         }
 
@@ -933,9 +986,9 @@ namespace PerfumeGPT.Persistence.Repositories
             return dailyFigures.Where(df => df.DailySaleFigures.Any(v => v.QuantitySold > 0)).ToList();
         }
 
-        private static ProductDocument BuildProductDocument(Product product)
+        private ProductDocument BuildProductDocument(Product product, float[]? embedding = null)
         {
-            var attributes = new HashSet<string>();
+            var attributes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             if (product.ProductAttributes != null)
             {
@@ -1034,20 +1087,53 @@ namespace PerfumeGPT.Persistence.Repositories
                 Id: product.Id.ToString(),
                 Name: product.Name ?? string.Empty,
                 Brand: product.Brand?.Name ?? string.Empty,
+                BrandId: product.BrandId.ToString(),
                 Category: product.Category?.Name ?? string.Empty,
-                Gender: genderText,
+                CategoryId: product.CategoryId.ToString(),
+                Gender: product.Gender.ToString(),
                 ReleaseYear: product.ReleaseYear,
                 Origin: product.Origin ?? string.Empty,
-                Attributes: attributes.ToList(),
-                Concentrations: concentrations.ToList(),
-                Volumes: volumes.ToList(),
-                Skus: skus.ToList(),
-                Barcodes: barcodes.ToList(),
-                ScentNotes: scentNotes!,
-                OlfactoryFamilies: olfactoryFamilies!);
+                Attributes: product.ProductAttributes?
+                    .Select(am => am.Value?.Value ?? string.Empty)
+                    .Distinct().ToList() ?? [],
+                Concentrations: product.Variants?
+                    .Select(v => v.Concentration?.Name ?? string.Empty)
+                    .Distinct().ToList() ?? [],
+                Volumes: product.Variants?
+                    .Select(v => $"{v.VolumeMl}ml")
+                    .Distinct().ToList() ?? [],
+                Skus: product.Variants?
+                    .Select(v => v.Sku ?? string.Empty)
+                    .Distinct().ToList() ?? [],
+                Barcodes: product.Variants?
+                    .Select(v => v.Barcode ?? string.Empty)
+                    .Distinct().ToList() ?? [],
+                ScentNotes: product.ProductScentMaps?
+                    .Select(sm => sm.ScentNote?.Name ?? string.Empty)
+                    .Distinct().ToList() ?? [],
+                OlfactoryFamilies: product.ProductFamilyMaps?
+                    .Select(fm => fm.OlfactoryFamily?.Name ?? string.Empty)
+                    .Distinct().ToList() ?? [],
+                VariantPrices: product.Variants?
+                    .Select(v => (double)v.BasePrice)
+                    .Distinct().ToList() ?? [],
+                Embedding: embedding
+            );
+        }
+
+        private void PrintExplanation(string description, float value, IReadOnlyCollection<Elastic.Clients.Elasticsearch.Core.Explain.ExplanationDetail>? details, int indent)
+        {
+            var space = new string(' ', indent * 2);
+            Console.WriteLine($"{space}- {description} | value = {value}");
+
+            if (details != null)
+            {
+                foreach (var d in details)
+                {
+                    PrintExplanation(d.Description, d.Value, d.Details, indent + 1);
+                }
+            }
         }
         #endregion Private Methods
     }
 }
-
-

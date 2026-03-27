@@ -273,12 +273,12 @@ namespace PerfumeGPT.Application.Services
 				response, "Product daily sale figures retrieved successfully");
 		}
 
-		public async Task<BaseResponse<PagedResult<ProductListItemWithVariants>>> GetSemanticSearchProductAsync(
+		public async Task<BaseResponse<PagedResult<SemanticSearchProductResponse>>> GetSemanticSearchProductAsync(
 			string searchText, GetPagedProductRequest request)
 		{
 			var (items, totalCount) = await _productRepo.GetPagedProductsWithSemanticSearch(searchText, request);
-			return BaseResponse<PagedResult<ProductListItemWithVariants>>.Ok(
-				new PagedResult<ProductListItemWithVariants>(items, request.PageNumber, request.PageSize, totalCount),
+			return BaseResponse<PagedResult<SemanticSearchProductResponse>>.Ok(
+				new PagedResult<SemanticSearchProductResponse>(items, request.PageNumber, request.PageSize, totalCount),
 				"Semantic search products retrieved successfully");
 		}
 
