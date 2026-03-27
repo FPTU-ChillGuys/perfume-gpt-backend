@@ -826,48 +826,9 @@ namespace PerfumeGPT.Persistence.Repositories
             var embeddings = await embeddingService.GenerateAsync(processedText);
             var queryVectorArray = embeddings.Vector.ToArray();
 
-            // 3. Thực hiện Diagnostic Search (Debug từng stage)
+            // 3. Thực hiện Search (Hybrid: Text + Vector + Filters)
             var queryDesc = ProductSearchQueryBuilder.BuildQuery(processedText, minimumShouldMatch, defaultOp, request, detectedSize);
-
-            var logDir = @"d:\HocTap2HDH\SEP\Project\perfume-gpt-backend\temp";
-            if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
-            var logPath = Path.Combine(logDir, "es_diagnostics.txt");
-            var sbLog = new StringBuilder();
-            sbLog.AppendLine($"\n[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] QUERY: '{searchText}' ------------------------------");
-            if (detectedSize.HasValue) sbLog.AppendLine($"[DEBUG] Detected Size: {detectedSize}ml");
-            if (request.Gender.HasValue) sbLog.AppendLine($"[DEBUG] Detected Gender: {request.Gender}");
-            if (request.ToPrice.HasValue) sbLog.AppendLine($"[DEBUG] Detected ToPrice: {request.ToPrice:N0} VND");
-            if (request.FromPrice.HasValue) sbLog.AppendLine($"[DEBUG] Detected FromPrice: {request.FromPrice:N0} VND");
-            sbLog.AppendLine($"[DEBUG] Processed Text: '{processedText}'");
-
-            // --- STAGE 1: kNN Only (Retrieval) ---
             var filterDesc = ProductSearchQueryBuilder.BuildFilterQuery(request);
-
-            var knnOnlyResponse = await _esClient.SearchAsync<ProductDocument>(s => s
-                .Indices(IndexName)
-                .Size(5)
-                .Knn(k => k
-                    .Field("embedding")
-                    .QueryVector(queryVectorArray)
-                    .K(20)
-                    .NumCandidates(100)
-                    .Filter(filterDesc)
-                )
-                .Query(q => q.Bool(b => b.Filter(filterDesc)))
-            );
-            sbLog.AppendLine($"[STAGE 1] kNN Only (Retrieval) found: {knnOnlyResponse.Total} hits");
-            foreach (var h in knnOnlyResponse.Hits) sbLog.AppendLine($"  - Found ID: {h.Id} | Score: {h.Score}");
-
-            // --- STAGE 2: BM25 Only (Precision & Filters) ---
-            var textOnlyResponse = await _esClient.SearchAsync<ProductDocument>(s => s
-                .Indices(IndexName)
-                .Size(5)
-                .Query(queryDesc)
-            );
-            sbLog.AppendLine($"[STAGE 2] BM25/Filter Only found: {textOnlyResponse.Total} hits");
-            foreach (var h in textOnlyResponse.Hits) sbLog.AppendLine($"  - Found ID: {h.Id} | Score: {h.Score}");
-
-            // --- STAGE 3: Hybrid Final (Combined) ---
             var searchDesc = ProductSearchQueryBuilder.BuildSearchQuery(processedText, minimumShouldMatch, defaultOp, detectedSize);
 
             var esResponse = await _esClient.SearchAsync<ProductDocument>(s => s
@@ -888,30 +849,15 @@ namespace PerfumeGPT.Persistence.Repositories
                 ))
             );
 
-            sbLog.AppendLine($"[STAGE 3] Final Hybrid search found: {esResponse.Total} hits");
-
             if (!esResponse.IsValidResponse)
-            {
-                sbLog.AppendLine($"[ES ERROR] {esResponse.DebugInformation}");
-                await File.AppendAllTextAsync(logPath, sbLog.ToString());
                 return ([], 0);
-            }
-
-            // Log detailed explanation for top hits
-            foreach (var hit in esResponse.Hits.Take(3))
-            {
-                sbLog.AppendLine($"\n--- Explanation for ID: {hit.Id} (Score: {hit.Score}) ---");
-                // if (hit.Explanation != null) PrintExplanation(hit.Explanation.Description, hit.Explanation.Value, hit.Explanation.Details, 0);
-            }
-
-            await File.AppendAllTextAsync(logPath, sbLog.ToString());
 
             var totalCount = (int)esResponse.Total;
             if (totalCount == 0)
                 return ([], 0);
 
             var idsAndScores = esResponse.Hits
-                .Where(h => h.Source != null && h.Score >= 1.0) // Giảm min_score để dễ debug
+                .Where(h => h.Source != null)
                 .Select(h => Guid.Parse(h.Source!.Id))
                 .ToList();
 
