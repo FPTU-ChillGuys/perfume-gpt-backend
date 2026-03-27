@@ -32,8 +32,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		/// Index a specific product into Elasticsearch by its ID.
 		/// </summary>
 		Task IndexProductToElasticsearchAsync(Guid productId);
-
 		Task<List<ProductDailySaleFigureResponse>> GetProductDailySaleFiguresAsync(DateOnly date);
 	}
 }
-

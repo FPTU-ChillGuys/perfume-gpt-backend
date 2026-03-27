@@ -26,11 +26,11 @@ namespace PerfumeGPT.Application.Services
 			_updateProfileValidator = updateProfileValidator;
 		}
 
-		public async Task<BaseResponse<string>> CreateProfileAsync(Guid userId)
+		private async Task<CustomerProfile> CreateProfileAsync(Guid userId)
 		{
-			var exists = await _profileRepo.AnyAsync(p => p.UserId == userId);
-			if (exists)
-				throw AppException.Conflict("Profile already exists for this user");
+			var existingProfile = await _profileRepo.FirstOrDefaultAsync(p => p.UserId == userId);
+			if (existingProfile is not null)
+				return existingProfile;
 
 			var profile = CustomerProfile.Create(userId);
 
@@ -39,7 +39,7 @@ namespace PerfumeGPT.Application.Services
 			if (!saved)
 				throw AppException.Internal("Failed to create profile");
 
-			return BaseResponse<string>.Ok(profile.Id.ToString(), "Profile created successfully");
+			return profile;
 		}
 
 		public async Task<BaseResponse<string>> UpdateProfileAsync(Guid userId, UpdateProfileRequest request)
@@ -72,7 +72,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ProfileResponse>> GetProfileAsync(Guid userId)
 		{
-			var profile = await _profileRepo.FirstOrDefaultAsync(p => p.UserId == userId) ?? throw AppException.NotFound("Profile not found");
+			var profile = await CreateProfileAsync(userId);
 
 			var response = _mapper.Map<ProfileResponse>(profile);
 			return BaseResponse<ProfileResponse>.Ok(response, "Profile retrieved successfully");

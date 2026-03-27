@@ -33,42 +33,17 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task UpdateStockAsync(Guid variantId)
 		{
-			var strategy = _context.Database.CreateExecutionStrategy();
+			// 1. Calculate total quantity from batches
+			var totalQuantity = await _context.Batches
+				.Where(b => b.VariantId == variantId)
+				.SumAsync(b => b.RemainingQuantity);
 
-			await strategy.ExecuteAsync(async () =>
-			{
-				for (int attempt = 0; attempt < MaxRetryAttempts; attempt++)
-				{
-					try
-					{
-						// 1. Calculate total quantity from batches
-						var totalQuantity = await _context.Batches
-							.Where(b => b.VariantId == variantId && b.ExpiryDate > DateTime.UtcNow)
-							.SumAsync(b => b.RemainingQuantity);
+			// 2. Load Entity
+			var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
+				?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
 
-						// 2. Load Entity
-						var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
-							?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
-
-						// 3. Sync quantity
-						stock.SyncQuantity(totalQuantity);
-
-						// 4. Save
-						await _context.SaveChangesAsync();
-						return;
-					}
-					catch (DbUpdateConcurrencyException) when (attempt < MaxRetryAttempts - 1)
-					{
-						await Task.Delay(RetryDelayMilliseconds * (attempt + 1));
-						foreach (var entry in _context.ChangeTracker.Entries())
-						{
-							entry.State = EntityState.Detached;
-						}
-					}
-				}
-
-				throw AppException.Conflict("A concurrency error occurred while syncing stock. Please try again.");
-			});
+			// 3. Sync quantity
+			stock.SyncQuantity(totalQuantity);
 		}
 
 		public async Task<(IEnumerable<StockResponse> Stocks, int TotalCount)> GetPagedInventoryAsync(GetPagedInventoryRequest request)

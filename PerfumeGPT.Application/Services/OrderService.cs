@@ -174,99 +174,88 @@ namespace PerfumeGPT.Application.Services
 		#region Checkout Operations
 		public async Task<BaseResponse<string>> Checkout(Guid userId, CreateOrderRequest request)
 		{
-			try
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				// Get cart with items
+				var getCartTotalRequest = new GetCartTotalRequest
 				{
-					// Get cart with items
-					var getCartTotalRequest = new GetCartTotalRequest
-					{
-						VoucherCode = request.VoucherCode,
-						ItemIds = request.ItemIds,
-						SavedAddressId = request.SavedAddressId,
-						Recipient = request.Recipient
-					};
+					VoucherCode = request.VoucherCode,
+					ItemIds = request.ItemIds,
+					SavedAddressId = request.SavedAddressId,
+					Recipient = request.Recipient
+				};
 
-					var cartResponse = await _cartService.GetCartForCheckoutAsync(userId, getCartTotalRequest)
-						?? throw AppException.BadRequest("Failed to retrieve cart for checkout.");
+				var cartResponse = await _cartService.GetCartForCheckoutAsync(userId, getCartTotalRequest)
+					?? throw AppException.BadRequest("Failed to retrieve cart for checkout.");
 
-					if (cartResponse.Items.Count == 0)
-						throw AppException.BadRequest("Cart is empty.");
+				if (cartResponse.Items.Count == 0)
+					throw AppException.BadRequest("Cart is empty.");
 
-					if (request.ExpectedTotalPrice.HasValue && Math.Abs(request.ExpectedTotalPrice.Value - cartResponse.TotalPrice) > 0.0001m)
-						throw AppException.Conflict("Discount no longer matches what you saw. Please refresh cart total and checkout again.");
+				if (request.ExpectedTotalPrice.HasValue && Math.Abs(request.ExpectedTotalPrice.Value - cartResponse.TotalPrice) > 0.0001m)
+					throw AppException.Conflict("Discount no longer matches what you saw. Please refresh cart total and checkout again.");
 
-					// Create order details
-					var itemsToValidate = cartResponse.Items
-					.Select(item => (item.VariantId, item.Quantity))
-					.ToList();
+				// Create order details
+				var itemsToValidate = cartResponse.Items
+				.Select(item => (item.VariantId, item.Quantity))
+				.ToList();
 
-					var orderDetails = await _orderDetailsFactory.CreateOrderDetailsAsync(itemsToValidate);
+				var orderDetails = await _orderDetailsFactory.CreateOrderDetailsAsync(itemsToValidate);
 
-					// Validate voucher if provided (with subtotal + cart variant context)
-					VoucherResponse? voucher = null;
+				// Validate voucher if provided (with subtotal + cart variant context)
+				VoucherResponse? voucher = null;
 
-					if (!string.IsNullOrEmpty(request.VoucherCode))
-					{
-						var subtotal = orderDetails.Sum(od => od.UnitPrice * od.Quantity);
-						voucher = await ValidateAndGetVoucherAsync(
-							request.VoucherCode,
-							userId,
-							null,
-							subtotal,
-							itemsToValidate.Select(x => x.VariantId));
-					}
+				if (!string.IsNullOrEmpty(request.VoucherCode))
+				{
+					var subtotal = orderDetails.Sum(od => od.UnitPrice * od.Quantity);
+					voucher = await ValidateAndGetVoucherAsync(
+						request.VoucherCode,
+						userId,
+						null,
+						subtotal,
+						itemsToValidate.Select(x => x.VariantId));
+				}
 
-					// Set payment expiration
-					var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
+				// Set payment expiration
+				var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
 
-					// Recalculate total right before reservation to detect promotion/batch drift
-					var latestTotalResponse = await _cartService.GetCartTotalAsync(userId, getCartTotalRequest);
-					if (!latestTotalResponse.Success || latestTotalResponse.Payload == null)
-						throw AppException.BadRequest(latestTotalResponse.Message ?? "Failed to refresh cart total.");
+				// Recalculate total right before reservation to detect promotion/batch drift
+				var latestTotalResponse = await _cartService.GetCartTotalAsync(userId, getCartTotalRequest);
+				if (!latestTotalResponse.Success || latestTotalResponse.Payload == null)
+					throw AppException.BadRequest(latestTotalResponse.Message ?? "Failed to refresh cart total.");
 
-					if (Math.Abs(latestTotalResponse.Payload.TotalPrice - cartResponse.TotalPrice) > 0.0001m)
-						throw AppException.Conflict("Discount no longer matches what you saw. Please refresh cart total and checkout again.");
+				if (Math.Abs(latestTotalResponse.Payload.TotalPrice - cartResponse.TotalPrice) > 0.0001m)
+					throw AppException.Conflict("Discount no longer matches what you saw. Please refresh cart total and checkout again.");
 
-					// Create order
-					var order = Order.CreateOnline(userId, cartResponse.TotalPrice, paymentExpiresAt, orderDetails);
-					await _unitOfWork.Orders.AddAsync(order);
+				// Create order
+				var order = Order.CreateOnline(userId, cartResponse.TotalPrice, paymentExpiresAt, orderDetails);
+				await _unitOfWork.Orders.AddAsync(order);
 
-					// Setup shipping if not pickup
-					if (request.DeliveryMethod == DeliveryMethod.Delivery)
-					{
-						await _shippingHelper.SetupShippingInfoAsync(order.Id, request.Recipient, userId, request.SavedAddressId);
-					}
+				// Setup shipping if not pickup
+				if (request.DeliveryMethod == DeliveryMethod.Delivery)
+				{
+					await _shippingHelper.SetupShippingInfoAsync(order.Id, request.Recipient, userId, request.SavedAddressId);
+				}
 
-					// Reserve stock
-					await _stockReservationService.ReserveStockForOrderAsync(order.Id, itemsToValidate, paymentExpiresAt);
+				// Reserve stock
+				await _stockReservationService.ReserveStockForOrderAsync(order.Id, itemsToValidate, paymentExpiresAt);
 
-					// Mark voucher as reserved
-					if (voucher != null)
-					{
-						var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(userId, null, voucher.Id, order.Id)
-							?? throw AppException.BadRequest("Failed to mark voucher as used.");
+				// Mark voucher as reserved
+				if (voucher != null)
+				{
+					var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(userId, null, voucher.Id, order.Id)
+						?? throw AppException.BadRequest("Failed to mark voucher as used.");
 
-						if (markVoucherResult != null)
-							order.AssignVoucher(markVoucherResult);
-					}
+					if (markVoucherResult != null)
+						order.AssignVoucher(markVoucherResult);
+				}
 
-					// Clear cart Items
-					await _cartService.ClearCartAsync(userId, request.ItemIds);
+				// Clear cart Items
+				await _cartService.ClearCartAsync(userId, request.ItemIds);
 
-					var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order.Id, cartResponse.TotalPrice, request.Payment.Method);
+				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order.Id, cartResponse.TotalPrice, request.Payment.Method);
 
-					return BaseResponse<string>.Ok(response, "Checkout successful.");
-				});
-			}
-			catch (AppException)
-			{
-				throw;
-			}
-			catch (Exception ex)
-			{
-				throw AppException.Internal($"An error occurred during checkout: {ex.Message}");
-			}
+				return BaseResponse<string>.Ok(response, "Checkout successful.");
+			});
 		}
 
 		public async Task<BaseResponse<string>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request)

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Domain.Exceptions;
@@ -57,15 +58,21 @@ namespace PerfumeGPT.API.Middlewares
 
 				DomainException ex => (
 					(int)ex.ErrorType,
-				   BaseResponse<object?>.Fail(ex.Message, (ResponseErrorType)(int)ex.ErrorType)),
+					 BaseResponse<object?>.Fail(ex.Message, (ResponseErrorType)(int)ex.ErrorType)),
 
 				UnauthorizedAccessException => (
 					(int)ResponseErrorType.Unauthorized,
-				  BaseResponse<object?>.Fail("You are not authorized.", ResponseErrorType.Unauthorized)),
+					BaseResponse<object?>.Fail("You are not authorized.", ResponseErrorType.Unauthorized)),
+
+				DbUpdateConcurrencyException => (
+					(int)ResponseErrorType.Conflict,
+					BaseResponse<object?>.Fail(
+				  "Dữ liệu bạn đang thao tác vừa được cập nhật bởi một người dùng khác. Vui lòng làm mới trang và thử lại.",
+				  ResponseErrorType.Conflict)),
 
 				_ => (
 					(int)ResponseErrorType.InternalError,
-				 BaseResponse<object?>.Fail("An unexpected server error occurred.", ResponseErrorType.InternalError))
+					 BaseResponse<object?>.Fail("An unexpected server error occurred.", ResponseErrorType.InternalError))
 			};
 
 			context.Response.StatusCode = statusCode;

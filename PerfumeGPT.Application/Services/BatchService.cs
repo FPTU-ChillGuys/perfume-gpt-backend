@@ -3,7 +3,7 @@ using PerfumeGPT.Application.DTOs.Requests.Inventory.Batches;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Batches;
 using PerfumeGPT.Application.Exceptions;
-using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
 
@@ -12,27 +12,22 @@ namespace PerfumeGPT.Application.Services
 	public class BatchService : IBatchService
 	{
 		#region Dependencies
-		private readonly IBatchRepository _batchRepository;
-		private readonly IStockRepository _stockRepository;
+		private readonly IUnitOfWork _unitOfWork;
 		private readonly IValidator<CreateBatchRequest> _createBatchValidator;
 
 		public BatchService(
-			IBatchRepository batchRepository,
-			IStockRepository stockRepository,
-			IValidator<CreateBatchRequest> createBatchValidator)
+			IValidator<CreateBatchRequest> createBatchValidator,
+			IUnitOfWork unitOfWork)
 		{
-			_batchRepository = batchRepository;
-			_stockRepository = stockRepository;
 			_createBatchValidator = createBatchValidator;
+			_unitOfWork = unitOfWork;
 		}
 		#endregion
 
-		public async Task<List<Batch>> CreateBatchesAsync(Guid variantId, Guid importDetailId, List<CreateBatchRequest> batchRequests)
+		public async Task CreateBatchesAsync(Guid variantId, Guid importDetailId, List<CreateBatchRequest> batchRequests)
 		{
 			if (batchRequests == null || batchRequests.Count == 0)
 				throw AppException.BadRequest("At least one batch is required.");
-
-			var createdBatches = new List<Batch>();
 
 			foreach (var batchRequest in batchRequests)
 			{
@@ -49,30 +44,9 @@ namespace PerfumeGPT.Application.Services
 					batchRequest.ExpiryDate,
 					batchRequest.Quantity);
 
-				await _batchRepository.AddAsync(batch);
-				createdBatches.Add(batch);
+				await _unitOfWork.Batches.AddAsync(batch);
 			}
-
-			await _batchRepository.SaveChangesAsync();
-			await _stockRepository.UpdateStockAsync(variantId);
-
-			return createdBatches;
-		}
-
-		public bool IsTotalQuantityValid(List<CreateBatchRequest> batchRequests, int expectedTotalQuantity)
-		{
-			if (batchRequests == null || batchRequests.Count == 0)
-			{
-				return false;
-			}
-
-			if (expectedTotalQuantity <= 0)
-			{
-				return false;
-			}
-
-			var totalQuantity = batchRequests.Sum(b => b.Quantity);
-			return totalQuantity == expectedTotalQuantity;
+			await _unitOfWork.Stocks.UpdateStockAsync(variantId);
 		}
 
 		public async Task<bool> ValidateBatchAvailabilityAsync(Guid variantId, int requiredQuantity)
@@ -82,7 +56,7 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Required quantity must be greater than 0.");
 			}
 
-			var batches = await _batchRepository.GetAvailableBatchesByVariantIdAsync(variantId);
+			var batches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
 
 			var totalAvailable = batches.Sum(b => b.AvailableInBatch);
 
@@ -96,17 +70,18 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Quantity must be greater than 0.");
 			}
 
-			var result = await _batchRepository.DeductBatchesByVariantIdAsync(variantId, quantity);
+			var result = await _unitOfWork.Batches.DeductBatchesByVariantIdAsync(variantId, quantity);
 			if (result)
 			{
-				await _stockRepository.UpdateStockAsync(variantId);
+				await _unitOfWork.Stocks.UpdateStockAsync(variantId);
 			}
+
 			return result;
 		}
 
 		public async Task<BaseResponse<PagedResult<BatchDetailResponse>>> GetBatchesAsync(GetBatchesRequest request)
 		{
-			var (batches, totalCount) = await _batchRepository.GetBatchesAsync(request);
+			var (batches, totalCount) = await _unitOfWork.Batches.GetBatchesAsync(request);
 
 			var pagedResult = new PagedResult<BatchDetailResponse>(
 				batches,
@@ -120,13 +95,13 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<List<BatchLookupResponse>>> GetBatchLookupAsync()
 		{
-			var batchLookup = await _batchRepository.GetBatchLookupAsync();
+			var batchLookup = await _unitOfWork.Batches.GetBatchLookupAsync();
 			return BaseResponse<List<BatchLookupResponse>>.Ok(batchLookup);
 		}
 
 		public async Task<BaseResponse<BatchDetailResponse>> GetBatchByIdAsync(Guid batchId)
 		{
-			var response = await _batchRepository.GetBatchByIdAsync(batchId);
+			var response = await _unitOfWork.Batches.GetBatchByIdAsync(batchId);
 			return response == null ? throw AppException.NotFound("Batch not found") : BaseResponse<BatchDetailResponse>.Ok(response);
 		}
 
@@ -137,18 +112,16 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Quantity must be greater than 0.");
 			}
 
-			var result = await _batchRepository.IncreaseBatchQuantityAsync(batchId, quantity);
-			if (result)
-			{
-				var variantId = await _batchRepository.GetVariantIdByBatchIdAsync(batchId);
-				if (variantId.HasValue)
-				{
-					await _stockRepository.UpdateStockAsync(variantId.Value);
-				}
-			}
-			else
+			var result = await _unitOfWork.Batches.IncreaseBatchQuantityAsync(batchId, quantity);
+			if (!result)
 			{
 				throw AppException.BadRequest("Failed to increase batch quantity.");
+			}
+
+			var variantId = await _unitOfWork.Batches.GetVariantIdByBatchIdAsync(batchId);
+			if (variantId.HasValue)
+			{
+				await _unitOfWork.Stocks.UpdateStockAsync(variantId.Value);
 			}
 
 			return result;
@@ -161,18 +134,16 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Quantity must be greater than 0.");
 			}
 
-			var result = await _batchRepository.DecreaseBatchQuantityAsync(batchId, quantity);
-			if (result)
-			{
-				var variantId = await _batchRepository.GetVariantIdByBatchIdAsync(batchId);
-				if (variantId.HasValue)
-				{
-					await _stockRepository.UpdateStockAsync(variantId.Value);
-				}
-			}
-			else
+			var result = await _unitOfWork.Batches.DecreaseBatchQuantityAsync(batchId, quantity);
+			if (!result)
 			{
 				throw AppException.BadRequest("Failed to decrease batch quantity.");
+			}
+
+			var variantId = await _unitOfWork.Batches.GetVariantIdByBatchIdAsync(batchId);
+			if (variantId.HasValue)
+			{
+				await _unitOfWork.Stocks.UpdateStockAsync(variantId.Value);
 			}
 
 			return result;

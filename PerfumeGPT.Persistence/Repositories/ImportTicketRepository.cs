@@ -22,6 +22,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<ImportTicketResponse?> GetResponseByIdAsync(Guid id)
 			=> await _context.ImportTickets
 				.AsNoTracking()
+				.AsSplitQuery()
 				.Where(it => it.Id == id)
 				.ProjectToType<ImportTicketResponse>()
 				.FirstOrDefaultAsync();
@@ -60,6 +61,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
+				.AsSplitQuery()
 				.ProjectToType<ImportTicketListItem>()
 				.ToListAsync();
 
