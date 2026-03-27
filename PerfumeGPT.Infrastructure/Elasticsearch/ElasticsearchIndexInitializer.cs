@@ -57,10 +57,12 @@ namespace PerfumeGPT.Infrastructure.Elasticsearch
                     "spice, spicy, cay, hương cay",
                     "mint, bạc hà, menthol",
                     "nước hoa, perfume, fragrance, cologne",
-                    "chanell => chanel",
-                    "diorr => dior",
-                    "đi tiệc => party, ban đêm, tiệc tùng"
-                };
+                            "chanell => chanel",
+                            "diorr => dior",
+                            "đi tiệc => party, ban đêm, tiệc tùng",
+                            "cho nam => masculine, male, men, man",
+                            "cho nữ => feminine, female, women, woman, phái đẹp"
+                        };
 
                 var createResponse = await _esClient.Indices.CreateAsync(IndexName, c => c
                     .Settings(s => s
@@ -97,7 +99,8 @@ namespace PerfumeGPT.Infrastructure.Elasticsearch
                                 .Fields(f => f.Keyword("keyword"))
                             )
                             .Keyword("categoryId")
-                            .Text("gender", t => t.Analyzer("vi_perfume_analyzer"))
+                            .Keyword("gender")
+                            .Text("genderSearch", t => t.Analyzer("vi_perfume_analyzer"))
                             .Text("origin", t => t.Analyzer("vi_perfume_analyzer"))
                             .IntegerNumber("releaseYear")
                             .Text("attributes", t => t.Analyzer("vi_perfume_analyzer"))
@@ -108,6 +111,7 @@ namespace PerfumeGPT.Infrastructure.Elasticsearch
                             .Text("scentNotes", t => t.Analyzer("vi_perfume_analyzer"))
                             .Text("olfactoryFamilies", t => t.Analyzer("vi_perfume_analyzer"))
                             .DoubleNumber("variantPrices")
+                            .Keyword("variantsJson", k => k.Index(false))
                             .DenseVector("embedding", v => v
                                 .Index(true)
                                 .Dims(1024)

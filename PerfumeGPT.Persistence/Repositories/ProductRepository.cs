@@ -17,6 +17,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using PerfumeGPT.Persistence.Repositories.Elasticsearch;
 using Microsoft.Extensions.AI;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -717,8 +719,78 @@ namespace PerfumeGPT.Persistence.Repositories
 
             var from = (request.PageNumber - 1) * request.PageSize;
 
-            // Dọn dẹp Text Search
+            // --- NEW: Pre-processed Intent Detection (Using ORIGINAL searchText) ---
+            int? detectedSize = null;
+
+            // Normalize to NFC for standard comparison
+            var normalizedRaw = searchText.Normalize(System.Text.NormalizationForm.FormC).ToLower();
+
+            // 1. Brand Correction Mapping (Proactive Correction)
+            var brandTypos = new Dictionary<string, string>
+            {
+                { "chanell", "chanel" },
+                { "diorr", "dior" },
+                { "savuage", "sauvage" },
+                { "explorerr", "explorer" },
+                { "guci", "gucci" },
+                { "versacee", "versace" },
+                { "valentinno", "valentino" },
+                { "lacostee", "lacoste" },
+                { "ysl", "yves saint laurent" },
+                { "ck", "calvin klein" }
+            };
+
+            foreach (var typo in brandTypos)
+            {
+                if (normalizedRaw.Contains(typo.Key))
+                {
+                    normalizedRaw = normalizedRaw.Replace(typo.Key, typo.Value);
+                    // Also update the original searchText for the main BM25 search
+                    searchText = System.Text.RegularExpressions.Regex.Replace(searchText, typo.Key, typo.Value, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                }
+            }
+
+            if (!request.Gender.HasValue)
+            {
+                // Robust Unisex Detection (Primary Phrase + Fallback)
+                var unisexPattern = @"(?<=^|\s)(unisex|cho (cả )?(nam (và|&|n) )?nữ|cho (cả )?(nữ (và|&|n) )?nam|cả hai giới|phù hợp cả hai|cho cả nam (lẫn|và) nữ)(?=$|\s)";
+
+                // Diacritic-insensitive check for fallback
+                var noDiacritics = RemoveDiacritics(normalizedRaw);
+                bool hasMale = System.Text.RegularExpressions.Regex.IsMatch(normalizedRaw, @"(?<=^|\s)(nam|men|con trai|đàn ông)(?=$|\s)")
+                               || noDiacritics.Contains(" nam ") || noDiacritics.StartsWith("nam ") || noDiacritics.EndsWith(" nam")
+                               || noDiacritics.Contains(" cho nam ");
+                bool hasFemale = System.Text.RegularExpressions.Regex.IsMatch(normalizedRaw, @"(?<=^|\s)(nữ|women|con gái|phụ nữ)(?=$|\s)")
+                                 || noDiacritics.Contains(" nu ") || noDiacritics.StartsWith("nu ") || noDiacritics.EndsWith(" nu")
+                                 || noDiacritics.Contains(" cho nu ");
+
+                if (System.Text.RegularExpressions.Regex.IsMatch(normalizedRaw, unisexPattern) || (hasMale && hasFemale))
+                {
+                    request.Gender = Domain.Enums.Gender.Unisex;
+                }
+                else if (hasMale)
+                {
+                    request.Gender = Domain.Enums.Gender.Male;
+                }
+                else if (hasFemale)
+                {
+                    request.Gender = Domain.Enums.Gender.Female;
+                }
+
+                // Detect Size (Volume)
+                var sizeMatch = System.Text.RegularExpressions.Regex.Match(normalizedRaw, @"\b(30|50|100|15)0?\s*ml\b");
+                if (sizeMatch.Success)
+                {
+                    if (int.TryParse(sizeMatch.Groups[1].Value, out int size))
+                    {
+                        detectedSize = size == 15 ? 150 : size;
+                    }
+                }
+            }
+
+            // Dọn dẹp Text Search for Main BM25
             var processedText = searchText.Trim();
+
             var isOrQuery = request.IsOrSearch ?? false;
             var normalizedTerms = processedText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             var defaultOp = Operator.Or;
@@ -730,15 +802,19 @@ namespace PerfumeGPT.Persistence.Repositories
             var queryVectorArray = embeddings.Vector.ToArray();
 
             // 3. Thực hiện Diagnostic Search (Debug từng stage)
-            var queryDesc = ProductSearchQueryBuilder.BuildQuery(processedText, minimumShouldMatch, defaultOp, request);
+            var queryDesc = ProductSearchQueryBuilder.BuildQuery(processedText, minimumShouldMatch, defaultOp, request, detectedSize);
 
-            var logDir = Path.Combine(Directory.GetCurrentDirectory(), "temp");
+            var logDir = @"d:\HocTap2HDH\SEP\Project\perfume-gpt-backend\temp";
             if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
             var logPath = Path.Combine(logDir, "es_diagnostics.txt");
             var sbLog = new StringBuilder();
             sbLog.AppendLine($"\n[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] QUERY: '{searchText}' ------------------------------");
+            if (detectedSize.HasValue) sbLog.AppendLine($"[DEBUG] Detected Size: {detectedSize}ml");
+            if (request.Gender.HasValue) sbLog.AppendLine($"[DEBUG] Detected Gender: {request.Gender}");
 
             // --- STAGE 1: kNN Only (Retrieval) ---
+            var filterDesc = ProductSearchQueryBuilder.BuildFilterQuery(request);
+
             var knnOnlyResponse = await _esClient.SearchAsync<ProductDocument>(s => s
                 .Indices(IndexName)
                 .Size(5)
@@ -747,8 +823,9 @@ namespace PerfumeGPT.Persistence.Repositories
                     .QueryVector(queryVectorArray)
                     .K(20)
                     .NumCandidates(100)
+                    .Filter(filterDesc)
                 )
-                .Query(q => q.MatchAll())
+                .Query(q => q.Bool(b => b.Filter(filterDesc)))
             );
             sbLog.AppendLine($"[STAGE 1] kNN Only (Retrieval) found: {knnOnlyResponse.Total} hits");
             foreach (var h in knnOnlyResponse.Hits) sbLog.AppendLine($"  - Found ID: {h.Id} | Score: {h.Score}");
@@ -763,6 +840,8 @@ namespace PerfumeGPT.Persistence.Repositories
             foreach (var h in textOnlyResponse.Hits) sbLog.AppendLine($"  - Found ID: {h.Id} | Score: {h.Score}");
 
             // --- STAGE 3: Hybrid Final (Combined) ---
+            var searchDesc = ProductSearchQueryBuilder.BuildSearchQuery(processedText, minimumShouldMatch, defaultOp, detectedSize);
+
             var esResponse = await _esClient.SearchAsync<ProductDocument>(s => s
                 .Indices(IndexName)
                 .From(from)
@@ -772,9 +851,13 @@ namespace PerfumeGPT.Persistence.Repositories
                     .QueryVector(queryVectorArray)
                     .K(20)
                     .NumCandidates(100)
+                    .Boost(30.0f)
+                    .Filter(filterDesc)
                 )
-                .Query(queryDesc)
-                .Rank(r => r.Rrf(rrf => rrf.RankConstant(60)))
+                .Query(q => q.Bool(b => b
+                    .Must(searchDesc)
+                    .Filter(filterDesc)
+                ))
             );
 
             sbLog.AppendLine($"[STAGE 3] Final Hybrid search found: {esResponse.Total} hits");
@@ -809,29 +892,68 @@ namespace PerfumeGPT.Persistence.Repositories
 
             // Preserve ES ranking order
             var dbItems = await _context.Products
+                .Include(p => p.Brand)
+                .Include(p => p.Category)
+                .Include(p => p.Variants).ThenInclude(v => v.Concentration)
+                .Include(p => p.ProductAttributes).ThenInclude(pa => pa.Attribute)
+                .Include(p => p.ProductAttributes).ThenInclude(pa => pa.Value)
                 .Where(p => idsAndScores.Contains(p.Id))
-                .ProjectToType<SemanticSearchProductResponse>()
                 .AsNoTracking()
                 .ToListAsync();
 
-            // Lấy nhãn nốt hương và nhóm hương từ ES hits để gán vào response (vì DB ProjectToType có thể thiếu cấu hình phức tạp)
             var esSourceMap = esResponse.Hits
                 .Where(h => h.Source != null)
                 .ToDictionary(h => Guid.Parse(h.Source!.Id), h => h.Source!);
 
-            var map = dbItems.ToDictionary(x => x.Id);
+            var resultItems = new List<SemanticSearchProductResponse>();
+            foreach (var product in dbItems)
+            {
+                var item = new SemanticSearchProductResponse
+                {
+                    Id = product.Id,
+                    Name = product.Name,
+                    BrandId = product.BrandId,
+                    BrandName = product.Brand?.Name ?? "Unknown",
+                    CategoryId = product.CategoryId,
+                    CategoryName = product.Category?.Name ?? "Unknown",
+                    Description = product.Description,
+                    Origin = product.Origin,
+                    ReleaseYear = product.ReleaseYear,
+                    Gender = product.Gender.ToString(),
+                    NumberOfVariants = product.Variants.Count(v => !v.IsDeleted),
+                    VariantPrices = product.Variants.Where(v => !v.IsDeleted).Select(v => v.BasePrice).ToList(),
+                    Attributes = product.ProductAttributes?
+                        .Where(pa => pa.Attribute != null && pa.Value != null)
+                        .Select(pa => $"{pa.Attribute.Name}: {pa.Value.Value}")
+                        .ToList() ?? [],
+                    Variants = product.Variants.Where(v => !v.IsDeleted).Select(v => new VariantSummaryItem
+                    {
+                        Id = v.Id,
+                        DisplayName = v.Sku ?? product.Name ?? "Variant",
+                        ConcentrationName = v.Concentration?.Name ?? "Unknown",
+                        Barcode = v.Barcode ?? string.Empty,
+                        Sku = v.Sku ?? string.Empty,
+                        VolumeMl = v.VolumeMl,
+                        ConcentrationId = v.ConcentrationId,
+                        Type = v.Type,
+                        BasePrice = v.BasePrice,
+                        Status = v.Status
+                    }).ToList()
+                };
+
+                if (esSourceMap.TryGetValue(product.Id, out var source))
+                {
+                    item.Gender = source.Gender;
+                    item.ScentNotes = source.ScentNotes?.ToList() ?? [];
+                    item.OlfactoryFamilies = source.OlfactoryFamilies?.ToList() ?? [];
+                }
+                resultItems.Add(item);
+            }
+
+            var map = resultItems.ToDictionary(i => i.Id);
             var ordered = idsAndScores
                 .Where(map.ContainsKey)
-                .Select(id =>
-                {
-                    var item = map[id];
-                    if (esSourceMap.TryGetValue(id, out var source))
-                    {
-                        item.ScentNotes = source.ScentNotes?.ToList() ?? [];
-                        item.OlfactoryFamilies = source.OlfactoryFamilies?.ToList() ?? [];
-                    }
-                    return item;
-                })
+                .Select(id => map[id])
                 .ToList();
 
             return (ordered, totalCount);
@@ -1078,8 +1200,27 @@ namespace PerfumeGPT.Persistence.Repositories
                 _ => product.Gender.ToString()
             };
 
-            var scentNotes = product.ProductScentMaps?.Select(sm => sm.ScentNote?.Name).Where(x => x != null).ToList() ?? [];
-            var olfactoryFamilies = product.ProductFamilyMaps?.Select(fm => fm.OlfactoryFamily?.Name).Where(x => x != null).ToList() ?? [];
+            var variantsData = product.Variants?
+                .Where(v => !v.IsDeleted)
+                .Select(v => new VariantSummaryItem
+                {
+                    Id = v.Id,
+                    Sku = v.Sku ?? string.Empty,
+                    Barcode = v.Barcode ?? string.Empty,
+                    VolumeMl = v.VolumeMl,
+                    BasePrice = v.BasePrice,
+                    ConcentrationName = v.Concentration?.Name ?? string.Empty,
+                    DisplayName = v.Sku ?? product.Name ?? "Variant",
+                    Type = v.Type,
+                    Status = v.Status,
+                    ConcentrationId = v.ConcentrationId
+                }).ToList() ?? [];
+
+            var variantsJson = JsonSerializer.Serialize(variantsData, new JsonSerializerOptions
+            {
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
 
             return new ProductDocument(
                 Id: product.Id.ToString(),
@@ -1089,32 +1230,18 @@ namespace PerfumeGPT.Persistence.Repositories
                 Category: product.Category?.Name ?? string.Empty,
                 CategoryId: product.CategoryId.ToString(),
                 Gender: product.Gender.ToString(),
+                GenderSearch: genderText,
                 ReleaseYear: product.ReleaseYear,
                 Origin: product.Origin ?? string.Empty,
-                Attributes: product.ProductAttributes?
-                    .Select(am => am.Value?.Value ?? string.Empty)
-                    .Distinct().ToList() ?? [],
-                Concentrations: product.Variants?
-                    .Select(v => v.Concentration?.Name ?? string.Empty)
-                    .Distinct().ToList() ?? [],
-                Volumes: product.Variants?
-                    .Select(v => $"{v.VolumeMl}ml")
-                    .Distinct().ToList() ?? [],
-                Skus: product.Variants?
-                    .Select(v => v.Sku ?? string.Empty)
-                    .Distinct().ToList() ?? [],
-                Barcodes: product.Variants?
-                    .Select(v => v.Barcode ?? string.Empty)
-                    .Distinct().ToList() ?? [],
-                ScentNotes: product.ProductScentMaps?
-                    .Select(sm => sm.ScentNote?.Name ?? string.Empty)
-                    .Distinct().ToList() ?? [],
-                OlfactoryFamilies: product.ProductFamilyMaps?
-                    .Select(fm => fm.OlfactoryFamily?.Name ?? string.Empty)
-                    .Distinct().ToList() ?? [],
-                VariantPrices: product.Variants?
-                    .Select(v => (double)v.BasePrice)
-                    .Distinct().ToList() ?? [],
+                Attributes: attributes.ToList(),
+                Concentrations: concentrations.ToList(),
+                Volumes: volumes.ToList(),
+                Skus: skus.ToList(),
+                Barcodes: barcodes.ToList(),
+                ScentNotes: product.ProductScentMaps?.Select(sm => sm.ScentNote?.Name ?? string.Empty).Distinct().ToList() ?? [],
+                OlfactoryFamilies: product.ProductFamilyMaps?.Select(fm => fm.OlfactoryFamily?.Name ?? string.Empty).Distinct().ToList() ?? [],
+                VariantPrices: product.Variants?.Select(v => (double)v.BasePrice).Distinct().ToList() ?? [],
+                VariantsJson: variantsJson,
                 Embedding: embedding
             );
         }
@@ -1131,6 +1258,22 @@ namespace PerfumeGPT.Persistence.Repositories
                     PrintExplanation(d.Description, d.Value, d.Details, indent + 1);
                 }
             }
+        }
+        private static string RemoveDiacritics(string text)
+        {
+            var normalizedString = text.Normalize(System.Text.NormalizationForm.FormD);
+            var stringBuilder = new System.Text.StringBuilder();
+
+            foreach (var c in normalizedString)
+            {
+                var unicodeCategory = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c);
+                if (unicodeCategory != System.Globalization.UnicodeCategory.NonSpacingMark)
+                {
+                    stringBuilder.Append(c);
+                }
+            }
+
+            return stringBuilder.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLower();
         }
         #endregion Private Methods
     }

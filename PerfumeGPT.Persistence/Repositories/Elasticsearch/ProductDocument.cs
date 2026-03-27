@@ -8,6 +8,7 @@ public sealed record ProductDocument(
     string Category,
     string CategoryId,
     string Gender,
+    string GenderSearch,
     int ReleaseYear,
     string Origin,
     IEnumerable<string> Attributes,
@@ -18,4 +19,5 @@ public sealed record ProductDocument(
     IEnumerable<string> ScentNotes,
     IEnumerable<string> OlfactoryFamilies,
     IEnumerable<double> VariantPrices,
+    string? VariantsJson = null,
     float[]? Embedding = null);
