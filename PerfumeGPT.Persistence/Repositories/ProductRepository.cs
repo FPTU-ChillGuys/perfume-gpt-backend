@@ -767,16 +767,14 @@ namespace PerfumeGPT.Persistence.Repositories
                 .Indices(IndexName)
                 .From(from)
                 .Size(request.PageSize)
-                .Explain(true)
-                .Profile(true)
                 .Knn(k => k
                     .Field("embedding")
                     .QueryVector(queryVectorArray)
                     .K(20)
                     .NumCandidates(100)
-                    .Boost(0.6f)
                 )
                 .Query(queryDesc)
+                .Rank(r => r.Rrf(rrf => rrf.RankConstant(60)))
             );
 
             sbLog.AppendLine($"[STAGE 3] Final Hybrid search found: {esResponse.Total} hits");
