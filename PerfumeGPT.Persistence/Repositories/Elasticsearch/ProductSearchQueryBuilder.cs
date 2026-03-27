@@ -38,7 +38,7 @@ public static class ProductSearchQueryBuilder
             // Layer 1: Exact Intent
             shouldClauses.Add(sh => sh.MultiMatch(mm => mm
                 .Query(searchText)
-                .Fields(new[] { "name^10", "brand^8" })
+                .Fields(new[] { "name^10", "brand^8", "scentNotes^5", "olfactoryFamilies^5" })
                 .Type(TextQueryType.Phrase)
                 .Boost(10.0f)
             ));
@@ -47,7 +47,7 @@ public static class ProductSearchQueryBuilder
             shouldClauses.Add(sh => sh.MultiMatch(mm => mm
                 .Query(searchText)
                 .Fields(new[] {
-                    "name^5", "brand^4", "category^5", "genderSearch^5",
+                    "name^5", "brand^4", "category^5", "genderSearch^5", "scentNotes^4", "olfactoryFamilies^4",
                     "attributes^3", "concentrations^2", "origin"
                 })
                 .Operator(defaultOp)

@@ -724,6 +724,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
             // Normalize to NFC for standard comparison
             var normalizedRaw = searchText.Normalize(System.Text.NormalizationForm.FormC).ToLower();
+            var noDiacritics = RemoveDiacritics(normalizedRaw).ToLower();
 
             // 1. Brand Correction Mapping (Proactive Correction)
             var brandTypos = new Dictionary<string, string>
@@ -756,7 +757,6 @@ namespace PerfumeGPT.Persistence.Repositories
                 var unisexPattern = @"(?<=^|\s)(unisex|cho (cả )?(nam (và|&|n) )?nữ|cho (cả )?(nữ (và|&|n) )?nam|cả hai giới|phù hợp cả hai|cho cả nam (lẫn|và) nữ)(?=$|\s)";
 
                 // Diacritic-insensitive check for fallback
-                var noDiacritics = RemoveDiacritics(normalizedRaw);
                 bool hasMale = System.Text.RegularExpressions.Regex.IsMatch(normalizedRaw, @"(?<=^|\s)(nam|men|con trai|đàn ông)(?=$|\s)")
                                || noDiacritics.Contains(" nam ") || noDiacritics.StartsWith("nam ") || noDiacritics.EndsWith(" nam")
                                || noDiacritics.Contains(" cho nam ");
@@ -764,7 +764,9 @@ namespace PerfumeGPT.Persistence.Repositories
                                  || noDiacritics.Contains(" nu ") || noDiacritics.StartsWith("nu ") || noDiacritics.EndsWith(" nu")
                                  || noDiacritics.Contains(" cho nu ");
 
-                if (System.Text.RegularExpressions.Regex.IsMatch(normalizedRaw, unisexPattern) || (hasMale && hasFemale))
+                if (System.Text.RegularExpressions.Regex.IsMatch(normalizedRaw, unisexPattern) ||
+                    System.Text.RegularExpressions.Regex.IsMatch(noDiacritics, RemoveDiacritics(unisexPattern)) ||
+                    (hasMale && hasFemale))
                 {
                     request.Gender = Domain.Enums.Gender.Unisex;
                 }
@@ -791,6 +793,29 @@ namespace PerfumeGPT.Persistence.Repositories
             // Dọn dẹp Text Search for Main BM25
             var processedText = searchText.Trim();
 
+            // Detect Price Intent (mới: dưới 3 triệu, trên 2 triệu)
+            var priceUnderMatch = System.Text.RegularExpressions.Regex.Match(noDiacritics, @"duoi\s+(\d+)\s*trieu");
+            if (priceUnderMatch.Success && !request.ToPrice.HasValue)
+            {
+                if (int.TryParse(priceUnderMatch.Groups[1].Value, out int million))
+                {
+                    request.ToPrice = (decimal)million * 1000000m;
+                    // Clean up processed text
+                    processedText = System.Text.RegularExpressions.Regex.Replace(processedText, @"(?i)\b(dưới|duoi)\s+\d+\s*(triệu|trieu)\b", "").Trim();
+                }
+            }
+
+            var priceAboveMatch = System.Text.RegularExpressions.Regex.Match(noDiacritics, @"tren\s+(\d+)\s*trieu");
+            if (priceAboveMatch.Success && !request.FromPrice.HasValue)
+            {
+                if (int.TryParse(priceAboveMatch.Groups[1].Value, out int million))
+                {
+                    request.FromPrice = (decimal)million * 1000000m;
+                    // Clean up processed text
+                    processedText = System.Text.RegularExpressions.Regex.Replace(processedText, @"(?i)\b(trên|tren)\s+\d+\s*(triệu|trieu)\b", "").Trim();
+                }
+            }
+
             var isOrQuery = request.IsOrSearch ?? false;
             var normalizedTerms = processedText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             var defaultOp = Operator.Or;
@@ -811,6 +836,9 @@ namespace PerfumeGPT.Persistence.Repositories
             sbLog.AppendLine($"\n[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] QUERY: '{searchText}' ------------------------------");
             if (detectedSize.HasValue) sbLog.AppendLine($"[DEBUG] Detected Size: {detectedSize}ml");
             if (request.Gender.HasValue) sbLog.AppendLine($"[DEBUG] Detected Gender: {request.Gender}");
+            if (request.ToPrice.HasValue) sbLog.AppendLine($"[DEBUG] Detected ToPrice: {request.ToPrice:N0} VND");
+            if (request.FromPrice.HasValue) sbLog.AppendLine($"[DEBUG] Detected FromPrice: {request.FromPrice:N0} VND");
+            sbLog.AppendLine($"[DEBUG] Processed Text: '{processedText}'");
 
             // --- STAGE 1: kNN Only (Retrieval) ---
             var filterDesc = ProductSearchQueryBuilder.BuildFilterQuery(request);
