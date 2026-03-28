@@ -62,7 +62,7 @@ namespace PerfumeGPT.Application.Services
 			if (!validationResults.IsValid)
 				throw AppException.BadRequest("Validation failed", [.. validationResults.Errors.Select(e => e.ErrorMessage)]);
 
-			var user = await _userRepository.FindByPhoneNumberAsync(request.Credential)
+			var user = await _userRepository.FindByPhoneOrEmailAsync(request.Credential)
 				  ?? throw AppException.NotFound("User not found");
 
 			user.EnsureActive();
