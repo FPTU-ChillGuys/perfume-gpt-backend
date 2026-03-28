@@ -294,6 +294,7 @@ namespace PerfumeGPT.Application.Services
 
 			// Build dictionary for O(1) lookup
 			var importDetailLookup = importTicket.ImportDetails.ToDictionary(d => d.Id);
+			var mergedBatchesByDetailId = new Dictionary<Guid, List<CreateBatchRequest>>();
 
 			// Validate all import details and collect errors
 			var validationErrors = new List<string>();
@@ -329,6 +330,7 @@ namespace PerfumeGPT.Application.Services
 				else
 				{
 					var mergedBatches = MergeBatchesBySameCode(verifyDetail.Batches);
+					mergedBatchesByDetailId[verifyDetail.ImportDetailId] = mergedBatches;
 
 					foreach (var batchRequest in mergedBatches)
 					{
@@ -365,12 +367,12 @@ namespace PerfumeGPT.Application.Services
 					var acceptedQuantity = importDetail.ExpectedQuantity - verifyDetail.RejectedQuantity;
 
 					// Update import detail with reject quantity and note
-					importDetail.Verify(verifyDetail.RejectedQuantity, verifyDetail.Note);
+					importTicket.VerifyDetail(verifyDetail.ImportDetailId, verifyDetail.RejectedQuantity, verifyDetail.Note);
 					_unitOfWork.ImportDetails.Update(importDetail);
 
 					if (acceptedQuantity > 0)
 					{
-						var mergedBatches = MergeBatchesBySameCode(verifyDetail.Batches);
+						var mergedBatches = mergedBatchesByDetailId[verifyDetail.ImportDetailId];
 
 						await _batchService.CreateBatchesAsync(
 							importDetail.ProductVariantId,
@@ -436,10 +438,14 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Validation failed", errors);
 			}
 
-			var supplier = await _unitOfWork.Suppliers.GetByIdAsync(request.SupplierId) ?? throw AppException.NotFound("Supplier not found.");
-			foreach (var detail in request.ImportDetails)
+			_ = await _unitOfWork.Suppliers.GetByIdAsync(request.SupplierId) ?? throw AppException.NotFound("Supplier not found.");
+
+			var requestedVariantIds = request.ImportDetails.Select(d => d.VariantId).Distinct().ToList();
+			var existingVariantIds = await _unitOfWork.Variants.GetExistingIdsAsync(requestedVariantIds);
+			var missingVariantIds = requestedVariantIds.Except(existingVariantIds).ToList();
+			if (missingVariantIds.Count != 0)
 			{
-				var variant = await _unitOfWork.Variants.GetByIdAsync(detail.VariantId) ?? throw AppException.NotFound($"Variant with ID {detail.VariantId} not found.");
+				throw AppException.NotFound($"Variants not found: {string.Join(", ", missingVariantIds)}");
 			}
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
@@ -462,13 +468,23 @@ namespace PerfumeGPT.Application.Services
 				var totalCost = request.ImportDetails.Sum(d => d.ExpectedQuantity * d.UnitPrice);
 				importTicket.UpdateForPending(request.SupplierId, request.ExpectedArrivalDate, totalCost);
 
-				var requestDetailIds = request.ImportDetails.Where(d => d.Id.HasValue).Select(d => d.Id!.Value).ToList();
+				var requestDetailIds = request.ImportDetails
+					 .Where(d => d.Id.HasValue)
+					 .Select(d => d.Id!.Value)
+					 .ToHashSet();
+
+				var ticketDetailIds = importTicket.ImportDetails.Select(d => d.Id).ToHashSet();
+				var unknownDetailIds = requestDetailIds.Except(ticketDetailIds).ToList();
+				if (unknownDetailIds.Count != 0)
+				{
+					throw AppException.BadRequest($"Unknown import detail IDs in request: {string.Join(", ", unknownDetailIds)}");
+				}
 
 				// Remove details that are not in the request
 				var detailsToRemove = importTicket.ImportDetails.Where(d => !requestDetailIds.Contains(d.Id)).ToList();
 				foreach (var detail in detailsToRemove)
 				{
-					_unitOfWork.ImportDetails.Remove(detail);
+					importTicket.RemoveDetail(detail.Id);
 				}
 
 				// Update existing and add new details
@@ -476,16 +492,11 @@ namespace PerfumeGPT.Application.Services
 				{
 					if (detailRequest.Id.HasValue)
 					{
-						// Update existing detail
-						var existingDetail = importTicket.ImportDetails.FirstOrDefault(d => d.Id == detailRequest.Id.Value);
-						if (existingDetail != null)
-						{
-							existingDetail.UpdateExpected(
-									  detailRequest.VariantId,
-									  detailRequest.ExpectedQuantity,
-									  detailRequest.UnitPrice);
-							_unitOfWork.ImportDetails.Update(existingDetail);
-						}
+						importTicket.UpdateDetail(
+							 detailRequest.Id.Value,
+							 detailRequest.VariantId,
+							 detailRequest.ExpectedQuantity,
+							 detailRequest.UnitPrice);
 					}
 					else
 					{
@@ -494,7 +505,6 @@ namespace PerfumeGPT.Application.Services
 							detailRequest.ExpectedQuantity,
 							detailRequest.UnitPrice);
 						importTicket.AddDetail(newDetail);
-						await _unitOfWork.ImportDetails.AddAsync(newDetail);
 					}
 				}
 
@@ -555,7 +565,7 @@ namespace PerfumeGPT.Application.Services
 			return groupedBatches;
 		}
 
-		private bool IsTotalQuantityValid(List<CreateBatchRequest> batchRequests, int expectedTotalQuantity)
+		private static bool IsTotalQuantityValid(List<CreateBatchRequest> batchRequests, int expectedTotalQuantity)
 		{
 			if (batchRequests == null || batchRequests.Count == 0)
 				return false;

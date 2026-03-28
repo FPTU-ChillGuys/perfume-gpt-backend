@@ -58,5 +58,14 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			return await query.ToListAsync();
 		}
+
+		public async Task<Campaign?> GetCampaignWithDetailsAsync(Guid campaignId)
+		{
+			return await _context.Campaigns
+				.Include(x => x.Items.Where(i => !i.IsDeleted))
+				.Include(x => x.Vouchers.Where(v => !v.IsDeleted))
+				.AsSplitQuery()
+				.FirstOrDefaultAsync(x => x.Id == campaignId && !x.IsDeleted);
+		}
 	}
 }

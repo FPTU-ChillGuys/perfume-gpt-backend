@@ -5,5 +5,6 @@
 		Available = 1,
 		Reserved,
 		Used,
+		Refunded
 	}
 }

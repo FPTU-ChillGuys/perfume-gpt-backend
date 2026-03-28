@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -93,74 +92,62 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			Order order,
 			RecipientInfo recipientInfo)
 		{
-			try
+			// Load order details with variant information
+			var orderWithDetails = await _unitOfWork.Orders.GetOrderWithDetailsForShippingAsync(order.Id);
+			if (orderWithDetails?.OrderDetails == null || orderWithDetails.OrderDetails.Count == 0)
+				throw AppException.NotFound("Order details not found.");
+
+			// Calculate total weight and dimensions from order items
+			int totalWeight = 0;
+			int maxLength = 0;
+			int maxWidth = 0;
+			int totalHeight = 0;
+
+			// For service_type_id = 2 (lightweight), we use aggregate dimensions
+			// Assuming each item weighs approximately 100g and has standard perfume dimensions
+			foreach (var detail in orderWithDetails.OrderDetails)
 			{
-				// Load order details with variant information
-				var orderWithDetails = await _unitOfWork.Orders.FirstOrDefaultAsync(o => o.Id == order.Id, o => o.Include(o => o.OrderDetails));
-				if (orderWithDetails?.OrderDetails == null || orderWithDetails.OrderDetails.Count == 0)
-					throw AppException.NotFound("Order details not found.");
-
-				// Calculate total weight and dimensions from order items
-				int totalWeight = 0;
-				int maxLength = 0;
-				int maxWidth = 0;
-				int totalHeight = 0;
-
-				// For service_type_id = 2 (lightweight), we use aggregate dimensions
-				// Assuming each item weighs approximately 100g and has standard perfume dimensions
-				foreach (var detail in orderWithDetails.OrderDetails)
-				{
-					totalWeight += detail.Quantity * 100; // 100g per item (adjust as needed)
-					maxLength = Math.Max(maxLength, 15); // 15cm standard perfume box length
-					maxWidth = Math.Max(maxWidth, 10); // 10cm standard width
-					totalHeight += detail.Quantity * 10; // 10cm per item stacked
-				}
-
-				// Create GHN shipping order request
-				var ghnRequest = new CreateShippingOrderRequest
-				{
-					ToName = recipientInfo.RecipientName,
-					ToPhone = recipientInfo.RecipientPhoneNumber,
-					ToAddress = recipientInfo.FullAddress,
-					ToWardName = recipientInfo.WardName,
-					ToDistrictName = recipientInfo.DistrictName,
-					ToProvinceName = recipientInfo.ProvinceName,
-					ClientOrderCode = order.Id.ToString(),
-					CodAmount = (int)order.TotalAmount,
-					Content = "Perfume Order",
-					Weight = totalWeight,
-					Length = maxLength,
-					Width = maxWidth,
-					Height = totalHeight,
-					ServiceTypeId = 2, // Lightweight service
-					PaymentTypeId = 2, // buyer pays shipping fee
-					RequiredNote = "KHONGCHOXEMHANG",
-					InsuranceValue = (int)Math.Min(order.TotalAmount, 5000000), // Max 5M VND
-				};
-
-				// Call GHN API to create shipping order
-				var ghnResponse = await _ghnService.CreateShippingOrderAsync(ghnRequest);
-				if (ghnResponse == null)
-					throw AppException.Internal("Failed to create GHN shipping order.");
-
-				// Update shipping info with tracking number
-				var shippingInfo = await _unitOfWork.ShippingInfos.GetByOrderIdAsync(order.Id);
-				if (shippingInfo != null)
-				{
-					shippingInfo.SetTrackingNumber(ghnResponse.OrderCode);
-					_unitOfWork.ShippingInfos.Update(shippingInfo);
-				}
-
-				return BaseResponse<string>.Ok(ghnResponse.OrderCode, "GHN shipping order created successfully.");
+				totalWeight += detail.Quantity * 100; // 100g per item (adjust as needed)
+				maxLength = Math.Max(maxLength, 15); // 15cm standard perfume box length
+				maxWidth = Math.Max(maxWidth, 10); // 10cm standard width
+				totalHeight += detail.Quantity * 10; // 10cm per item stacked
 			}
-			catch (AppException)
+
+			// Create GHN shipping order request
+			var ghnRequest = new CreateShippingOrderRequest
 			{
-				throw;
-			}
-			catch (Exception ex)
+				ToName = recipientInfo.RecipientName,
+				ToPhone = recipientInfo.RecipientPhoneNumber,
+				ToAddress = recipientInfo.FullAddress,
+				ToWardName = recipientInfo.WardName,
+				ToDistrictName = recipientInfo.DistrictName,
+				ToProvinceName = recipientInfo.ProvinceName,
+				ClientOrderCode = order.Id.ToString(),
+				CodAmount = (int)order.TotalAmount,
+				Content = "Perfume Order",
+				Weight = totalWeight,
+				Length = maxLength,
+				Width = maxWidth,
+				Height = totalHeight,
+				ServiceTypeId = 2, // Lightweight service
+				PaymentTypeId = 2, // buyer pays shipping fee
+				RequiredNote = "KHONGCHOXEMHANG",
+				InsuranceValue = (int)Math.Min(order.TotalAmount, 5000000), // Max 5M VND
+			};
+
+			// Call GHN API to create shipping order
+			var ghnResponse = await _ghnService.CreateShippingOrderAsync(ghnRequest)
+				?? throw AppException.Internal("Failed to create GHN shipping order.");
+
+			// Update shipping info with tracking number
+			var shippingInfo = await _unitOfWork.ShippingInfos.GetByOrderIdAsync(order.Id);
+			if (shippingInfo != null)
 			{
-				throw AppException.Internal($"Error creating GHN shipping order: {ex.Message}");
+				shippingInfo.SetTrackingNumber(ghnResponse.OrderCode);
+				_unitOfWork.ShippingInfos.Update(shippingInfo);
 			}
+
+			return BaseResponse<string>.Ok(ghnResponse.OrderCode, "GHN shipping order created successfully.");
 		}
 	}
 }

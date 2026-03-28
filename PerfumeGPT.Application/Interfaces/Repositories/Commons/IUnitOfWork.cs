@@ -2,6 +2,16 @@
 {
 	public interface IUnitOfWork : IBaseUnitOfWork
 	{
+		IScentNoteRepository ScentNotes { get; }
+		IReviewRepository Reviews { get; }
+		IProfileRepository Profiles { get; }
+		IOlfactoryFamilyRepository OlfactoryFamilies { get; }
+		ICampaignRepository Campaigns { get; }
+		IConcentrationRepository Concentrations { get; }
+		ICategoryRepository Categories { get; }
+		IProductRepository Products { get; }
+		IPromotionItemRepository PromotionItems { get; }
+		IBrandRepository Brands { get; }
 		IAttributeRepository Attributes { get; }
 		IAttributeValueRepository AttributeValues { get; }
 		IAddressRepository Addresses { get; }

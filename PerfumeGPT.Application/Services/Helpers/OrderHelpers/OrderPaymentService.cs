@@ -30,7 +30,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			var payment = PaymentTransaction.Create(orderId, paymentMethod, amount);
 
 			await _unitOfWork.Payments.AddAsync(payment);
-			// Don't save - let transaction orchestrator handle it
 
 			if (paymentMethod == PaymentMethod.VnPay)
 			{

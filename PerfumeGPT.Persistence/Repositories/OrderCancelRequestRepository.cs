@@ -22,6 +22,9 @@ namespace PerfumeGPT.Persistence.Repositories
 			if (request.Status.HasValue)
 				query = query.Where(r => r.Status == request.Status.Value);
 
+			if (request.IsRefundRequired.HasValue)
+				query = query.Where(r => r.IsRefundRequired == request.IsRefundRequired.Value);
+
 			var totalCount = await query.CountAsync();
 
 			var pagedData = await query

@@ -32,6 +32,14 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Include(p => p.ProductAttributes)
 				.FirstOrDefaultAsync(p => p.Id == productId);
 
+		public async Task<Product?> GetProductAggregateForUpdateAsync(Guid productId)
+			=> await _context.Products
+				.Where(p => !p.IsDeleted && p.Id == productId)
+				.Include(p => p.ProductFamilyMaps)
+				.Include(p => p.ProductScentMaps)
+				.Include(p => p.ProductAttributes)
+				.FirstOrDefaultAsync();
+
 		public async Task<bool> HasActiveVariantsAsync(Guid productId)
 			=> await _context.Products
 			 .AnyAsync(p => !p.IsDeleted && p.Id == productId && p.Variants.Any(v => !v.IsDeleted));

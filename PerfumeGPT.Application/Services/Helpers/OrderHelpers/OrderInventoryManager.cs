@@ -22,22 +22,22 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 		public async Task<bool> ValidateStockAvailabilityAsync(List<(Guid VariantId, int Quantity)> items)
 		{
-			foreach (var item in items)
+			foreach (var (VariantId, Quantity) in items)
 			{
 				// Use StockService to validate stock
-				var isStockValid = await _stockService.HasSufficientStockAsync(item.VariantId, item.Quantity);
+				var isStockValid = await _stockService.HasSufficientStockAsync(VariantId, Quantity);
 				if (!isStockValid)
 				{
-					var variantResponse = await _variantService.GetVariantByIdAsync(item.VariantId);
+					var variantResponse = await _variantService.GetVariantByIdAsync(VariantId);
 					var productName = variantResponse.Payload != null ? $"Variant {variantResponse.Payload.Sku}" : "Unknown product";
 					throw AppException.BadRequest($"Insufficient stock for {productName}.");
 				}
 
 				// Use BatchService to validate batch availability
-				var isBatchValid = await _batchService.ValidateBatchAvailabilityAsync(item.VariantId, item.Quantity);
+				var isBatchValid = await _batchService.ValidateBatchAvailabilityAsync(VariantId, Quantity);
 				if (!isBatchValid)
 				{
-					var variantResponse = await _variantService.GetVariantByIdAsync(item.VariantId);
+					var variantResponse = await _variantService.GetVariantByIdAsync(VariantId);
 					var productName = variantResponse.Payload != null ? $"Variant {variantResponse.Payload.Sku}" : "Unknown product";
 					throw AppException.BadRequest($"Insufficient batch quantity for {productName}.");
 				}

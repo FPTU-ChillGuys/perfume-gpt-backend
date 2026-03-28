@@ -105,7 +105,7 @@ namespace PerfumeGPT.Application.Services
 			return response == null ? throw AppException.NotFound("Batch not found") : BaseResponse<BatchDetailResponse>.Ok(response);
 		}
 
-		public async Task<bool> IncreaseBatchQuantityAsync(Guid batchId, int quantity)
+		public async Task IncreaseBatchQuantityAsync(Guid batchId, int quantity)
 		{
 			if (quantity <= 0)
 			{
@@ -123,11 +123,9 @@ namespace PerfumeGPT.Application.Services
 			{
 				await _unitOfWork.Stocks.UpdateStockAsync(variantId.Value);
 			}
-
-			return result;
 		}
 
-		public async Task<bool> DecreaseBatchQuantityAsync(Guid batchId, int quantity)
+		public async Task DecreaseBatchQuantityAsync(Guid batchId, int quantity)
 		{
 			if (quantity <= 0)
 			{
@@ -145,8 +143,6 @@ namespace PerfumeGPT.Application.Services
 			{
 				await _unitOfWork.Stocks.UpdateStockAsync(variantId.Value);
 			}
-
-			return result;
 		}
 	}
 }

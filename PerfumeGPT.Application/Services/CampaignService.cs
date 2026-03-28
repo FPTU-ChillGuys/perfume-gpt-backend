@@ -6,7 +6,7 @@ using PerfumeGPT.Application.DTOs.Requests.Campaigns.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Campaigns;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
-using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -18,11 +18,6 @@ namespace PerfumeGPT.Application.Services
 	{
 
 		#region Dependencies
-		private readonly ICampaignRepository _campaignRepository;
-		private readonly IPromotionItemRepository _promotionItemRepository;
-		private readonly IVariantRepository _variantRepository;
-		private readonly IBatchRepository _batchRepository;
-		private readonly IVoucherRepository _voucherRepository;
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IMapper _mapper;
 		private readonly IValidator<CreateCampaignRequest> _createCampaignValidator;
@@ -32,30 +27,20 @@ namespace PerfumeGPT.Application.Services
 		private readonly IValidator<UpdateCampaignVoucherRequest> _updateCampaignVoucherValidator;
 
 		public CampaignService(
-			ICampaignRepository campaignRepository,
-			IPromotionItemRepository promotionItemRepository,
-			IVariantRepository variantRepository,
-			IBatchRepository batchRepository,
 			IMapper mapper,
 			IValidator<CreateCampaignRequest> createCampaignValidator,
 			IValidator<UpdateCampaignRequest> updateCampaignValidator,
 			IValidator<CreateCampaignPromotionItemRequest> createCampaignPromotionItemValidator,
 			IValidator<CreateCampaignVoucherRequest> createCampaignVoucherValidator,
 			IValidator<UpdateCampaignVoucherRequest> updateCampaignVoucherValidator,
-			IVoucherRepository voucherRepository,
 			IUnitOfWork unitOfWork)
 		{
-			_campaignRepository = campaignRepository;
-			_promotionItemRepository = promotionItemRepository;
-			_variantRepository = variantRepository;
-			_batchRepository = batchRepository;
 			_mapper = mapper;
 			_createCampaignValidator = createCampaignValidator;
 			_updateCampaignValidator = updateCampaignValidator;
 			_createCampaignPromotionItemValidator = createCampaignPromotionItemValidator;
 			_createCampaignVoucherValidator = createCampaignVoucherValidator;
 			_updateCampaignVoucherValidator = updateCampaignVoucherValidator;
-			_voucherRepository = voucherRepository;
 			_unitOfWork = unitOfWork;
 		}
 		#endregion Dependencies
@@ -64,7 +49,7 @@ namespace PerfumeGPT.Application.Services
 		#region Campaign Management
 		public async Task<BaseResponse<PagedResult<CampaignResponse>>> GetPagedCampaignsAsync(GetPagedCampaignsRequest request)
 		{
-			var (items, totalCount) = await _campaignRepository.GetPagedCampaignsAsync(request);
+			var (items, totalCount) = await _unitOfWork.Campaigns.GetPagedCampaignsAsync(request);
 
 			var responses = _mapper.Map<List<CampaignResponse>>(items);
 			var pagedResult = new PagedResult<CampaignResponse>(responses, request.PageNumber, request.PageSize, totalCount);
@@ -74,11 +59,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<CampaignResponse>> GetCampaignByIdAsync(Guid campaignId)
 		{
-			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
-			if (campaign == null)
-			{
-				return BaseResponse<CampaignResponse>.Fail("Campaign not found.", ResponseErrorType.NotFound);
-			}
+			var campaign = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
+				?? throw AppException.NotFound("Campaign not found.");
 
 			var response = _mapper.Map<CampaignResponse>(campaign);
 			return BaseResponse<CampaignResponse>.Ok(response, "Campaign retrieved successfully.");
@@ -86,13 +68,10 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<List<CampaignPromotionItemResponse>>> GetCampaignItemsByCampaignIdAsync(Guid campaignId)
 		{
-			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
-			if (campaign == null)
-			{
-				return BaseResponse<List<CampaignPromotionItemResponse>>.Fail("Campaign not found.", ResponseErrorType.NotFound);
-			}
+			_ = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
+				?? throw AppException.NotFound("Campaign not found.");
 
-			var items = await _campaignRepository.GetCampaignItemsAsync(campaignId, asNoTracking: true);
+			var items = await _unitOfWork.Campaigns.GetCampaignItemsAsync(campaignId, asNoTracking: true);
 
 			var responses = _mapper.Map<List<CampaignPromotionItemResponse>>(items);
 			return BaseResponse<List<CampaignPromotionItemResponse>>.Ok(responses, "Campaign items retrieved successfully.");
@@ -103,276 +82,152 @@ namespace PerfumeGPT.Application.Services
 			var validationResult = await _createCampaignValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed.", ResponseErrorType.BadRequest, errors);
+				throw AppException.BadRequest("Validation failed.", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 			}
 
-			try
+			await ValidateCampaignItemsAsync(request.Items);
+
+			foreach (var voucherRequest in request.Vouchers)
 			{
-				var itemValidation = await ValidateCampaignItemsAsync(request.Items, request.StartDate, request.EndDate);
-				if (itemValidation != null)
+				var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(voucherRequest.Code);
+				if (codeExists)
 				{
-					return itemValidation;
+					throw AppException.Conflict("Voucher code already exists");
 				}
-
-				foreach (var voucherRequest in request.Vouchers)
-				{
-					var codeExists = await _voucherRepository.CodeExistsAsync(voucherRequest.Code);
-					if (codeExists)
-					{
-						return BaseResponse<string>.Fail("Voucher code already exists", ResponseErrorType.Conflict);
-					}
-				}
-
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-				{
-					var campaignStatus = DateTime.UtcNow < request.StartDate ? CampaignStatus.Upcoming : CampaignStatus.Active;
-					var campaign = Campaign.Create(
-						request.Name,
-						request.Description,
-						request.StartDate,
-						request.EndDate,
-						request.Type,
-						campaignStatus);
-
-					await _campaignRepository.AddAsync(campaign);
-
-					foreach (var requestItem in request.Items)
-					{
-						var item = PromotionItem.Create(
-							campaign.Id,
-							requestItem.ProductVariantId,
-							requestItem.BatchId,
-							requestItem.PromotionType,
-							requestItem.MaxUsage,
-							campaign.Status == CampaignStatus.Active);
-						await _promotionItemRepository.AddAsync(item);
-					}
-
-					foreach (var voucherRequest in request.Vouchers)
-					{
-						var voucher = Voucher.CreateCampaign(
-							   voucherRequest.Code,
-							   voucherRequest.DiscountValue,
-							   voucherRequest.DiscountType,
-							   voucherRequest.ApplyType,
-							   voucherRequest.TargetItemType,
-							   campaign.Id,
-							   campaign.EndDate);
-						voucher.Campaign = campaign;
-						await _voucherRepository.AddAsync(voucher);
-					}
-
-					return BaseResponse<string>.Ok(campaign.Id.ToString(), "Campaign created successfully.");
-				});
 			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail($"Error creating campaign: {ex.Message}", ResponseErrorType.InternalError);
-			}
+
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			  {
+				  var campaignStatus = DateTime.UtcNow < request.StartDate ? CampaignStatus.Upcoming : CampaignStatus.Active;
+				  var campaign = Campaign.Create(
+					  request.Name, request.Description, request.StartDate,
+					  request.EndDate, request.Type, campaignStatus);
+
+				  foreach (var requestItem in request.Items)
+				  {
+					  campaign.AddPromotionItem(
+						  requestItem.ProductVariantId, requestItem.BatchId,
+						  requestItem.PromotionType, requestItem.MaxUsage);
+				  }
+
+				  foreach (var voucherRequest in request.Vouchers)
+				  {
+					  campaign.AddVoucher(
+						  voucherRequest.Code, voucherRequest.DiscountValue,
+						  voucherRequest.DiscountType, voucherRequest.ApplyType, voucherRequest.TargetItemType);
+				  }
+
+				  await _unitOfWork.Campaigns.AddAsync(campaign);
+
+				  return BaseResponse<string>.Ok(campaign.Id.ToString(), "Campaign created successfully.");
+			  });
 		}
 
 		public async Task<BaseResponse<string>> UpdateCampaignStatusAsync(Guid campaignId, UpdateCampaignStatusRequest request)
 		{
-			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
-			if (campaign == null)
+			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
+				   ?? throw AppException.NotFound("Campaign not found.");
+
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				return BaseResponse<string>.Fail("Campaign not found.", ResponseErrorType.NotFound);
-			}
+				var isItemActive = request.Status == CampaignStatus.Active;
 
-			var campaignItems = await _campaignRepository.GetCampaignItemsAsync(campaignId, asNoTracking: false);
-			var isItemActive = request.Status == CampaignStatus.Active;
+				campaign.UpdateStatus(request.Status, DateTime.UtcNow);
 
-			campaign.UpdateStatus(request.Status, DateTime.UtcNow);
-			_campaignRepository.Update(campaign);
+				foreach (var item in campaign.Items)
+				{
+					item.SetActive(isItemActive);
+				}
 
-			foreach (var item in campaignItems)
-			{
-				item.SetActive(isItemActive);
-				_promotionItemRepository.Update(item);
-			}
-
-			await _campaignRepository.SaveChangesAsync();
-
-			return BaseResponse<string>.Ok(campaignId.ToString(), "Campaign status updated successfully.");
+				await _unitOfWork.SaveChangesAsync();
+				return BaseResponse<string>.Ok(campaignId.ToString(), "Campaign status updated successfully.");
+			});
 		}
 
 		public async Task<BaseResponse<string>> UpdateCampaignAsync(Guid campaignId, UpdateCampaignRequest request)
 		{
+			// 1. Basic validation
 			var validationResult = await _updateCampaignValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed.", ResponseErrorType.BadRequest, errors);
-			}
+				throw AppException.BadRequest(
+					 "Validation failed.",
+					 [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
-			if (campaign == null)
-			{
-				return BaseResponse<string>.Fail("Campaign not found.", ResponseErrorType.NotFound);
-			}
+			// 2. Load Campaign + Items + Vouchers in a single query (requires .Include in repo)
+			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
+				   ?? throw AppException.NotFound("Campaign not found.");
 
-			if (campaign.Status == CampaignStatus.Active)
-			{
-				return BaseResponse<string>.Fail("Cannot update an active campaign. Please pause the campaign before updating.", ResponseErrorType.BadRequest);
-			}
+			campaign.EnsureUpdatable();
 
-			var itemValidation = await ValidateCampaignItemsAsync(request.Items, request.StartDate, request.EndDate);
-			if (itemValidation != null)
-			{
-				return itemValidation;
-			}
+			// 3. Business validations (DB calls)
+			await ValidateCampaignItemsAsync(request.Items);
 
-			var existingCampaignVouchers = (await _voucherRepository.GetAllAsync(v => v.CampaignId == campaignId && !v.IsDeleted, asNoTracking: false)).ToList();
-			var existingVoucherById = existingCampaignVouchers.ToDictionary(v => v.Id, v => v);
-
+			// Check for duplicate voucher codes
 			foreach (var voucherRequest in request.Vouchers)
 			{
-				if (voucherRequest.Id.HasValue && voucherRequest.Id.Value != Guid.Empty && existingVoucherById.TryGetValue(voucherRequest.Id.Value, out var existingVoucher))
-				{
-					var codeExists = await _voucherRepository.CodeExistsAsync(voucherRequest.Code, existingVoucher.Id);
-					if (codeExists)
-					{
-						return BaseResponse<string>.Fail("Voucher code already exists", ResponseErrorType.Conflict);
-					}
-				}
-				else
-				{
-					var codeExists = await _voucherRepository.CodeExistsAsync(voucherRequest.Code);
-					if (codeExists)
-					{
-						return BaseResponse<string>.Fail("Voucher code already exists", ResponseErrorType.Conflict);
-					}
-				}
+				var existingVoucherId = voucherRequest.Id.HasValue && voucherRequest.Id != Guid.Empty
+					? voucherRequest.Id
+					: null;
+
+				if (await _unitOfWork.Vouchers.CodeExistsAsync(voucherRequest.Code, existingVoucherId))
+					throw AppException.Conflict($"Voucher code '{voucherRequest.Code}' already exists.");
 			}
 
-			var requestExistingVoucherIds = request.Vouchers
-			  .Where(x => x.Id.HasValue && x.Id.Value != Guid.Empty)
-				 .Select(x => x.Id!.Value)
-				 .ToHashSet();
+			// Guard: do not allow removing a voucher that has already been redeemed
+			var requestVoucherIds = request.Vouchers
+				.Where(v => v.Id.HasValue && v.Id != Guid.Empty)
+				.Select(v => v.Id!.Value)
+				.ToHashSet();
 
-			foreach (var existingVoucher in existingCampaignVouchers)
+			var vouchersToRemove = campaign.Vouchers
+				.Where(v => !requestVoucherIds.Contains(v.Id))
+				.ToList();
+
+			foreach (var voucher in vouchersToRemove)
 			{
-				if (requestExistingVoucherIds.Contains(existingVoucher.Id))
-				{
-					continue;
-				}
-
-				if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == existingVoucher.Id && !uv.IsUsed))
-				{
-					return BaseResponse<string>.Fail("Cannot remove voucher that has been redeemed by users", ResponseErrorType.BadRequest);
-				}
+				if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucher.Id && !uv.IsUsed))
+					throw AppException.BadRequest($"Cannot remove voucher '{voucher.Code}' because it has already been redeemed.");
 			}
 
-			try
+			// 4. Execute in transaction — let EF Core Change Tracker do all the heavy lifting
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-				{
-					campaign.UpdateInfo(
-						   request.Name,
-						   request.Description,
-						   request.StartDate,
-						   request.EndDate,
-						   request.Type);
-					_campaignRepository.Update(campaign);
+				var itemFactors = request.Items
+					 .Select(x => new Campaign.PromotionItemSyncFactor(
+						 x.Id,
+						 x.ProductVariantId,
+						 x.BatchId,
+						 x.PromotionType,
+						 x.MaxUsage))
+					 .ToList();
 
-					var existingItems = await _campaignRepository.GetCampaignItemsAsync(campaignId, asNoTracking: false);
-					var existingItemById = existingItems.ToDictionary(x => x.Id, x => x);
-					var requestExistingItemIds = request.Items
-					 .Where(x => x.Id.HasValue && x.Id.Value != Guid.Empty)
-						.Select(x => x.Id!.Value)
-						.ToHashSet();
+				var voucherFactors = request.Vouchers
+					.Select(x => new Campaign.VoucherSyncFactor(
+						x.Id,
+						x.Code,
+						x.DiscountValue,
+						x.DiscountType,
+						x.ApplyType,
+						x.TargetItemType))
+					.ToList();
 
-					foreach (var existingItem in existingItems)
-					{
-						if (!requestExistingItemIds.Contains(existingItem.Id))
-						{
-							_promotionItemRepository.Remove(existingItem);
-						}
-					}
+				campaign.UpdateInfo(request.Name, request.Description, request.StartDate, request.EndDate, request.Type);
+				campaign.SyncPromotionItems(itemFactors, campaign.Status == CampaignStatus.Active);
+				campaign.SyncVouchers(voucherFactors);
 
-					foreach (var requestItem in request.Items)
-					{
-						if (requestItem.Id.HasValue && requestItem.Id.Value != Guid.Empty && existingItemById.TryGetValue(requestItem.Id.Value, out var existingItem))
-						{
-							existingItem.UpdateConfiguration(
-								 requestItem.ProductVariantId,
-								 requestItem.BatchId,
-								 requestItem.PromotionType,
-								 requestItem.MaxUsage,
-								 campaign.Status == CampaignStatus.Active);
-							_promotionItemRepository.Update(existingItem);
-						}
-						else
-						{
-							var item = PromotionItem.Create(
-								campaignId,
-								requestItem.ProductVariantId,
-								requestItem.BatchId,
-								requestItem.PromotionType,
-								requestItem.MaxUsage,
-								campaign.Status == CampaignStatus.Active);
-							await _promotionItemRepository.AddAsync(item);
-						}
-					}
-
-					foreach (var existingVoucher in existingCampaignVouchers)
-					{
-						if (!requestExistingVoucherIds.Contains(existingVoucher.Id))
-						{
-							_voucherRepository.Remove(existingVoucher);
-						}
-					}
-
-					foreach (var voucherRequest in request.Vouchers)
-					{
-						if (voucherRequest.Id.HasValue && voucherRequest.Id.Value != Guid.Empty && existingVoucherById.TryGetValue(voucherRequest.Id.Value, out var existingVoucher))
-						{
-							existingVoucher.UpdateCampaign(
-								 voucherRequest.Code,
-								 voucherRequest.DiscountValue,
-								 voucherRequest.DiscountType,
-								 voucherRequest.ApplyType,
-								 voucherRequest.TargetItemType,
-								 campaignId,
-								 campaign.EndDate);
-							_voucherRepository.Update(existingVoucher);
-						}
-						else
-						{
-							var newVoucher = Voucher.CreateCampaign(
-								  voucherRequest.Code,
-								  voucherRequest.DiscountValue,
-								  voucherRequest.DiscountType,
-								  voucherRequest.ApplyType,
-								  voucherRequest.TargetItemType,
-								  campaignId,
-								  campaign.EndDate);
-							await _voucherRepository.AddAsync(newVoucher);
-						}
-					}
-
-					return BaseResponse<string>.Ok(campaignId.ToString(), "Campaign updated successfully.");
-				});
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<string>.Fail($"Error updating campaign: {ex.Message}", ResponseErrorType.InternalError);
-			}
+				return BaseResponse<string>.Ok(campaignId.ToString(), "Campaign updated successfully.");
+			});
 		}
 
 		public async Task<BaseResponse<string>> DeleteCampaignAsync(Guid campaignId)
 		{
-			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
-			if (campaign == null)
-			{
-				return BaseResponse<string>.Fail("Campaign not found.", ResponseErrorType.NotFound);
-			}
+			var campaign = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
+				?? throw AppException.NotFound("Campaign not found.");
 
 			campaign.EnsureDeletable();
 
-			_campaignRepository.Remove(campaign);
-			await _campaignRepository.SaveChangesAsync();
+			_unitOfWork.Campaigns.Remove(campaign);
+			await _unitOfWork.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok(campaignId.ToString(), "Campaign deleted successfully.");
 		}
@@ -385,32 +240,21 @@ namespace PerfumeGPT.Application.Services
 			var validationResult = await _createCampaignPromotionItemValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed.", ResponseErrorType.BadRequest, errors);
+				throw AppException.BadRequest("Validation failed.", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 			}
 
-			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
-			if (campaign == null)
-			{
-				return BaseResponse<string>.Fail("Campaign not found.", ResponseErrorType.NotFound);
-			}
+			var campaign = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
+				?? throw AppException.NotFound("Campaign not found.");
 
-			var itemValidation = await ValidateCampaignItemAsync(request);
-			if (itemValidation != null)
-			{
-				return itemValidation;
-			}
+			await ValidateCampaignItemAsync(request);
 
-			var item = PromotionItem.Create(
-				   campaignId,
-				   request.ProductVariantId,
-				   request.BatchId,
-				   request.PromotionType,
-				   request.MaxUsage,
-				   campaign.Status == CampaignStatus.Active);
+			var item = campaign.AddPromotionItem(
+				request.ProductVariantId,
+				request.BatchId,
+				request.PromotionType,
+				request.MaxUsage);
 
-			await _promotionItemRepository.AddAsync(item);
-			await _promotionItemRepository.SaveChangesAsync();
+			await _unitOfWork.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok(item.Id.ToString(), "Campaign item added successfully.");
 		}
@@ -420,62 +264,48 @@ namespace PerfumeGPT.Application.Services
 			var validationResult = await _createCampaignPromotionItemValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed.", ResponseErrorType.BadRequest, errors);
+				throw AppException.BadRequest("Validation failed.", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 			}
 
-			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
-			if (campaign == null)
-			{
-				return BaseResponse<string>.Fail("Campaign not found.", ResponseErrorType.NotFound);
-			}
+			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
+				   ?? throw AppException.NotFound("Campaign not found.");
 
 			if (campaign.Status == CampaignStatus.Active)
 			{
-				return BaseResponse<string>.Fail("Cannot update items of an active campaign. Please pause the campaign before updating items.", ResponseErrorType.BadRequest);
+				throw AppException.BadRequest("Cannot update items of an active campaign. Please pause the campaign before updating items.");
 			}
 
-			var item = await _promotionItemRepository.FirstOrDefaultAsync(x => x.Id == itemId && x.CampaignId == campaignId);
-			if (item == null)
+			if (!campaign.Items.Any(x => x.Id == itemId))
 			{
-				return BaseResponse<string>.Fail("Campaign item not found.", ResponseErrorType.NotFound);
+				throw AppException.NotFound("Campaign item not found.");
 			}
 
-			var itemValidation = await ValidateCampaignItemAsync(request);
-			if (itemValidation != null)
-			{
-				return itemValidation;
-			}
+			await ValidateCampaignItemAsync(request);
 
-			item.UpdateConfiguration(
-				   request.ProductVariantId,
-				   request.BatchId,
-				   request.PromotionType,
-				   request.MaxUsage,
-				   campaign.Status == CampaignStatus.Active);
+			campaign.UpdatePromotionItem(
+				 itemId,
+				 request.ProductVariantId,
+				 request.BatchId,
+				 request.PromotionType,
+				 request.MaxUsage);
 
-			_promotionItemRepository.Update(item);
-			await _promotionItemRepository.SaveChangesAsync();
+			await _unitOfWork.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok(itemId.ToString(), "Campaign item updated successfully.");
 		}
 
 		public async Task<BaseResponse<string>> DeleteCampaignItemAsync(Guid campaignId, Guid itemId)
 		{
-			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
-			if (campaign == null)
+			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
+				   ?? throw AppException.NotFound("Campaign not found.");
+
+			if (!campaign.Items.Any(x => x.Id == itemId))
 			{
-				return BaseResponse<string>.Fail("Campaign not found.", ResponseErrorType.NotFound);
+				throw AppException.NotFound("Campaign item not found.");
 			}
 
-			var item = await _promotionItemRepository.FirstOrDefaultAsync(x => x.Id == itemId && x.CampaignId == campaignId);
-			if (item == null)
-			{
-				return BaseResponse<string>.Fail("Campaign item not found.", ResponseErrorType.NotFound);
-			}
-
-			_promotionItemRepository.Remove(item);
-			await _promotionItemRepository.SaveChangesAsync();
+			campaign.RemovePromotionItem(itemId);
+			await _unitOfWork.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok(itemId.ToString(), "Campaign item deleted successfully.");
 		}
@@ -488,59 +318,41 @@ namespace PerfumeGPT.Application.Services
 			var validationResult = await _createCampaignVoucherValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed.", ResponseErrorType.BadRequest, errors);
+				throw AppException.BadRequest("Validation failed.", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 			}
 
-			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
-			if (campaign == null)
-			{
-				return BaseResponse<string>.Fail("Campaign not found.", ResponseErrorType.NotFound);
-			}
+			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
+				   ?? throw AppException.NotFound("Campaign not found.");
 
-			var existingVoucher = await _voucherRepository.FirstOrDefaultAsync(v => v.CampaignId == campaignId && !v.IsDeleted);
-			if (existingVoucher != null)
-			{
-				return BaseResponse<string>.Fail("Campaign already has a voucher.", ResponseErrorType.BadRequest);
-			}
+			if (campaign.Vouchers.Any(v => !v.IsDeleted))
+				throw AppException.BadRequest("Campaign already has a voucher.");
 
-			var codeExists = await _voucherRepository.CodeExistsAsync(request.Code);
+			var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code);
 			if (codeExists)
 			{
-				return BaseResponse<string>.Fail("Voucher code already exists", ResponseErrorType.Conflict);
+				throw AppException.Conflict("Voucher code already exists");
 			}
 
-			var voucher = Voucher.CreateCampaign(
-				request.Code,
-				request.DiscountValue,
-				request.DiscountType,
-				request.ApplyType,
-				request.TargetItemType,
-				campaignId,
-				campaign.EndDate);
+			var voucher = campaign.AddVoucher(
+				 request.Code,
+				 request.DiscountValue,
+				 request.DiscountType,
+				 request.ApplyType,
+				 request.TargetItemType);
 
-			await _voucherRepository.AddAsync(voucher);
-			await _voucherRepository.SaveChangesAsync();
+			await _unitOfWork.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok(voucher.Id.ToString(), "Campaign voucher created successfully.");
 		}
 
 		public async Task<BaseResponse<VoucherResponse>> GetCampaignVoucherByIdAsync(Guid campaignId, Guid voucherId)
 		{
-			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
-			if (campaign == null)
-			{
-				return BaseResponse<VoucherResponse>.Fail("Campaign not found.", ResponseErrorType.NotFound);
-			}
+			_ = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
+				?? throw AppException.NotFound("Campaign not found.");
 
-			var voucher = await _voucherRepository.FirstOrDefaultAsync(
-				v => v.Id == voucherId && v.CampaignId == campaignId && !v.IsDeleted,
-				asNoTracking: true);
-
-			if (voucher == null)
-			{
-				return BaseResponse<VoucherResponse>.Fail("Campaign voucher not found.", ResponseErrorType.NotFound);
-			}
+			var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
+				   v => v.Id == voucherId && v.CampaignId == campaignId && !v.IsDeleted,
+				   asNoTracking: true) ?? throw AppException.NotFound("Campaign voucher not found.");
 
 			var response = _mapper.Map<VoucherResponse>(voucher);
 			return BaseResponse<VoucherResponse>.Ok(response, "Campaign voucher retrieved successfully.");
@@ -551,69 +363,50 @@ namespace PerfumeGPT.Application.Services
 			var validationResult = await _updateCampaignVoucherValidator.ValidateAsync(request);
 			if (!validationResult.IsValid)
 			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				return BaseResponse<string>.Fail("Validation failed.", ResponseErrorType.BadRequest, errors);
+				throw AppException.BadRequest("Validation failed.", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 			}
 
-			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
-			if (campaign == null)
-			{
-				return BaseResponse<string>.Fail("Campaign not found.", ResponseErrorType.NotFound);
-			}
+			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
+				   ?? throw AppException.NotFound("Campaign not found.");
 
-			var voucher = await _voucherRepository.FirstOrDefaultAsync(
-				v => v.Id == voucherId && v.CampaignId == campaignId && !v.IsDeleted,
-				asNoTracking: false);
-
-			if (voucher == null)
-			{
-				return BaseResponse<string>.Fail("Campaign voucher not found.", ResponseErrorType.NotFound);
-			}
+			var voucher = campaign.Vouchers.FirstOrDefault(v => v.Id == voucherId && !v.IsDeleted) ?? throw AppException.NotFound("Campaign voucher not found.");
 
 			if (!string.Equals(voucher.Code, request.Code, StringComparison.OrdinalIgnoreCase))
 			{
-				var codeExists = await _voucherRepository.CodeExistsAsync(request.Code, voucherId);
+				var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code, voucherId);
 				if (codeExists)
 				{
-					return BaseResponse<string>.Fail("Voucher code already exists", ResponseErrorType.Conflict);
+					throw AppException.Conflict("Voucher code already exists");
 				}
 			}
 
-			voucher.UpdateCampaign(
-				  request.Code,
-				  request.DiscountValue,
-				  request.DiscountType,
-				  request.ApplyType,
-				  request.TargetItemType,
-				  campaignId,
-				  campaign.EndDate);
-			_voucherRepository.Update(voucher);
-			await _voucherRepository.SaveChangesAsync();
+			campaign.UpdateVoucher(
+				   voucherId,
+				   request.Code,
+				   request.DiscountValue,
+				   request.DiscountType,
+				   request.ApplyType,
+				   request.TargetItemType);
+
+			await _unitOfWork.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok(voucherId.ToString(), "Campaign voucher updated successfully.");
 		}
 
 		public async Task<BaseResponse<string>> DeleteCampaignVoucherAsync(Guid campaignId, Guid voucherId)
 		{
-			var campaign = await _campaignRepository.GetByIdAsync(campaignId);
-			if (campaign == null)
-			{
-				return BaseResponse<string>.Fail("Campaign not found.", ResponseErrorType.NotFound);
-			}
+			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
+				   ?? throw AppException.NotFound("Campaign not found.");
 
-			var voucher = await _voucherRepository.FirstOrDefaultAsync(v => v.Id == voucherId && v.CampaignId == campaignId && !v.IsDeleted);
-			if (voucher == null)
-			{
-				return BaseResponse<string>.Fail("Campaign voucher not found.", ResponseErrorType.NotFound);
-			}
+			var voucher = campaign.Vouchers.FirstOrDefault(v => v.Id == voucherId && !v.IsDeleted) ?? throw AppException.NotFound("Campaign voucher not found.");
 
 			if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && !uv.IsUsed))
 			{
-				return BaseResponse<string>.Fail("Cannot delete voucher that has been redeemed by users", ResponseErrorType.BadRequest);
+				throw AppException.BadRequest("Cannot delete voucher that has been redeemed by users");
 			}
 
-			_voucherRepository.Remove(voucher);
-			await _voucherRepository.SaveChangesAsync();
+			campaign.RemoveVoucher(voucherId);
+			await _unitOfWork.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok(voucherId.ToString(), "Campaign voucher deleted successfully.");
 		}
@@ -621,88 +414,79 @@ namespace PerfumeGPT.Application.Services
 
 
 		#region Private Helpers
-		private async Task<BaseResponse<string>?> ValidateCampaignItemsAsync(
-			IEnumerable<CreateCampaignPromotionItemRequest> items,
-			DateTime campaignStartDate,
-			DateTime campaignEndDate)
+		private async Task ValidateCampaignItemsAsync(
+			 IEnumerable<CreateCampaignPromotionItemRequest> items)
 		{
 			foreach (var item in items)
 			{
-				var itemValidation = await ValidateCampaignItemAsync(item);
-				if (itemValidation != null)
-				{
-					return itemValidation;
-				}
+				await ValidateCampaignItemAsync(item);
 			}
-
-			return null;
 		}
 
-		private async Task<BaseResponse<string>?> ValidateCampaignItemsAsync(
-			IEnumerable<UpdateCampaignPromotionItemRequest> items,
-			DateTime campaignStartDate,
-			DateTime campaignEndDate)
+		private async Task ValidateCampaignItemsAsync(
+			 IEnumerable<UpdateCampaignPromotionItemRequest> items)
 		{
 			foreach (var item in items)
 			{
-				var itemValidation = await ValidateCampaignItemAsync(item);
-				if (itemValidation != null)
-				{
-					return itemValidation;
-				}
+				await ValidateCampaignItemAsync(item);
 			}
-
-			return null;
 		}
 
-		private async Task<BaseResponse<string>?> ValidateCampaignItemAsync(CreateCampaignPromotionItemRequest item)
+		private async Task ValidateCampaignItemAsync(CreateCampaignPromotionItemRequest item)
 		{
-			var variant = await _variantRepository.GetByIdAsync(item.ProductVariantId);
-			if (variant == null)
+			_ = await _unitOfWork.Variants.GetByIdAsync(item.ProductVariantId) ?? throw AppException.NotFound($"Product variant not found: {item.ProductVariantId}");
+
+			if (item.BatchId.HasValue && item.MaxUsage.HasValue)
 			{
-				return BaseResponse<string>.Fail($"Product variant not found: {item.ProductVariantId}", ResponseErrorType.NotFound);
+				throw AppException.BadRequest("Max usage is only allowed when batch is not specified.");
+			}
+
+			if (!item.BatchId.HasValue && item.MaxUsage.HasValue)
+			{
+				var hasSufficientStock = await _unitOfWork.Stocks.HasSufficientStockAsync(item.ProductVariantId, item.MaxUsage.Value);
+				if (!hasSufficientStock)
+				{
+					throw AppException.BadRequest($"Max usage ({item.MaxUsage.Value}) exceeds available stock quantity for variant {item.ProductVariantId}.");
+				}
 			}
 
 			if (item.BatchId.HasValue)
 			{
-				var batch = await _batchRepository.GetByIdAsync(item.BatchId.Value);
-				if (batch == null)
-				{
-					return BaseResponse<string>.Fail($"Batch not found: {item.BatchId.Value}", ResponseErrorType.NotFound);
-				}
-
+				var batch = await _unitOfWork.Batches.GetByIdAsync(item.BatchId.Value) ?? throw AppException.NotFound($"Batch not found: {item.BatchId.Value}");
 				if (batch.VariantId != item.ProductVariantId)
 				{
-					return BaseResponse<string>.Fail("Batch does not belong to the specified product variant.", ResponseErrorType.BadRequest);
+					throw AppException.BadRequest("Batch does not belong to the specified product variant.");
 				}
 			}
-
-			return null;
 		}
 
-		private async Task<BaseResponse<string>?> ValidateCampaignItemAsync(UpdateCampaignPromotionItemRequest item)
+		private async Task ValidateCampaignItemAsync(UpdateCampaignPromotionItemRequest item)
 		{
-			var variant = await _variantRepository.GetByIdAsync(item.ProductVariantId);
-			if (variant == null)
+			_ = await _unitOfWork.Variants.GetByIdAsync(item.ProductVariantId) ?? throw AppException.NotFound($"Product variant not found: {item.ProductVariantId}");
+
+			if (item.BatchId.HasValue && item.MaxUsage.HasValue)
 			{
-				return BaseResponse<string>.Fail($"Product variant not found: {item.ProductVariantId}", ResponseErrorType.NotFound);
+				throw AppException.BadRequest("Max usage is only allowed when batch is not specified.");
+			}
+
+			if (!item.BatchId.HasValue && item.MaxUsage.HasValue)
+			{
+				var hasSufficientStock = await _unitOfWork.Stocks.HasSufficientStockAsync(item.ProductVariantId, item.MaxUsage.Value);
+				if (!hasSufficientStock)
+				{
+					throw AppException.BadRequest($"Max usage ({item.MaxUsage.Value}) exceeds available stock quantity for variant {item.ProductVariantId}.");
+				}
 			}
 
 			if (item.BatchId.HasValue)
 			{
-				var batch = await _batchRepository.GetByIdAsync(item.BatchId.Value);
-				if (batch == null)
-				{
-					return BaseResponse<string>.Fail($"Batch not found: {item.BatchId.Value}", ResponseErrorType.NotFound);
-				}
+				var batch = await _unitOfWork.Batches.GetByIdAsync(item.BatchId.Value) ?? throw AppException.NotFound($"Batch not found: {item.BatchId.Value}");
 
 				if (batch.VariantId != item.ProductVariantId)
 				{
-					return BaseResponse<string>.Fail("Batch does not belong to the specified product variant.", ResponseErrorType.BadRequest);
+					throw AppException.BadRequest("Batch does not belong to the specified product variant.");
 				}
 			}
-
-			return null;
 		}
 		#endregion Private Helpers
 	}

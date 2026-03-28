@@ -15,6 +15,11 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<List<int>> GetExistingIdsAsync(IEnumerable<int> ids)
 			=> await _context.AttributeValues.Where(v => ids.Contains(v.Id)).Select(v => v.Id).ToListAsync();
 
+		public async Task<Dictionary<int, int>> GetAttributeMapByValueIdsAsync(IEnumerable<int> valueIds)
+			=> await _context.AttributeValues
+				.Where(v => valueIds.Contains(v.Id))
+				.ToDictionaryAsync(v => v.Id, v => v.AttributeId);
+
 		public async Task<List<AttributeValueLookupItem>> GetLookupListByAttributeIdAsync(int attributeId)
 			=> await _context.AttributeValues.Where(v => v.AttributeId == attributeId).ProjectToType<AttributeValueLookupItem>().ToListAsync();
 

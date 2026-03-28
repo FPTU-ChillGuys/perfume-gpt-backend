@@ -4,7 +4,6 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Carts;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Exceptions;
-using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Enums;
@@ -14,21 +13,16 @@ namespace PerfumeGPT.Application.Services
 	public class CartService : ICartService
 	{
 		#region Dependencies
-
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IPromotionItemRepository _promotionItemRepository;
 		private readonly IVoucherService _voucherService;
 
 		public CartService(
 			IUnitOfWork unitOfWork,
-		   IPromotionItemRepository promotionItemRepository,
 			IVoucherService voucherService)
 		{
 			_unitOfWork = unitOfWork;
-			_promotionItemRepository = promotionItemRepository;
 			_voucherService = voucherService;
 		}
-
 		#endregion Dependencies
 
 		public async Task<CartCheckoutResponse> GetCartForCheckoutAsync(Guid userId, GetCartTotalRequest request)
@@ -155,7 +149,7 @@ namespace PerfumeGPT.Application.Services
 			var now = DateTime.UtcNow;
 			var variantIds = items.Select(x => x.VariantId).Distinct().ToList();
 
-			var promotionItems = (await _promotionItemRepository.GetAllAsync(
+			var promotionItems = (await _unitOfWork.PromotionItems.GetAllAsync(
 				i => i.CampaignId == voucher.CampaignId.Value
 					&& !i.IsDeleted
 					&& i.ItemType == voucher.TargetItemType

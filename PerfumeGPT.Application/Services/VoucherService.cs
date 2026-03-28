@@ -345,6 +345,38 @@ namespace PerfumeGPT.Application.Services
 			return true;
 		}
 
+		public async Task<bool> RefundVoucherForCancelledOrderAsync(Guid orderId)
+		{
+			var oldUserVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(uv => uv.OrderId == orderId, asNoTracking: false);
+			if (oldUserVoucher == null) return true;
+
+			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(oldUserVoucher.VoucherId)
+				?? throw AppException.NotFound("Voucher not found");
+
+			if (voucher.IsPublic)
+			{
+				voucher.IncreaseRemainingQuantity();
+				_unitOfWork.Vouchers.Update(voucher);
+			}
+
+			if (!oldUserVoucher.IsUsed && oldUserVoucher.Status == UsageStatus.Reserved)
+			{
+				oldUserVoucher.ReleaseReservation();
+			}
+			else
+			{
+				oldUserVoucher.MarkAsRefunded();
+				if (voucher.ExpiryDate > DateTime.UtcNow)
+				{
+					var refundedUserVoucher = oldUserVoucher.CreateReplacement();
+					await _unitOfWork.UserVouchers.AddAsync(refundedUserVoucher);
+				}
+			}
+
+			_unitOfWork.UserVouchers.Update(oldUserVoucher);
+			return true;
+		}
+
 		private async Task ValidateCampaignVoucherScopeAsync(VoucherResponse voucher, IEnumerable<Guid>? cartVariantIds)
 		{
 			if (!voucher.CampaignId.HasValue)

@@ -55,13 +55,41 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		// Business ogc methods
+		// Business logc methods
 		public void AddDetail(ImportDetail detail)
 		{
 			if (detail == null)
 				throw DomainException.BadRequest("Import detail is required.");
 
 			ImportDetails.Add(detail);
+		}
+
+		public void UpdateDetail(Guid detailId, Guid variantId, int expectedQuantity, decimal unitPrice)
+		{
+			ImportDetails ??= [];
+			var detail = ImportDetails.FirstOrDefault(d => d.Id == detailId)
+				?? throw DomainException.NotFound($"Import detail with ID {detailId} does not exist in this ticket.");
+
+			detail.UpdateExpected(variantId, expectedQuantity, unitPrice);
+		}
+
+		public void RemoveDetail(Guid detailId)
+		{
+			ImportDetails ??= [];
+			var detail = ImportDetails.FirstOrDefault(d => d.Id == detailId)
+				?? throw DomainException.NotFound($"Import detail with ID {detailId} does not exist in this ticket.");
+
+			ImportDetails.Remove(detail);
+		}
+
+		public void VerifyDetail(Guid detailId, int rejectedQuantity, string? note)
+		{
+			if (Status != ImportStatus.InProgress)
+				throw DomainException.BadRequest("Cannot verify details unless the import ticket is in progress.");
+			ImportDetails ??= [];
+			var detail = ImportDetails.FirstOrDefault(d => d.Id == detailId) ?? throw DomainException.NotFound($"Import detail with ID {detailId} does not exist in this ticket.");
+
+			detail.Verify(rejectedQuantity, note);
 		}
 
 		public void UpdateForPending(int supplierId, DateTime expectedArrivalDate, decimal totalCost)

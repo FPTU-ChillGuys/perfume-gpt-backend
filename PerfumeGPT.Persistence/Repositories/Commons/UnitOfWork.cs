@@ -1,13 +1,26 @@
 ﻿using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Persistence.Contexts;
+using Microsoft.SemanticKernel;
 
 namespace PerfumeGPT.Persistence.Repositories.Commons
 {
 	public class UnitOfWork : BaseUnitOfWork, IUnitOfWork
 	{
-		public UnitOfWork(PerfumeDbContext context) : base(context) { }
+		private readonly Kernel _kernel;
 
+		public UnitOfWork(PerfumeDbContext context, Kernel kernel) : base(context)
+		{
+			_kernel = kernel;
+		}
+
+		public IScentNoteRepository ScentNotes => GetRepo(ctx => new ScentNoteRepository(ctx));
+		public IReviewRepository Reviews => GetRepo(ctx => new ReviewRepository(ctx));
+		public IProfileRepository Profiles => GetRepo(ctx => new ProfileRepository(ctx));
+		public IOlfactoryFamilyRepository OlfactoryFamilies => GetRepo(ctx => new OlfactoryFamilyRepository(ctx));
+		public ICampaignRepository Campaigns => GetRepo(ctx => new CampaignRepository(ctx));
+		public IPromotionItemRepository PromotionItems => GetRepo(ctx => new PromotionItemRepository(ctx));
+		public IBrandRepository Brands => GetRepo(ctx => new BrandRepository(ctx));
 		public IAttributeRepository Attributes => GetRepo(ctx => new AttributeRepository(ctx));
 		public IAttributeValueRepository AttributeValues => GetRepo(ctx => new AttributeValueRepository(ctx));
 		public IAddressRepository Addresses => GetRepo(ctx => new AddressRepository(ctx));
@@ -32,5 +45,8 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 		public IMediaRepository Media => GetRepo(ctx => new MediaRepository(ctx));
 		public ILoyaltyTransactionRepository LoyaltyTransactions => GetRepo(ctx => new LoyaltyTransactionRepository(ctx));
 		public IOrderCancelRequestRepository OrderCancelRequests => GetRepo(ctx => new OrderCancelRequestRepository(ctx));
+		public IConcentrationRepository Concentrations => GetRepo(ctx => new ConcentrationRepository(ctx));
+		public ICategoryRepository Categories => GetRepo(ctx => new CategoryRepository(ctx));
+		public IProductRepository Products => GetRepo(ctx => new ProductRepository(ctx, _kernel));
 	}
 }

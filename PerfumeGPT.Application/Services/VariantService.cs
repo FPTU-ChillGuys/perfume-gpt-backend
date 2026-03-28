@@ -4,7 +4,6 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Exceptions;
-using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Services.Helpers;
@@ -16,7 +15,6 @@ namespace PerfumeGPT.Application.Services
 	public class VariantService : IVariantService
 	{
 		#region Dependencies
-		private readonly IVariantRepository _variantRepository;
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IStockService _stockService;
 		private readonly IMediaService _mediaService;
@@ -26,7 +24,6 @@ namespace PerfumeGPT.Application.Services
 		private readonly IProductAttributeService _productAttributeService;
 
 		public VariantService(
-			IVariantRepository variantRepository,
 			IMediaService mediaService,
 			IValidator<CreateVariantRequest> createVariantValidator,
 			IValidator<UpdateVariantRequest> updateVariantValidator,
@@ -35,7 +32,6 @@ namespace PerfumeGPT.Application.Services
 			IStockService stockServcie,
 			IUnitOfWork unitOfWork)
 		{
-			_variantRepository = variantRepository;
 			_mediaService = mediaService;
 			_createVariantValidator = createVariantValidator;
 			_updateVariantValidator = updateVariantValidator;
@@ -58,47 +54,49 @@ namespace PerfumeGPT.Application.Services
 			if (attributeErrors.Count != 0)
 				throw AppException.BadRequest("Validation failed", attributeErrors);
 
-			var variant = ProductVariant.Create(
-				request.ProductId,
-				request.Barcode,
-				request.Sku,
-				request.VolumeMl,
-				request.ConcentrationId,
-				request.Type,
-				request.Sillage,
-				request.Longevity,
-				request.BasePrice,
-				request.RetailPrice,
-				request.Status);
+			var variantId = await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			  {
+				  var variant = ProductVariant.Create(
+					  request.ProductId,
+					  request.Barcode,
+					  request.Sku,
+					  request.VolumeMl,
+					  request.ConcentrationId,
+					  request.Type,
+					  request.Sillage,
+					  request.Longevity,
+					  request.BasePrice,
+					  request.RetailPrice,
+					  request.Status);
 
-			_productAttributeService.ApplyAttributesToVariantEntity(variant, request.Attributes);
+				  variant.SyncAttributes(request.Attributes?.Select(a => (a.AttributeId, a.ValueId)) ?? []);
 
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				  await _unitOfWork.Variants.AddAsync(variant);
+
+				  await _stockService.InitStockAsync(variant.Id, 0, request.LowStockThreshold);
+
+				  return variant.Id;
+			  });
+
+			var metadata = new BulkActionMetadata();
+			if (request.TemporaryMediaIds?.Count > 0)
 			{
-				await _variantRepository.AddAsync(variant);
+				var uploadResult = await ConvertTemporaryMediaToPermanentAsync(
+					request.TemporaryMediaIds, variantId);
+				if (uploadResult.TotalProcessed > 0)
+					metadata.Operations.Add(
+						BulkOperationResult.FromBulkActionResponse("Media Upload", uploadResult));
+			}
 
-				await _stockService.InitStockAsync(variant.Id, 0, request.LowStockThreshold);
+			var result = new BulkActionResult<string>(
+				variantId.ToString(),
+				metadata.Operations.Count > 0 ? metadata : null);
 
-				var metadata = new BulkActionMetadata();
-				if (request.TemporaryMediaIds?.Count > 0)
-				{
-					var uploadResult = await ConvertTemporaryMediaToPermanentAsync(
-						request.TemporaryMediaIds, variant.Id);
-					if (uploadResult.TotalProcessed > 0)
-						metadata.Operations.Add(
-							BulkOperationResult.FromBulkActionResponse("Media Upload", uploadResult));
-				}
+			var message = metadata.HasPartialFailure
+				? $"Variant created successfully with {metadata.TotalFailed} media upload failure(s)."
+				: "Variant created successfully";
 
-				var result = new BulkActionResult<string>(
-					variant.Id.ToString(),
-					metadata.Operations.Count > 0 ? metadata : null);
-
-				var message = metadata.HasPartialFailure
-					? $"Variant created successfully with {metadata.TotalFailed} media upload failure(s)."
-					: "Variant created successfully";
-
-				return BaseResponse<BulkActionResult<string>>.Ok(result, message);
-			});
+			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
 		}
 
 		public async Task<BaseResponse<BulkActionResult<string>>> UpdateVariantAsync(Guid variantId, UpdateVariantRequest request)
@@ -108,7 +106,7 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Validation failed",
 					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 
-			var variant = await _variantRepository.GetByIdAsync(variantId)
+			var variant = await _unitOfWork.Variants.GetByIdAsync(variantId)
 				?? throw AppException.NotFound("Variant not found");
 
 			variant.EnsureNotDeleted();
@@ -134,8 +132,8 @@ namespace PerfumeGPT.Application.Services
 				await _productAttributeService.ReplaceAttributesAsync(
 					variantId, request.Attributes, isVariant: true);
 
-			_variantRepository.Update(variant);
-			var saved = await _variantRepository.SaveChangesAsync();
+			_unitOfWork.Variants.Update(variant);
+			var saved = await _unitOfWork.Variants.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update variant");
 
 			var metadata = new BulkActionMetadata();
@@ -170,7 +168,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> DeleteVariantAsync(Guid variantId)
 		{
-			var variant = await _variantRepository.GetByIdAsync(variantId)
+			var variant = await _unitOfWork.Variants.GetByIdAsync(variantId)
 				?? throw AppException.NotFound("Variant not found");
 
 			variant.EnsureNotDeleted();
@@ -178,8 +176,8 @@ namespace PerfumeGPT.Application.Services
 			await _mediaService.DeleteAllMediaByEntityAsync(EntityType.ProductVariant, variantId);
 			await _productAttributeService.RemoveAttributesByEntityIdAsync(variantId, isVariant: true);
 
-			_variantRepository.Remove(variant);
-			var saved = await _variantRepository.SaveChangesAsync();
+			_unitOfWork.Variants.Remove(variant);
+			var saved = await _unitOfWork.Variants.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete variant");
 
 			return BaseResponse<string>.Ok(variantId.ToString(), "Variant deleted successfully");
@@ -187,7 +185,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<VariantPagedItem>>> GetPagedVariantsAsync(GetPagedVariantsRequest request)
 		{
-			var (items, totalCount) = await _variantRepository.GetPagedVariantsWithDetailsAsync(request);
+			var (items, totalCount) = await _unitOfWork.Variants.GetPagedVariantsWithDetailsAsync(request);
 			return BaseResponse<PagedResult<VariantPagedItem>>.Ok(
 				new PagedResult<VariantPagedItem>(items, request.PageNumber, request.PageSize, totalCount),
 				"Variants retrieved successfully");
@@ -195,18 +193,18 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ProductVariantResponse>> GetVariantByIdAsync(Guid variantId)
 		{
-			var variant = await _variantRepository.GetVariantWithDetailsAsync(variantId)
+			var variant = await _unitOfWork.Variants.GetVariantWithDetailsAsync(variantId)
 				?? throw AppException.NotFound("Variant not found");
 
 			return BaseResponse<ProductVariantResponse>.Ok(variant, "Variant retrieved successfully");
 		}
 
 		public async Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId)
-			=> await _variantRepository.GetVariantForCreateOrderAsync(variantId);
+			=> await _unitOfWork.Variants.GetVariantForCreateOrderAsync(variantId);
 
 		public async Task<BaseResponse<ProductVariantResponse>> GetVariantByBarcodeAsync(string barcode)
 		{
-			var variant = await _variantRepository.GetByBarcodeAsync(barcode)
+			var variant = await _unitOfWork.Variants.GetByBarcodeAsync(barcode)
 				?? throw AppException.NotFound("Variant not found");
 
 			return BaseResponse<ProductVariantResponse>.Ok(variant, "Variant retrieved successfully");
@@ -214,7 +212,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<List<VariantLookupItem>>> GetVariantLookupListAsync(Guid? productId = null)
 		{
-			var lookupItems = await _variantRepository.GetLookupList(productId);
+			var lookupItems = await _unitOfWork.Variants.GetLookupList(productId);
 			return BaseResponse<List<VariantLookupItem>>.Ok(
 				lookupItems, "Variant lookup list retrieved successfully");
 		}
@@ -222,7 +220,7 @@ namespace PerfumeGPT.Application.Services
 		#region Media Management
 		public async Task<BaseResponse<List<MediaResponse>>> GetVariantImagesAsync(Guid variantId)
 		{
-			var exists = await _variantRepository.AnyAsync(v => v.Id == variantId);
+			var exists = await _unitOfWork.Variants.AnyAsync(v => v.Id == variantId);
 			if (!exists) throw AppException.NotFound("Variant not found");
 
 			return await _mediaService.GetMediaByEntityAsync(EntityType.ProductVariant, variantId);

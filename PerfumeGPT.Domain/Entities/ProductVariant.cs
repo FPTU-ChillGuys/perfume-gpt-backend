@@ -162,6 +162,22 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("Cannot update a deleted variant.");
 		}
 
+		public void SyncAttributes(IEnumerable<(int AttributeId, int ValueId)> newAttributes)
+		{
+			ProductAttributes ??= [];
+			ProductAttributes.Clear();
+
+			if (newAttributes == null)
+				return;
+
+			foreach (var (AttributeId, ValueId) in newAttributes)
+			{
+				ProductAttributes.Add(Id == Guid.Empty
+					? ProductAttribute.Create(AttributeId, ValueId)
+					: ProductAttribute.CreateForVariant(Id, AttributeId, ValueId));
+			}
+		}
+
 		public void EnsureAvailableForCart()
 		{
 			if (IsDeleted)

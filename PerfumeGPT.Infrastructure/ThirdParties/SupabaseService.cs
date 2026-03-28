@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Infrastructure.Extensions;
 using Supabase;
@@ -8,10 +9,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 	public class SupabaseService : ISupabaseService
 	{
 		private readonly Client _supabaseClient;
+		private readonly ILogger<SupabaseService> _logger;
 		private readonly SupabaseSettings _settings;
 		private readonly Task _initializeTask;
 
-		public SupabaseService(IConfiguration configuration)
+		public SupabaseService(IConfiguration configuration, ILogger<SupabaseService> logger)
 		{
 			_settings = new SupabaseSettings
 			{
@@ -36,77 +38,55 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			_supabaseClient = new Client(_settings.Url, _settings.ApiKey, options);
 			_initializeTask = _supabaseClient.InitializeAsync();
+			_logger = logger;
 		}
 
 		public async Task<string?> UploadImageAsync(Stream fileStream, string fileName, string bucketName)
 		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(bucketName);
+			ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+
+			if (fileStream == null || fileStream.Length == 0)
+				throw new ArgumentException("File stream is empty or null.");
+
+			await EnsureInitializedAsync();
+
+			if (fileStream.CanSeek)
+				fileStream.Position = 0;
+
+			var uniqueFileName = $"{Guid.NewGuid():N}_{Path.GetFileName(fileName).Trim()}";
+
 			try
 			{
-				await EnsureInitializedAsync();
-
-				if (string.IsNullOrWhiteSpace(bucketName))
-				{
-					throw new ArgumentException("Bucket name is required.");
-				}
-
-				if (string.IsNullOrWhiteSpace(fileName))
-				{
-					throw new ArgumentException("File name is required.");
-				}
-
-				if (fileStream == null || fileStream.Length == 0)
-				{
-					throw new ArgumentException("File stream is empty or null.");
-				}
-
-				if (fileStream.CanSeek)
-				{
-					fileStream.Position = 0;
-				}
-
-				var safeFileName = Path.GetFileName(fileName).Trim();
-				var uniqueFileName = $"{Guid.NewGuid():N}_{safeFileName}";
-
-				using var memoryStream = new MemoryStream();
-				await fileStream.CopyToAsync(memoryStream);
-				var fileBytes = memoryStream.ToArray();
+				var fileBytes = new byte[fileStream.Length];
+				_ = await fileStream.ReadAsync(fileBytes);
 
 				await _supabaseClient.Storage
 					.From(bucketName)
 					.Upload(fileBytes, uniqueFileName);
 
-				var publicUrl = GetPublicUrl(uniqueFileName, bucketName);
-				return publicUrl;
+				return GetPublicUrl(uniqueFileName, bucketName);
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"Error uploading image: {ex.Message}");
+				_logger.LogError(ex, "Failed to upload image '{FileName}' to bucket '{Bucket}'", fileName, bucketName);
 				return null;
 			}
 		}
 
 		public async Task<bool> DeleteImageAsync(string filePath, string bucketName)
 		{
+			if (string.IsNullOrWhiteSpace(filePath) || string.IsNullOrWhiteSpace(bucketName))
+				return false;
+
+			var fileName = ExtractFileNameFromUrl(filePath);
+			if (string.IsNullOrWhiteSpace(fileName))
+				return false;
+
+			await EnsureInitializedAsync();
+
 			try
 			{
-				await EnsureInitializedAsync();
-
-				if (string.IsNullOrWhiteSpace(bucketName))
-				{
-					return false;
-				}
-
-				if (string.IsNullOrWhiteSpace(filePath))
-				{
-					return false;
-				}
-
-				var fileName = ExtractFileNameFromUrl(filePath);
-				if (string.IsNullOrWhiteSpace(fileName))
-				{
-					return false;
-				}
-
 				await _supabaseClient.Storage
 					.From(bucketName)
 					.Remove(fileName);
@@ -115,49 +95,29 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"Error deleting image: {ex.Message}");
+				_logger.LogError(ex, "Failed to delete image '{FilePath}' from bucket '{Bucket}'", filePath, bucketName);
 				return false;
 			}
 		}
 
 		public string GetPublicUrl(string filePath, string bucketName)
 		{
-			try
-			{
-				if (string.IsNullOrWhiteSpace(filePath) || string.IsNullOrWhiteSpace(bucketName))
-				{
-					return string.Empty;
-				}
-
-				var publicUrl = _supabaseClient.Storage
-					.From(bucketName)
-					.GetPublicUrl(filePath);
-
-				return publicUrl ?? string.Empty;
-			}
-			catch (Exception ex)
-			{
-				Console.WriteLine($"Error getting public URL: {ex.Message}");
+			if (string.IsNullOrWhiteSpace(filePath) || string.IsNullOrWhiteSpace(bucketName))
 				return string.Empty;
-			}
+
+			return _supabaseClient.Storage
+				.From(bucketName)
+				.GetPublicUrl(filePath) ?? string.Empty;
 		}
 
-		private async Task EnsureInitializedAsync()
-		{
-			await _initializeTask;
-		}
+		#region Private Helpers
+		private async Task EnsureInitializedAsync() => await _initializeTask;
 
 		private static string ExtractFileNameFromUrl(string url)
 		{
 			try
 			{
-				if (string.IsNullOrWhiteSpace(url))
-				{
-					return string.Empty;
-				}
-
-				var uri = new Uri(url);
-				var segments = uri.AbsolutePath.Split('/');
+				var segments = new Uri(url).AbsolutePath.Split('/');
 				return segments.Length > 0 ? Uri.UnescapeDataString(segments[^1]) : string.Empty;
 			}
 			catch
@@ -165,5 +125,6 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return Path.GetFileName(url);
 			}
 		}
+		#endregion Private Helpers
 	}
 }

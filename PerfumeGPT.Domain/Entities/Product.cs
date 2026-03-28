@@ -133,6 +133,22 @@ namespace PerfumeGPT.Domain.Entities
 				ProductFamilyMaps.Add(ProductFamilyMap.Create(familyId));
 		}
 
+		public void SyncAttributes(IEnumerable<(int AttributeId, int ValueId)> newAttributes)
+		{
+			ProductAttributes ??= [];
+			ProductAttributes.Clear();
+
+			if (newAttributes == null)
+				return;
+
+			foreach (var (AttributeId, ValueId) in newAttributes)
+			{
+				ProductAttributes.Add(Id == Guid.Empty
+					? ProductAttribute.Create(AttributeId, ValueId)
+					: ProductAttribute.CreateForProduct(Id, AttributeId, ValueId));
+			}
+		}
+
 		public void UpdateEmbedding(SqlVector<float> embedding)
 		{
 			Embedding = embedding;

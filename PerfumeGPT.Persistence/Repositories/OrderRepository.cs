@@ -4,6 +4,7 @@ using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
@@ -110,6 +111,27 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<Order?> GetOrderForMarkUsedVoucherAsync(Guid orderId)
 			=> await _context.Orders
 				.Include(o => o.UserVoucher)
+				.FirstOrDefaultAsync(o => o.Id == orderId);
+
+		public async Task<Order?> GetPaidOrderForPickListAsync(Guid orderId)
+			=> await _context.Orders
+				.Include(o => o.OrderDetails)
+				.FirstOrDefaultAsync(o => o.Id == orderId && o.PaymentStatus == PaymentStatus.Paid);
+
+		public async Task<Order?> GetOrderForFulfillmentAsync(Guid orderId)
+			=> await _context.Orders
+				.Include(o => o.ShippingInfo)
+				.Include(o => o.OrderDetails)
+				.FirstOrDefaultAsync(o => o.Id == orderId);
+
+		public async Task<Order?> GetOrderForSwapDamagedStockAsync(Guid orderId)
+			=> await _context.Orders
+				.Include(o => o.OrderDetails)
+				.FirstOrDefaultAsync(o => o.Id == orderId);
+
+		public async Task<Order?> GetOrderWithDetailsForShippingAsync(Guid orderId)
+			=> await _context.Orders
+				.Include(o => o.OrderDetails)
 				.FirstOrDefaultAsync(o => o.Id == orderId);
 	}
 }
