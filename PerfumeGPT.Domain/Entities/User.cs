@@ -26,6 +26,9 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<Review> AnswerReviews { get; set; } = [];
 		public virtual ICollection<OrderCancelRequest> RequestedCancelRequests { get; set; } = [];
 		public virtual ICollection<OrderCancelRequest> ProcessedCancelRequests { get; set; } = [];
+		public virtual ICollection<OrderReturnRequest> CustomerReturnRequests { get; set; } = [];
+		public virtual ICollection<OrderReturnRequest> ProcessedReturnRequests { get; set; } = [];
+		public virtual ICollection<OrderReturnRequest> InspectedReturnRequests { get; set; } = [];
 
 		// IHasTimestamps implementation
 		public DateTime CreatedAt { get; set; }

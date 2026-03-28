@@ -348,14 +348,12 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				 StockAdjustmentReason.Damage,
 				 damageNote ?? $"Damaged during order picking for Order {orderId}");
 
-			var adjustmentDetail = StockAdjustmentDetail.Create(
-				stockAdjustment.Id,
+			stockAdjustment.AddApprovedDetail(
 				variantId,
 				batchId,
 				-quantity,
+				-quantity,
 				damageNote);
-			adjustmentDetail.Approve(-quantity, damageNote);
-			stockAdjustment.AddDetail(adjustmentDetail);
 
 			stockAdjustment.UpdateStatus(StockAdjustmentStatus.InProgress);
 			stockAdjustment.Complete(staffId);

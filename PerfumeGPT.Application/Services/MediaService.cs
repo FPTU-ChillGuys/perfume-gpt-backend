@@ -308,6 +308,7 @@ namespace PerfumeGPT.Application.Services
 			EntityType.ProductVariant => "ProductVariants",
 			EntityType.User => "ProfileAvatars",
 			EntityType.Review => "Reviews",
+			EntityType.OrderReturnRequest => "OrderReturnRequests",
 			_ => "Products"
 		};
 

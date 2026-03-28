@@ -45,6 +45,7 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 		public IMediaRepository Media => GetRepo(ctx => new MediaRepository(ctx));
 		public ILoyaltyTransactionRepository LoyaltyTransactions => GetRepo(ctx => new LoyaltyTransactionRepository(ctx));
 		public IOrderCancelRequestRepository OrderCancelRequests => GetRepo(ctx => new OrderCancelRequestRepository(ctx));
+		public IOrderReturnRequestRepository OrderReturnRequests => GetRepo(ctx => new OrderReturnRequestRepository(ctx));
 		public IConcentrationRepository Concentrations => GetRepo(ctx => new ConcentrationRepository(ctx));
 		public ICategoryRepository Categories => GetRepo(ctx => new CategoryRepository(ctx));
 		public IProductRepository Products => GetRepo(ctx => new ProductRepository(ctx, _kernel));

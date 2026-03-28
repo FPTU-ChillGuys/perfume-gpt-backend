@@ -36,5 +36,6 @@
 		IMediaRepository Media { get; }
 		ILoyaltyTransactionRepository LoyaltyTransactions { get; }
 		IOrderCancelRequestRepository OrderCancelRequests { get; }
+		IOrderReturnRequestRepository OrderReturnRequests { get; }
 	}
 }

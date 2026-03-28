@@ -21,15 +21,11 @@ namespace PerfumeGPT.Domain.Entities
 
 		// Factory methods
 		public static StockAdjustmentDetail Create(
-			Guid stockAdjustmentId,
 			Guid productVariantId,
 			Guid batchId,
 			int adjustmentQuantity,
 			string? note)
 		{
-			if (stockAdjustmentId == Guid.Empty)
-				throw DomainException.BadRequest("Stock adjustment ID is required.");
-
 			if (productVariantId == Guid.Empty)
 				throw DomainException.BadRequest("Product variant ID is required.");
 
@@ -41,7 +37,6 @@ namespace PerfumeGPT.Domain.Entities
 
 			return new StockAdjustmentDetail
 			{
-				StockAdjustmentId = stockAdjustmentId,
 				ProductVariantId = productVariantId,
 				BatchId = batchId,
 				AdjustmentQuantity = adjustmentQuantity,

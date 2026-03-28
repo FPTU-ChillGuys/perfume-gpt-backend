@@ -28,6 +28,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<PaymentTransaction> PaymentTransactions { get; set; } = null!;
 		public virtual ICollection<LoyaltyTransaction> LoyaltyTransactions { get; set; } = null!;
 		public virtual ICollection<OrderCancelRequest> CancelRequests { get; set; } = null!;
+		public virtual ICollection<OrderReturnRequest> ReturnRequests { get; set; } = null!;
 		public virtual UserVoucher? UserVoucher { get; set; }
 		public virtual ShippingInfo? ShippingInfo { get; set; }
 		public virtual RecipientInfo RecipientInfo { get; set; } = null!;
@@ -105,7 +106,8 @@ namespace PerfumeGPT.Domain.Entities
 				{ OrderStatus.Pending, [OrderStatus.Processing, OrderStatus.Canceled] },
 				{ OrderStatus.Processing, [OrderStatus.Delivering, OrderStatus.Canceled] },
 				{ OrderStatus.Delivering, [OrderStatus.Delivered, OrderStatus.Returned] },
-				{ OrderStatus.Delivered, [OrderStatus.Returned] },
+				{ OrderStatus.Delivered, [OrderStatus.Returning, OrderStatus.Returned] },
+				{ OrderStatus.Returning, [OrderStatus.Returned] },
 				{ OrderStatus.Canceled, [] },
 				{ OrderStatus.Returned, [] }
 			};

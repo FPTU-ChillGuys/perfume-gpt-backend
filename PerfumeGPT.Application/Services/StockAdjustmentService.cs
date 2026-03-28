@@ -6,6 +6,7 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -51,21 +52,20 @@ namespace PerfumeGPT.Application.Services
 			if (duplicateVariants.Count != 0)
 			{
 				var duplicateIds = string.Join(", ", duplicateVariants);
-				throw AppException.BadRequest($"Duplicate variant IDs found: {duplicateIds}. Each variant can only appear once per adjustment.");
+				throw AppException.BadRequest($"Duplicate variant IDs found: {duplicateIds}. Each variant can only appear once.");
 			}
 
 			foreach (var detail in request.AdjustmentDetails)
 			{
 				var variant = await _unitOfWork.Variants.GetByIdAsync(detail.VariantId) ?? throw AppException.NotFound($"Variant with ID {detail.VariantId} not found.");
-
 				var batch = await _unitOfWork.Batches.GetByIdAsync(detail.BatchId) ?? throw AppException.NotFound($"Batch with ID {detail.BatchId} not found.");
 
 				if (batch.VariantId != detail.VariantId)
-				{
 					throw AppException.BadRequest($"Batch {detail.BatchId} does not belong to variant {detail.VariantId}.");
-				}
 			}
 
+			var totalAdjustmentQty = request.AdjustmentDetails.Sum(d => Math.Abs(d.AdjustmentQuantity));
+			bool isAutoApprove = totalAdjustmentQty <= 5; // Magic number 5 - config later
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var stockAdjustment = StockAdjustment.Create(
@@ -74,23 +74,49 @@ namespace PerfumeGPT.Application.Services
 						 request.Reason,
 						 request.Note);
 
-				await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
-
 				foreach (var detailRequest in request.AdjustmentDetails)
 				{
-					var adjustmentDetail = StockAdjustmentDetail.Create(
-						stockAdjustment.Id,
-						detailRequest.VariantId,
-						detailRequest.BatchId,
-						detailRequest.AdjustmentQuantity,
-						detailRequest.Note);
+					if (isAutoApprove)
+					{
+						stockAdjustment.AddApprovedDetail(
+							detailRequest.VariantId,
+							detailRequest.BatchId,
+							detailRequest.AdjustmentQuantity,
+							detailRequest.AdjustmentQuantity,
+							detailRequest.Note);
 
-					stockAdjustment.AddDetail(adjustmentDetail);
-
-					await _unitOfWork.StockAdjustmentDetails.AddAsync(adjustmentDetail);
+						if (detailRequest.AdjustmentQuantity > 0)
+						{
+							await _batchService.IncreaseBatchQuantityAsync(detailRequest.BatchId, detailRequest.AdjustmentQuantity);
+						}
+						else if (detailRequest.AdjustmentQuantity < 0)
+						{
+							await _batchService.DecreaseBatchQuantityAsync(detailRequest.BatchId, Math.Abs(detailRequest.AdjustmentQuantity));
+						}
+					}
+					else
+					{
+						stockAdjustment.AddDetail(
+							detailRequest.VariantId,
+							detailRequest.BatchId,
+							detailRequest.AdjustmentQuantity,
+							detailRequest.Note);
+					}
 				}
 
-				return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), "Stock adjustment created successfully.");
+				if (isAutoApprove)
+				{
+					stockAdjustment.UpdateStatus(StockAdjustmentStatus.InProgress);
+					stockAdjustment.Complete(userId);
+				}
+
+				await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
+
+				var message = isAutoApprove
+					? "Stock adjustment created and auto-approved successfully."
+					: "Stock adjustment created and is pending for manager verification.";
+
+				return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), message);
 			});
 		}
 
@@ -195,7 +221,15 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdAsync(id) ?? throw AppException.NotFound("Stock adjustment not found.");
-			stockAdjustment.UpdateStatus(request.Status);
+
+			if (request.Status == StockAdjustmentStatus.Canceled)
+			{
+				stockAdjustment.Cancel(request.Note);
+			}
+			else
+			{
+				stockAdjustment.UpdateStatus(request.Status);
+			}
 
 			_unitOfWork.StockAdjustments.Update(stockAdjustment);
 			var saved = await _unitOfWork.SaveChangesAsync();
