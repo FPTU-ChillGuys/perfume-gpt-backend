@@ -21,8 +21,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IVoucherService _voucherService;
-		private readonly IEmailService _emailService;
-		private readonly IEmailTemplateService _emailTemplateService;
+		private readonly IInvoiceEmailJobScheduler _invoiceEmailJobScheduler;
 		private readonly ILogger<PaymentService> _logger;
 
 		public PaymentService(
@@ -30,17 +29,15 @@ namespace PerfumeGPT.Application.Services
 			IUnitOfWork unitOfWork,
 			IHttpContextAccessor httpContextAccessor,
 			IVoucherService voucherService,
-			IEmailService emailService,
-			ILogger<PaymentService> logger,
-			IEmailTemplateService emailTemplateService)
+		 IInvoiceEmailJobScheduler invoiceEmailJobScheduler,
+			ILogger<PaymentService> logger)
 		{
 			_vnPayService = vnPayService;
 			_unitOfWork = unitOfWork;
 			_httpContextAccessor = httpContextAccessor;
 			_voucherService = voucherService;
-			_emailService = emailService;
+			_invoiceEmailJobScheduler = invoiceEmailJobScheduler;
 			_logger = logger;
-			_emailTemplateService = emailTemplateService;
 		}
 		#endregion Dependencies
 
@@ -235,11 +232,11 @@ namespace PerfumeGPT.Application.Services
 
 			try
 			{
-				await SendInvoiceEmailIfNeededAsync(order.Id);
+				_invoiceEmailJobScheduler.EnqueueSendInvoiceEmail(order.Id);
 			}
 			catch (Exception ex)
 			{
-				_logger.LogWarning(ex, "Unable to send invoice email for order {OrderId}.", order.Id);
+				_logger.LogWarning(ex, "Unable to enqueue invoice email for order {OrderId}.", order.Id);
 			}
 
 			return BaseResponse<bool>.Ok(true, "Payment processed successfully.");
@@ -285,23 +282,5 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		private async Task SendInvoiceEmailIfNeededAsync(Guid orderId)
-		{
-			var payload = await _unitOfWork.Orders.GetOnlineOrderInvoiceEmailPayloadAsync(orderId);
-			if (!payload.HasValue)
-			{
-				return;
-			}
-
-			var (customerEmail, invoice) = payload.Value;
-			if (string.IsNullOrWhiteSpace(customerEmail))
-			{
-				return;
-			}
-
-			var subject = $"PerfumeGPT Invoice - Order {invoice.OrderId}";
-			var body = _emailTemplateService.GetInvoiceTemplate(invoice);
-			await _emailService.SendEmailAsync(customerEmail, subject, body);
-		}
 	}
 }
