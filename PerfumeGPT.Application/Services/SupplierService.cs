@@ -1,4 +1,3 @@
-using FluentValidation;
 using Mapster;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Suppliers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -14,16 +13,9 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<CreateSupplierRequest> _createValidator;
-		private readonly IValidator<UpdateSupplierRequest> _updateValidator;
 
-		public SupplierService(
-			  IValidator<CreateSupplierRequest> createValidator,
-			  IValidator<UpdateSupplierRequest> updateValidator,
-			  IUnitOfWork unitOfWork)
+		public SupplierService(IUnitOfWork unitOfWork)
 		{
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 			_unitOfWork = unitOfWork;
 		}
 		#endregion Dependencies
@@ -50,11 +42,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<SupplierResponse>> CreateSupplierAsync(CreateSupplierRequest request)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var normalizedName = Supplier.NormalizeName(request.Name).ToUpperInvariant();
 			var normalizedEmail = Supplier.NormalizeEmail(request.ContactEmail).ToUpperInvariant();
 
@@ -77,11 +64,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<SupplierResponse>> UpdateSupplierAsync(int id, UpdateSupplierRequest request)
 		{
-			var validationResult = await _updateValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var entity = await _unitOfWork.Suppliers.GetByIdAsync(id)
 				?? throw AppException.NotFound("Supplier not found");
 

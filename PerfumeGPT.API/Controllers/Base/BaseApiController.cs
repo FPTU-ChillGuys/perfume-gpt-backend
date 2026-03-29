@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using System.Security.Claims;
 
@@ -85,5 +86,25 @@ namespace PerfumeGPT.API.Controllers.Base
 			}
 			return null;
 		}
+
+		protected async Task<ActionResult?> ValidateRequestAsync<T>(IValidator<T> validator, T request)
+		{
+			if (request == null)
+			{
+				var resp = BaseResponse<T>.Fail("Request body cannot be null.", ResponseErrorType.BadRequest);
+				return HandleResponse(resp);
+			}
+
+			var validationResult = await validator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+			{
+				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+				var resp = BaseResponse<T>.Fail("Validation failed.", ResponseErrorType.BadRequest, errors);
+				return HandleResponse(resp);
+			}
+
+			return null;
+		}
+
 	}
 }

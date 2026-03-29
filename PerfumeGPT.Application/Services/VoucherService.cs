@@ -21,16 +21,12 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUserService _userService;
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IMapper _mapper;
-		private readonly IValidator<CreateVoucherRequest> _createValidator;
-		private readonly IValidator<UpdateVoucherRequest> _updateValidator;
 
 		public VoucherService(
 			IUnitOfWork unitOfWork,
 			ICampaignRepository campaignRepository,
 			IPromotionItemRepository promotionItemRepository,
 			IMapper mapper,
-			IValidator<CreateVoucherRequest> createValidator,
-			IValidator<UpdateVoucherRequest> updateValidator,
 			IUserService userService,
 			ILoyaltyTransactionService loyaltyTransactionService)
 		{
@@ -38,8 +34,6 @@ namespace PerfumeGPT.Application.Services
 			_campaignRepository = campaignRepository;
 			_promotionItemRepository = promotionItemRepository;
 			_mapper = mapper;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 			_userService = userService;
 			_loyaltyTransactionService = loyaltyTransactionService;
 		}
@@ -49,12 +43,6 @@ namespace PerfumeGPT.Application.Services
 		#region Admin Operations
 		public async Task<BaseResponse<string>> CreateRegularVoucherAsync(CreateVoucherRequest request)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				throw AppException.BadRequest("Validation failed", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-			}
-
 			var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code);
 			if (codeExists)
 			{
@@ -81,12 +69,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateVoucherAsync(Guid voucherId, UpdateVoucherRequest request)
 		{
-			var validationResult = await _updateValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				throw AppException.BadRequest("Validation failed", validationResult.Errors.Select(e => e.ErrorMessage).ToList());
-			}
-
 			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
 			if (voucher == null || voucher.IsDeleted)
 			{

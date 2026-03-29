@@ -1,6 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
+using PerfumeGPT.Application.DTOs.Requests.Payments;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Services;
 
@@ -12,13 +14,15 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IPaymentService _paymentService;
 		private readonly IConfiguration _configuration;
+		private readonly IValidator<ConfirmPaymentRequest> _confirmPaymentValidator;
 		private readonly ILogger<PaymentsController> _logger;
 
-		public PaymentsController(IPaymentService paymentService, IConfiguration configuration, ILogger<PaymentsController> logger)
+		public PaymentsController(IPaymentService paymentService, IConfiguration configuration, ILogger<PaymentsController> logger, IValidator<ConfirmPaymentRequest> confirmPaymentValidator)
 		{
 			_paymentService = paymentService;
 			_configuration = configuration;
 			_logger = logger;
+			_confirmPaymentValidator = confirmPaymentValidator;
 		}
 
 		[HttpGet("vnpay-return")]
@@ -93,9 +97,12 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<bool>>> ConfirmPayment(Guid paymentId, [FromQuery] bool isSuccess = true, [FromQuery] string? failureReason = null)
+		public async Task<ActionResult<BaseResponse<bool>>> ConfirmPayment(Guid paymentId, [FromBody] ConfirmPaymentRequest request)
 		{
-			var response = await _paymentService.UpdatePaymentStatusAsync(paymentId, isSuccess, failureReason);
+			var validation = await ValidateRequestAsync(_confirmPaymentValidator, request);
+			if (validation != null) return validation;
+
+			var response = await _paymentService.UpdatePaymentStatusAsync(paymentId, request);
 			return HandleResponse(response);
 		}
 

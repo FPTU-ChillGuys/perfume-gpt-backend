@@ -15,34 +15,18 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IBatchService _batchService;
-		private readonly IValidator<CreateStockAdjustmentRequest> _createValidator;
-		private readonly IValidator<VerifyStockAdjustmentRequest> _verifyValidator;
-		private readonly IValidator<UpdateStockAdjustmentStatusRequest> _updateStatusValidator;
 
 		public StockAdjustmentService(
 			IUnitOfWork unitOfWork,
-			IBatchService batchService,
-			IValidator<CreateStockAdjustmentRequest> createValidator,
-			IValidator<VerifyStockAdjustmentRequest> verifyValidator,
-			IValidator<UpdateStockAdjustmentStatusRequest> updateStatusValidator)
+			IBatchService batchService)
 		{
 			_unitOfWork = unitOfWork;
 			_batchService = batchService;
-			_createValidator = createValidator;
-			_verifyValidator = verifyValidator;
-			_updateStatusValidator = updateStatusValidator;
 		}
 		#endregion Dependencies
 
 		public async Task<BaseResponse<string>> CreateStockAdjustmentAsync(CreateStockAdjustmentRequest request, Guid userId)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Validation failed", errors);
-			}
-
 			var duplicateVariants = request.AdjustmentDetails
 				.GroupBy(d => d.VariantId)
 				.Where(g => g.Count() > 1)
@@ -122,13 +106,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> VerifyStockAdjustmentAsync(Guid adjustmentId, VerifyStockAdjustmentRequest request, Guid verifiedByUserId)
 		{
-			var validationResult = await _verifyValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Validation failed", errors);
-			}
-
 			var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdWithDetailsAsync(adjustmentId) ?? throw AppException.NotFound("Stock adjustment not found.");
 
 			stockAdjustment.EnsureVerifiable();
@@ -213,13 +190,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateAdjustmentStatusAsync(Guid id, UpdateStockAdjustmentStatusRequest request)
 		{
-			var validationResult = await _updateStatusValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Validation failed", errors);
-			}
-
 			var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdAsync(id) ?? throw AppException.NotFound("Stock adjustment not found.");
 
 			if (request.Status == StockAdjustmentStatus.Canceled)

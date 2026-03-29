@@ -1,9 +1,13 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
+using PerfumeGPT.Application.DTOs.Requests.Media;
 using PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.API.Controllers
 {
@@ -12,10 +16,22 @@ namespace PerfumeGPT.API.Controllers
 	public class OrderReturnRequestsController : BaseApiController
 	{
 		private readonly IOrderReturnRequestService _returnRequestService;
+		private readonly IMediaService _mediaService;
+		private readonly IValidator<CreateReturnRequestDto> _createReturnRequestValidator;
+		private readonly IValidator<ProcessInitialReturnDto> _processInitialReturnValidator;
+		private readonly IValidator<StartInspectionDto> _startInspectionValidator;
+		private readonly IValidator<RecordInspectionDto> _recordInspectionValidator;
+		private readonly IValidator<RejectInspectionDto> _rejectInspectionValidator;
 
-		public OrderReturnRequestsController(IOrderReturnRequestService returnRequestService)
+		public OrderReturnRequestsController(IOrderReturnRequestService returnRequestService, IMediaService mediaService, IValidator<CreateReturnRequestDto> createReturnRequestValidator, IValidator<ProcessInitialReturnDto> processInitialReturnValidator, IValidator<StartInspectionDto> startInspectionValidator, IValidator<RecordInspectionDto> recordInspectionValidator, IValidator<RejectInspectionDto> rejectInspectionValidator)
 		{
 			_returnRequestService = returnRequestService;
+			_mediaService = mediaService;
+			_createReturnRequestValidator = createReturnRequestValidator;
+			_processInitialReturnValidator = processInitialReturnValidator;
+			_startInspectionValidator = startInspectionValidator;
+			_recordInspectionValidator = recordInspectionValidator;
+			_rejectInspectionValidator = rejectInspectionValidator;
 		}
 
 		[HttpPost]
@@ -23,7 +39,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<string>>> CreateReturnRequest([FromBody] CreateReturnRequestDto request)
 		{
-			var validation = ValidateRequestBody<CreateReturnRequestDto>(request);
+			var validation = await ValidateRequestAsync(_createReturnRequestValidator, request);
 			if (validation != null) return validation;
 
 			var customerId = GetCurrentUserId();
@@ -36,7 +52,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<string>>> ProcessInitialRequest([FromRoute] Guid id, [FromBody] ProcessInitialReturnDto request)
 		{
-			var validation = ValidateRequestBody<ProcessInitialReturnDto>(request);
+			var validation = await ValidateRequestAsync(_processInitialReturnValidator, request);
 			if (validation != null) return validation;
 
 			var processedById = GetCurrentUserId();
@@ -49,7 +65,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<string>>> StartInspection([FromRoute] Guid id, [FromBody] StartInspectionDto request)
 		{
-			var validation = ValidateRequestBody<StartInspectionDto>(request);
+			var validation = await ValidateRequestAsync(_startInspectionValidator, request);
 			if (validation != null) return validation;
 
 			var inspectedById = GetCurrentUserId();
@@ -62,7 +78,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<string>>> RecordInspectionResult([FromRoute] Guid id, [FromBody] RecordInspectionDto request)
 		{
-			var validation = ValidateRequestBody<RecordInspectionDto>(request);
+			var validation = await ValidateRequestAsync(_recordInspectionValidator, request);
 			if (validation != null) return validation;
 
 			var inspectedById = GetCurrentUserId();
@@ -75,7 +91,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<string>>> RejectAfterInspection([FromRoute] Guid id, [FromBody] RejectInspectionDto request)
 		{
-			var validation = ValidateRequestBody<RejectInspectionDto>(request);
+			var validation = await ValidateRequestAsync(_rejectInspectionValidator, request);
 			if (validation != null) return validation;
 
 			var inspectedById = GetCurrentUserId();
@@ -90,6 +106,28 @@ namespace PerfumeGPT.API.Controllers
 		{
 			var financeAdminId = GetCurrentUserId();
 			var response = await _returnRequestService.ProcessRefundAsync(financeAdminId, id);
+			return HandleResponse(response);
+		}
+
+		[HttpPost("images/temporary")]
+		[Authorize(Roles = "user")]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages([FromForm] OrderReturnRequestUploadMediaRequest request)
+		{
+			var userId = GetCurrentUserId();
+			var response = await _mediaService.UploadOrderReturnRequestTemporaryMediaAsync(userId, request);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("{id:guid}/images")]
+		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<List<MediaResponse>>>> GetReturnRequestImages([FromRoute] Guid id)
+		{
+			var response = await _mediaService.GetMediaByEntityAsync(EntityType.OrderReturnRequest, id);
 			return HandleResponse(response);
 		}
 	}

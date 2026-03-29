@@ -20,27 +20,10 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IMapper _mapper;
-		private readonly IValidator<CreateCampaignRequest> _createCampaignValidator;
-		private readonly IValidator<UpdateCampaignRequest> _updateCampaignValidator;
-		private readonly IValidator<CreateCampaignPromotionItemRequest> _createCampaignPromotionItemValidator;
-		private readonly IValidator<CreateCampaignVoucherRequest> _createCampaignVoucherValidator;
-		private readonly IValidator<UpdateCampaignVoucherRequest> _updateCampaignVoucherValidator;
 
-		public CampaignService(
-			IMapper mapper,
-			IValidator<CreateCampaignRequest> createCampaignValidator,
-			IValidator<UpdateCampaignRequest> updateCampaignValidator,
-			IValidator<CreateCampaignPromotionItemRequest> createCampaignPromotionItemValidator,
-			IValidator<CreateCampaignVoucherRequest> createCampaignVoucherValidator,
-			IValidator<UpdateCampaignVoucherRequest> updateCampaignVoucherValidator,
-			IUnitOfWork unitOfWork)
+		public CampaignService(IMapper mapper, IUnitOfWork unitOfWork)
 		{
 			_mapper = mapper;
-			_createCampaignValidator = createCampaignValidator;
-			_updateCampaignValidator = updateCampaignValidator;
-			_createCampaignPromotionItemValidator = createCampaignPromotionItemValidator;
-			_createCampaignVoucherValidator = createCampaignVoucherValidator;
-			_updateCampaignVoucherValidator = updateCampaignVoucherValidator;
 			_unitOfWork = unitOfWork;
 		}
 		#endregion Dependencies
@@ -79,12 +62,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> CreateCampaignAsync(CreateCampaignRequest request)
 		{
-			var validationResult = await _createCampaignValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				throw AppException.BadRequest("Validation failed.", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-			}
-
 			await ValidateCampaignItemsAsync(request.Items);
 
 			foreach (var voucherRequest in request.Vouchers)
@@ -146,20 +123,13 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateCampaignAsync(Guid campaignId, UpdateCampaignRequest request)
 		{
-			// 1. Basic validation
-			var validationResult = await _updateCampaignValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest(
-					 "Validation failed.",
-					 [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
-			// 2. Load Campaign + Items + Vouchers in a single query (requires .Include in repo)
+			// 1. Load Campaign + Items + Vouchers in a single query (requires .Include in repo)
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
 				   ?? throw AppException.NotFound("Campaign not found.");
 
 			campaign.EnsureUpdatable();
 
-			// 3. Business validations (DB calls)
+			// 2. Business validations (DB calls)
 			await ValidateCampaignItemsAsync(request.Items);
 
 			// Check for duplicate voucher codes
@@ -189,7 +159,7 @@ namespace PerfumeGPT.Application.Services
 					throw AppException.BadRequest($"Cannot remove voucher '{voucher.Code}' because it has already been redeemed.");
 			}
 
-			// 4. Execute in transaction — let EF Core Change Tracker do all the heavy lifting
+			// 3. Execute in transaction — let EF Core Change Tracker do all the heavy lifting
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var itemFactors = request.Items
@@ -237,12 +207,6 @@ namespace PerfumeGPT.Application.Services
 		#region Promotion Item Management
 		public async Task<BaseResponse<string>> AddCampaignItemAsync(Guid campaignId, CreateCampaignPromotionItemRequest request)
 		{
-			var validationResult = await _createCampaignPromotionItemValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				throw AppException.BadRequest("Validation failed.", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-			}
-
 			var campaign = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
 				?? throw AppException.NotFound("Campaign not found.");
 
@@ -259,14 +223,8 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<string>.Ok(item.Id.ToString(), "Campaign item added successfully.");
 		}
 
-		public async Task<BaseResponse<string>> UpdateCampaignItemAsync(Guid campaignId, Guid itemId, CreateCampaignPromotionItemRequest request)
+		public async Task<BaseResponse<string>> UpdateCampaignItemAsync(Guid campaignId, Guid itemId, UpdateCampaignPromotionItemRequest request)
 		{
-			var validationResult = await _createCampaignPromotionItemValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				throw AppException.BadRequest("Validation failed.", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-			}
-
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
 				   ?? throw AppException.NotFound("Campaign not found.");
 
@@ -315,12 +273,6 @@ namespace PerfumeGPT.Application.Services
 		#region Campaign Voucher Management
 		public async Task<BaseResponse<string>> AddCampaignVoucherAsync(Guid campaignId, CreateCampaignVoucherRequest request)
 		{
-			var validationResult = await _createCampaignVoucherValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				throw AppException.BadRequest("Validation failed.", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-			}
-
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
 				   ?? throw AppException.NotFound("Campaign not found.");
 
@@ -360,12 +312,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateCampaignVoucherAsync(Guid campaignId, Guid voucherId, UpdateCampaignVoucherRequest request)
 		{
-			var validationResult = await _updateCampaignVoucherValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				throw AppException.BadRequest("Validation failed.", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-			}
-
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
 				   ?? throw AppException.NotFound("Campaign not found.");
 

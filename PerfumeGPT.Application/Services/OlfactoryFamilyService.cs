@@ -5,7 +5,6 @@ using PerfumeGPT.Domain.Entities;
 using Mapster;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.OlfactoryFamilies;
 using PerfumeGPT.Application.Interfaces.Services;
-using FluentValidation;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.OlfactoryFamilies;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 
@@ -15,12 +14,8 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<CreateOlfactoryFamilyRequest> _createValidator;
-		private readonly IValidator<UpdateOlfactoryFamilyRequest> _updateValidator;
-		public OlfactoryFamilyService(IOlfactoryFamilyRepository olfactoryFamilyRepository, IValidator<CreateOlfactoryFamilyRequest> createValidator, IValidator<UpdateOlfactoryFamilyRequest> updateValidator, IUnitOfWork unitOfWork)
+		public OlfactoryFamilyService(IOlfactoryFamilyRepository olfactoryFamilyRepository, IUnitOfWork unitOfWork)
 		{
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 			_unitOfWork = unitOfWork;
 		}
 		#endregion Dependencies
@@ -48,10 +43,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<OlfactoryFamilyResponse>> CreateOlfactoryFamilyAsync(CreateOlfactoryFamilyRequest request)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Invalid request", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var normalizedName = request.Name.Trim();
 
 			var exists = await _unitOfWork.OlfactoryFamilies.AnyAsync(s => s.Name.ToLower() == normalizedName.ToLower());
@@ -68,10 +59,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<OlfactoryFamilyResponse>> UpdateOlfactoryFamilyAsync(int id, UpdateOlfactoryFamilyRequest request)
 		{
-			var validationResult = await _updateValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Invalid request", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var normalizedName = request.Name.Trim();
 
 			var exists = await _unitOfWork.OlfactoryFamilies.AnyAsync(s => s.Name.ToLower() == normalizedName.ToLower() && s.Id != id);

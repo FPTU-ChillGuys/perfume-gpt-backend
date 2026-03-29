@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -16,11 +17,13 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IUserService _userService;
 		private readonly IMediaService _mediaService;
+		private readonly IValidator<ProfileAvtarUploadRequest> _profileAvtarUploadValidator;
 
-		public UsersController(IUserService userService, IMediaService mediaService)
+		public UsersController(IUserService userService, IMediaService mediaService, IValidator<ProfileAvtarUploadRequest> profileAvtarUploadValidator)
 		{
 			_userService = userService;
 			_mediaService = mediaService;
+			_profileAvtarUploadValidator = profileAvtarUploadValidator;
 		}
 
 		[HttpGet("me")]
@@ -50,7 +53,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UploadAvatar([FromForm] ProfileAvtarUploadRequest request)
 		{
-			var validation = ValidateRequestBody<ProfileAvtarUploadRequest>(request);
+			var validation = await ValidateRequestAsync(_profileAvtarUploadValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();

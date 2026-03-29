@@ -1,4 +1,3 @@
-using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
@@ -18,24 +17,18 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IMediaService _mediaService;
-		private readonly IValidator<CreateProductRequest> _createValidator;
-		private readonly IValidator<UpdateProductRequest> _updateValidator;
 		private readonly MediaBulkActionHelper _helper;
 		private readonly IProductAttributeService _productAttributeService;
 		private readonly ISignalRService _signalRService;
 
 		public ProductService(
 			IMediaService mediaService,
-			IValidator<CreateProductRequest> createValidator,
-			IValidator<UpdateProductRequest> updateValidator,
 			MediaBulkActionHelper helper,
 			IProductAttributeService productAttributeService,
 			ISignalRService signalRService,
 			IUnitOfWork unitOfWork)
 		{
 			_mediaService = mediaService;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 			_helper = helper;
 			_productAttributeService = productAttributeService;
 			_signalRService = signalRService;
@@ -45,11 +38,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<BulkActionResult<string>>> CreateProductAsync(CreateProductRequest request)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes);
 			if (attributeErrors.Count != 0)
 				throw AppException.BadRequest("Validation failed", attributeErrors);
@@ -103,11 +91,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<BulkActionResult<string>>> UpdateProductAsync(Guid productId, UpdateProductRequest request)
 		{
-			var validationResult = await _updateValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var product = await _unitOfWork.Products.GetProductAggregateForUpdateAsync(productId)
 				 ?? throw AppException.NotFound("Product not found");
 

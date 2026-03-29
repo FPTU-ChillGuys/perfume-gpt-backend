@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -13,10 +14,12 @@ namespace PerfumeGPT.API.Controllers
 	public class LoyaltyTransactionsController : BaseApiController
 	{
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
+		private readonly IValidator<ManualChangeRequest> _manualChangeValidator;
 
-		public LoyaltyTransactionsController(ILoyaltyTransactionService loyaltyTransactionService)
+		public LoyaltyTransactionsController(ILoyaltyTransactionService loyaltyTransactionService, IValidator<ManualChangeRequest> manualChangeValidator)
 		{
 			_loyaltyTransactionService = loyaltyTransactionService;
+			_manualChangeValidator = manualChangeValidator;
 		}
 
 		[HttpGet("me/history")]
@@ -58,7 +61,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		public async Task<ActionResult<BaseResponse<string>>> ManualChangePoints(Guid userId, [FromBody] ManualChangeRequest request)
 		{
-			var validation = ValidateRequestBody<ManualChangeRequest>(request);
+			var validation = await ValidateRequestAsync(_manualChangeValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _loyaltyTransactionService.ManualChangeAsync(userId, request);

@@ -1,4 +1,3 @@
-using FluentValidation;
 using MapsterMapper;
 using Microsoft.AspNetCore.Http;
 using PerfumeGPT.Application.DTOs.Requests.Media;
@@ -19,9 +18,6 @@ namespace PerfumeGPT.Application.Services
 		private readonly ISupabaseService _supabaseService;
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IMapper _mapper;
-		private readonly IValidator<ProductUploadMediaRequest> _productUploadValidator;
-		private readonly IValidator<VariantUploadMediaRequest> _variantUploadValidator;
-		private readonly IValidator<ProfileAvtarUploadRequest> _profileAvtarUploadValidator;
 
 		private static readonly string[] AllowedImageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
 		private const long MaxFileSize = 5 * 1024 * 1024; // 5MB
@@ -29,17 +25,11 @@ namespace PerfumeGPT.Application.Services
 		public MediaService(
 			ISupabaseService supabaseService,
 			IUnitOfWork unitOfWork,
-			IMapper mapper,
-			IValidator<ProductUploadMediaRequest> productUploadValidator,
-			IValidator<VariantUploadMediaRequest> variantUploadValidator,
-			IValidator<ProfileAvtarUploadRequest> profileAvtarUploadValidator)
+			IMapper mapper)
 		{
 			_supabaseService = supabaseService;
 			_unitOfWork = unitOfWork;
 			_mapper = mapper;
-			_productUploadValidator = productUploadValidator;
-			_variantUploadValidator = variantUploadValidator;
-			_profileAvtarUploadValidator = profileAvtarUploadValidator;
 		}
 		#endregion Dependencies
 
@@ -130,11 +120,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UploadProfileAvatarAsync(Guid userId, ProfileAvtarUploadRequest request)
 		{
-			var validationResult = await _profileAvtarUploadValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var existingMedia = await _unitOfWork.Media.GetPrimaryMediaAsync(EntityType.User, userId);
 
 			if (existingMedia != null && !string.IsNullOrEmpty(existingMedia.PublicId))
@@ -198,11 +183,6 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadProductTemporaryMediaAsync(
 		Guid? userId, ProductUploadMediaRequest request)
 		{
-			var validationResult = await _productUploadValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var imageRequests = request.Images
 				.Select(r => new ImageUploadItem(r.ImageFile, EntityType.Product, r.DisplayOrder, r.IsPrimary, r.AltText))
 				.ToList();
@@ -213,13 +193,18 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadVariantTemporaryMediaAsync(
 			Guid? userId, VariantUploadMediaRequest request)
 		{
-			var validationResult = await _variantUploadValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var imageRequests = request.Images
 				.Select(r => new ImageUploadItem(r.ImageFile, EntityType.ProductVariant, r.DisplayOrder, r.IsPrimary, r.AltText))
+				.ToList();
+
+			return await UploadTemporaryMediaBulkAsync(userId, imageRequests);
+		}
+
+		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadOrderReturnRequestTemporaryMediaAsync(
+			Guid? userId, OrderReturnRequestUploadMediaRequest request)
+		{
+			var imageRequests = request.Images
+				.Select((file, i) => new ImageUploadItem(file, EntityType.OrderReturnRequest, i, false, null))
 				.ToList();
 
 			return await UploadTemporaryMediaBulkAsync(userId, imageRequests);

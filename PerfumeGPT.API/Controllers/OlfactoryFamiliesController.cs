@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.OlfactoryFamilies;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -12,10 +13,14 @@ namespace PerfumeGPT.API.Controllers
 	public class OlfactoryFamiliesController : BaseApiController
 	{
 		private readonly IOlfactoryFamilyService _olfactoryFamilyService;
+		private readonly IValidator<CreateOlfactoryFamilyRequest> _createValidator;
+		private readonly IValidator<UpdateOlfactoryFamilyRequest> _updateValidator;
 
-		public OlfactoryFamiliesController(IOlfactoryFamilyService olfactoryFamilyService)
+		public OlfactoryFamiliesController(IOlfactoryFamilyService olfactoryFamilyService, IValidator<CreateOlfactoryFamilyRequest> createValidator, IValidator<UpdateOlfactoryFamilyRequest> updateValidator)
 		{
 			_olfactoryFamilyService = olfactoryFamilyService;
+			_createValidator = createValidator;
+			_updateValidator = updateValidator;
 		}
 
 		[HttpGet("lookup")]
@@ -48,7 +53,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<OlfactoryFamilyResponse>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<OlfactoryFamilyResponse>>> CreateOlfactoryFamilyAsync([FromBody] CreateOlfactoryFamilyRequest request)
 		{
-			var validation = ValidateRequestBody<CreateOlfactoryFamilyRequest>(request);
+			var validation = await ValidateRequestAsync(_createValidator, request);
 			if (validation != null) return validation;
 
 			var result = await _olfactoryFamilyService.CreateOlfactoryFamilyAsync(request);
@@ -60,7 +65,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<OlfactoryFamilyResponse>), StatusCodes.Status404NotFound)]
 		public async Task<ActionResult<BaseResponse<OlfactoryFamilyResponse>>> UpdateOlfactoryFamilyAsync(int id, [FromBody] UpdateOlfactoryFamilyRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateOlfactoryFamilyRequest>(request);
+			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
 
 			var result = await _olfactoryFamilyService.UpdateOlfactoryFamilyAsync(id, request);

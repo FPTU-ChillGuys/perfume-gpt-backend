@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using PerfumeGPT.Application.DTOs.Requests.Carts;
+﻿using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
@@ -14,32 +13,17 @@ namespace PerfumeGPT.Application.Services
 
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IStockService _stockService;
-		private readonly IValidator<CreateCartItemRequest> _createCartItemValidator;
-		private readonly IValidator<UpdateCartItemRequest> _updateCartItemValidator;
 
-		public CartItemService(
-			IUnitOfWork unitOfWork,
-			IStockService stockService,
-			IValidator<CreateCartItemRequest> createCartItemValidator,
-			IValidator<UpdateCartItemRequest> updateCartItemValidator)
+		public CartItemService(IUnitOfWork unitOfWork, IStockService stockService)
 		{
 			_unitOfWork = unitOfWork;
 			_stockService = stockService;
-			_createCartItemValidator = createCartItemValidator;
-			_updateCartItemValidator = updateCartItemValidator;
 		}
 
 		#endregion
 
 		public async Task<BaseResponse<string>> AddToCartAsync(Guid userId, CreateCartItemRequest request)
 		{
-			var validationResult = await _createCartItemValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Validation failed", errors);
-			}
-
 			var variant = await _unitOfWork.Variants.GetByIdAsync(request.VariantId) ?? throw AppException.NotFound("Product variant not found");
 
 			variant.EnsureAvailableForCart();
@@ -101,17 +85,10 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateCartItemAsync(Guid userId, Guid cartItemId, UpdateCartItemRequest request)
 		{
-			var validationResult = await _updateCartItemValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Validation failed", errors);
-			}
-
 			var cartItem = await _unitOfWork.CartItems.FirstOrDefaultAsync(
 					ci => ci.Id == cartItemId && ci.UserId == userId) ?? throw AppException.NotFound("Cart item not found");
 
-			if (request.Quantity == 0)
+			if (request.Quantity <= 0)
 			{
 				_unitOfWork.CartItems.Remove(cartItem);
 				var removed = await _unitOfWork.SaveChangesAsync();

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Responses.Address.GHNs;
+using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.GHNs;
 using PerfumeGPT.Application.DTOs.Responses.GHNs.Base;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
@@ -67,7 +68,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			return result;
 		}
 
-		public async Task<List<DistrictResponse>> GetDistrictsByProvinceIdAsync(int provinceId)
+		public async Task<BaseResponse<List<DistrictResponse>>> GetDistrictsByProvinceIdAsync(int provinceId)
 		{
 			var token = _configuration["GHN:Token"];
 			var getDistrictUrl = _configuration["GHN:GetDistrictUrl"];
@@ -90,7 +91,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			}
 
 			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<List<DistrictResponse>>>();
-			return result?.Data ?? [];
+			return BaseResponse<List<DistrictResponse>>.Ok(result?.Data ?? [], "Districts retrieved successfully");
 		}
 
 		public async Task<bool> UpdateOrderCodAsync(UpdateCodRequest request)
@@ -120,7 +121,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			return result != null && result.Code == 200;
 		}
 
-		public async Task<List<ProvinceResponse>> GetProvincesAsync()
+		public async Task<BaseResponse<List<ProvinceResponse>>> GetProvincesAsync()
 		{
 			var token = _configuration["GHN:Token"];
 			var getProvinceUrl = _configuration["GHN:GetProvincesUrl"];
@@ -137,10 +138,10 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			}
 
 			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<List<ProvinceResponse>>>();
-			return result?.Data ?? new List<ProvinceResponse>();
+			return BaseResponse<List<ProvinceResponse>>.Ok(result?.Data ?? [], "Provinces retrieved successfully");
 		}
 
-		public async Task<List<WardResponse>> GetWardsByDistrictIdAsync(int districtId)
+		public async Task<BaseResponse<List<WardResponse>>> GetWardsByDistrictIdAsync(int districtId)
 		{
 			var token = _configuration["GHN:Token"];
 			var getWardUrl = _configuration["GHN:GetWardUrl"];
@@ -163,7 +164,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			}
 
 			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<List<WardResponse>>>();
-			return result?.Data ?? new List<WardResponse>();
+			return BaseResponse<List<WardResponse>>.Ok(result?.Data ?? [], "Wards retrieved successfully");
 		}
 
 		public async Task<CreateShippingOrderResponse?> CreateShippingOrderAsync(CreateShippingOrderRequest request)

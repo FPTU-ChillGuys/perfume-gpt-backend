@@ -1,4 +1,3 @@
-using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Reviews;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
@@ -17,20 +16,15 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 		private readonly IMediaService _mediaService;
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<CreateReviewRequest> _createValidator;
-		private readonly IValidator<AnswerReviewRequest> _answerValidator;
+
 		private readonly MediaBulkActionHelper _helper;
 
 		public ReviewService(
 			IMediaService mediaService,
-			IValidator<CreateReviewRequest> createValidator,
-			IValidator<AnswerReviewRequest> answerValidator,
 			MediaBulkActionHelper helper,
 			IUnitOfWork unitOfWork)
 		{
 			_mediaService = mediaService;
-			_createValidator = createValidator;
-			_answerValidator = answerValidator;
 			_helper = helper;
 			_unitOfWork = unitOfWork;
 		}
@@ -38,12 +32,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<BulkActionResult<Guid>>> CreateReviewAsync(Guid userId, CreateReviewRequest request)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				throw AppException.BadRequest("Validation failed", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-			}
-
 			var canReview = await _unitOfWork.Reviews.CanUserReviewOrderDetailAsync(userId, request.OrderDetailId);
 			if (!canReview)
 			{
@@ -96,12 +84,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> AnswerReviewAsync(Guid reviewId, Guid staffId, AnswerReviewRequest request)
 		{
-			var validationResult = await _answerValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				throw AppException.BadRequest("Validation failed", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-			}
-
 			var review = await _unitOfWork.Reviews.GetByIdAsync(reviewId) ?? throw AppException.NotFound("Review not found");
 
 			if (review.HasStaffResponse())
@@ -168,6 +150,10 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		public async Task<BaseResponse<List<MediaResponse>>> GetReviewImagesAsync(Guid reviewId)
-			=> await _mediaService.GetMediaByEntityAsync(EntityType.Review, reviewId);
+		{
+			var existed = await _unitOfWork.Reviews.AnyAsync(rv => rv.Id == reviewId);
+			if (!existed) throw AppException.NotFound("Review not found");
+			return await _mediaService.GetMediaByEntityAsync(EntityType.Review, reviewId);
+		}
 	}
 }

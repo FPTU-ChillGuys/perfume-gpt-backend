@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -16,11 +17,15 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IReviewService _reviewService;
 		private readonly IMediaService _mediaService;
+		private readonly IValidator<CreateReviewRequest> _createValidator;
+		private readonly IValidator<AnswerReviewRequest> _answerValidator;
 
-		public ReviewsController(IReviewService reviewService, IMediaService mediaService)
+		public ReviewsController(IReviewService reviewService, IMediaService mediaService, IValidator<CreateReviewRequest> createValidator, IValidator<AnswerReviewRequest> answerValidator)
 		{
 			_reviewService = reviewService;
 			_mediaService = mediaService;
+			_createValidator = createValidator;
+			_answerValidator = answerValidator;
 		}
 
 		#region USER ENDPOINTS
@@ -43,7 +48,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<Guid>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<BulkActionResult<Guid>>>> CreateReview([FromBody] CreateReviewRequest request)
 		{
-			var validation = ValidateRequestBody<CreateReviewRequest>(request);
+			var validation = await ValidateRequestAsync(_createValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
@@ -61,7 +66,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> AnswerReview([FromRoute] Guid reviewId, [FromBody] AnswerReviewRequest request)
 		{
-			var validation = ValidateRequestBody<AnswerReviewRequest>(request);
+			var validation = await ValidateRequestAsync(_answerValidator, request);
 			if (validation != null) return validation;
 
 			var staffId = GetCurrentUserId();

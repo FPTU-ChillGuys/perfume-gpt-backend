@@ -4,7 +4,6 @@ using PerfumeGPT.Domain.Entities;
 using Mapster;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.ScentNotes;
 using PerfumeGPT.Application.Interfaces.Services;
-using FluentValidation;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.ScentNotes;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 
@@ -13,13 +12,9 @@ namespace PerfumeGPT.Application.Services
 	public class ScentNoteService : IScentNoteService
 	{
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<CreateScentNoteRequest> _createValidator;
-		private readonly IValidator<UpdateScentNoteRequest> _updateValidator;
 
-		public ScentNoteService(IValidator<UpdateScentNoteRequest> updateValidator, IValidator<CreateScentNoteRequest> createValidator, IUnitOfWork unitOfWork)
+		public ScentNoteService(IUnitOfWork unitOfWork)
 		{
-			_updateValidator = updateValidator;
-			_createValidator = createValidator;
 			_unitOfWork = unitOfWork;
 		}
 
@@ -44,12 +39,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ScentNoteResponse>> CreateScentNoteAsync(CreateScentNoteRequest request)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Invalid request", errors);
-			}
 			var normalizedName = request.Name.Trim();
 
 			var exists = await _unitOfWork.ScentNotes.AnyAsync(s => s.Name.ToLower() == normalizedName.ToLower());
@@ -66,13 +55,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ScentNoteResponse>> UpdateScentNoteAsync(int id, UpdateScentNoteRequest request)
 		{
-			var validationResult = await _updateValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Invalid request", errors);
-			}
-
 			var normalizedName = request.Name.Trim();
 
 			var exists = await _unitOfWork.ScentNotes.AnyAsync(s => s.Name.ToLower() == normalizedName.ToLower() && s.Id != id);

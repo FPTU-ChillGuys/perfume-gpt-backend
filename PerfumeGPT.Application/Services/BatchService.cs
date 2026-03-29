@@ -1,4 +1,3 @@
-using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Inventory.Batches;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Batches;
@@ -13,13 +12,9 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<CreateBatchRequest> _createBatchValidator;
 
-		public BatchService(
-			IValidator<CreateBatchRequest> createBatchValidator,
-			IUnitOfWork unitOfWork)
+		public BatchService(IUnitOfWork unitOfWork)
 		{
-			_createBatchValidator = createBatchValidator;
 			_unitOfWork = unitOfWork;
 		}
 		#endregion
@@ -31,11 +26,6 @@ namespace PerfumeGPT.Application.Services
 
 			foreach (var batchRequest in batchRequests)
 			{
-				var validationResult = await _createBatchValidator.ValidateAsync(batchRequest);
-				if (!validationResult.IsValid)
-					throw AppException.BadRequest("Batch validation failed",
-						[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 				var batch = Batch.CreateForImport(
 					variantId,
 					importDetailId,

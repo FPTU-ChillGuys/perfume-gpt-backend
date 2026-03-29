@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using PerfumeGPT.Application.DTOs.Requests.Loyalty;
+﻿using PerfumeGPT.Application.DTOs.Requests.Loyalty;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Loyalty;
 using PerfumeGPT.Application.Exceptions;
@@ -12,12 +11,10 @@ namespace PerfumeGPT.Application.Services
 	public class LoyaltyTransactionService : ILoyaltyTransactionService
 	{
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<ManualChangeRequest> _validator;
 
-		public LoyaltyTransactionService(IUnitOfWork unitOfWork, IValidator<ManualChangeRequest> validator)
+		public LoyaltyTransactionService(IUnitOfWork unitOfWork)
 		{
 			_unitOfWork = unitOfWork;
-			_validator = validator;
 		}
 
 		public async Task<BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>> GetLoyaltyHistoryAsync(Guid userId, GetPagedUserLoyaltyTransactionsRequest request)
@@ -108,13 +105,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> ManualChangeAsync(Guid userId, ManualChangeRequest request)
 		{
-			var validationResult = await _validator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Invalid manual change request.", errors);
-			}
-
 			if (request.TransactionType == Domain.Enums.LoyaltyTransactionType.Spend)
 			{
 				var currentBalance = await _unitOfWork.LoyaltyTransactions.GetPointBalanceAsync(userId);

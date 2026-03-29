@@ -22,5 +22,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadReviewTemporaryMediaAsync(Guid? userId, ReviewUploadMediaRequest request);
 		Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadProductTemporaryMediaAsync(Guid? userId, ProductUploadMediaRequest request);
 		Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadVariantTemporaryMediaAsync(Guid? userId, VariantUploadMediaRequest request);
+		Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadOrderReturnRequestTemporaryMediaAsync(Guid? userId, OrderReturnRequestUploadMediaRequest request);
 	}
 }

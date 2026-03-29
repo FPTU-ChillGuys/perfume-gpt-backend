@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
+﻿using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.ProductAttributes.Attributes;
 using PerfumeGPT.Application.Exceptions;
@@ -13,17 +12,10 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<CreateAttributeRequest> _createValidator;
-		private readonly IValidator<UpdateAttributeRequest> _updateValidator;
 
-		public AttributeService(
-			IUnitOfWork unitOfWork,
-			IValidator<CreateAttributeRequest> createValidator,
-			IValidator<UpdateAttributeRequest> updateValidator)
+		public AttributeService(IUnitOfWork unitOfWork)
 		{
 			_unitOfWork = unitOfWork;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 		}
 		#endregion Dependencies
 
@@ -37,11 +29,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> CreateAttributeAsync(CreateAttributeRequest request)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var entity = Attribute.Create(
 				request.InternalCode,
 				request.Name,
@@ -57,11 +44,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateAttributeAsync(int attributeId, UpdateAttributeRequest request)
 		{
-			var validationResult = await _updateValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var entity = await _unitOfWork.Attributes.GetByIdAsync(attributeId)
 				 ?? throw AppException.NotFound("Attribute not found");
 

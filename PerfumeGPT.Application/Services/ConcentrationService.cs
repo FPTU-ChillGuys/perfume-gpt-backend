@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Mapster;
+﻿using Mapster;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Concentrations;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.Concentrations;
@@ -14,16 +13,9 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<CreateConcentrationRequest> _createValidator;
-		private readonly IValidator<UpdateConcentrationRequest> _updateValidator;
 
-		public ConcentrationService(
-			 IValidator<CreateConcentrationRequest> createValidator,
-			 IValidator<UpdateConcentrationRequest> updateValidator,
-			 IUnitOfWork unitOfWork)
+		public ConcentrationService(IUnitOfWork unitOfWork)
 		{
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 			_unitOfWork = unitOfWork;
 		}
 		#endregion Dependencies
@@ -49,11 +41,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ConcentrationResponse>> CreateConcentrationAsync(CreateConcentrationRequest request)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var normalizedName = Concentration.NormalizeName(request.Name).ToUpperInvariant();
 			var exists = await _unitOfWork.Concentrations.AnyAsync(c => c.Name.ToUpper() == normalizedName);
 			if (exists)
@@ -70,11 +57,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ConcentrationResponse>> UpdateConcentrationAsync(int id, UpdateConcentrationRequest request)
 		{
-			var validationResult = await _updateValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var entity = await _unitOfWork.Concentrations.GetByIdAsync(id)
 				?? throw AppException.NotFound("Concentration not found");
 

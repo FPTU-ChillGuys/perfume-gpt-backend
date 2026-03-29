@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using MapsterMapper;
+﻿using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Profiles;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Profiles;
@@ -13,16 +12,11 @@ namespace PerfumeGPT.Application.Services
 	public class ProfileService : IProfileService
 	{
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<UpdateProfileRequest> _updateProfileValidator;
 		private readonly IMapper _mapper;
 
-		public ProfileService(
-				IMapper mapper,
-				IValidator<UpdateProfileRequest> updateProfileValidator,
-				IUnitOfWork unitOfWork)
+		public ProfileService(IMapper mapper, IUnitOfWork unitOfWork)
 		{
 			_mapper = mapper;
-			_updateProfileValidator = updateProfileValidator;
 			_unitOfWork = unitOfWork;
 		}
 
@@ -44,13 +38,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateProfileAsync(Guid userId, UpdateProfileRequest request)
 		{
-			var validationResult = await _updateProfileValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Validation failed", errors);
-			}
-
 			var profile = await _unitOfWork.Profiles.GetByUserIdWithPreferencesAsync(userId) ?? throw AppException.NotFound("Profile not found");
 
 			var noteIds = request.NotePreferenceIds?.Distinct().ToList() ?? [];

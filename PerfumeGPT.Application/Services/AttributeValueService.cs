@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
+﻿using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.ProductAttributes.Values;
 using PerfumeGPT.Application.Exceptions;
@@ -13,17 +12,10 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Depedencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<CreateAttributeValueRequest> _createValidator;
-		private readonly IValidator<UpdateAttributeValueRequest> _updateValidator;
 
-		public AttributeValueService(
-		   IUnitOfWork unitOfWork,
-			  IValidator<CreateAttributeValueRequest> createValidator,
-			  IValidator<UpdateAttributeValueRequest> updateValidator)
+		public AttributeValueService(IUnitOfWork unitOfWork)
 		{
 			_unitOfWork = unitOfWork;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 		}
 		#endregion Dependencies
 
@@ -35,11 +27,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> CreateAttributeValueAsync(int attributeId, CreateAttributeValueRequest request)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var entity = AttributeValue.Create(attributeId, request.Value);
 
 			await _unitOfWork.AttributeValues.AddAsync(entity);
@@ -51,11 +38,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateAttributeValueAsync(int valueId, UpdateAttributeValueRequest request)
 		{
-			var validationResult = await _updateValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var entity = await _unitOfWork.AttributeValues.GetByIdAsync(valueId)
 				?? throw AppException.NotFound("Attribute value not found");
 

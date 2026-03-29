@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.ScentNotes;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -12,10 +13,14 @@ namespace PerfumeGPT.API.Controllers
 	public class ScentNotesController : BaseApiController
 	{
 		private readonly IScentNoteService _scentNoteService;
+		private readonly IValidator<CreateScentNoteRequest> _createValidator;
+		private readonly IValidator<UpdateScentNoteRequest> _updateValidator;
 
-		public ScentNotesController(IScentNoteService scentNoteService)
+		public ScentNotesController(IScentNoteService scentNoteService, IValidator<CreateScentNoteRequest> createValidator, IValidator<UpdateScentNoteRequest> updateValidator)
 		{
 			_scentNoteService = scentNoteService;
+			_createValidator = createValidator;
+			_updateValidator = updateValidator;
 		}
 
 		[HttpGet("lookup")]
@@ -48,7 +53,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> CreateScentNoteAsync([FromBody] CreateScentNoteRequest request)
 		{
-			var validation = ValidateRequestBody<CreateScentNoteRequest>(request);
+			var validation = await ValidateRequestAsync(_createValidator, request);
 			if (validation != null) return validation;
 
 			var result = await _scentNoteService.CreateScentNoteAsync(request);
@@ -60,7 +65,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status404NotFound)]
 		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> UpdateScentNoteAsync(int id, [FromBody] UpdateScentNoteRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateScentNoteRequest>(request);
+			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
 
 			var result = await _scentNoteService.UpdateScentNoteAsync(id, request);

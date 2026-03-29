@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Brands;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -12,10 +13,14 @@ namespace PerfumeGPT.API.Controllers
 	public class BrandsController : BaseApiController
 	{
 		private readonly IBrandService _brandService;
+		private readonly IValidator<CreateBrandRequest> _createValidator;
+		private readonly IValidator<UpdateBrandRequest> _updateValidator;
 
-		public BrandsController(IBrandService brandService)
+		public BrandsController(IBrandService brandService, IValidator<UpdateBrandRequest> updateValidator, IValidator<CreateBrandRequest> createValidator)
 		{
 			_brandService = brandService;
+			_updateValidator = updateValidator;
+			_createValidator = createValidator;
 		}
 
 		[HttpGet("lookup")]
@@ -47,7 +52,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<BrandResponse>>> CreateBrandAsync([FromBody] CreateBrandRequest request)
 		{
-			var validation = ValidateRequestBody<CreateBrandRequest>(request);
+			var validation = await ValidateRequestAsync(_createValidator, request);
 			if (validation != null) return validation;
 
 			var result = await _brandService.CreateBrandAsync(request);
@@ -59,7 +64,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status404NotFound)]
 		public async Task<ActionResult<BaseResponse<BrandResponse>>> UpdateBrandAsync(int id, [FromBody] UpdateBrandRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateBrandRequest>(request);
+			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
 
 			var result = await _brandService.UpdateBrandAsync(id, request);

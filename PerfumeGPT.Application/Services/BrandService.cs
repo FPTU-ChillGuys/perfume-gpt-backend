@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Mapster;
+﻿using Mapster;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Brands;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.Brands;
@@ -14,16 +13,9 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<CreateBrandRequest> _createValidator;
-		private readonly IValidator<UpdateBrandRequest> _updateValidator;
 
-		public BrandService(
-			IValidator<CreateBrandRequest> createValidator,
-			IValidator<UpdateBrandRequest> updateValidator,
-			IUnitOfWork unitOfWork)
+		public BrandService(IUnitOfWork unitOfWork)
 		{
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 			_unitOfWork = unitOfWork;
 		}
 		#endregion Dependencies
@@ -49,11 +41,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<BrandResponse>> CreateBrandAsync(CreateBrandRequest request)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var normalizedName = Brand.NormalizeName(request.Name).ToUpperInvariant();
 			var exists = await _unitOfWork.Brands.AnyAsync(b => b.Name.ToUpper() == normalizedName);
 
@@ -71,11 +58,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<BrandResponse>> UpdateBrandAsync(int id, UpdateBrandRequest request)
 		{
-			var validationResult = await _updateValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var entity = await _unitOfWork.Brands.GetByIdAsync(id)
 				?? throw AppException.NotFound("Brand not found");
 

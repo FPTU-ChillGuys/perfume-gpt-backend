@@ -1,3 +1,4 @@
+using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -490,10 +491,14 @@ namespace PerfumeGPT.Application.Services
 			=> BaseResponse<PickListResponse>.Ok(await _fulfillmentService.GetPickListAsync(orderId));
 
 		public async Task<BaseResponse<string>> FulfillOrderAsync(Guid orderId, Guid staffId, FulfillOrderRequest request)
-			=> BaseResponse<string>.Ok(await _fulfillmentService.FulfillOrderAsync(orderId, staffId, request));
+		{
+			return BaseResponse<string>.Ok(await _fulfillmentService.FulfillOrderAsync(orderId, staffId, request));
+		}
 
 		public async Task<BaseResponse<SwapDamagedStockResponse>> SwapDamagedStockAsync(Guid orderId, Guid staffId, SwapDamagedStockRequest request)
-			=> BaseResponse<SwapDamagedStockResponse>.Ok(await _fulfillmentService.SwapDamagedStockAsync(orderId, staffId, request));
+		{
+			return BaseResponse<SwapDamagedStockResponse>.Ok(await _fulfillmentService.SwapDamagedStockAsync(orderId, staffId, request));
+		}
 		#endregion Fulfillment Operations
 
 
@@ -608,6 +613,13 @@ namespace PerfumeGPT.Application.Services
 			if (!voucherValidation) throw AppException.BadRequest("Voucher validation failed.");
 
 			return voucher;
+		}
+
+		private static async Task ValidateRequestAsync<T>(IValidator<T> validator, T request)
+		{
+			var validationResult = await validator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+				throw AppException.BadRequest("Validation failed", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 		}
 		#endregion
 	}

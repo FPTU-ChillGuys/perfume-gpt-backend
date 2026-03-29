@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Concentrations;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -13,9 +14,14 @@ namespace PerfumeGPT.API.Controllers
 	{
 		public IConcentrationService _concentrationService;
 
-		public ConcentrationsController(IConcentrationService concentrationService)
+		private readonly IValidator<CreateConcentrationRequest> _createValidator;
+		private readonly IValidator<UpdateConcentrationRequest> _updateValidator;
+
+		public ConcentrationsController(IConcentrationService concentrationService, IValidator<CreateConcentrationRequest> createValidator, IValidator<UpdateConcentrationRequest> updateValidator)
 		{
 			_concentrationService = concentrationService;
+			_createValidator = createValidator;
+			_updateValidator = updateValidator;
 		}
 
 		[HttpGet("lookup")]
@@ -46,7 +52,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> CreateConcentrationAsync([FromBody] CreateConcentrationRequest request)
 		{
-			var validation = ValidateRequestBody<CreateConcentrationRequest>(request);
+			var validation = await ValidateRequestAsync(_createValidator, request);
 			if (validation != null) return validation;
 
 			var result = await _concentrationService.CreateConcentrationAsync(request);
@@ -58,7 +64,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status404NotFound)]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> UpdateConcentrationAsync(int id, [FromBody] UpdateConcentrationRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateConcentrationRequest>(request);
+			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
 
 			var result = await _concentrationService.UpdateConcentrationAsync(id, request);

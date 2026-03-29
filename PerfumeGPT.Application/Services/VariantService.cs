@@ -1,4 +1,3 @@
-using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Variants;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
@@ -18,23 +17,17 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IStockService _stockService;
 		private readonly IMediaService _mediaService;
-		private readonly IValidator<CreateVariantRequest> _createVariantValidator;
-		private readonly IValidator<UpdateVariantRequest> _updateVariantValidator;
 		private readonly MediaBulkActionHelper _helper;
 		private readonly IProductAttributeService _productAttributeService;
 
 		public VariantService(
 			IMediaService mediaService,
-			IValidator<CreateVariantRequest> createVariantValidator,
-			IValidator<UpdateVariantRequest> updateVariantValidator,
 			MediaBulkActionHelper helper,
 			IProductAttributeService productAttributeService,
 			IStockService stockServcie,
 			IUnitOfWork unitOfWork)
 		{
 			_mediaService = mediaService;
-			_createVariantValidator = createVariantValidator;
-			_updateVariantValidator = updateVariantValidator;
 			_helper = helper;
 			_productAttributeService = productAttributeService;
 			_stockService = stockServcie;
@@ -44,11 +37,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<BulkActionResult<string>>> CreateVariantAsync(CreateVariantRequest request)
 		{
-			var validationResult = await _createVariantValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(
 				request.Attributes, isForVariant: true);
 			if (attributeErrors.Count != 0)
@@ -101,11 +89,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<BulkActionResult<string>>> UpdateVariantAsync(Guid variantId, UpdateVariantRequest request)
 		{
-			var validationResult = await _updateVariantValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var variant = await _unitOfWork.Variants.GetByIdAsync(variantId)
 				?? throw AppException.NotFound("Variant not found");
 

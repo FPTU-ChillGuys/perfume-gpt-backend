@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Suppliers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -12,10 +13,14 @@ namespace PerfumeGPT.API.Controllers
 	public class SuppliersController : BaseApiController
 	{
 		private readonly ISupplierService _supplierService;
+		private readonly IValidator<CreateSupplierRequest> _createValidator;
+		private readonly IValidator<UpdateSupplierRequest> _updateValidator;
 
-		public SuppliersController(ISupplierService supplierService)
+		public SuppliersController(ISupplierService supplierService, IValidator<CreateSupplierRequest> createValidator, IValidator<UpdateSupplierRequest> updateValidator)
 		{
 			_supplierService = supplierService;
+			_createValidator = createValidator;
+			_updateValidator = updateValidator;
 		}
 
 		[HttpGet("lookup")]
@@ -47,7 +52,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status200OK)]
 		public async Task<ActionResult<BaseResponse<SupplierResponse>>> CreateSupplierAsync([FromBody] CreateSupplierRequest request)
 		{
-			var validation = ValidateRequestBody<CreateSupplierRequest>(request);
+			var validation = await ValidateRequestAsync(_createValidator, request);
 			if (validation != null) return validation;
 
 			var result = await _supplierService.CreateSupplierAsync(request);
@@ -59,7 +64,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status404NotFound)]
 		public async Task<ActionResult<BaseResponse<SupplierResponse>>> UpdateSupplierAsync(int id, [FromBody] UpdateSupplierRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateSupplierRequest>(request);
+			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
 
 			var result = await _supplierService.UpdateSupplierAsync(id, request);

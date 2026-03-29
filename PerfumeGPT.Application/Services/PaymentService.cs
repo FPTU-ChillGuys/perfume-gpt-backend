@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
+using PerfumeGPT.Application.DTOs.Requests.Payments;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.VNPays;
@@ -33,7 +34,7 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
-		public async Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, bool isSuccess, string? failureReason = null)
+		public async Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, ConfirmPaymentRequest request)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			   {
@@ -48,9 +49,9 @@ namespace PerfumeGPT.Application.Services
 				   var order = await _unitOfWork.Orders.GetByIdAsync(payment.OrderId)
 					   ?? throw AppException.NotFound("Order not found.");
 
-				   return isSuccess
+				   return request.IsSuccess
 					   ? await CompleteSuccessfulPayment(payment, order)
-					   : await HandleFailedPayment(payment, order, failureReason);
+					   : await HandleFailedPayment(payment, order, request.failureReason);
 			   });
 		}
 
