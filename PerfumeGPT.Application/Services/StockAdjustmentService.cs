@@ -192,7 +192,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdAsync(id) ?? throw AppException.NotFound("Stock adjustment not found.");
 
-			if (request.Status == StockAdjustmentStatus.Canceled)
+			if (request.Status == StockAdjustmentStatus.Cancelled)
 			{
 				stockAdjustment.Cancel(request.Note);
 			}

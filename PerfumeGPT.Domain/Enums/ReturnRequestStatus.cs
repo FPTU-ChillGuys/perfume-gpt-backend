@@ -5,7 +5,7 @@ namespace PerfumeGPT.Domain.Enums
 		Pending = 1,
 		ApprovedForReturn,
 		Inspecting,
-       ReadyForRefund,
+		ReadyForRefund,
 		Completed,
 		Rejected
 	}

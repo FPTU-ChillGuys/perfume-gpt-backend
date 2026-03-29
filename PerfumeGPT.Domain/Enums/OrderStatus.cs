@@ -7,7 +7,7 @@
 		Delivering,
 		Delivered,
 		Returning,
-		Canceled,
+		Cancelled,
 		Returned
 	}
 }

@@ -103,12 +103,12 @@ namespace PerfumeGPT.Domain.Entities
 
 			var validTransitions = new Dictionary<OrderStatus, List<OrderStatus>>
 			{
-				{ OrderStatus.Pending, [OrderStatus.Processing, OrderStatus.Canceled] },
-				{ OrderStatus.Processing, [OrderStatus.Delivering, OrderStatus.Canceled] },
+				{ OrderStatus.Pending, [OrderStatus.Processing, OrderStatus.Cancelled] },
+				{ OrderStatus.Processing, [OrderStatus.Delivering, OrderStatus.Cancelled] },
 				{ OrderStatus.Delivering, [OrderStatus.Delivered, OrderStatus.Returned] },
 				{ OrderStatus.Delivered, [OrderStatus.Returning, OrderStatus.Returned] },
 				{ OrderStatus.Returning, [OrderStatus.Returned] },
-				{ OrderStatus.Canceled, [] },
+				{ OrderStatus.Cancelled, [] },
 				{ OrderStatus.Returned, [] }
 			};
 

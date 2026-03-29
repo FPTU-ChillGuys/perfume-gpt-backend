@@ -125,7 +125,7 @@ namespace PerfumeGPT.Application.Services
 						freshOrder.MarkRefunded();
 					}
 
-					freshOrder.SetStatus(OrderStatus.Canceled);
+					freshOrder.SetStatus(OrderStatus.Cancelled);
 					_unitOfWork.Orders.Update(freshOrder);
 
 					if (freshOrder.ShippingInfo != null)
@@ -137,7 +137,7 @@ namespace PerfumeGPT.Application.Services
 					if (freshOrder.Type == OrderType.Online)
 						await _stockReservationService.ReleaseReservationAsync(freshOrder.Id);
 
-                    if (freshOrder.UserVoucherId.HasValue)
+					if (freshOrder.UserVoucherId.HasValue)
 						await _voucherService.RefundVoucherForCancelledOrderAsync(freshOrder.Id);
 				}
 

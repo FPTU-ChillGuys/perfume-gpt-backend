@@ -218,7 +218,7 @@ namespace PerfumeGPT.Application.Services
 
 				if (order != null && order.Status == OrderStatus.Pending)
 				{
-					order.SetStatus(OrderStatus.Canceled);
+					order.SetStatus(OrderStatus.Cancelled);
 					_unitOfWork.Orders.Update(order);
 				}
 			}

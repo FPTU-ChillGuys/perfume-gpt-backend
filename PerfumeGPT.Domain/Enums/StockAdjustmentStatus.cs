@@ -5,6 +5,6 @@ namespace PerfumeGPT.Domain.Enums
 		Pending = 1,
 		InProgress,
 		Completed,
-		Canceled,
+		Cancelled,
 	}
 }

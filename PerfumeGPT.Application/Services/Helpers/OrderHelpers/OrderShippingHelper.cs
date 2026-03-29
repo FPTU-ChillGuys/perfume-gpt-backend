@@ -82,7 +82,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				OrderStatus.Processing => ShippingStatus.Pending,
 				OrderStatus.Delivering => ShippingStatus.Delivering,
 				OrderStatus.Delivered => ShippingStatus.Delivered,
-				OrderStatus.Canceled => ShippingStatus.Cancelled,
+				OrderStatus.Cancelled => ShippingStatus.Cancelled,
 				OrderStatus.Returned => ShippingStatus.Returned,
 				_ => null
 			};

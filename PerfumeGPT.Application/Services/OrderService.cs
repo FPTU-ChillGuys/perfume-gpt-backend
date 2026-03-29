@@ -360,13 +360,13 @@ namespace PerfumeGPT.Application.Services
 					   ?? throw AppException.NotFound("Order not found.");
 
 				   // Validate offline order restrictions
-				   if (order.Type == OrderType.Offline && request.Status != OrderStatus.Canceled)
+				   if (order.Type == OrderType.Offline && request.Status != OrderStatus.Cancelled)
 					   throw AppException.BadRequest("Offline orders can only be cancelled. Other status updates are not allowed.");
 
 				   var pickListResponse = new PickListResponse();
 
 				   // Handle cancellation first to align refund/no-refund flows
-				   if (request.Status == OrderStatus.Canceled)
+				   if (request.Status == OrderStatus.Cancelled)
 				   {
 					   var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
 
@@ -591,8 +591,8 @@ namespace PerfumeGPT.Application.Services
 
 		private async Task HandleOrderCancellationAsync(Order order)
 		{
-			order.SetStatus(OrderStatus.Canceled);
-			UpdateShippingStatus(order, OrderStatus.Canceled);
+			order.SetStatus(OrderStatus.Cancelled);
+			UpdateShippingStatus(order, OrderStatus.Cancelled);
 			await _stockReservationService.ReleaseReservationAsync(order.Id);
 			await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
 		}

@@ -126,13 +126,13 @@ namespace PerfumeGPT.Domain.Entities
 			if (Status == ImportStatus.Completed)
 				throw DomainException.BadRequest("Completed import tickets are immutable. Create an adjustment ticket if needed.");
 
-			if (Status == ImportStatus.Canceled)
+			if (Status == ImportStatus.Cancelled)
 				throw DomainException.BadRequest("Cancelled import tickets are read-only.");
 
-			if (Status == ImportStatus.InProgress && newStatus != ImportStatus.Canceled)
+			if (Status == ImportStatus.InProgress && newStatus != ImportStatus.Cancelled)
 				throw DomainException.BadRequest("Import ticket is locked while in progress. Complete verification or cancel it first.");
 
-			if (Status == ImportStatus.Pending && newStatus != ImportStatus.InProgress && newStatus != ImportStatus.Canceled)
+			if (Status == ImportStatus.Pending && newStatus != ImportStatus.InProgress && newStatus != ImportStatus.Cancelled)
 				throw DomainException.BadRequest("Pending tickets can only transition to InProgress or Canceled status.");
 
 			Status = newStatus;

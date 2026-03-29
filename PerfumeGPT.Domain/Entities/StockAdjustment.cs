@@ -82,10 +82,10 @@ namespace PerfumeGPT.Domain.Entities
 
 		public void Cancel(string? cancelReason = null)
 		{
-			if (Status == StockAdjustmentStatus.Completed || Status == StockAdjustmentStatus.Canceled)
+			if (Status == StockAdjustmentStatus.Completed || Status == StockAdjustmentStatus.Cancelled)
 				throw DomainException.BadRequest($"Cannot cancel a stock adjustment that is already {Status}.");
 
-			Status = StockAdjustmentStatus.Canceled;
+			Status = StockAdjustmentStatus.Cancelled;
 
 			if (!string.IsNullOrWhiteSpace(cancelReason))
 			{
@@ -101,10 +101,10 @@ namespace PerfumeGPT.Domain.Entities
 
 			var validTransitions = new Dictionary<StockAdjustmentStatus, List<StockAdjustmentStatus>>
 			{
-				{ StockAdjustmentStatus.Pending, [StockAdjustmentStatus.InProgress, StockAdjustmentStatus.Completed, StockAdjustmentStatus.Canceled] },
-				{ StockAdjustmentStatus.InProgress, [StockAdjustmentStatus.Completed, StockAdjustmentStatus.Canceled] },
+				{ StockAdjustmentStatus.Pending, [StockAdjustmentStatus.InProgress, StockAdjustmentStatus.Completed, StockAdjustmentStatus.Cancelled] },
+				{ StockAdjustmentStatus.InProgress, [StockAdjustmentStatus.Completed, StockAdjustmentStatus.Cancelled] },
 				{ StockAdjustmentStatus.Completed, [] },
-				{ StockAdjustmentStatus.Canceled, [] }
+				{ StockAdjustmentStatus.Cancelled, [] }
 			};
 
 			if (!(validTransitions.ContainsKey(Status) && validTransitions[Status].Contains(newStatus)))
