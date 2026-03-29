@@ -38,7 +38,6 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		// Business logic methods
 		public void UpdateBasicInfo(DateTime? dateOfBirth, decimal? minBudget, decimal? maxBudget)
 		{
 			if (minBudget.HasValue && minBudget.Value < 0)
@@ -61,51 +60,84 @@ namespace PerfumeGPT.Domain.Entities
 			MaxBudget = maxBudget;
 		}
 
-		public void UpdatePreferences(
-			IEnumerable<int> notePreferenceIds,
-			IEnumerable<int> familyPreferenceIds,
-			IEnumerable<int> attributePreferenceIds)
+		public void UpdateNotePreferences(IEnumerable<(int NoteId, NoteType NoteType)>? notePreferences)
 		{
-			var noteIds = notePreferenceIds?.Distinct().ToList() ?? [];
-			var familyIds = familyPreferenceIds?.Distinct().ToList() ?? [];
-			var attributeIds = attributePreferenceIds?.Distinct().ToList() ?? [];
+			var distinctNewPreferences = notePreferences?.Distinct().ToList() ?? [];
 
-			if (noteIds.Any(id => id <= 0))
-			{
+			if (distinctNewPreferences.Any(np => np.NoteId <= 0))
 				throw DomainException.BadRequest("All note preference IDs must be greater than 0.");
+
+			if (distinctNewPreferences.Any(np => !Enum.IsDefined(np.NoteType)))
+				throw DomainException.BadRequest("All note preference types must be valid.");
+
+			var newPreferenceSet = distinctNewPreferences.ToHashSet();
+
+			var itemsToRemove = NotePreferences
+			   .Where(np => !newPreferenceSet.Contains((np.NoteId, np.NoteType)))
+				.ToList();
+
+			foreach (var item in itemsToRemove)
+			{
+				NotePreferences.Remove(item);
 			}
 
-			if (familyIds.Any(id => id <= 0))
+			var existingPreferences = NotePreferences
+				.Select(np => (np.NoteId, np.NoteType))
+				.ToHashSet();
+			var preferencesToAdd = distinctNewPreferences
+				.Where(np => !existingPreferences.Contains(np));
+
+			foreach (var notePreference in preferencesToAdd)
 			{
+				NotePreferences.Add(CustomerNotePreference.Create(Id, notePreference.NoteId, notePreference.NoteType));
+			}
+		}
+
+		public void UpdateFamilyPreferences(IEnumerable<int>? familyPreferenceIds)
+		{
+			var distinctNewIds = familyPreferenceIds?.Distinct().ToList() ?? [];
+
+			if (distinctNewIds.Any(id => id <= 0))
 				throw DomainException.BadRequest("All family preference IDs must be greater than 0.");
-			}
 
-			if (attributeIds.Any(id => id <= 0))
+			var itemsToRemove = FamilyPreferences
+				.Where(fp => !distinctNewIds.Contains(fp.FamilyId))
+				.ToList();
+
+			foreach (var item in itemsToRemove)
 			{
-				throw DomainException.BadRequest("All attribute preference IDs must be greater than 0.");
+				FamilyPreferences.Remove(item);
 			}
 
-            var existingNoteTypes = NotePreferences
-				.GroupBy(x => x.NoteId)
-				.ToDictionary(g => g.Key, g => g.First().NoteType);
+			var existingIds = FamilyPreferences.Select(fp => fp.FamilyId).ToHashSet();
+			var idsToAdd = distinctNewIds.Where(id => !existingIds.Contains(id));
 
-			NotePreferences.Clear();
-			foreach (var noteId in noteIds)
-			{
-             var noteType = existingNoteTypes.TryGetValue(noteId, out var existingType)
-					? existingType
-					: NoteType.Top;
-				NotePreferences.Add(CustomerNotePreference.Create(Id, noteId, noteType));
-			}
-
-			FamilyPreferences.Clear();
-			foreach (var familyId in familyIds)
+			foreach (var familyId in idsToAdd)
 			{
 				FamilyPreferences.Add(CustomerFamilyPreference.Create(Id, familyId));
 			}
+		}
 
-			AttributePreferences.Clear();
-			foreach (var attributeId in attributeIds)
+		public void UpdateAttributePreferences(IEnumerable<int>? attributePreferenceIds)
+		{
+			var distinctNewIds = attributePreferenceIds?.Distinct().ToList() ?? [];
+
+			if (distinctNewIds.Any(id => id <= 0))
+				throw DomainException.BadRequest("All attribute preference IDs must be greater than 0.");
+
+			var itemsToRemove = AttributePreferences
+				.Where(ap => !distinctNewIds.Contains(ap.AttributeValueId))
+				.ToList();
+
+			foreach (var item in itemsToRemove)
+			{
+				AttributePreferences.Remove(item);
+			}
+
+			var existingIds = AttributePreferences.Select(ap => ap.AttributeValueId).ToHashSet();
+			var idsToAdd = distinctNewIds.Where(id => !existingIds.Contains(id));
+
+			foreach (var attributeId in idsToAdd)
 			{
 				AttributePreferences.Add(CustomerAttributePreference.Create(Id, attributeId));
 			}

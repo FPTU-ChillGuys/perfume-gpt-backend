@@ -11,6 +11,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<ProductVariantResponse?> GetByBarcodeAsync(string barcode);
 		Task<ProductVariant?> GetBySkuAsync(string sku);
 		Task<ProductVariant?> GetByIdWithAttributesAsync(Guid variantId);
+		Task<List<ProductVariant>> GetVariantsWithDetailsByIdsAsync(IEnumerable<Guid> variantIds);
 		Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId);
 		Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(GetPagedVariantsRequest request);
 		Task<List<Guid>> GetExistingIdsAsync(List<Guid> ids);

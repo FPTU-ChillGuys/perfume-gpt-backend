@@ -82,7 +82,8 @@ namespace PerfumeGPT.Application.Services
 				?? throw AppException.NotFound("Brand not found");
 
 			var hasProducts = await _unitOfWork.Brands.HasProductsAsync(id);
-			Brand.EnsureCanBeDeleted(hasProducts);
+			if (hasProducts)
+				throw AppException.Conflict("Cannot delete brand with associated products.");
 
 			_unitOfWork.Brands.Remove(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();

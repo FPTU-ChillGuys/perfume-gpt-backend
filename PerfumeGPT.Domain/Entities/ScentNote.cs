@@ -22,16 +22,9 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		// Business logic methods
 		public void Rename(string name)
 		{
 			Name = NormalizeName(name);
-		}
-
-		public static void EnsureCanDelete(bool hasAssociations)
-		{
-			if (hasAssociations)
-				throw DomainException.BadRequest("Cannot delete ScentNote that is associated with products.");
 		}
 
 		private static string NormalizeName(string name)

@@ -93,7 +93,7 @@ namespace PerfumeGPT.Application.Services
 				?? throw AppException.NotFound("Supplier not found");
 
 			var hasImportTickets = await _unitOfWork.Suppliers.HasImportTicketsAsync(id);
-			Supplier.EnsureCanBeDeleted(hasImportTickets);
+			if (!hasImportTickets) throw AppException.Conflict("Cannot delete supplier with associated import tickets.");
 
 			_unitOfWork.Suppliers.Remove(entity);
 

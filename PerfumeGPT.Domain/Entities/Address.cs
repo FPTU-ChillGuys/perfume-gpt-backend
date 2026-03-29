@@ -57,7 +57,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		public void UpdateDetails(
+		public void Update(
 			string recipientName,
 			string recipientPhoneNumber,
 			string street,
@@ -84,15 +84,6 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			if (UserId != userId)
 				throw DomainException.Forbidden("Address does not belong to this user.");
-		}
-
-		public bool CanBeDeleted() => !IsDefault;
-
-		public void EnsureCanBeDeleted()
-		{
-			if (!CanBeDeleted())
-				throw DomainException.BadRequest(
-					"Cannot delete default address. Please set another address as default first.");
 		}
 
 		public void EnsureNotAlreadyDefault()

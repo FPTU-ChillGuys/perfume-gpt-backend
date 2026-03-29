@@ -74,18 +74,6 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		// Business logic methods
-		public int GetAbsolutePoints() => Math.Abs(PointsChanged);
-
-		public void EnsureOwnedBy(Guid userId)
-		{
-			if (userId == Guid.Empty)
-				throw DomainException.BadRequest("User ID is required.");
-
-			if (UserId != userId)
-				throw DomainException.Forbidden("You are not allowed to access this loyalty transaction.");
-		}
-
 		private static void ValidateCreateArgs(Guid userId, int points)
 		{
 			if (userId == Guid.Empty)

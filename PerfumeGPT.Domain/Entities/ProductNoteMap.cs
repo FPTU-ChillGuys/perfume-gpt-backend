@@ -28,15 +28,5 @@ namespace PerfumeGPT.Domain.Entities
 				NoteType = noteType
 			};
 		}
-
-		public static ProductNoteMap CreateForProduct(Guid productId, int scentNoteId, NoteType noteType)
-		{
-			if (productId == Guid.Empty)
-				throw DomainException.BadRequest("Product ID is required.");
-
-			var map = Create(scentNoteId, noteType);
-			map.ProductId = productId;
-			return map;
-		}
 	}
 }

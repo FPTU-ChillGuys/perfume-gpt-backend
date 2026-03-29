@@ -80,7 +80,7 @@ namespace PerfumeGPT.Application.Services
 				?? throw AppException.NotFound("Concentration not found");
 
 			var hasVariants = await _unitOfWork.Concentrations.HasVariantsAsync(id);
-			Concentration.EnsureCanBeDeleted(hasVariants);
+			if (!hasVariants) throw AppException.Conflict("Cannot delete concentration with associated variants.");
 
 			_unitOfWork.Concentrations.Remove(entity);
 

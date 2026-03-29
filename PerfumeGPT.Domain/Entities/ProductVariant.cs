@@ -188,9 +188,6 @@ namespace PerfumeGPT.Domain.Entities
 
 			if (Status == VariantStatus.Inactive)
 				throw DomainException.BadRequest("This product variant is currently inactive.");
-
-			if (Status == VariantStatus.out_of_stock)
-				throw DomainException.BadRequest("This product variant is out of stock.");
 		}
 	}
 }

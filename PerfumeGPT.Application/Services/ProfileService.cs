@@ -38,18 +38,26 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateProfileAsync(Guid userId, UpdateProfileRequest request)
 		{
-			var profile = await _unitOfWork.Profiles.GetByUserIdWithPreferencesAsync(userId) ?? throw AppException.NotFound("Profile not found");
+			var profile = await _unitOfWork.Profiles.GetByUserIdWithPreferencesAsync(userId)
+				?? throw AppException.NotFound("Profile not found");
 
-			var noteIds = request.NotePreferenceIds?.Distinct().ToList() ?? [];
+			var notePreferences = request.NotePreferenceIds?
+				   .Select(x => (x.NoteId, x.NoteType))
+				   .Distinct()
+				   .ToList() ?? [];
+			var noteIds = notePreferences.Select(x => x.NoteId).Distinct().ToList();
 			var familyIds = request.FamilyPreferenceIds?.Distinct().ToList() ?? [];
 			var attributeIds = request.AttributePreferenceIds?.Distinct().ToList() ?? [];
 
 			await ValidatePreferenceIdsAsync(noteIds, familyIds, attributeIds);
 
 			profile.UpdateBasicInfo(request.DateOfBirth, request.MinBudget, request.MaxBudget);
-			profile.UpdatePreferences(noteIds, familyIds, attributeIds);
+			profile.UpdateNotePreferences(notePreferences);
+			profile.UpdateFamilyPreferences(familyIds);
+			profile.UpdateAttributePreferences(attributeIds);
 
 			_unitOfWork.Profiles.Update(profile);
+
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
 				throw AppException.Internal("Failed to update profile");

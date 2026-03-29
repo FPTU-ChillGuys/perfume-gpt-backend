@@ -38,7 +38,7 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime CreatedAt { get; set; }
 
 		// Factory methods
-		public static Order CreateOnline(Guid customerId, decimal totalAmount, DateTime paymentExpiresAt, List<OrderDetail> orderDetails)
+		public static Order CreateOnline(Guid customerId, decimal totalAmount, DateTime paymentExpiresAt)
 		{
 			if (customerId == Guid.Empty)
 				throw DomainException.BadRequest("Customer ID is required for online orders.");
@@ -52,12 +52,11 @@ namespace PerfumeGPT.Domain.Entities
 				Status = OrderStatus.Pending,
 				PaymentStatus = PaymentStatus.Unpaid,
 				TotalAmount = totalAmount,
-				PaymentExpiresAt = paymentExpiresAt,
-				OrderDetails = orderDetails
+				PaymentExpiresAt = paymentExpiresAt
 			};
 		}
 
-		public static Order CreateOffline(Guid staffId, decimal totalAmount, List<OrderDetail> orderDetails)
+		public static Order CreateOffline(Guid staffId, decimal totalAmount)
 		{
 			if (staffId == Guid.Empty)
 				throw DomainException.BadRequest("Staff ID is required for offline orders.");
@@ -70,8 +69,7 @@ namespace PerfumeGPT.Domain.Entities
 				Type = OrderType.Offline,
 				Status = OrderStatus.Pending,
 				PaymentStatus = PaymentStatus.Unpaid,
-				TotalAmount = totalAmount,
-				OrderDetails = orderDetails
+				TotalAmount = totalAmount
 			};
 		}
 
@@ -86,6 +84,32 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			UserVoucher = userVoucher ?? throw DomainException.BadRequest("User voucher is required.");
 			UserVoucherId = userVoucher.Id;
+		}
+
+		public void AddOrderDetail(Guid variantId, int quantity, decimal unitPrice, string snapshot)
+		{
+			var orderDetail = OrderDetail.Create(variantId, quantity, unitPrice, snapshot);
+			AddOrderDetail(orderDetail);
+		}
+
+		public void AddOrderDetails(IEnumerable<OrderDetail> orderDetails)
+		{
+			if (orderDetails is null)
+				throw DomainException.BadRequest("Order details are required.");
+
+			foreach (var orderDetail in orderDetails)
+			{
+				AddOrderDetail(orderDetail);
+			}
+		}
+
+		private void AddOrderDetail(OrderDetail orderDetail)
+		{
+			if (orderDetail is null)
+				throw DomainException.BadRequest("Order detail is required.");
+
+			orderDetail.Order = this;
+			OrderDetails.Add(orderDetail);
 		}
 
 		public void SetStaff(Guid staffId)

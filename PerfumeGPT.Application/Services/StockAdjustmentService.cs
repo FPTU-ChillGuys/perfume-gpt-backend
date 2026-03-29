@@ -212,7 +212,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdWithDetailsAsync(id)
 					?? throw AppException.NotFound("Stock adjustment not found.");
-			stockAdjustment.EnsureDeletable();
+			stockAdjustment.EnsureIsPending();
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{

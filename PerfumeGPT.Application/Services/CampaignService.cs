@@ -127,7 +127,7 @@ namespace PerfumeGPT.Application.Services
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
 				   ?? throw AppException.NotFound("Campaign not found.");
 
-			campaign.EnsureUpdatable();
+			campaign.EnsureIsNotActive("update");
 
 			// 2. Business validations (DB calls)
 			await ValidateCampaignItemsAsync(request.Items);
@@ -194,7 +194,7 @@ namespace PerfumeGPT.Application.Services
 			var campaign = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
 				?? throw AppException.NotFound("Campaign not found.");
 
-			campaign.EnsureDeletable();
+			campaign.EnsureIsNotActive("delete");
 
 			_unitOfWork.Campaigns.Remove(campaign);
 			await _unitOfWork.SaveChangesAsync();

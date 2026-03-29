@@ -62,7 +62,8 @@ namespace PerfumeGPT.Application.Services
 				 ?? throw AppException.NotFound("Attribute not found");
 
 			var isInUse = await _unitOfWork.Attributes.IsInUseAsync(attributeId);
-			Attribute.EnsureCanBeDeleted(isInUse);
+			if (isInUse)
+				throw AppException.Conflict("Attribute is in use and cannot be deleted.");
 
 			_unitOfWork.Attributes.Remove(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();

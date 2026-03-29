@@ -58,7 +58,7 @@ namespace PerfumeGPT.Application.Services
 				?? throw AppException.NotFound("Address not found");
 
 			address.EnsureOwnedBy(userId);
-			address.UpdateDetails(
+			address.Update(
 				  request.RecipientName,
 				  request.RecipientPhoneNumber,
 				  request.Street,
@@ -82,7 +82,7 @@ namespace PerfumeGPT.Application.Services
 				?? throw AppException.NotFound("Address not found");
 
 			address.EnsureOwnedBy(userId);
-			address.EnsureCanBeDeleted();
+			address.EnsureNotAlreadyDefault();
 
 			_unitOfWork.Addresses.Remove(address);
 			var saved = await _unitOfWork.SaveChangesAsync();

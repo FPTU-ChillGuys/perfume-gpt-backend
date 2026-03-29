@@ -82,7 +82,7 @@ namespace PerfumeGPT.Application.Services
 				   ?? throw AppException.NotFound("Category not found");
 
 			var hasProducts = await _unitOfWork.Categories.HasProductsAsync(id);
-			Category.EnsureCanBeDeleted(hasProducts);
+			if (!hasProducts) throw AppException.Conflict("Cannot delete category with associated products.");
 
 			_unitOfWork.Categories.Remove(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();

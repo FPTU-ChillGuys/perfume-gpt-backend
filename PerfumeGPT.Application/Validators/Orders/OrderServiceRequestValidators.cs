@@ -52,11 +52,9 @@ namespace PerfumeGPT.Application.Validators.Orders
 		public CreateOrderRequestValidator()
 		{
 			RuleFor(x => x.ItemIds)
-				.NotEmpty().WithMessage("At least one cart item is required.");
-
-			RuleFor(x => x.ItemIds)
 				.Must(ids => ids.Distinct().Count() == ids.Count)
-				.WithMessage("Duplicate item IDs are not allowed.");
+                .WithMessage("Duplicate item IDs are not allowed.")
+				.When(x => x.ItemIds != null);
 
 			RuleFor(x => x.ExpectedTotalPrice)
 				.GreaterThanOrEqualTo(0).WithMessage("Expected total price must be greater than or equal to 0.")

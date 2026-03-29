@@ -5,14 +5,12 @@ namespace PerfumeGPT.Domain.Entities
 {
 	public class OrderReturnRequestDetail : BaseEntity<Guid>
 	{
-		// Bắt buộc dùng protected/internal constructor để cấm Service tự new()
 		protected OrderReturnRequestDetail() { }
 
 		public Guid ReturnRequestId { get; private set; }
 		public Guid OrderDetailId { get; private set; }
 		public int ReturnedQuantity { get; private set; }
 
-		// DỜI TỪ CHA XUỐNG: Số phận của riêng món hàng này
 		public bool? IsRestocked { get; private set; }
 		public string? InspectionNote { get; private set; }
 
@@ -20,7 +18,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual OrderReturnRequest ReturnRequest { get; private set; } = null!;
 		public virtual OrderDetail OrderDetail { get; private set; } = null!;
 
-		// Chỉ dùng internal, cho phép thằng Cha gọi
+		// Factory method
 		internal static OrderReturnRequestDetail Create(Guid orderDetailId, int returnedQuantity)
 		{
 			if (orderDetailId == Guid.Empty)
@@ -37,7 +35,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		// Kho gọi hàm này để chốt kết quả cho TỪNG MÓN
+		// Business logic method
 		internal void RecordInspection(bool isRestocked, string? inspectionNote)
 		{
 			IsRestocked = isRestocked;

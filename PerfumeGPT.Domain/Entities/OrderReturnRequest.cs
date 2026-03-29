@@ -88,7 +88,6 @@ namespace PerfumeGPT.Domain.Entities
 			if (ReturnDetails.Any(d => d.OrderDetailId == orderDetailId))
 				throw DomainException.BadRequest("Duplicate order detail in return request.");
 
-			// Không cần gán Foreign Key hay LinkToReturnRequest, EF Core tự lo!
 			ReturnDetails.Add(OrderReturnRequestDetail.Create(orderDetailId, returnedQuantity));
 		}
 

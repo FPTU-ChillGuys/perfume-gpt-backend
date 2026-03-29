@@ -79,7 +79,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			var entity = await _unitOfWork.OlfactoryFamilies.GetByIdAsync(id) ?? throw AppException.NotFound("OlfactoryFamily not found");
 			var hasAssociations = await _unitOfWork.OlfactoryFamilies.HasAssociationsAsync(id);
-			OlfactoryFamily.EnsureCanDelete(hasAssociations);
+			if (!hasAssociations) throw AppException.Conflict("Cannot delete OlfactoryFamily with associated records.");
 
 			_unitOfWork.OlfactoryFamilies.Remove(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();

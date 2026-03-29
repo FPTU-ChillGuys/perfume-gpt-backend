@@ -75,7 +75,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			var entity = await _unitOfWork.ScentNotes.GetByIdAsync(id) ?? throw AppException.NotFound("ScentNote not found");
 			var hasAssociations = await _unitOfWork.ScentNotes.HasAssociationsAsync(id);
-			ScentNote.EnsureCanDelete(hasAssociations);
+			if (!hasAssociations) throw AppException.Conflict("Cannot delete ScentNote with existing associations.");
 
 			_unitOfWork.ScentNotes.Remove(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();

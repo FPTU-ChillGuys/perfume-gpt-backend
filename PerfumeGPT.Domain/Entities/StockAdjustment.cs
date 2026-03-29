@@ -49,7 +49,6 @@ namespace PerfumeGPT.Domain.Entities
 		// Business logic methods
 		public StockAdjustmentDetail AddDetail(Guid productVariantId, Guid batchId, int adjustmentQuantity, string? note)
 		{
-			// Cha gọi Factory method của Con
 			var detail = StockAdjustmentDetail.Create(productVariantId, batchId, adjustmentQuantity, note);
 			AdjustmentDetails.Add(detail);
 
@@ -113,13 +112,10 @@ namespace PerfumeGPT.Domain.Entities
 			Status = newStatus;
 		}
 
-		public void EnsureDeletable()
+		public void EnsureIsPending()
 		{
-			if (Status == StockAdjustmentStatus.Completed)
-				throw DomainException.BadRequest("Completed stock adjustments cannot be deleted.");
-
-			if (Status == StockAdjustmentStatus.InProgress)
-				throw DomainException.BadRequest("In-progress stock adjustments cannot be deleted.");
+			if (Status != StockAdjustmentStatus.Pending)
+				throw DomainException.BadRequest("Only pending stock adjustments can be deleted.");
 		}
 	}
 }

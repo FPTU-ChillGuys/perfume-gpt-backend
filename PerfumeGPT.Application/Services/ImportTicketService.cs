@@ -469,7 +469,7 @@ namespace PerfumeGPT.Application.Services
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAndBatchesAsync(id) ?? throw AppException.NotFound("Import ticket not found.");
-				importTicket.EnsureDeletable();
+				importTicket.EnsureIsPendingStatus();
 
 				foreach (var detail in importTicket.ImportDetails)
 				{

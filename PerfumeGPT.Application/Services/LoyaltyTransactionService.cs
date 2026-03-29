@@ -19,9 +19,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>> GetLoyaltyHistoryAsync(Guid userId, GetPagedUserLoyaltyTransactionsRequest request)
 		{
-			if (userId == Guid.Empty)
-				throw AppException.BadRequest("User ID is required.");
-
 			var (items, totalCount) = await _unitOfWork.LoyaltyTransactions.GetPagedHistoryByUserAsync(userId, request);
 
 			var pagedResult = new PagedResult<LoyaltyTransactionHistoryItemResponse>(
@@ -48,18 +45,12 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<LoyaltyTransactionTotalsResponse>> GetLoyaltyTotalsAsync(Guid userId)
 		{
-			if (userId == Guid.Empty)
-				throw AppException.BadRequest("User ID is required.");
-
 			var totals = await _unitOfWork.LoyaltyTransactions.GetTotalsAsync(userId);
 			return BaseResponse<LoyaltyTransactionTotalsResponse>.Ok(totals);
 		}
 
 		public async Task<bool> PlusPointAsync(Guid userId, int points, Guid? orderId, bool saveChanges = true, string? reason = null)
 		{
-			if (userId == Guid.Empty)
-				throw AppException.BadRequest("User ID is required.");
-
 			if (points <= 0)
 				throw AppException.BadRequest("Points must be greater than 0.");
 
@@ -79,9 +70,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<bool> RedeemPointAsync(Guid userId, int points, Guid? voucherId, Guid? orderId, bool saveChanges = true, string? reason = null)
 		{
-			if (userId == Guid.Empty)
-				throw AppException.BadRequest("User ID is required.");
-
 			if (points <= 0)
 				throw AppException.BadRequest("Points must be greater than 0.");
 

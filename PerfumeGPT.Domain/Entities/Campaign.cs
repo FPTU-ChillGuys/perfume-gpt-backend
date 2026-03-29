@@ -61,6 +61,29 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
+		public void UpdateInfo(string name, string? description, DateTime startDate, DateTime endDate, CampaignType type)
+		{
+			ValidateName(name);
+			ValidateDateRange(startDate, endDate);
+
+			Name = name.Trim();
+			Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+			StartDate = startDate;
+			EndDate = endDate;
+			Type = type;
+		}
+
+		public void UpdateStatus(CampaignStatus newStatus, DateTime nowUtc)
+		{
+			if (newStatus == CampaignStatus.Active && StartDate > nowUtc)
+				throw DomainException.BadRequest("Cannot activate campaign before its start date.");
+
+			if (newStatus < Status && (newStatus != CampaignStatus.Active || Status != CampaignStatus.Paused))
+				throw DomainException.BadRequest("Cannot revert campaign to a previous status.");
+
+			Status = newStatus;
+		}
+
 		public PromotionItem AddPromotionItem(Guid variantId, Guid? batchId, PromotionType type, int? maxUsage)
 		{
 			Items ??= [];
@@ -223,41 +246,14 @@ namespace PerfumeGPT.Domain.Entities
 		}
 
 		// Business logic methods
-		public void UpdateInfo(string name, string? description, DateTime startDate, DateTime endDate, CampaignType type)
-		{
-			ValidateName(name);
-			ValidateDateRange(startDate, endDate);
 
-			Name = name.Trim();
-			Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
-			StartDate = startDate;
-			EndDate = endDate;
-			Type = type;
-		}
-
-		public void UpdateStatus(CampaignStatus newStatus, DateTime nowUtc)
-		{
-			if (newStatus == CampaignStatus.Active && StartDate > nowUtc)
-				throw DomainException.BadRequest("Cannot activate campaign before its start date.");
-
-			if (newStatus < Status && (newStatus != CampaignStatus.Active || Status != CampaignStatus.Paused))
-				throw DomainException.BadRequest("Cannot revert campaign to a previous status.");
-
-			Status = newStatus;
-		}
-
-		public void EnsureUpdatable()
+		public void EnsureIsNotActive(string action = "modify")
 		{
 			if (Status == CampaignStatus.Active)
-				throw DomainException.BadRequest("Cannot update an active campaign. Please pause the campaign before updating.");
+				throw DomainException.BadRequest($"Cannot {action} an active campaign. Please pause the campaign before {action}ing.");
 		}
 
-		public void EnsureDeletable()
-		{
-			if (Status == CampaignStatus.Active)
-				throw DomainException.BadRequest("Cannot delete an active campaign. Please pause the campaign before deleting.");
-		}
-
+		// Private helpers
 		private static void ValidateName(string name)
 		{
 			if (string.IsNullOrWhiteSpace(name))

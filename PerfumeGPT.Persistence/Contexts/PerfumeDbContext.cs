@@ -195,7 +195,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<CustomerAttributePreference> CustomerAttributePreferences { get; set; }
 		public DbSet<OrderCancelRequest> OrderCancelRequests { get; set; }
 		public DbSet<OrderReturnRequest> OrderReturnRequests { get; set; }
-        public DbSet<OrderReturnRequestDetail> OrderReturnRequestDetails { get; set; }
+		public DbSet<OrderReturnRequestDetail> OrderReturnRequestDetails { get; set; }
 		public DbSet<PromotionItem> Promotions { get; set; }
 		public DbSet<Campaign> Campaigns { get; set; }
 
@@ -630,6 +630,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasOne(m => m.OrderReturnRequest)
 				.WithMany(orr => orr.ProofImages)
 				.HasForeignKey(m => m.OrderReturnRequestId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// Media -> Review (M:1) using ReviewId
+			builder.Entity<Media>()
+				.HasOne(m => m.Review)
+				.WithMany(r => r.ReviewImages)
+				.HasForeignKey(m => m.ReviewId)
 				.OnDelete(DeleteBehavior.Restrict);
 
 			// Attribute -> AttributeValue (1:M)

@@ -180,14 +180,19 @@ namespace PerfumeGPT.Application.Services
 				.Select(item => (item.VariantId, item.Quantity))
 				.ToList();
 
-				var orderDetails = await _orderDetailsFactory.CreateOrderDetailsAsync(itemsToValidate);
+				// Set payment expiration
+				var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
+
+				// Create order and populate details through aggregate methods
+				var order = Order.CreateOnline(userId, cartResponse.TotalPrice, paymentExpiresAt);
+				await _orderDetailsFactory.CreateOrderDetailsAsync(order, itemsToValidate);
 
 				// Validate voucher if provided (with subtotal + cart variant context)
 				VoucherResponse? voucher = null;
 
 				if (!string.IsNullOrEmpty(request.VoucherCode))
 				{
-					var subtotal = orderDetails.Sum(od => od.UnitPrice * od.Quantity);
+					var subtotal = order.OrderDetails.Sum(od => od.UnitPrice * od.Quantity);
 					voucher = await ValidateAndGetVoucherAsync(
 						request.VoucherCode,
 						userId,
@@ -195,9 +200,6 @@ namespace PerfumeGPT.Application.Services
 						subtotal,
 						itemsToValidate.Select(x => x.VariantId));
 				}
-
-				// Set payment expiration
-				var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
 
 				// Recalculate total right before reservation to detect promotion/batch drift
 				var latestTotalResponse = await _cartService.GetCartTotalAsync(userId, getCartTotalRequest);
@@ -207,8 +209,7 @@ namespace PerfumeGPT.Application.Services
 				if (Math.Abs(latestTotalResponse.Payload.TotalPrice - cartResponse.TotalPrice) > 0.0001m)
 					throw AppException.Conflict("Discount no longer matches what you saw. Please refresh cart total and checkout again.");
 
-				// Create order
-				var order = Order.CreateOnline(userId, cartResponse.TotalPrice, paymentExpiresAt, orderDetails);
+				// Persist order
 				await _unitOfWork.Orders.AddAsync(order);
 
 				// Setup shipping if not pickup
@@ -262,10 +263,11 @@ namespace PerfumeGPT.Application.Services
 					.Select(od => (od.VariantId, od.Quantity))
 					.ToList();
 
-				var orderDetails = await _orderDetailsFactory.CreateOrderDetailsAsync(itemsToValidate);
+				var order = Order.CreateOffline(staffId, 0);
+				await _orderDetailsFactory.CreateOrderDetailsAsync(order, itemsToValidate);
 
 				// Calculate totals
-				decimal subtotal = orderDetails.Sum(od => od.UnitPrice * od.Quantity);
+				decimal subtotal = order.OrderDetails.Sum(od => od.UnitPrice * od.Quantity);
 				decimal totalAmount = subtotal;
 
 				if (voucher != null)
@@ -274,8 +276,9 @@ namespace PerfumeGPT.Application.Services
 					totalAmount = discountedTotal;
 				}
 
-				// Create order
-				var order = Order.CreateOffline(staffId, totalAmount, orderDetails);
+				order.SetTotalAmount(totalAmount);
+
+				// Persist order
 				await _unitOfWork.Orders.AddAsync(order);
 
 				// Mark voucher as reserved and link UserVoucher to order

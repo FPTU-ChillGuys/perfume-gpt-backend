@@ -96,6 +96,16 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Include(v => v.ProductAttributes)
 				.FirstOrDefaultAsync();
 
+		public async Task<List<ProductVariant>> GetVariantsWithDetailsByIdsAsync(IEnumerable<Guid> variantIds)
+		{
+			return await _context.ProductVariants
+				.Where(v => !v.IsDeleted && variantIds.Contains(v.Id))
+				.Include(v => v.Product)
+				.Include(v => v.Concentration)
+				.AsNoTracking()
+				.ToListAsync();
+		}
+
 		public async Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId)
 		{
 			var now = DateTime.UtcNow;

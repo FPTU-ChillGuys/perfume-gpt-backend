@@ -138,7 +138,7 @@ namespace PerfumeGPT.Domain.Entities
 			Status = newStatus;
 		}
 
-		public void EnsureDeletable()
+		public void EnsureIsPendingStatus()
 		{
 			if (Status != ImportStatus.Pending)
 				throw DomainException.BadRequest("Only pending import tickets can be deleted.");
