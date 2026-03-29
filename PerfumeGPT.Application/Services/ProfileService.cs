@@ -35,7 +35,7 @@ namespace PerfumeGPT.Application.Services
 			var profile = CustomerProfile.Create(userId);
 
 			await _unitOfWork.Profiles.AddAsync(profile);
-			var saved = await _unitOfWork.Profiles.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
 				throw AppException.Internal("Failed to create profile");
 
@@ -63,7 +63,7 @@ namespace PerfumeGPT.Application.Services
 			profile.UpdatePreferences(noteIds, familyIds, attributeIds);
 
 			_unitOfWork.Profiles.Update(profile);
-			var saved = await _unitOfWork.Profiles.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
 				throw AppException.Internal("Failed to update profile");
 

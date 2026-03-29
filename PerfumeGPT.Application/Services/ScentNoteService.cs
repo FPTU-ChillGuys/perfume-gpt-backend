@@ -59,7 +59,7 @@ namespace PerfumeGPT.Application.Services
 			var entity = ScentNote.Create(request.Name);
 
 			await _unitOfWork.ScentNotes.AddAsync(entity);
-			var saved = await _unitOfWork.ScentNotes.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Could not create ScentNote.");
 			return BaseResponse<ScentNoteResponse>.Ok(entity.Adapt<ScentNoteResponse>());
 		}
@@ -83,7 +83,7 @@ namespace PerfumeGPT.Application.Services
 			entity.Rename(request.Name);
 
 			_unitOfWork.ScentNotes.Update(entity);
-			var saved = await _unitOfWork.ScentNotes.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Could not update ScentNote.");
 
 			return BaseResponse<ScentNoteResponse>.Ok(entity.Adapt<ScentNoteResponse>());
@@ -96,7 +96,7 @@ namespace PerfumeGPT.Application.Services
 			ScentNote.EnsureCanDelete(hasAssociations);
 
 			_unitOfWork.ScentNotes.Remove(entity);
-			var saved = await _unitOfWork.ScentNotes.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Could not delete ScentNote.");
 
 			return BaseResponse<bool>.Ok(true);

@@ -63,7 +63,7 @@ namespace PerfumeGPT.Application.Services
 			var entity = Brand.Create(normalizedName);
 			await _unitOfWork.Brands.AddAsync(entity);
 
-			var saved = await _unitOfWork.Brands.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create brand");
 
 			return BaseResponse<BrandResponse>.Ok(entity.Adapt<BrandResponse>());
@@ -88,7 +88,7 @@ namespace PerfumeGPT.Application.Services
 			entity.Rename(normalizedName);
 			_unitOfWork.Brands.Update(entity);
 
-			var saved = await _unitOfWork.Brands.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update brand");
 
 			return BaseResponse<BrandResponse>.Ok(entity.Adapt<BrandResponse>());
@@ -103,7 +103,7 @@ namespace PerfumeGPT.Application.Services
 			Brand.EnsureCanBeDeleted(hasProducts);
 
 			_unitOfWork.Brands.Remove(entity);
-			var saved = await _unitOfWork.Brands.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete brand");
 
 			return BaseResponse<bool>.Ok(true);

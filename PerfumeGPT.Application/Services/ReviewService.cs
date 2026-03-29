@@ -53,7 +53,7 @@ namespace PerfumeGPT.Application.Services
 			var review = Review.Create(userId, request.OrderDetailId, request.Rating, request.Comment);
 
 			await _unitOfWork.Reviews.AddAsync(review);
-			var saved = await _unitOfWork.Reviews.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 
 			if (!saved)
 				throw AppException.Internal("Failed to create review");
@@ -87,7 +87,7 @@ namespace PerfumeGPT.Application.Services
 
 			await _mediaService.DeleteAllMediaByEntityAsync(EntityType.Review, reviewId);
 
-			var saved = await _unitOfWork.Reviews.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
 				throw AppException.Internal("Failed to delete review");
 
@@ -109,7 +109,7 @@ namespace PerfumeGPT.Application.Services
 
 			review.AnswerByStaff(staffId, request.StaffFeedbackComment, DateTime.UtcNow);
 
-			var saved = await _unitOfWork.Reviews.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
 				throw AppException.Internal("Failed to answer review");
 

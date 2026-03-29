@@ -133,7 +133,7 @@ namespace PerfumeGPT.Application.Services
 					variantId, request.Attributes, isVariant: true);
 
 			_unitOfWork.Variants.Update(variant);
-			var saved = await _unitOfWork.Variants.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update variant");
 
 			var metadata = new BulkActionMetadata();
@@ -177,7 +177,7 @@ namespace PerfumeGPT.Application.Services
 			await _productAttributeService.RemoveAttributesByEntityIdAsync(variantId, isVariant: true);
 
 			_unitOfWork.Variants.Remove(variant);
-			var saved = await _unitOfWork.Variants.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete variant");
 
 			return BaseResponse<string>.Ok(variantId.ToString(), "Variant deleted successfully");

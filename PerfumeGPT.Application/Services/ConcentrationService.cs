@@ -62,7 +62,7 @@ namespace PerfumeGPT.Application.Services
 			var entity = Concentration.Create(normalizedName);
 			await _unitOfWork.Concentrations.AddAsync(entity);
 
-			var saved = await _unitOfWork.Concentrations.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create concentration");
 
 			return BaseResponse<ConcentrationResponse>.Ok(entity.Adapt<ConcentrationResponse>());
@@ -86,7 +86,7 @@ namespace PerfumeGPT.Application.Services
 			entity.Rename(normalizedName);
 			_unitOfWork.Concentrations.Update(entity);
 
-			var saved = await _unitOfWork.Concentrations.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update concentration");
 
 			return BaseResponse<ConcentrationResponse>.Ok(entity.Adapt<ConcentrationResponse>());
@@ -102,7 +102,7 @@ namespace PerfumeGPT.Application.Services
 
 			_unitOfWork.Concentrations.Remove(entity);
 
-			var saved = await _unitOfWork.Concentrations.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete concentration");
 
 			return BaseResponse<bool>.Ok(true);

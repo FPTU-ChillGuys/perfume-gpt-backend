@@ -73,7 +73,7 @@ namespace PerfumeGPT.Application.Services
 			product.SyncAttributes(request.Attributes?.Select(a => (a.AttributeId, a.ValueId)) ?? []);
 
 			await _unitOfWork.Products.AddAsync(product);
-			var saved = await _unitOfWork.Products.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create product");
 
 			var metadata = new BulkActionMetadata();
@@ -156,7 +156,7 @@ namespace PerfumeGPT.Application.Services
 				product.SyncAttributes(request.Attributes.Select(a => (a.AttributeId, a.ValueId)));
 
 			_unitOfWork.Products.Update(product);
-			var saved = await _unitOfWork.Products.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update product");
 
 			await _unitOfWork.Products.AddProductEmbeddingsByIdAsync(productId);
@@ -186,7 +186,7 @@ namespace PerfumeGPT.Application.Services
 			await _mediaService.DeleteAllMediaByEntityAsync(EntityType.Product, productId);
 
 			_unitOfWork.Products.Remove(product);
-			var saved = await _unitOfWork.Products.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete product");
 
 			return BaseResponse<string>.Ok(productId.ToString(), "Product deleted successfully");

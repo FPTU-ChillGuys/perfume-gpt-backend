@@ -61,7 +61,7 @@ namespace PerfumeGPT.Application.Services
 			var entity = Category.Create(normalizedName);
 			await _unitOfWork.Categories.AddAsync(entity);
 
-			var saved = await _unitOfWork.Categories.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create category");
 
 			return BaseResponse<CategoryResponse>.Ok(entity.Adapt<CategoryResponse>());
@@ -85,7 +85,7 @@ namespace PerfumeGPT.Application.Services
 			entity.Rename(normalizedName);
 			_unitOfWork.Categories.Update(entity);
 
-			var saved = await _unitOfWork.Categories.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update category");
 
 			return BaseResponse<CategoryResponse>.Ok(entity.Adapt<CategoryResponse>());
@@ -100,7 +100,7 @@ namespace PerfumeGPT.Application.Services
 			Category.EnsureCanBeDeleted(hasProducts);
 
 			_unitOfWork.Categories.Remove(entity);
-			var saved = await _unitOfWork.Categories.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete category");
 
 			return BaseResponse<bool>.Ok(true);

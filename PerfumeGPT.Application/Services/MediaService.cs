@@ -76,7 +76,7 @@ namespace PerfumeGPT.Application.Services
 			media.SetAsPrimary();
 			_unitOfWork.Media.Update(media);
 
-			var saved = await _unitOfWork.Media.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to set primary media");
 
 			return BaseResponse<string>.Ok(mediaId.ToString(), "Primary media set successfully");
@@ -101,7 +101,7 @@ namespace PerfumeGPT.Application.Services
 				await _supabaseService.DeleteImageAsync(media.Url, bucketName);
 
 			var count = await _unitOfWork.Media.DeleteAllMediaByEntityAsync(entityType, entityId);
-			var saved = await _unitOfWork.Media.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete media");
 
 			return BaseResponse<string>.Ok(count.ToString(), $"{count} media items deleted successfully");
@@ -118,14 +118,14 @@ namespace PerfumeGPT.Application.Services
 			{
 				existingMedia.UpdateUrl(avatarUrl.Trim(), null, null, GetMimeTypeFromUrl(avatarUrl), altText);
 				_unitOfWork.Media.Update(existingMedia);
-				return await _unitOfWork.Media.SaveChangesAsync();
+				return await _unitOfWork.SaveChangesAsync();
 			}
 
 			var profileMedia = Media.CreateFromUrl(
 				EntityType.User, userId, avatarUrl, altText, GetMimeTypeFromUrl(avatarUrl));
 
 			await _unitOfWork.Media.AddAsync(profileMedia);
-			return await _unitOfWork.Media.SaveChangesAsync();
+			return await _unitOfWork.SaveChangesAsync();
 		}
 
 		public async Task<BaseResponse<string>> UploadProfileAvatarAsync(Guid userId, ProfileAvtarUploadRequest request)
@@ -156,7 +156,7 @@ namespace PerfumeGPT.Application.Services
 					GetMimeType(request.Avatar.FileName),
 					request.AltText);
 				_unitOfWork.Media.Update(existingMedia);
-				await _unitOfWork.Media.SaveChangesAsync();
+				await _unitOfWork.SaveChangesAsync();
 				return BaseResponse<string>.Ok(url, "Profile avatar updated successfully");
 			}
 
@@ -169,7 +169,7 @@ namespace PerfumeGPT.Application.Services
 				GetMimeType(request.Avatar.FileName));
 
 			await _unitOfWork.Media.AddAsync(profileMedia);
-			var saved = await _unitOfWork.Media.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to save profile avatar");
 
 			return BaseResponse<string>.Ok(url, "Profile avatar uploaded successfully");
@@ -296,7 +296,7 @@ namespace PerfumeGPT.Application.Services
 				await _supabaseService.DeleteImageAsync(media.Url, GetBucketName(media.EntityType));
 
 			_unitOfWork.Media.Remove(media);
-			var saved = await _unitOfWork.Media.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete media");
 
 			return BaseResponse<string>.Ok(successData, successMessage);

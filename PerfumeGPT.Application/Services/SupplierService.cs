@@ -69,7 +69,7 @@ namespace PerfumeGPT.Application.Services
 			var entity = Supplier.Create(request.Name, request.ContactEmail, request.Phone, request.Address);
 			await _unitOfWork.Suppliers.AddAsync(entity);
 
-			var saved = await _unitOfWork.Suppliers.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create supplier");
 
 			return BaseResponse<SupplierResponse>.Ok(entity.Adapt<SupplierResponse>());
@@ -99,7 +99,7 @@ namespace PerfumeGPT.Application.Services
 			entity.UpdateDetails(request.Name, request.ContactEmail, request.Phone, request.Address);
 			_unitOfWork.Suppliers.Update(entity);
 
-			var saved = await _unitOfWork.Suppliers.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update supplier");
 
 			return BaseResponse<SupplierResponse>.Ok(entity.Adapt<SupplierResponse>());
@@ -115,7 +115,7 @@ namespace PerfumeGPT.Application.Services
 
 			_unitOfWork.Suppliers.Remove(entity);
 
-			var saved = await _unitOfWork.Suppliers.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete supplier");
 
 			return BaseResponse<bool>.Ok(true);

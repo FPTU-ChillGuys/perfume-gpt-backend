@@ -61,7 +61,7 @@ namespace PerfumeGPT.Application.Services
 			var entity = OlfactoryFamily.Create(request.Name);
 
 			await _unitOfWork.OlfactoryFamilies.AddAsync(entity);
-			var saved = await _unitOfWork.OlfactoryFamilies.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Could not create OlfactoryFamily.");
 			return BaseResponse<OlfactoryFamilyResponse>.Ok(entity.Adapt<OlfactoryFamilyResponse>());
 		}
@@ -82,7 +82,7 @@ namespace PerfumeGPT.Application.Services
 			entity.Rename(request.Name);
 
 			_unitOfWork.OlfactoryFamilies.Update(entity);
-			var saved = await _unitOfWork.OlfactoryFamilies.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Could not update OlfactoryFamily.");
 
 			return BaseResponse<OlfactoryFamilyResponse>.Ok(entity.Adapt<OlfactoryFamilyResponse>());
@@ -95,7 +95,7 @@ namespace PerfumeGPT.Application.Services
 			OlfactoryFamily.EnsureCanDelete(hasAssociations);
 
 			_unitOfWork.OlfactoryFamilies.Remove(entity);
-			var saved = await _unitOfWork.OlfactoryFamilies.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Could not delete OlfactoryFamily.");
 
 			return BaseResponse<bool>.Ok(true);
