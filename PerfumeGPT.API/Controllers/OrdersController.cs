@@ -66,6 +66,18 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpGet("my-orders/{orderId:guid}/invoice")]
+		[Authorize(Roles = "user")]
+		[ProducesResponseType(typeof(BaseResponse<ReceiptResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<ReceiptResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<ReceiptResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<ReceiptResponse>>> GetMyOrderInvoice([FromRoute] Guid orderId)
+		{
+			var userId = GetCurrentUserId();
+			var response = await _orderService.GetMyInvoiceAsync(orderId, userId);
+			return HandleResponse(response);
+		}
+
 		[HttpGet("user/{userId}")]
 		[Authorize(Roles = "staff,admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]
@@ -99,6 +111,17 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<OrderResponse>>> GetOrderById([FromRoute] Guid orderId)
 		{
 			var response = await _orderService.GetOrderByIdAsync(orderId);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("{orderId:guid}/invoice")]
+		[Authorize(Roles = "staff,admin")]
+		[ProducesResponseType(typeof(BaseResponse<ReceiptResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<ReceiptResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<ReceiptResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<ReceiptResponse>>> GetOrderInvoice([FromRoute] Guid orderId)
+		{
+			var response = await _orderService.GetInvoiceAsync(orderId);
 			return HandleResponse(response);
 		}
 

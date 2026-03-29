@@ -124,6 +124,14 @@ namespace PerfumeGPT.Application.Services
 
 			return BaseResponse<PagedResult<OrderListItem>>.Ok(pagedResult, "Staff orders retrieved successfully.");
 		}
+
+		public async Task<BaseResponse<ReceiptResponse>> GetInvoiceAsync(Guid orderId)
+		{
+			var invoice = await _unitOfWork.Orders.GetInvoiceAsync(orderId)
+				?? throw AppException.NotFound("Order invoice not found.");
+
+			return BaseResponse<ReceiptResponse>.Ok(invoice, "Order invoice retrieved successfully.");
+		}
 		#endregion Query Operations
 
 
@@ -149,6 +157,17 @@ namespace PerfumeGPT.Application.Services
 				totalCount);
 
 			return BaseResponse<PagedResult<OrderListItem>>.Ok(pagedResult, "User orders retrieved successfully.");
+		}
+
+		public async Task<BaseResponse<ReceiptResponse>> GetMyInvoiceAsync(Guid orderId, Guid userId)
+		{
+			var invoice = await _unitOfWork.Orders.GetUserInvoiceAsync(orderId, userId);
+			if (invoice == null)
+			{
+				return BaseResponse<ReceiptResponse>.Fail("Order invoice not found or does not belong to user.", ResponseErrorType.NotFound);
+			}
+
+			return BaseResponse<ReceiptResponse>.Ok(invoice, "Order invoice retrieved successfully.");
 		}
 		#endregion User Query Operations
 

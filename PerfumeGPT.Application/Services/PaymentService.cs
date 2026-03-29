@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Requests.Payments;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
@@ -20,17 +21,26 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IVoucherService _voucherService;
+		private readonly IEmailService _emailService;
+		private readonly IEmailTemplateService _emailTemplateService;
+		private readonly ILogger<PaymentService> _logger;
 
 		public PaymentService(
 			IVnPayService vnPayService,
 			IUnitOfWork unitOfWork,
 			IHttpContextAccessor httpContextAccessor,
-			IVoucherService voucherService)
+			IVoucherService voucherService,
+			IEmailService emailService,
+			ILogger<PaymentService> logger,
+			IEmailTemplateService emailTemplateService)
 		{
 			_vnPayService = vnPayService;
 			_unitOfWork = unitOfWork;
 			_httpContextAccessor = httpContextAccessor;
 			_voucherService = voucherService;
+			_emailService = emailService;
+			_logger = logger;
+			_emailTemplateService = emailTemplateService;
 		}
 		#endregion Dependencies
 
@@ -223,6 +233,15 @@ namespace PerfumeGPT.Application.Services
 				await _unitOfWork.Receipts.AddAsync(receipt);
 			}
 
+			try
+			{
+				await SendInvoiceEmailIfNeededAsync(order.Id);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Unable to send invoice email for order {OrderId}.", order.Id);
+			}
+
 			return BaseResponse<bool>.Ok(true, "Payment processed successfully.");
 		}
 
@@ -264,6 +283,25 @@ namespace PerfumeGPT.Application.Services
 				default:
 					throw AppException.BadRequest("Unsupported payment method.");
 			}
+		}
+
+		private async Task SendInvoiceEmailIfNeededAsync(Guid orderId)
+		{
+			var payload = await _unitOfWork.Orders.GetOnlineOrderInvoiceEmailPayloadAsync(orderId);
+			if (!payload.HasValue)
+			{
+				return;
+			}
+
+			var (customerEmail, invoice) = payload.Value;
+			if (string.IsNullOrWhiteSpace(customerEmail))
+			{
+				return;
+			}
+
+			var subject = $"PerfumeGPT Invoice - Order {invoice.OrderId}";
+			var body = _emailTemplateService.GetInvoiceTemplate(invoice);
+			await _emailService.SendEmailAsync(customerEmail, subject, body);
 		}
 	}
 }
