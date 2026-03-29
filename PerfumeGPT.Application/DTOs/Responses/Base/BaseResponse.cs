@@ -1,11 +1,17 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Base
+﻿using System.Text.Json.Serialization;
+
+namespace PerfumeGPT.Application.DTOs.Responses.Base
 {
 	public class BaseResponse
 	{
 		public bool Success { get; set; } = true;
 		public string Message { get; set; } = "OK";
+
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 		public List<string>? Errors { get; set; }
-		public ResponseErrorType ErrorType { get; set; }
+
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+		public ResponseErrorType? ErrorType { get; set; }
 
 		public static BaseResponse Ok(string message = "Success")
 			=> new() { Success = true, Message = message };
