@@ -40,7 +40,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				if (!variantDictionary.TryGetValue(VariantId, out var variant))
 					throw AppException.NotFound($"Product variant {VariantId} not found.");
 
-				decimal unitPrice = variant.RetailPrice ?? variant.BasePrice;
+				decimal unitPrice = variant.BasePrice;
 
 				var snapshotData = new
 				{
