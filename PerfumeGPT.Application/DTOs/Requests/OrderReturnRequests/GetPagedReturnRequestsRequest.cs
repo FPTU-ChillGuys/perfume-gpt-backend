@@ -5,6 +5,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests
 {
 	public class GetPagedReturnRequestsRequest : PagingAndSortingQuery
 	{
+        public Guid? CustomerId { get; set; }
 		public ReturnRequestStatus? Status { get; set; }
 		public bool? IsRefunded { get; set; }
 	}

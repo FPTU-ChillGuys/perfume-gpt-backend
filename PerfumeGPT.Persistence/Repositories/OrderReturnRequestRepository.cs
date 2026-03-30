@@ -23,6 +23,9 @@ namespace PerfumeGPT.Persistence.Repositories
 			if (request.Status.HasValue)
 				query = query.Where(r => r.Status == request.Status.Value);
 
+			if (request.CustomerId.HasValue)
+				query = query.Where(r => r.CustomerId == request.CustomerId.Value);
+
 			if (request.IsRefunded.HasValue)
 				query = query.Where(r => r.IsRefunded == request.IsRefunded.Value);
 
