@@ -441,7 +441,7 @@ namespace PerfumeGPT.Application.Services
 				   // Handle Processing status - return pick list
 				   if (request.Status == OrderStatus.Processing && order.Type == OrderType.Online)
 				   {
-					   pickListResponse = await _fulfillmentService.GetPickListAsync(order.Id);
+					   pickListResponse = await _fulfillmentService.GetPickListAsync(order);
 				   }
 
 				   // Handle delivery completion - update loyalty points
@@ -516,7 +516,11 @@ namespace PerfumeGPT.Application.Services
 
 		#region Fulfillment Operations
 		public async Task<BaseResponse<PickListResponse>> GetOrderPickListAsync(Guid orderId)
-			=> BaseResponse<PickListResponse>.Ok(await _fulfillmentService.GetPickListAsync(orderId));
+		{
+			var order = await _unitOfWork.Orders.GetOrderForPickListAsync(orderId)
+				?? throw AppException.NotFound("Order not found.");
+			return BaseResponse<PickListResponse>.Ok(await _fulfillmentService.GetPickListAsync(order));
+		}
 
 		public async Task<BaseResponse<string>> FulfillOrderAsync(Guid orderId, Guid staffId, FulfillOrderRequest request)
 		{
