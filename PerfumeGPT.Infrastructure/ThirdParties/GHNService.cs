@@ -6,6 +6,7 @@ using PerfumeGPT.Application.DTOs.Responses.GHNs;
 using PerfumeGPT.Application.DTOs.Responses.GHNs.Base;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace PerfumeGPT.Infrastructure.ThirdParties
 {
@@ -239,7 +240,12 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				throw new HttpRequestException($"Failed to create shipping order: {errorContent}");
 			}
 
-			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<CreateShippingOrderResponse>>();
+			var options = new JsonSerializerOptions
+			{
+				PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+			};
+
+			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<CreateShippingOrderResponse>>(options);
 			return result?.Data;
 		}
 

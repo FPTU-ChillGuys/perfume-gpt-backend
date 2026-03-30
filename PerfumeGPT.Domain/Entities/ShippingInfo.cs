@@ -65,7 +65,6 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("Cannot set shipment to delivering after it is delivered.");
 
 			Status = ShippingStatus.Delivering;
-			ShippedDate ??= shippedDateUtc ?? DateTime.UtcNow;
 		}
 
 		public void MarkAsReturned()
