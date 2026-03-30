@@ -66,7 +66,7 @@ namespace PerfumeGPT.API.Controllers
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error processing VNPay callback");
-				string frontendUrl = _configuration["Front-end:webUrlHttps"] ?? "https://localhost:3000";
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? "https://localhost:3000";
 				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
 			}
 		}

@@ -216,8 +216,6 @@ namespace PerfumeGPT.Application.Services
 			{
 				order.SetStatus(OrderStatus.Delivered);
 			}
-			else
-				order.SetStatus(OrderStatus.Pending);
 
 			_unitOfWork.Payments.Update(payment);
 			_unitOfWork.Orders.Update(order);
