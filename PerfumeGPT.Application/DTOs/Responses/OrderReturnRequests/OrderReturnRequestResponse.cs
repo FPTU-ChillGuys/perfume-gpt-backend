@@ -26,24 +26,9 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 		public string? VnpTransactionNo { get; set; }
 		public bool IsRestocked { get; set; }
 
-		public List<OrderReturnRequestDetailResponse> ReturnDetails { get; set; } = [];
 		public List<MediaResponse> ProofImages { get; set; } = [];
 
 		public DateTime CreatedAt { get; set; }
 		public DateTime? UpdatedAt { get; set; }
-	}
-
-	public class OrderReturnRequestDetailResponse
-	{
-		public Guid Id { get; set; }
-		public Guid OrderDetailId { get; set; }
-		public decimal UnitPrice { get; set; }
-		public int Quantity { get; set; }
-		public Guid VariantId { get; set; }
-		public string? VariantSnapshot { get; set; }
-		public string? VariantImageUrl { get; set; }
-		public int ReturnedQuantity { get; set; }
-		public bool? IsRestocked { get; set; }
-		public string? InspectionNote { get; set; }
 	}
 }

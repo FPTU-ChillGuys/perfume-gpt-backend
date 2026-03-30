@@ -31,7 +31,6 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual User Customer { get; set; } = null!;
 		public virtual User? ProcessedBy { get; set; }
 		public virtual User? InspectedBy { get; set; }
-		public virtual ICollection<OrderReturnRequestDetail> ReturnDetails { get; private set; } = [];
 		public virtual ICollection<Media> ProofImages { get; set; } = [];
 
 		// IHasTimestamps implementation
@@ -44,9 +43,7 @@ namespace PerfumeGPT.Domain.Entities
 			Guid customerId,
 			string reason,
 			decimal requestedRefundAmount,
-			IEnumerable<(Guid OrderDetailId, int ReturnedQuantity)> itemsToReturn,
-		 string? customerNote = null
-			)
+		  string? customerNote = null)
 		{
 			if (orderId == Guid.Empty)
 				throw DomainException.BadRequest("Order ID is required.");
@@ -72,23 +69,7 @@ namespace PerfumeGPT.Domain.Entities
 				IsRefunded = false
 			};
 
-			foreach (var (OrderDetailId, ReturnedQuantity) in itemsToReturn)
-			{
-				request.AddDetail(OrderDetailId, ReturnedQuantity);
-			}
-
-			if (request.ReturnDetails.Count == 0)
-				throw DomainException.BadRequest("Return request must contain at least one item.");
-
 			return request;
-		}
-
-		private void AddDetail(Guid orderDetailId, int returnedQuantity)
-		{
-			if (ReturnDetails.Any(d => d.OrderDetailId == orderDetailId))
-				throw DomainException.BadRequest("Duplicate order detail in return request.");
-
-			ReturnDetails.Add(OrderReturnRequestDetail.Create(orderDetailId, returnedQuantity));
 		}
 
 		// Business logic methods
@@ -118,7 +99,7 @@ namespace PerfumeGPT.Domain.Entities
 			Status = ReturnRequestStatus.Inspecting;
 		}
 
-		public void RecordInspectionResult(decimal approvedRefundAmount, IEnumerable<(Guid DetailId, bool IsRestocked, string? Note)> inspectionResults)
+		public void RecordInspectionResult(decimal approvedRefundAmount, bool isRestocked, string? inspectionNote = null)
 		{
 			if (Status != ReturnRequestStatus.Inspecting)
 				throw DomainException.BadRequest("Only inspecting return requests can record inspection results.");
@@ -127,15 +108,8 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("Approved refund amount cannot be negative.");
 
 			ApprovedRefundAmount = approvedRefundAmount;
-
-			// Cập nhật trạng thái từng món hàng
-			foreach (var result in inspectionResults)
-			{
-				var detail = ReturnDetails.FirstOrDefault(d => d.Id == result.DetailId)
-					?? throw DomainException.BadRequest($"Return detail {result.DetailId} not found.");
-
-				detail.RecordInspection(result.IsRestocked, result.Note);
-			}
+			IsRestocked = isRestocked;
+			InspectionNote = string.IsNullOrWhiteSpace(inspectionNote) ? InspectionNote : inspectionNote.Trim();
 
 			Status = ReturnRequestStatus.ReadyForRefund;
 		}

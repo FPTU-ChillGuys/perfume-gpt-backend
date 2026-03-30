@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Http;
-using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -74,48 +73,17 @@ namespace PerfumeGPT.Application.Services
 				if (hasOpenRequest)
 					throw AppException.Conflict("This order already has an active return request.");
 
-				if (request.ReturnItems == null || request.ReturnItems.Count == 0)
-					throw AppException.BadRequest("At least one return item is required.");
-
-				var duplicateOrderDetailIds = request.ReturnItems
-					.GroupBy(x => x.OrderDetailId)
-					.Where(g => g.Count() > 1)
-					.Select(g => g.Key)
-					.ToList();
-
-				if (duplicateOrderDetailIds.Count != 0)
-					throw AppException.BadRequest("Duplicate order detail IDs in return items are not allowed.");
-
-				var orderDetailMap = order.OrderDetails.ToDictionary(x => x.Id, x => x);
-				var maxRequestableRefund = 0m;
-				var itemsToReturn = new List<(Guid OrderDetailId, int ReturnedQuantity)>();
-
-				foreach (var item in request.ReturnItems)
-				{
-					if (!orderDetailMap.TryGetValue(item.OrderDetailId, out var orderDetail))
-						throw AppException.BadRequest($"Order detail {item.OrderDetailId} does not belong to this order.");
-
-					if (item.ReturnedQuantity <= 0)
-						throw AppException.BadRequest("Returned quantity must be greater than 0.");
-
-					if (item.ReturnedQuantity > orderDetail.Quantity)
-						throw AppException.BadRequest($"Returned quantity for order detail {item.OrderDetailId} exceeds purchased quantity.");
-
-					maxRequestableRefund += orderDetail.UnitPrice * item.ReturnedQuantity;
-					itemsToReturn.Add((item.OrderDetailId, item.ReturnedQuantity));
-				}
+				var maxRequestableRefund = order.OrderDetails.Sum(x => x.UnitPrice * x.Quantity);
 
 				if (request.RequestedRefundAmount > maxRequestableRefund)
-					throw AppException.BadRequest("Requested refund amount exceeds maximum refundable amount for selected return items.");
+					throw AppException.BadRequest("Requested refund amount exceeds maximum refundable amount for the order.");
 
 				var returnRequest = OrderReturnRequest.Create(
 					request.OrderId,
 					customerId,
 					request.Reason,
 					request.RequestedRefundAmount,
-					itemsToReturn,
-				   request.CustomerNote
-					);
+				  request.CustomerNote);
 
 				await _unitOfWork.OrderReturnRequests.AddAsync(returnRequest);
 
@@ -162,11 +130,16 @@ namespace PerfumeGPT.Application.Services
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdAsync(requestId)
+				var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithOrderAsync(requestId)
 					?? throw AppException.NotFound("Return request not found.");
 
 				returnRequest.StartInspection(inspectedById, request.InspectionNote);
 				_unitOfWork.OrderReturnRequests.Update(returnRequest);
+
+				if (returnRequest.Order.Status != OrderStatus.Returned)
+				{
+					returnRequest.Order.SetStatus(OrderStatus.Returned);
+				}
 
 				return BaseResponse<string>.Ok("Inspection started.");
 			});
@@ -174,18 +147,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> RecordInspectionResultAsync(Guid inspectedById, Guid requestId, RecordInspectionDto request)
 		{
-			if (request.InspectionResults == null || request.InspectionResults.Count == 0)
-				throw AppException.BadRequest("Inspection results are required.");
-
-			var duplicateDetailIds = request.InspectionResults
-				.GroupBy(x => x.DetailId)
-				.Where(g => g.Count() > 1)
-				.Select(g => g.Key)
-				.ToList();
-
-			if (duplicateDetailIds.Count != 0)
-				throw AppException.BadRequest("Duplicate return detail IDs in inspection results are not allowed.");
-
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithOrderDetailsAsync(requestId)
@@ -194,20 +155,12 @@ namespace PerfumeGPT.Application.Services
 				if (returnRequest.InspectedById != inspectedById)
 					throw AppException.Forbidden("Only the assigned inspector can record inspection result.");
 
-				var requestDetailIds = returnRequest.ReturnDetails.Select(d => d.Id).ToHashSet();
-				var submittedDetailIds = request.InspectionResults.Select(x => x.DetailId).ToHashSet();
+				returnRequest.RecordInspectionResult(
+					 request.ApprovedRefundAmount,
+					 request.IsRestocked,
+					 request.InspectionNote);
 
-				if (!requestDetailIds.SetEquals(submittedDetailIds))
-					throw AppException.BadRequest("Inspection results must include all and only return details in the request.");
-
-				var inspectionResults = request.InspectionResults
-					.Select(x => (x.DetailId, x.IsRestocked, x.Note));
-
-				returnRequest.RecordInspectionResult(request.ApprovedRefundAmount, inspectionResults);
-
-				var restockedDetails = returnRequest.ReturnDetails.Where(d => d.IsRestocked == true).ToList();
-
-				if (restockedDetails.Count > 0)
+				if (returnRequest.IsRestocked)
 				{
 					var committedReservations = (await _unitOfWork.StockReservations.GetByOrderIdAsync(returnRequest.OrderId))
 						.Where(r => r.Status == ReservationStatus.Committed)
@@ -222,9 +175,9 @@ namespace PerfumeGPT.Application.Services
 						StockAdjustmentReason.Return,
 						$"Auto restock from return request {returnRequest.Id}");
 
-					var restockedByVariant = restockedDetails
-						.GroupBy(d => d.OrderDetail.VariantId)
-						.ToDictionary(g => g.Key, g => g.Sum(x => x.ReturnedQuantity));
+					var restockedByVariant = returnRequest.Order.OrderDetails
+						.GroupBy(d => d.VariantId)
+						.ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
 
 					foreach (var item in restockedByVariant)
 					{
@@ -336,11 +289,6 @@ namespace PerfumeGPT.Application.Services
 
 				freshReturnRequest.MarkRefunded(refundResponse.TransactionNo);
 				order.MarkRefunded();
-
-				if (order.Status != OrderStatus.Returned)
-				{
-					order.SetStatus(OrderStatus.Returned);
-				}
 
 				_unitOfWork.OrderReturnRequests.Update(freshReturnRequest);
 				_unitOfWork.Orders.Update(order);

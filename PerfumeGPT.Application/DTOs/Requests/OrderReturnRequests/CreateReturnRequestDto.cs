@@ -7,6 +7,5 @@ namespace PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests
 		public decimal RequestedRefundAmount { get; set; }
 		public string? CustomerNote { get; set; }
 		public List<Guid>? TemporaryMediaIds { get; set; }
-		public List<CreateReturnRequestDetailDto> ReturnItems { get; set; } = [];
 	}
 }

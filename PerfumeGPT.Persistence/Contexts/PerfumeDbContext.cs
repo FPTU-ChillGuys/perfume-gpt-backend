@@ -195,7 +195,6 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<CustomerAttributePreference> CustomerAttributePreferences { get; set; }
 		public DbSet<OrderCancelRequest> OrderCancelRequests { get; set; }
 		public DbSet<OrderReturnRequest> OrderReturnRequests { get; set; }
-		public DbSet<OrderReturnRequestDetail> OrderReturnRequestDetails { get; set; }
 		public DbSet<PromotionItem> Promotions { get; set; }
 		public DbSet<Campaign> Campaigns { get; set; }
 
@@ -761,24 +760,6 @@ namespace PerfumeGPT.Persistence.Contexts
 				.WithMany(u => u.InspectedReturnRequests)
 				.HasForeignKey(orr => orr.InspectedById)
 				.OnDelete(DeleteBehavior.Restrict);
-
-			// OrderReturnRequest -> OrderReturnRequestDetail (1:M)
-			builder.Entity<OrderReturnRequest>()
-				.HasMany(orr => orr.ReturnDetails)
-				.WithOne(ord => ord.ReturnRequest)
-				.HasForeignKey(ord => ord.ReturnRequestId)
-				.OnDelete(DeleteBehavior.Cascade);
-
-			// OrderDetail -> OrderReturnRequestDetail (1:M)
-			builder.Entity<OrderDetail>()
-				.HasMany(od => od.ReturnRequestDetails)
-				.WithOne(rd => rd.OrderDetail)
-				.HasForeignKey(rd => rd.OrderDetailId)
-				.OnDelete(DeleteBehavior.Restrict);
-
-			builder.Entity<OrderReturnRequestDetail>()
-				.HasIndex(rd => new { rd.ReturnRequestId, rd.OrderDetailId })
-				.IsUnique();
 
 			// Campaign -> PromotionItem (1:M)
 			builder.Entity<Campaign>()

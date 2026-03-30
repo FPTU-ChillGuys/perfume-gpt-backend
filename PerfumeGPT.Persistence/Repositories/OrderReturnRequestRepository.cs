@@ -88,21 +88,6 @@ namespace PerfumeGPT.Persistence.Repositories
 					IsRefunded = r.IsRefunded,
 					VnpTransactionNo = r.VnpTransactionNo,
 					IsRestocked = r.IsRestocked,
-					ReturnDetails = r.ReturnDetails
-						.Select(d => new OrderReturnRequestDetailResponse
-						{
-							Id = d.Id,
-							OrderDetailId = d.OrderDetailId,
-							UnitPrice = d.OrderDetail.UnitPrice,
-							Quantity = d.OrderDetail.Quantity,
-							VariantId = d.OrderDetail.VariantId,
-							VariantSnapshot = d.OrderDetail.Snapshot,
-							VariantImageUrl = d.OrderDetail.ProductVariant.Media.Where(m => m.IsPrimary && !m.IsDeleted).Select(m => m.Url).FirstOrDefault(),
-							ReturnedQuantity = d.ReturnedQuantity,
-							IsRestocked = d.IsRestocked,
-							InspectionNote = d.InspectionNote
-						})
-						.ToList(),
 					ProofImages = r.ProofImages
 						.OrderBy(m => m.DisplayOrder)
 						.Select(m => new MediaResponse
@@ -125,8 +110,6 @@ namespace PerfumeGPT.Persistence.Repositories
 			=> await _context.OrderReturnRequests
 				.Include(r => r.Order)
 				.Include(r => r.ProofImages)
-				.Include(r => r.ReturnDetails)
-					.ThenInclude(d => d.OrderDetail)
 				.AsSplitQuery()
 				.FirstOrDefaultAsync(r => r.Id == requestId);
 
@@ -135,8 +118,6 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Include(r => r.Order)
 					.ThenInclude(o => o.OrderDetails)
 				.Include(r => r.ProofImages)
-				.Include(r => r.ReturnDetails)
-					.ThenInclude(d => d.OrderDetail)
 				.AsSplitQuery()
 				.FirstOrDefaultAsync(r => r.Id == requestId);
 	}
