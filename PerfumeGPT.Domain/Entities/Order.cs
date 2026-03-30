@@ -122,12 +122,12 @@ namespace PerfumeGPT.Domain.Entities
 
 		public void SetStatus(OrderStatus newStatus)
 		{
-			if (Status == newStatus)
+			if (Status == newStatus && newStatus != OrderStatus.Pending)
 				throw DomainException.BadRequest("Order is already in this status.");
 
 			var validTransitions = new Dictionary<OrderStatus, List<OrderStatus>>
 			{
-				{ OrderStatus.Pending, [OrderStatus.Processing, OrderStatus.Cancelled] },
+				{ OrderStatus.Pending, [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Cancelled] },
 				{ OrderStatus.Processing, [OrderStatus.Delivering, OrderStatus.Cancelled] },
 				{ OrderStatus.Delivering, [OrderStatus.Delivered, OrderStatus.Returned] },
 				{ OrderStatus.Delivered, [OrderStatus.Returning, OrderStatus.Returned] },

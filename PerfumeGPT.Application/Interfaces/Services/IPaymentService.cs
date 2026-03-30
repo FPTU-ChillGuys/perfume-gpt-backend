@@ -8,8 +8,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 {
 	public interface IPaymentService
 	{
-		Task<BaseResponse<VnPayReturnResponse>> GetVnPayReturnResponseAsync(IQueryCollection queryParameters);
-		Task<BaseResponse<bool>> ProcessVnPayReturnAsync(IQueryCollection queryParameters);
+		Task<VnPayReturnResponse> ProcessVnPayReturnAsync(IQueryCollection queryParameters);
 		Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, ConfirmPaymentRequest request);
 		Task<BaseResponse<string>> ChangePaymentMethodAsync(Guid paymentId, PaymentInformation newMethod);
 		Task<BaseResponse<string>> RetryPaymentWithMethodAsync(Guid paymentId, PaymentInformation? newMethod = null);

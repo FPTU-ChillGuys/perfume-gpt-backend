@@ -428,6 +428,8 @@ namespace PerfumeGPT.Application.Services
 					   return BaseResponse<PickListResponse>.Ok(pickListResponse, $"Order status updated to {request.Status} for {orderType} order.");
 				   }
 
+				   // return order handle
+
 				   // Update order status
 				   order.SetStatus(request.Status);
 				   order.SetStaff(staffId);

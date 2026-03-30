@@ -45,28 +45,28 @@ namespace PerfumeGPT.API.Controllers
 				}
 
 				// Process VNPay callback
-				await _paymentService.ProcessVnPayReturnAsync(Request.Query);
-				var result = await _paymentService.GetVnPayReturnResponseAsync(Request.Query);
+				var result = await _paymentService.ProcessVnPayReturnAsync(Request.Query);
 
 				// Determine success or failure
 				var responseCode = Request.Query["vnp_ResponseCode"].ToString();
-				bool isSuccess = result?.Success == true && responseCode == "00";
+				bool isSuccess = result.IsSuccess && responseCode == "00";
+				var failureMessage = isSuccess ? null : "VNPay payment failed.";
 
 				// Build redirect URL
 				var redirectUrl = BuildVnPayRedirectUrl(
 					frontendUrl,
 					isSuccess ? "success" : "failure",
 					Request.Query,
-					result?.Payload?.OrderId,
-					result?.Payload?.PaymentId,
-					isSuccess ? null : result?.Message);
+					result.OrderId,
+					result.PaymentId,
+					failureMessage);
 
 				return Redirect(redirectUrl);
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error processing VNPay callback");
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? "https://localhost:3000";
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
 				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
 			}
 		}
