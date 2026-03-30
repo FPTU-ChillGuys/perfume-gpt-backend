@@ -93,6 +93,8 @@ namespace PerfumeGPT.Persistence.Repositories
 						{
 							Id = d.Id,
 							OrderDetailId = d.OrderDetailId,
+							UnitPrice = d.OrderDetail.UnitPrice,
+							Quantity = d.OrderDetail.Quantity,
 							VariantId = d.OrderDetail.VariantId,
 							VariantSnapshot = d.OrderDetail.Snapshot,
 							VariantImageUrl = d.OrderDetail.ProductVariant.Media.Where(m => m.IsPrimary && !m.IsDeleted).Select(m => m.Url).FirstOrDefault(),

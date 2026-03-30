@@ -37,6 +37,8 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 	{
 		public Guid Id { get; set; }
 		public Guid OrderDetailId { get; set; }
+		public decimal UnitPrice { get; set; }
+		public int Quantity { get; set; }
 		public Guid VariantId { get; set; }
 		public string? VariantSnapshot { get; set; }
 		public string? VariantImageUrl { get; set; }
