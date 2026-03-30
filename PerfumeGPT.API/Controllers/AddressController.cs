@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Address;
@@ -19,12 +20,16 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IGHNService _ghnService;
 		private readonly IGHTKService _ghtkService;
 		private readonly IAddressService _addressService;
+		private readonly IValidator<CreateAddressRequest> _createValidator;
+		private readonly IValidator<UpdateAddressRequest> _updateValidator;
 
-		public AddressController(IGHNService ghnService, IAddressService addressService, IGHTKService ghtkService)
+		public AddressController(IGHNService ghnService, IAddressService addressService, IGHTKService ghtkService, IValidator<CreateAddressRequest> createValidator, IValidator<UpdateAddressRequest> updateValidator)
 		{
 			_ghnService = ghnService;
 			_addressService = addressService;
 			_ghtkService = ghtkService;
+			_createValidator = createValidator;
+			_updateValidator = updateValidator;
 		}
 
 		[HttpGet]
@@ -71,7 +76,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> CreateAddressAsync([FromBody] CreateAddressRequest request)
 		{
-			var validation = ValidateRequestBody<CreateAddressRequest>(request);
+			var validation = await ValidateRequestAsync(_createValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
@@ -88,7 +93,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateAddressAsync([FromRoute] Guid id, [FromBody] UpdateAddressRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateAddressRequest>(request);
+			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
@@ -128,8 +133,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<List<ProvinceResponse>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<List<ProvinceResponse>>>> GetProvincesAsync()
 		{
-			var result = await _ghnService.GetProvincesAsync();
-			var response = BaseResponse<List<ProvinceResponse>>.Ok(result, "Provinces retrieved successfully");
+			var response = await _ghnService.GetProvincesAsync();
 			return HandleResponse(response);
 		}
 
@@ -148,8 +152,7 @@ namespace PerfumeGPT.API.Controllers
 				return HandleResponse(badRequestResponse);
 			}
 
-			var result = await _ghnService.GetDistrictsByProvinceIdAsync(provinceId);
-			var response = BaseResponse<List<DistrictResponse>>.Ok(result, "Districts retrieved successfully");
+			var response = await _ghnService.GetDistrictsByProvinceIdAsync(provinceId);
 			return HandleResponse(response);
 		}
 
@@ -167,8 +170,8 @@ namespace PerfumeGPT.API.Controllers
 				);
 				return HandleResponse(badRequestResponse);
 			}
-			var result = await _ghnService.GetWardsByDistrictIdAsync(districtId);
-			var response = BaseResponse<List<WardResponse>>.Ok(result, "Wards retrieved successfully");
+
+			var response = await _ghnService.GetWardsByDistrictIdAsync(districtId);
 			return HandleResponse(response);
 		}
 
@@ -176,11 +179,10 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<AddressLevel4Response>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<AddressLevel4Response>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<AddressLevel4Response>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<AddressLevel4Response>>> GetStreetsAsync(
-			[FromQuery] AddressLevel4Request request)
+		public async Task<ActionResult<BaseResponse<AddressLevel4Response>>> GetStreetsAsync([FromQuery] AddressLevel4Request request)
 		{
-			var result = await _ghtkService.GetAddressLevel4Async(request);
-			return HandleResponse(BaseResponse<AddressLevel4Response>.Ok(result, "Streets retrieved successfully"));
+			var response = await _ghtkService.GetAddressLevel4Async(request);
+			return HandleResponse(response);
 		}
 	}
 }

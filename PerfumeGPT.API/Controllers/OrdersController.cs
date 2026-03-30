@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
@@ -13,10 +14,28 @@ namespace PerfumeGPT.API.Controllers
 	public class OrdersController : BaseApiController
 	{
 		private readonly IOrderService _orderService;
+		private readonly IValidator<UpdateOrderAddressRequest> _updateOrderAddressValidator;
+		private readonly IValidator<GetPagedOrdersRequest> _pagedOrdersValidator;
+		private readonly IValidator<CreateOrderRequest> _checkoutValidator;
+		private readonly IValidator<CreateInStoreOrderRequest> _checkoutInStoreValidator;
+		private readonly IValidator<PreviewOrderRequest> _previewOrderValidator;
+		private readonly IValidator<UpdateOrderStatusRequest> _updateOrderStatusValidator;
+		private readonly IValidator<UserCancelOrderRequest> _cancelOrderValidator;
+		private readonly IValidator<FulfillOrderRequest> _fulfillOrderValidator;
+		private readonly IValidator<SwapDamagedStockRequest> _swapDamagedStockValidator;
 
-		public OrdersController(IOrderService orderService)
+		public OrdersController(IOrderService orderService, IValidator<UpdateOrderAddressRequest> updateOrderAddressValidator, IValidator<GetPagedOrdersRequest> pagedOrdersValidator, IValidator<CreateOrderRequest> checkoutValidator, IValidator<CreateInStoreOrderRequest> checkoutInStoreValidator, IValidator<PreviewOrderRequest> previewOrderValidator, IValidator<UpdateOrderStatusRequest> updateOrderStatusValidator, IValidator<UserCancelOrderRequest> cancelOrderValidator, IValidator<FulfillOrderRequest> fulfillOrderValidator, IValidator<SwapDamagedStockRequest> swapDamagedStockValidator)
 		{
 			_orderService = orderService;
+			_updateOrderAddressValidator = updateOrderAddressValidator;
+			_pagedOrdersValidator = pagedOrdersValidator;
+			_checkoutValidator = checkoutValidator;
+			_checkoutInStoreValidator = checkoutInStoreValidator;
+			_previewOrderValidator = previewOrderValidator;
+			_updateOrderStatusValidator = updateOrderStatusValidator;
+			_cancelOrderValidator = cancelOrderValidator;
+			_fulfillOrderValidator = fulfillOrderValidator;
+			_swapDamagedStockValidator = swapDamagedStockValidator;
 		}
 
 		#region User Query Operations
@@ -27,6 +46,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<PagedResult<OrderListItem>>>> GetMyOrders([FromQuery] GetPagedOrdersRequest request)
 		{
+			var validation = await ValidateRequestAsync(_pagedOrdersValidator, request);
+			if (validation != null) return validation;
+
 			var userId = GetCurrentUserId();
 			var response = await _orderService.GetOrdersByUserIdAsync(userId, request);
 			return HandleResponse(response);
@@ -41,6 +63,18 @@ namespace PerfumeGPT.API.Controllers
 		{
 			var userId = GetCurrentUserId();
 			var response = await _orderService.GetUserOrderByIdAsync(orderId, userId);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("my-orders/{orderId:guid}/invoice")]
+		[Authorize(Roles = "user")]
+		[ProducesResponseType(typeof(BaseResponse<ReceiptResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<ReceiptResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<ReceiptResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<ReceiptResponse>>> GetMyOrderInvoice([FromRoute] Guid orderId)
+		{
+			var userId = GetCurrentUserId();
+			var response = await _orderService.GetMyInvoiceAsync(orderId, userId);
 			return HandleResponse(response);
 		}
 
@@ -80,6 +114,17 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpGet("{orderId:guid}/invoice")]
+		[Authorize(Roles = "staff,admin")]
+		[ProducesResponseType(typeof(BaseResponse<ReceiptResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<ReceiptResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<ReceiptResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<ReceiptResponse>>> GetOrderInvoice([FromRoute] Guid orderId)
+		{
+			var response = await _orderService.GetInvoiceAsync(orderId);
+			return HandleResponse(response);
+		}
+
 		[HttpGet("staff/{staffId}")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]
@@ -103,7 +148,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> Checkout([FromBody] CreateOrderRequest request)
 		{
-			var validation = ValidateRequestBody<CreateOrderRequest>(request);
+			var validation = await ValidateRequestAsync(_checkoutValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
@@ -119,7 +164,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> CheckoutInStore([FromBody] CreateInStoreOrderRequest request)
 		{
-			var validation = ValidateRequestBody<CreateInStoreOrderRequest>(request);
+			var validation = await ValidateRequestAsync(_checkoutInStoreValidator, request);
 			if (validation != null) return validation;
 
 			var staffId = GetCurrentUserId();
@@ -134,6 +179,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<PreviewOrderResponse>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<PreviewOrderResponse>>> PreviewOrder([FromQuery] PreviewOrderRequest request)
 		{
+			var validation = await ValidateRequestAsync(_previewOrderValidator, request);
+			if (validation != null) return validation;
+
 			var response = await _orderService.PreviewOrder(request);
 			return HandleResponse(response);
 		}
@@ -152,7 +200,7 @@ namespace PerfumeGPT.API.Controllers
 			[FromRoute] Guid orderId,
 			[FromBody] UpdateOrderStatusRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateOrderStatusRequest>(request);
+			var validation = await ValidateRequestAsync(_updateOrderStatusValidator, request);
 			if (validation != null) return validation;
 
 			var staffId = GetCurrentUserId();
@@ -169,7 +217,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> CancelOrder([FromRoute] Guid orderId, [FromBody] UserCancelOrderRequest request)
 		{
-			var validation = ValidateRequestBody<UserCancelOrderRequest>(request);
+			var validation = await ValidateRequestAsync(_cancelOrderValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
@@ -186,7 +234,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateOrderAddress([FromRoute] Guid orderId, [FromBody] UpdateOrderAddressRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateOrderAddressRequest>(request);
+			var validation = await ValidateRequestAsync(_updateOrderAddressValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
@@ -220,7 +268,7 @@ namespace PerfumeGPT.API.Controllers
 			[FromRoute] Guid orderId,
 			[FromBody] FulfillOrderRequest request)
 		{
-			var validation = ValidateRequestBody<FulfillOrderRequest>(request);
+			var validation = await ValidateRequestAsync(_fulfillOrderValidator, request);
 			if (validation != null) return validation;
 
 			var staffId = GetCurrentUserId();
@@ -238,7 +286,7 @@ namespace PerfumeGPT.API.Controllers
 			[FromRoute] Guid orderId,
 			[FromBody] SwapDamagedStockRequest request)
 		{
-			var validation = ValidateRequestBody<SwapDamagedStockRequest>(request);
+			var validation = await ValidateRequestAsync(_swapDamagedStockValidator, request);
 			if (validation != null) return validation;
 
 			var staffId = GetCurrentUserId();

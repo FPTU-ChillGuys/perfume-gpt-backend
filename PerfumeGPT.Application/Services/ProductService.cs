@@ -1,11 +1,9 @@
-using FluentValidation;
-using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Products;
 using PerfumeGPT.Application.Exceptions;
-using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.Services.Helpers;
@@ -17,40 +15,29 @@ namespace PerfumeGPT.Application.Services
 	public class ProductService : IProductService
 	{
 		#region Dependencies
-		private readonly IProductRepository _productRepo;
+		private readonly IUnitOfWork _unitOfWork;
 		private readonly IMediaService _mediaService;
-		private readonly IValidator<CreateProductRequest> _createValidator;
-		private readonly IValidator<UpdateProductRequest> _updateValidator;
 		private readonly MediaBulkActionHelper _helper;
 		private readonly IProductAttributeService _productAttributeService;
 		private readonly ISignalRService _signalRService;
 
 		public ProductService(
-			IProductRepository productRepo,
 			IMediaService mediaService,
-			IValidator<CreateProductRequest> createValidator,
-			IValidator<UpdateProductRequest> updateValidator,
 			MediaBulkActionHelper helper,
 			IProductAttributeService productAttributeService,
-			ISignalRService signalRService)
+			ISignalRService signalRService,
+			IUnitOfWork unitOfWork)
 		{
-			_productRepo = productRepo;
 			_mediaService = mediaService;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 			_helper = helper;
 			_productAttributeService = productAttributeService;
 			_signalRService = signalRService;
+			_unitOfWork = unitOfWork;
 		}
 		#endregion Dependencies
 
 		public async Task<BaseResponse<BulkActionResult<string>>> CreateProductAsync(CreateProductRequest request)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes);
 			if (attributeErrors.Count != 0)
 				throw AppException.BadRequest("Validation failed", attributeErrors);
@@ -71,10 +58,10 @@ namespace PerfumeGPT.Application.Services
 				product.ReplaceScentMaps(
 					request.ScentNotes.Select(n => (n.NoteId, n.Type)));
 
-			_productAttributeService.ApplyAttributesToProductEntity(product, request.Attributes);
+			product.SyncAttributes(request.Attributes?.Select(a => (a.AttributeId, a.ValueId)) ?? []);
 
-			await _productRepo.AddAsync(product);
-			var saved = await _productRepo.SaveChangesAsync();
+			await _unitOfWork.Products.AddAsync(product);
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create product");
 
 			var metadata = new BulkActionMetadata();
@@ -87,7 +74,7 @@ namespace PerfumeGPT.Application.Services
 						BulkOperationResult.FromBulkActionResponse("Media Upload", conversionResult));
 			}
 
-			await _productRepo.IndexProductToElasticsearchAsync(product.Id);
+			await _unitOfWork.Products.IndexProductToElasticsearchAsync(product.Id);
 
 			var result = new BulkActionResult<string>(
 				product.Id.ToString(),
@@ -97,22 +84,13 @@ namespace PerfumeGPT.Application.Services
 				? $"Product created successfully with {metadata.TotalFailed} media upload failure(s)."
 				: "Product created successfully";
 
-			await _signalRService.NotifyProductCreated(product.Id);
-
 			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
 		}
 
 		public async Task<BaseResponse<BulkActionResult<string>>> UpdateProductAsync(Guid productId, UpdateProductRequest request)
 		{
-			var validationResult = await _updateValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
-			var product = await _productRepo.FirstOrDefaultAsync(
-				p => p.Id == productId,
-				include: q => q.Include(x => x.ProductFamilyMaps).Include(x => x.ProductScentMaps))
-				?? throw AppException.NotFound("Product not found");
+			var product = await _unitOfWork.Products.GetProductAggregateForUpdateAsync(productId)
+				 ?? throw AppException.NotFound("Product not found");
 
 			product.EnsureNotDeleted();
 
@@ -156,14 +134,13 @@ namespace PerfumeGPT.Application.Services
 					request.ScentNotes.Select(n => (n.NoteId, n.Type)));
 
 			if (request.Attributes != null)
-				await _productAttributeService.ReplaceAttributesAsync(
-					productId, request.Attributes, isVariant: false);
+				product.SyncAttributes(request.Attributes.Select(a => (a.AttributeId, a.ValueId)));
 
-			_productRepo.Update(product);
-			var saved = await _productRepo.SaveChangesAsync();
+			_unitOfWork.Products.Update(product);
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update product");
 
-			await _productRepo.IndexProductToElasticsearchAsync(productId);
+			await _unitOfWork.Products.IndexProductToElasticsearchAsync(productId);
 
 			var result = new BulkActionResult<string>(
 				productId.ToString(),
@@ -178,19 +155,19 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> DeleteProductAsync(Guid productId)
 		{
-			var product = await _productRepo.GetByIdAsync(productId)
+			var product = await _unitOfWork.Products.GetByIdAsync(productId)
 				?? throw AppException.NotFound("Product not found");
 
 			product.EnsureNotDeleted();
 
-			var hasActiveVariants = await _productRepo.HasActiveVariantsAsync(productId);
+			var hasActiveVariants = await _unitOfWork.Products.HasActiveVariantsAsync(productId);
 			Product.EnsureCanBeDeleted(hasActiveVariants);
 
 			await _productAttributeService.RemoveAttributesByEntityIdAsync(productId, isVariant: false);
 			await _mediaService.DeleteAllMediaByEntityAsync(EntityType.Product, productId);
 
-			_productRepo.Remove(product);
-			var saved = await _productRepo.SaveChangesAsync();
+			_unitOfWork.Products.Remove(product);
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete product");
 
 			return BaseResponse<string>.Ok(productId.ToString(), "Product deleted successfully");
@@ -198,7 +175,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ProductResponse>> GetProductAsync(Guid productId)
 		{
-			var response = await _productRepo.GetProductResponseAsync(productId)
+			var response = await _unitOfWork.Products.GetProductResponseAsync(productId)
 				?? throw AppException.NotFound("Product not found");
 
 			return BaseResponse<ProductResponse>.Ok(response, "Product retrieved successfully");
@@ -206,7 +183,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetProductsAsync(GetPagedProductRequest request)
 		{
-			var (items, totalCount) = await _productRepo.GetPagedProductListItemsAsync(request);
+			var (items, totalCount) = await _unitOfWork.Products.GetPagedProductListItemsAsync(request);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
 				"Products retrieved successfully");
@@ -214,13 +191,13 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<List<ProductLookupItem>>> GetProductLookupListAsync()
 		{
-			var lookupList = await _productRepo.GetProductLookupListAsync();
+			var lookupList = await _unitOfWork.Products.GetProductLookupListAsync();
 			return BaseResponse<List<ProductLookupItem>>.Ok(lookupList, "Product lookup list retrieved successfully");
 		}
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetBestSellerProductsAsync(GetPagedProductRequest request)
 		{
-			var (items, totalCount) = await _productRepo.GetBestSellerProductsAsync(request);
+			var (items, totalCount) = await _unitOfWork.Products.GetBestSellerProductsAsync(request);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
 				"Best seller products retrieved successfully");
@@ -228,7 +205,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetNewArrivalProductsAsync(GetPagedProductRequest request)
 		{
-			var (items, totalCount) = await _productRepo.GetNewArrivalProductsAsync(request);
+			var (items, totalCount) = await _unitOfWork.Products.GetNewArrivalProductsAsync(request);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
 				"New arrival products retrieved successfully");
@@ -236,7 +213,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetCampaignProductsAsync(Guid campaignId, GetPagedProductRequest request)
 		{
-			var (items, totalCount) = await _productRepo.GetCampaignProductsAsync(campaignId, request);
+			var (items, totalCount) = await _unitOfWork.Products.GetCampaignProductsAsync(campaignId, request);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
 				"Campaign products retrieved successfully");
@@ -244,7 +221,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ProductInforResponse>> GetProductInforAsync(Guid productId)
 		{
-			var response = await _productRepo.GetProductInfoAsync(productId)
+			var response = await _unitOfWork.Products.GetProductInfoAsync(productId)
 				?? throw AppException.NotFound("Product not found");
 
 			return BaseResponse<ProductInforResponse>.Ok(
@@ -253,7 +230,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ProductFastLookResponse>> GetProductFastLookAsync(Guid productId)
 		{
-			var response = await _productRepo.GetProductFastLookAsync(productId)
+			var response = await _unitOfWork.Products.GetProductFastLookAsync(productId)
 				?? throw AppException.NotFound("Product not found");
 
 			return BaseResponse<ProductFastLookResponse>.Ok(
@@ -263,7 +240,7 @@ namespace PerfumeGPT.Application.Services
 		#region Media Management
 		public async Task<BaseResponse<List<MediaResponse>>> GetProductImagesAsync(Guid productId)
 		{
-			var exists = await _productRepo.AnyAsync(p => p.Id == productId);
+			var exists = await _unitOfWork.Products.AnyAsync(p => p.Id == productId);
 			if (!exists) throw AppException.NotFound("Product not found");
 
 			return await _mediaService.GetMediaByEntityAsync(EntityType.Product, productId);
@@ -274,7 +251,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<List<ProductDailySaleFigureResponse>>> GetProductDailySaleFiguresAsync(
 		DateOnly date)
 		{
-			var response = await _productRepo.GetProductDailySaleFiguresAsync(date);
+			var response = await _unitOfWork.Products.GetProductDailySaleFiguresAsync(date);
 			return BaseResponse<List<ProductDailySaleFigureResponse>>.Ok(
 				response, "Product daily sale figures retrieved successfully");
 		}
@@ -282,7 +259,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PagedResult<SemanticSearchProductResponse>>> GetSemanticSearchProductAsync(
 			string searchText, GetPagedProductRequest request)
 		{
-			var (items, totalCount) = await _productRepo.GetPagedProductsWithSemanticSearch(searchText, request);
+			var (items, totalCount) = await _unitOfWork.Products.GetPagedProductsWithSemanticSearch(searchText, request);
 			return BaseResponse<PagedResult<SemanticSearchProductResponse>>.Ok(
 				new PagedResult<SemanticSearchProductResponse>(items, request.PageNumber, request.PageSize, totalCount),
 				"Semantic search products retrieved successfully");
@@ -290,13 +267,13 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse> UpdateAllProductsEmbeddingAsync()
 		{
-			await _productRepo.IndexAllProductsToElasticsearchAsync();
+			await _unitOfWork.Products.IndexAllProductsToElasticsearchAsync();
 			return BaseResponse.Ok("All products indexed to Elasticsearch successfully");
 		}
 
 		public async Task<BaseResponse> UpdateProductEmbeddingAsync(Guid productId)
 		{
-			await _productRepo.IndexProductToElasticsearchAsync(productId);
+			await _unitOfWork.Products.IndexProductToElasticsearchAsync(productId);
 			return BaseResponse.Ok("Product indexed to Elasticsearch successfully");
 		}
 		#endregion

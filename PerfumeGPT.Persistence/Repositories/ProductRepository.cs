@@ -40,6 +40,14 @@ namespace PerfumeGPT.Persistence.Repositories
                 .Include(p => p.ProductAttributes)
                 .FirstOrDefaultAsync(p => p.Id == productId);
 
+        public async Task<Product?> GetProductAggregateForUpdateAsync(Guid productId)
+            => await _context.Products
+                .Where(p => !p.IsDeleted && p.Id == productId)
+                .Include(p => p.ProductFamilyMaps)
+                .Include(p => p.ProductScentMaps)
+                .Include(p => p.ProductAttributes)
+                .FirstOrDefaultAsync();
+
         public async Task<bool> HasActiveVariantsAsync(Guid productId)
             => await _context.Products
                 .AnyAsync(p => !p.IsDeleted && p.Id == productId && p.Variants.Any(v => !v.IsDeleted));
@@ -650,6 +658,7 @@ namespace PerfumeGPT.Persistence.Repositories
             => await _context.Products
                 .Where(p => !p.IsDeleted && p.Id == productId)
                 .ProjectToType<ProductInforResponse>()
+                .AsSplitQuery()
                 .AsNoTracking()
                 .FirstOrDefaultAsync();
 
@@ -709,9 +718,6 @@ namespace PerfumeGPT.Persistence.Repositories
 
         #region Search Methods (Elasticsearch)
 
-        /// <summary>Document shape stored in Elasticsearch "products" index.</summary>
-        // ProductDocument moved to Infrastructure namespace
-
         public async Task<(List<SemanticSearchProductResponse> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request)
         {
             if (string.IsNullOrWhiteSpace(searchText))
@@ -722,11 +728,9 @@ namespace PerfumeGPT.Persistence.Repositories
             // --- NEW: Pre-processed Intent Detection (Using ORIGINAL searchText) ---
             int? detectedSize = null;
 
-            // Normalize to NFC for standard comparison
             var normalizedRaw = searchText.Normalize(System.Text.NormalizationForm.FormC).ToLower();
             var noDiacritics = RemoveDiacritics(normalizedRaw).ToLower();
 
-            // 1. Brand Correction Mapping (Proactive Correction)
             var brandTypos = new Dictionary<string, string>
             {
                 { "chanell", "chanel" },
@@ -746,17 +750,14 @@ namespace PerfumeGPT.Persistence.Repositories
                 if (normalizedRaw.Contains(typo.Key))
                 {
                     normalizedRaw = normalizedRaw.Replace(typo.Key, typo.Value);
-                    // Also update the original searchText for the main BM25 search
                     searchText = System.Text.RegularExpressions.Regex.Replace(searchText, typo.Key, typo.Value, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                 }
             }
 
             if (!request.Gender.HasValue)
             {
-                // Robust Unisex Detection (Primary Phrase + Fallback)
                 var unisexPattern = @"(?<=^|\s)(unisex|cho (cả )?(nam (và|&|n) )?nữ|cho (cả )?(nữ (và|&|n) )?nam|cả hai giới|phù hợp cả hai|cho cả nam (lẫn|và) nữ)(?=$|\s)";
 
-                // Diacritic-insensitive check for fallback
                 bool hasMale = System.Text.RegularExpressions.Regex.IsMatch(normalizedRaw, @"(?<=^|\s)(nam|men|con trai|đàn ông)(?=$|\s)")
                                || noDiacritics.Contains(" nam ") || noDiacritics.StartsWith("nam ") || noDiacritics.EndsWith(" nam")
                                || noDiacritics.Contains(" cho nam ");
@@ -779,7 +780,6 @@ namespace PerfumeGPT.Persistence.Repositories
                     request.Gender = Domain.Enums.Gender.Female;
                 }
 
-                // Detect Size (Volume)
                 var sizeMatch = System.Text.RegularExpressions.Regex.Match(normalizedRaw, @"\b(30|50|100|15)0?\s*ml\b");
                 if (sizeMatch.Success)
                 {
@@ -790,17 +790,14 @@ namespace PerfumeGPT.Persistence.Repositories
                 }
             }
 
-            // Dọn dẹp Text Search for Main BM25
             var processedText = searchText.Trim();
 
-            // Detect Price Intent (mới: dưới 3 triệu, trên 2 triệu)
             var priceUnderMatch = System.Text.RegularExpressions.Regex.Match(noDiacritics, @"duoi\s+(\d+)\s*trieu");
             if (priceUnderMatch.Success && !request.ToPrice.HasValue)
             {
                 if (int.TryParse(priceUnderMatch.Groups[1].Value, out int million))
                 {
                     request.ToPrice = (decimal)million * 1000000m;
-                    // Clean up processed text
                     processedText = System.Text.RegularExpressions.Regex.Replace(processedText, @"(?i)\b(dưới|duoi)\s+\d+\s*(triệu|trieu)\b", "").Trim();
                 }
             }
@@ -811,7 +808,6 @@ namespace PerfumeGPT.Persistence.Repositories
                 if (int.TryParse(priceAboveMatch.Groups[1].Value, out int million))
                 {
                     request.FromPrice = (decimal)million * 1000000m;
-                    // Clean up processed text
                     processedText = System.Text.RegularExpressions.Regex.Replace(processedText, @"(?i)\b(trên|tren)\s+\d+\s*(triệu|trieu)\b", "").Trim();
                 }
             }
@@ -821,13 +817,10 @@ namespace PerfumeGPT.Persistence.Repositories
             var defaultOp = Operator.Or;
             var minimumShouldMatch = isOrQuery ? "1" : normalizedTerms.Length <= 2 ? "75%" : normalizedTerms.Length <= 4 ? "67%" : "60%";
 
-            // 2. Sinh Query Vector để thực hiện Hybrid Search (Text + Vector)
             var embeddingService = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
             var embeddings = await embeddingService.GenerateAsync(processedText);
             var queryVectorArray = embeddings.Vector.ToArray();
 
-            // 3. Thực hiện Search (Hybrid: Text + Vector + Filters)
-            var queryDesc = ProductSearchQueryBuilder.BuildQuery(processedText, minimumShouldMatch, defaultOp, request, detectedSize);
             var filterDesc = ProductSearchQueryBuilder.BuildFilterQuery(request);
             var searchDesc = ProductSearchQueryBuilder.BuildSearchQuery(processedText, minimumShouldMatch, defaultOp, detectedSize);
 
@@ -864,7 +857,6 @@ namespace PerfumeGPT.Persistence.Repositories
             if (idsAndScores.Count == 0)
                 return ([], totalCount);
 
-            // Preserve ES ranking order
             var dbItems = await _context.Products
                 .Include(p => p.Brand)
                 .Include(p => p.Category)
@@ -958,13 +950,8 @@ namespace PerfumeGPT.Persistence.Repositories
                 .AsNoTracking()
                 .ToListAsync();
 
-            if (products.Count == 0)
-            {
-                Console.WriteLine("[ES] No products to index.");
-                return;
-            }
+            if (products.Count == 0) return;
 
-            Console.WriteLine($"[ES] Indexing {products.Count} products with embeddings...");
             var embeddingService = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
             var docs = new List<ProductDocument>();
 
@@ -972,45 +959,13 @@ namespace PerfumeGPT.Persistence.Repositories
             {
                 var textToEmbed = $"{p.Name} {p.Brand?.Name} {string.Join(' ', p.ProductScentMaps?.Select(sm => sm.ScentNote?.Name) ?? [])}";
                 var embeddings = await embeddingService.GenerateAsync(textToEmbed);
-
                 var doc = BuildProductDocument(p, embeddings.Vector.ToArray());
                 docs.Add(doc);
-
-                if (docs.Count % 10 == 0)
-                {
-                    Console.WriteLine($"  - Prepared {docs.Count}/{products.Count} documents...");
-                }
             }
 
-            var bulkResponse = await _esClient.BulkAsync(b => b
+            await _esClient.BulkAsync(b => b
                 .Index(IndexName)
                 .IndexMany(docs, (op, doc) => op.Id(doc.Id)));
-
-            if (!bulkResponse.IsValidResponse || bulkResponse.Errors)
-            {
-                var errorDetails = new StringBuilder();
-                errorDetails.AppendLine($"[ES] Bulk operation failed. Valid Response: {bulkResponse.IsValidResponse}, Has Errors: {bulkResponse.Errors}");
-
-                if (bulkResponse.ItemsWithErrors?.Any() == true)
-                {
-                    foreach (var item in bulkResponse.ItemsWithErrors.Take(5))
-                    {
-                        errorDetails.AppendLine($"  - Item ID: {item.Id}, Error: {item.Error?.Type} - {item.Error?.Reason}");
-                    }
-                }
-
-                if (!string.IsNullOrEmpty(bulkResponse.ApiCallDetails?.DebugInformation))
-                {
-                    var debugInfo = bulkResponse.ApiCallDetails.DebugInformation;
-                    errorDetails.AppendLine($"  - Debug: {debugInfo.Substring(0, Math.Min(500, debugInfo.Length))}");
-                }
-
-                var errorMessage = errorDetails.ToString();
-                Console.WriteLine(errorMessage);
-                throw new Exception($"Elasticsearch bulk index failed: {errorMessage}");
-            }
-
-            Console.WriteLine($"[ES] Successfully indexed {docs.Count} products.");
         }
 
         public async Task IndexProductToElasticsearchAsync(Guid productId)
@@ -1091,46 +1046,34 @@ namespace PerfumeGPT.Persistence.Repositories
                     attributes.Add($"{pa.Attribute.Name}: {pa.Value.Value}");
                     attributes.Add(pa.Value.Value);
 
-                    // Xử lý dải tuổi mở rộng
-                    if (pa.Attribute.Name.Contains("tu\u1ed5i", StringComparison.OrdinalIgnoreCase) ||
-                        pa.Value.Value.Contains("tu\u1ed5i", StringComparison.OrdinalIgnoreCase))
+                    if (pa.Attribute.Name.Contains("tuổi", StringComparison.OrdinalIgnoreCase) ||
+                        pa.Value.Value.Contains("tuổi", StringComparison.OrdinalIgnoreCase))
                     {
                         var valStr = pa.Value.Value.ToLower();
-
-                        // Trường hợp "trên X tuổi"
-                        var matchOver = Regex.Match(valStr, @"tr\u00ean\s+(\d+)"); // "trên"
+                        var matchOver = Regex.Match(valStr, @"trên\s+(\d+)");
                         if (matchOver.Success && int.TryParse(matchOver.Groups[1].Value, out int minOver))
                         {
                             for (int i = minOver; i <= 60; i++) attributes.Add($"age_{i}");
                             continue;
                         }
-
-                        // Trường hợp "dưới Y tuổi"
-                        var matchUnder = Regex.Match(valStr, @"d\u01b0\u1edbi\s+(\d+)"); // "dưới"
+                        var matchUnder = Regex.Match(valStr, @"dưới\s+(\d+)");
                         if (matchUnder.Success && int.TryParse(matchUnder.Groups[1].Value, out int maxUnder))
                         {
                             for (int i = 12; i <= maxUnder; i++) attributes.Add($"age_{i}");
                             continue;
                         }
-
-                        // Trường hợp "mọi lứa tuổi"
-                        if (valStr.Contains("m\u1ecdi l\u1ee9a tu\u1ed5i")) // "mọi lứa tuổi"
+                        if (valStr.Contains("mọi lứa tuổi"))
                         {
                             for (int i = 12; i <= 60; i++) attributes.Add($"age_{i}");
                             continue;
                         }
-
-                        // Phân tích dải tuổi (VD: "20-29" hoặc "15-19")
                         var matchRange = Regex.Match(valStr, @"(\d+)\s*[-–]\s*(\d+)");
                         if (matchRange.Success)
                         {
                             if (int.TryParse(matchRange.Groups[1].Value, out int min) &&
                                 int.TryParse(matchRange.Groups[2].Value, out int max))
                             {
-                                for (int i = min; i <= max; i++)
-                                {
-                                    attributes.Add($"age_{i}");
-                                }
+                                for (int i = min; i <= max; i++) attributes.Add($"age_{i}");
                             }
                         }
                     }
@@ -1147,11 +1090,8 @@ namespace PerfumeGPT.Persistence.Repositories
                 foreach (var v in product.Variants)
                 {
                     if (v.Concentration != null) concentrations.Add(v.Concentration.Name);
-
-                    // Thêm prefix cho thể tích để tránh lẫn lộn với tuổi (VD: volume_100)
                     volumes.Add($"volume_{v.VolumeMl}");
                     volumes.Add($"{v.VolumeMl}ml");
-
                     if (!string.IsNullOrEmpty(v.Sku)) skus.Add(v.Sku);
                     if (!string.IsNullOrEmpty(v.Barcode)) barcodes.Add(v.Barcode);
 
@@ -1168,9 +1108,9 @@ namespace PerfumeGPT.Persistence.Repositories
 
             var genderText = product.Gender switch
             {
-                Gender.Male => "Male Nam ng\u01b0\u1eddi nam cho nam",
-                Gender.Female => "Female N\u1eef ng\u01b0\u1eddi n\u1eef cho n\u1eef",
-                Gender.Unisex => "Unisex Nam N\u1eef c\u1ea3 nam v\u00e0 n\u1eef",
+                Gender.Male => "Male Nam người nam cho nam",
+                Gender.Female => "Female Nữ người nữ cho nữ",
+                Gender.Unisex => "Unisex Nam Nữ cả nam và nữ",
                 _ => product.Gender.ToString()
             };
 
@@ -1220,19 +1160,6 @@ namespace PerfumeGPT.Persistence.Repositories
             );
         }
 
-        private void PrintExplanation(string description, float value, IReadOnlyCollection<Elastic.Clients.Elasticsearch.Core.Explain.ExplanationDetail>? details, int indent)
-        {
-            var space = new string(' ', indent * 2);
-            Console.WriteLine($"{space}- {description} | value = {value}");
-
-            if (details != null)
-            {
-                foreach (var d in details)
-                {
-                    PrintExplanation(d.Description, d.Value, d.Details, indent + 1);
-                }
-            }
-        }
         private static string RemoveDiacritics(string text)
         {
             var normalizedString = text.Normalize(System.Text.NormalizationForm.FormD);
@@ -1242,9 +1169,7 @@ namespace PerfumeGPT.Persistence.Repositories
             {
                 var unicodeCategory = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c);
                 if (unicodeCategory != System.Globalization.UnicodeCategory.NonSpacingMark)
-                {
                     stringBuilder.Append(c);
-                }
             }
 
             return stringBuilder.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLower();

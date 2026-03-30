@@ -36,6 +36,9 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.Id, src => src.Id)
 				.Map(dest => dest.Type, src => src.Type)
 				.Map(dest => dest.Status, src => src.Status)
+				.Map(dest => dest.IsReturnable, src => src.Status == OrderStatus.Delivered && src.ShippingInfo != null && src.ShippingInfo.ShippedDate.HasValue
+					? src.ShippingInfo.ShippedDate.Value >= DateTime.UtcNow.AddDays(-7)
+					: (bool?)null)
 				.Map(dest => dest.PaymentStatus, src => src.PaymentStatus)
 				.Map(dest => dest.TotalAmount, src => src.TotalAmount)
 				.Map(dest => dest.VoucherCode, src => src.UserVoucher != null ? src.UserVoucher.Voucher.Code : null)
@@ -59,6 +62,9 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.PaymentStatus, src => src.PaymentStatus)
 				.Map(dest => dest.TotalAmount, src => src.TotalAmount)
 				.Map(dest => dest.ItemCount, src => src.OrderDetails.Count)
+				.Map(dest => dest.IsReturnalbe, src => src.Status == OrderStatus.Delivered && src.ShippingInfo != null && src.ShippingInfo.ShippedDate.HasValue
+					? src.ShippingInfo.ShippedDate.Value >= DateTime.UtcNow.AddDays(-7)
+					: (bool?)null)
 				.Map(dest => dest.ShippingStatus, src => src.ShippingInfo != null ? src.ShippingInfo.Status : (ShippingStatus?)null)
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt)
 				.Map(dest => dest.UpdatedAt, src => src.UpdatedAt);

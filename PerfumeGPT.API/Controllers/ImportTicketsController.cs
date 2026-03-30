@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -14,9 +15,20 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IImportTicketService _importTicketService;
 
-		public ImportTicketsController(IImportTicketService importTicketService)
+		private readonly IValidator<CreateImportTicketRequest> _createImportTicketValidator;
+		private readonly IValidator<VerifyImportTicketRequest> _verifyImportTicketValidator;
+		private readonly IValidator<UpdateImportStatusRequest> _updateImportStatusValidator;
+		private readonly IValidator<UpdateImportRequest> _updateImportValidator;
+		private readonly IValidator<UploadImportTicketFromExcelRequest> _createImportTicketFromExcelValidator;
+
+		public ImportTicketsController(IImportTicketService importTicketService, IValidator<CreateImportTicketRequest> createImportTicketValidator, IValidator<VerifyImportTicketRequest> verifyImportTicketValidator, IValidator<UpdateImportStatusRequest> updateImportStatusValidator, IValidator<UpdateImportRequest> updateImportValidator, IValidator<UploadImportTicketFromExcelRequest> createImportTicketFromExcelValidator)
 		{
 			_importTicketService = importTicketService;
+			_createImportTicketValidator = createImportTicketValidator;
+			_verifyImportTicketValidator = verifyImportTicketValidator;
+			_updateImportStatusValidator = updateImportStatusValidator;
+			_updateImportValidator = updateImportValidator;
+			_createImportTicketFromExcelValidator = createImportTicketFromExcelValidator;
 		}
 
 		[HttpPost]
@@ -27,7 +39,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> CreateImportTicket([FromBody] CreateImportTicketRequest request)
 		{
-			var validation = ValidateRequestBody<CreateImportTicketRequest>(request);
+			var validation = await ValidateRequestAsync(_createImportTicketValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
@@ -43,7 +55,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<CreateImportTicketRequest>>> UploadImportTicketFromExcel([FromForm] UploadImportTicketFromExcelRequest request)
 		{
-			var validation = ValidateRequestBody<UploadImportTicketFromExcelRequest>(request);
+			var validation = await ValidateRequestAsync(_createImportTicketFromExcelValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _importTicketService.UploadImportTicketFromExcelAsync(request);
@@ -74,7 +86,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> VerifyImportTicket([FromRoute] Guid ticketId, [FromBody] VerifyImportTicketRequest request)
 		{
-			var validation = ValidateRequestBody<VerifyImportTicketRequest>(request);
+			var validation = await ValidateRequestAsync(_verifyImportTicketValidator, request);
 			if (validation != null) return validation;
 
 			var verifiedByUserId = GetCurrentUserId();
@@ -109,7 +121,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateImportStatus([FromRoute] Guid id, [FromBody] UpdateImportStatusRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateImportStatusRequest>(request);
+			var validation = await ValidateRequestAsync(_updateImportStatusValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _importTicketService.UpdateImportStatusAsync(id, request);
@@ -124,7 +136,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateImportTicket([FromRoute] Guid id, [FromBody] UpdateImportRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateImportRequest>(request);
+			var validation = await ValidateRequestAsync(_updateImportValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _importTicketService.UpdateImportTicketAsync(id, request);

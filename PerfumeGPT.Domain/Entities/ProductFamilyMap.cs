@@ -25,15 +25,5 @@ namespace PerfumeGPT.Domain.Entities
 				OlfactoryFamilyId = olfactoryFamilyId
 			};
 		}
-
-		public static ProductFamilyMap CreateForProduct(Guid productId, int olfactoryFamilyId)
-		{
-			if (productId == Guid.Empty)
-				throw DomainException.BadRequest("Product ID is required.");
-
-			var map = Create(olfactoryFamilyId);
-			map.ProductId = productId;
-			return map;
-		}
 	}
 }

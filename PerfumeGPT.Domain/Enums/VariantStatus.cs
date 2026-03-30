@@ -4,7 +4,6 @@
 	{
 		Active = 1,
 		Inactive,
-		Discontinued,
-		out_of_stock
+		Discontinued
 	}
 }

@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using PerfumeGPT.Application.DTOs.Requests.Address;
+﻿using PerfumeGPT.Application.DTOs.Requests.Address;
 using PerfumeGPT.Application.DTOs.Responses.Address;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Exceptions;
@@ -13,27 +12,15 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<CreateAddressRequest> _createValidator;
-		private readonly IValidator<UpdateAddressRequest> _updateValidator;
 
-		public AddressService(
-		 IUnitOfWork unitOfWork,
-			IValidator<CreateAddressRequest> validator,
-			IValidator<UpdateAddressRequest> updateValidator)
+		public AddressService(IUnitOfWork unitOfWork)
 		{
 			_unitOfWork = unitOfWork;
-			_createValidator = validator;
-			_updateValidator = updateValidator;
 		}
 		#endregion Dependencies
 
 		public async Task<BaseResponse<string>> CreateAddressAsync(Guid userId, CreateAddressRequest request)
 		{
-			var validationResult = await _createValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var userAddresses = await _unitOfWork.Addresses.GetUserAddresses(userId);
 			var shouldBeDefault = userAddresses.Count == 0 || request.IsDefault;
 
@@ -67,16 +54,11 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateAddressAsync(Guid userId, Guid addressId, UpdateAddressRequest request)
 		{
-			var validationResult = await _updateValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var address = await _unitOfWork.Addresses.GetByIdAsync(addressId)
 				?? throw AppException.NotFound("Address not found");
 
 			address.EnsureOwnedBy(userId);
-			address.UpdateDetails(
+			address.Update(
 				  request.RecipientName,
 				  request.RecipientPhoneNumber,
 				  request.Street,
@@ -100,7 +82,7 @@ namespace PerfumeGPT.Application.Services
 				?? throw AppException.NotFound("Address not found");
 
 			address.EnsureOwnedBy(userId);
-			address.EnsureCanBeDeleted();
+			address.EnsureNotAlreadyDefault();
 
 			_unitOfWork.Addresses.Remove(address);
 			var saved = await _unitOfWork.SaveChangesAsync();

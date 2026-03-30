@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
@@ -33,11 +32,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		#region Pick List Generation
 		public async Task<PickListResponse> GetPickListAsync(Guid orderId)
 		{
-			var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
-				o => o.Id == orderId
-					&& o.PaymentStatus == PaymentStatus.Paid,
-				o => o.Include(o => o.OrderDetails))
-				?? throw AppException.NotFound("Paid order not found.");
+			var order = await _unitOfWork.Orders.GetPaidOrderForPickListAsync(orderId)
+				 ?? throw AppException.NotFound("Paid order not found.");
 
 			if (order.Type != OrderType.Online)
 				throw AppException.BadRequest("Pick list is only available for online orders.");
@@ -103,38 +99,54 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		#region Order Fulfillment
 		public async Task<string> FulfillOrderAsync(Guid orderId, Guid staffId, FulfillOrderRequest request)
 		{
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			   {
-				   // Validate order state
-				   var order = await ValidateOrderForFulfillmentAsync(orderId);
+			Order? orderForGhn = null;
+			RecipientInfo? recipientForGhn = null;
 
-				   // Validate scanned batch codes
-				   var batchValidation = await ValidateScannedBatchCodesAsync(order, request);
-				   if (!batchValidation.Success)
-				   {
-					   throw AppException.BadRequest(batchValidation.Message ?? "Batch validation failed.");
-				   }
+			await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				var order = await ValidateOrderForFulfillmentAsync(orderId);
 
-				   // Commit stock reservation
-				   await _stockReservationService.CommitReservationAsync(order.Id);
+				var batchValidation = await ValidateScannedBatchCodesAsync(order, request);
+				if (!batchValidation.Success)
+					throw AppException.BadRequest(batchValidation.Message ?? "Batch validation failed.");
 
-				   // Update order status
-				   order.SetStatus(OrderStatus.Delivering);
-				   order.SetStaff(staffId);
-				   _unitOfWork.Orders.Update(order);
+				var recipientInfo = await _unitOfWork.RecipientInfos.GetByOrderIdAsync(order.Id);
 
-				   await ProcessShippingAsync(order);
+				await _stockReservationService.CommitReservationAsync(order.Id);
 
-				   return "Order fulfilled successfully. Stock committed and shipping order created.";
-			   });
+				order.SetStatus(OrderStatus.Delivering);
+				order.SetStaff(staffId);
+				_unitOfWork.Orders.Update(order);
+
+				MarkShippingAsDelivering(order);
+
+				orderForGhn = order;
+				recipientForGhn = recipientInfo;
+
+				return true;
+			});
+
+			if (orderForGhn?.ShippingInfo != null && recipientForGhn != null)
+			{
+				var ghnOrderResult = await _shippingHelper.CreateGHNShippingOrderAsync(orderForGhn, recipientForGhn);
+				if (!ghnOrderResult.Success)
+				{
+					return $"Order stock committed locally, BUT failed to create GHN order: {ghnOrderResult.Message}. Please check recipient info and retry GHN sync manually.";
+				}
+
+				await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				{
+					return true;
+				});
+			}
+
+			return "Order fulfilled successfully. Stock committed and GHN shipping order created.";
 		}
 
 		private async Task<Order> ValidateOrderForFulfillmentAsync(Guid orderId)
 		{
-			var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
-			o => o.Id == orderId,
-			o => o.Include(o => o.ShippingInfo).Include(o => o.OrderDetails))
-			?? throw AppException.NotFound("Order not found.");
+			var order = await _unitOfWork.Orders.GetOrderForFulfillmentAsync(orderId)
+			 ?? throw AppException.NotFound("Order not found.");
 
 			if (order.Status != OrderStatus.Processing)
 				throw AppException.BadRequest($"Order must be in Processing status. Current: {order.Status}");
@@ -229,22 +241,12 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			return BaseResponse<bool>.Ok(true);
 		}
 
-		private async Task ProcessShippingAsync(Order order)
+		private void MarkShippingAsDelivering(Order order)
 		{
 			if (order.ShippingInfo != null)
 			{
-                order.ShippingInfo.MarkAsDelivering();
+				order.ShippingInfo.MarkAsDelivering();
 				_unitOfWork.ShippingInfos.Update(order.ShippingInfo);
-
-				var recipientInfo = await _unitOfWork.RecipientInfos.GetByOrderIdAsync(order.Id);
-				if (recipientInfo != null)
-				{
-					var ghnOrderResult = await _shippingHelper.CreateGHNShippingOrderAsync(order, recipientInfo);
-					if (!ghnOrderResult.Success)
-					{
-						Console.WriteLine($"Warning: Failed to create GHN order: {ghnOrderResult.Message}");
-					}
-				}
 			}
 		}
 
@@ -313,10 +315,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 		private async Task<(Order, StockReservation, Batch)> ValidateSwapRequestAsync(Guid orderId, SwapDamagedStockRequest request)
 		{
-			var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
-				o => o.Id == orderId,
-				o => o.Include(o => o.OrderDetails))
-				?? throw AppException.NotFound("Order not found.");
+			var order = await _unitOfWork.Orders.GetOrderForSwapDamagedStockAsync(orderId)
+				 ?? throw AppException.NotFound("Order not found.");
 
 			if (order.Status != OrderStatus.Processing)
 				throw AppException.BadRequest($"Order must be in Processing status.");
@@ -342,20 +342,18 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			int quantity,
 			string? damageNote)
 		{
-           var stockAdjustment = StockAdjustment.Create(
-				staffId,
-				DateTime.UtcNow,
-				StockAdjustmentReason.Damage,
-				damageNote ?? $"Damaged during order picking for Order {orderId}");
+			var stockAdjustment = StockAdjustment.Create(
+				 staffId,
+				 DateTime.UtcNow,
+				 StockAdjustmentReason.Damage,
+				 damageNote ?? $"Damaged during order picking for Order {orderId}");
 
-			var adjustmentDetail = StockAdjustmentDetail.Create(
-				stockAdjustment.Id,
+			stockAdjustment.AddApprovedDetail(
 				variantId,
 				batchId,
 				-quantity,
+				-quantity,
 				damageNote);
-			adjustmentDetail.Approve(-quantity, damageNote);
-			stockAdjustment.AddDetail(adjustmentDetail);
 
 			stockAdjustment.UpdateStatus(StockAdjustmentStatus.InProgress);
 			stockAdjustment.Complete(staffId);

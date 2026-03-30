@@ -1,4 +1,3 @@
-using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Inventory.Batches;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Batches;
@@ -13,13 +12,9 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IValidator<CreateBatchRequest> _createBatchValidator;
 
-		public BatchService(
-			IValidator<CreateBatchRequest> createBatchValidator,
-			IUnitOfWork unitOfWork)
+		public BatchService(IUnitOfWork unitOfWork)
 		{
-			_createBatchValidator = createBatchValidator;
 			_unitOfWork = unitOfWork;
 		}
 		#endregion
@@ -31,11 +26,6 @@ namespace PerfumeGPT.Application.Services
 
 			foreach (var batchRequest in batchRequests)
 			{
-				var validationResult = await _createBatchValidator.ValidateAsync(batchRequest);
-				if (!validationResult.IsValid)
-					throw AppException.BadRequest("Batch validation failed",
-						[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 				var batch = Batch.CreateForImport(
 					variantId,
 					importDetailId,
@@ -105,7 +95,7 @@ namespace PerfumeGPT.Application.Services
 			return response == null ? throw AppException.NotFound("Batch not found") : BaseResponse<BatchDetailResponse>.Ok(response);
 		}
 
-		public async Task<bool> IncreaseBatchQuantityAsync(Guid batchId, int quantity)
+		public async Task IncreaseBatchQuantityAsync(Guid batchId, int quantity)
 		{
 			if (quantity <= 0)
 			{
@@ -123,11 +113,9 @@ namespace PerfumeGPT.Application.Services
 			{
 				await _unitOfWork.Stocks.UpdateStockAsync(variantId.Value);
 			}
-
-			return result;
 		}
 
-		public async Task<bool> DecreaseBatchQuantityAsync(Guid batchId, int quantity)
+		public async Task DecreaseBatchQuantityAsync(Guid batchId, int quantity)
 		{
 			if (quantity <= 0)
 			{
@@ -145,8 +133,6 @@ namespace PerfumeGPT.Application.Services
 			{
 				await _unitOfWork.Stocks.UpdateStockAsync(variantId.Value);
 			}
-
-			return result;
 		}
 	}
 }

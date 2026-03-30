@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
@@ -15,10 +16,15 @@ namespace PerfumeGPT.API.Controllers
 		private readonly ICartService _cartService;
 		private readonly ICartItemService _cartItemService;
 
-		public CartController(ICartService cartService, ICartItemService cartItemService)
+		private readonly IValidator<CreateCartItemRequest> _createCartItemValidator;
+		private readonly IValidator<UpdateCartItemRequest> _updateCartItemValidator;
+
+		public CartController(ICartService cartService, ICartItemService cartItemService, IValidator<CreateCartItemRequest> createCartItemValidator, IValidator<UpdateCartItemRequest> updateCartItemValidator)
 		{
 			_cartService = cartService;
 			_cartItemService = cartItemService;
+			_createCartItemValidator = createCartItemValidator;
+			_updateCartItemValidator = updateCartItemValidator;
 		}
 
 		[HttpGet("items")]
@@ -64,7 +70,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> AddToCartAsync([FromBody] CreateCartItemRequest request)
 		{
-			var validation = ValidateRequestBody<CreateCartItemRequest>(request);
+			var validation = await ValidateRequestAsync(_createCartItemValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
@@ -79,7 +85,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateCartItemAsync([FromRoute] Guid id, [FromBody] UpdateCartItemRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateCartItemRequest>(request);
+			var validation = await ValidateRequestAsync(_updateCartItemValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();

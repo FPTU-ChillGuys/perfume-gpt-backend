@@ -22,6 +22,7 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid? ProductVariantId { get; private set; }
 		public Guid? UserId { get; private set; }
 		public Guid? ReviewId { get; private set; }
+		public Guid? OrderReturnRequestId { get; private set; }
 
 		public Guid EntityId => EntityType switch
 		{
@@ -29,6 +30,7 @@ namespace PerfumeGPT.Domain.Entities
 			EntityType.ProductVariant => ProductVariantId ?? Guid.Empty,
 			EntityType.User => UserId ?? Guid.Empty,
 			EntityType.Review => ReviewId ?? Guid.Empty,
+			EntityType.OrderReturnRequest => OrderReturnRequestId ?? Guid.Empty,
 			_ => Guid.Empty
 		};
 
@@ -37,6 +39,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ProductVariant? ProductVariant { get; set; }
 		public virtual User? User { get; set; }
 		public virtual Review? Review { get; set; }
+		public virtual OrderReturnRequest? OrderReturnRequest { get; set; }
 
 		// ISoftDelete implementation
 		public bool IsDeleted { get; set; }
@@ -132,6 +135,7 @@ namespace PerfumeGPT.Domain.Entities
 				case EntityType.ProductVariant: ProductVariantId = entityId; break;
 				case EntityType.User: UserId = entityId; break;
 				case EntityType.Review: ReviewId = entityId; break;
+				case EntityType.OrderReturnRequest: OrderReturnRequestId = entityId; break;
 			}
 		}
 	}

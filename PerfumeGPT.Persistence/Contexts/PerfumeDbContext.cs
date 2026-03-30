@@ -194,6 +194,8 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<CustomerFamilyPreference> CustomerFamilyPreferences { get; set; }
 		public DbSet<CustomerAttributePreference> CustomerAttributePreferences { get; set; }
 		public DbSet<OrderCancelRequest> OrderCancelRequests { get; set; }
+		public DbSet<OrderReturnRequest> OrderReturnRequests { get; set; }
+		public DbSet<OrderReturnRequestDetail> OrderReturnRequestDetails { get; set; }
 		public DbSet<PromotionItem> Promotions { get; set; }
 		public DbSet<Campaign> Campaigns { get; set; }
 
@@ -620,6 +622,20 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(m => m.ProductVariantId)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			// Media -> OrderReturnRequest (M:1) using OrderReturnRequestId
+			builder.Entity<Media>()
+				.HasOne(m => m.OrderReturnRequest)
+				.WithMany(orr => orr.ProofImages)
+				.HasForeignKey(m => m.OrderReturnRequestId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// Media -> Review (M:1) using ReviewId
+			builder.Entity<Media>()
+				.HasOne(m => m.Review)
+				.WithMany(r => r.ReviewImages)
+				.HasForeignKey(m => m.ReviewId)
+				.OnDelete(DeleteBehavior.Restrict);
+
 			// Attribute -> AttributeValue (1:M)
 			builder.Entity<Attribute>()
 				.HasIndex(a => a.InternalCode)
@@ -715,6 +731,52 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(ocr => ocr.ProcessedById)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			// OrderReturnRequest -> Order (M:1)
+			builder.Entity<OrderReturnRequest>()
+				.HasOne(orr => orr.Order)
+				.WithMany(o => o.ReturnRequests)
+				.HasForeignKey(orr => orr.OrderId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// OrderReturnRequest -> Customer (M:1)
+			builder.Entity<OrderReturnRequest>()
+			 .HasOne(orr => orr.Customer)
+				.WithMany(u => u.CustomerReturnRequests)
+				.HasForeignKey(orr => orr.CustomerId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// OrderReturnRequest -> ProcessedBy (M:1, nullable)
+			builder.Entity<OrderReturnRequest>()
+				.HasOne(orr => orr.ProcessedBy)
+				.WithMany(u => u.ProcessedReturnRequests)
+				.HasForeignKey(orr => orr.ProcessedById)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// OrderReturnRequest -> InspectedBy (M:1, nullable)
+			builder.Entity<OrderReturnRequest>()
+				.HasOne(orr => orr.InspectedBy)
+				.WithMany(u => u.InspectedReturnRequests)
+				.HasForeignKey(orr => orr.InspectedById)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// OrderReturnRequest -> OrderReturnRequestDetail (1:M)
+			builder.Entity<OrderReturnRequest>()
+				.HasMany(orr => orr.ReturnDetails)
+				.WithOne(ord => ord.ReturnRequest)
+				.HasForeignKey(ord => ord.ReturnRequestId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			// OrderDetail -> OrderReturnRequestDetail (1:M)
+			builder.Entity<OrderDetail>()
+				.HasMany(od => od.ReturnRequestDetails)
+				.WithOne(rd => rd.OrderDetail)
+				.HasForeignKey(rd => rd.OrderDetailId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			builder.Entity<OrderReturnRequestDetail>()
+				.HasIndex(rd => new { rd.ReturnRequestId, rd.OrderDetailId })
+				.IsUnique();
+
 			// Campaign -> PromotionItem (1:M)
 			builder.Entity<Campaign>()
 				.HasMany(c => c.Items)
@@ -738,6 +800,9 @@ namespace PerfumeGPT.Persistence.Contexts
 
 			builder.Entity<Media>()
 				.HasIndex(m => new { m.EntityType, m.ReviewId });
+
+			builder.Entity<Media>()
+				.HasIndex(m => new { m.EntityType, m.OrderReturnRequestId });
 
 			builder.Entity<Media>()
 				.HasIndex(m => new { m.EntityType, m.UserId });
@@ -790,6 +855,8 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Voucher>().Property(v => v.MinOrderValue).HasPrecision(18, 2);
 
 			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.RefundAmount).HasPrecision(18, 2);
+			builder.Entity<OrderReturnRequest>().Property(orr => orr.RequestedRefundAmount).HasPrecision(18, 2);
+			builder.Entity<OrderReturnRequest>().Property(orr => orr.ApprovedRefundAmount).HasPrecision(18, 2);
 
 			// Configure enum to string conversions
 			builder.Entity<PaymentTransaction>().Property(pt => pt.TransactionStatus).HasConversion<string>();
@@ -815,6 +882,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<ProductNoteMap>().Property(s => s.NoteType).HasConversion<string>();
 			builder.Entity<LoyaltyTransaction>().Property(lt => lt.TransactionType).HasConversion<string>();
 			builder.Entity<Stock>().Property(s => s.Status).HasConversion<string>();
+			builder.Entity<OrderReturnRequest>().Property(orr => orr.Status).HasConversion<string>();
 			builder.Entity<PromotionItem>().Property(p => p.ItemType).HasConversion<string>();
 			builder.Entity<Campaign>().Property(p => p.Status).HasConversion<string>();
 			builder.Entity<Campaign>().Property(p => p.Type).HasConversion<string>();

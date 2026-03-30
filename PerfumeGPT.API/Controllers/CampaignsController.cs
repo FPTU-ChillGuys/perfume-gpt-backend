@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -16,10 +17,22 @@ namespace PerfumeGPT.API.Controllers
 	public class CampaignsController : BaseApiController
 	{
 		private readonly ICampaignService _campaignService;
+		private readonly IValidator<CreateCampaignRequest> _createCampaignValidator;
+		private readonly IValidator<UpdateCampaignRequest> _updateCampaignValidator;
+		private readonly IValidator<CreateCampaignPromotionItemRequest> _createCampaignPromotionItemValidator;
+		private readonly IValidator<UpdateCampaignPromotionItemRequest> _updateCampaignPromotionItemValidator;
+		private readonly IValidator<CreateCampaignVoucherRequest> _createCampaignVoucherValidator;
+		private readonly IValidator<UpdateCampaignVoucherRequest> _updateCampaignVoucherValidator;
 
-		public CampaignsController(ICampaignService campaignService)
+		public CampaignsController(ICampaignService campaignService, IValidator<CreateCampaignRequest> createCampaignValidator, IValidator<UpdateCampaignRequest> updateCampaignValidator, IValidator<CreateCampaignPromotionItemRequest> createCampaignPromotionItemValidator, IValidator<CreateCampaignVoucherRequest> createCampaignVoucherValidator, IValidator<UpdateCampaignVoucherRequest> updateCampaignVoucherValidator, IValidator<UpdateCampaignPromotionItemRequest> updateCampaignPromotionItemValidator)
 		{
 			_campaignService = campaignService;
+			_createCampaignValidator = createCampaignValidator;
+			_updateCampaignValidator = updateCampaignValidator;
+			_createCampaignPromotionItemValidator = createCampaignPromotionItemValidator;
+			_createCampaignVoucherValidator = createCampaignVoucherValidator;
+			_updateCampaignVoucherValidator = updateCampaignVoucherValidator;
+			_updateCampaignPromotionItemValidator = updateCampaignPromotionItemValidator;
 		}
 
 		[HttpPost]
@@ -30,7 +43,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> CreateCampaign([FromBody] CreateCampaignRequest request)
 		{
-			var validation = ValidateRequestBody<CreateCampaignRequest>(request);
+			var validation = await ValidateRequestAsync(_createCampaignValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _campaignService.CreateCampaignAsync(request);
@@ -92,7 +105,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateCampaign([FromRoute] Guid campaignId, [FromBody] UpdateCampaignRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateCampaignRequest>(request);
+			var validation = await ValidateRequestAsync(_updateCampaignValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _campaignService.UpdateCampaignAsync(campaignId, request);
@@ -118,7 +131,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> AddCampaignItem([FromRoute] Guid id, [FromBody] CreateCampaignPromotionItemRequest request)
 		{
-			var validation = ValidateRequestBody<CreateCampaignPromotionItemRequest>(request);
+			var validation = await ValidateRequestAsync(_createCampaignPromotionItemValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _campaignService.AddCampaignItemAsync(id, request);
@@ -131,9 +144,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UpdateCampaignItem([FromRoute] Guid id, [FromRoute] Guid itemId, [FromBody] CreateCampaignPromotionItemRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> UpdateCampaignItem([FromRoute] Guid id, [FromRoute] Guid itemId, [FromBody] UpdateCampaignPromotionItemRequest request)
 		{
-			var validation = ValidateRequestBody<CreateCampaignPromotionItemRequest>(request);
+			var validation = await ValidateRequestAsync(_updateCampaignPromotionItemValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _campaignService.UpdateCampaignItemAsync(id, itemId, request);
@@ -160,7 +173,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> AddCampaignVoucher([FromRoute] Guid id, [FromBody] CreateCampaignVoucherRequest request)
 		{
-			var validation = ValidateRequestBody<CreateCampaignVoucherRequest>(request);
+			var validation = await ValidateRequestAsync(_createCampaignVoucherValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _campaignService.AddCampaignVoucherAsync(id, request);
@@ -187,7 +200,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateCampaignVoucher([FromRoute] Guid id, [FromRoute] Guid voucherId, [FromBody] UpdateCampaignVoucherRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateCampaignVoucherRequest>(request);
+			var validation = await ValidateRequestAsync(_updateCampaignVoucherValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _campaignService.UpdateCampaignVoucherAsync(id, voucherId, request);

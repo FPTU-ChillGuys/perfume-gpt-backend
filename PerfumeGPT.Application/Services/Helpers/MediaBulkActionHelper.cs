@@ -1,6 +1,7 @@
 ﻿using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
-using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
@@ -9,91 +10,97 @@ namespace PerfumeGPT.Application.Services.Helpers
 	public class MediaBulkActionHelper
 	{
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IMediaService _mediaService;
+		private readonly ISupabaseService _supabaseService;
 
-		public MediaBulkActionHelper(IUnitOfWork unitOfWork, IMediaService mediaService)
+		private static readonly HashSet<EntityType> SupportedEntityTypes =
+		[
+			EntityType.Review,
+			EntityType.Product,
+		   EntityType.ProductVariant,
+			EntityType.OrderReturnRequest
+		];
+
+		public MediaBulkActionHelper(IUnitOfWork unitOfWork, ISupabaseService supabaseService)
 		{
 			_unitOfWork = unitOfWork;
-			_mediaService = mediaService;
+			_supabaseService = supabaseService;
 		}
 
-		private async Task<BulkActionResponse> ProcessBulkActionAsync<T>(
-			List<T> items,
-			Func<T, Task<(bool success, string? errorMessage)>> processItem,
-			bool saveChanges = false)
+		public async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(
+		List<Guid> temporaryMediaIds,
+		EntityType entityType,
+		Guid entityId)
 		{
+			if (!SupportedEntityTypes.Contains(entityType))
+				throw AppException.BadRequest($"Unsupported entity type: {entityType}");
+
 			var response = new BulkActionResponse();
 
-			foreach (var item in items)
+			foreach (var tempMediaId in temporaryMediaIds)
 			{
-				try
-				{
-					var (success, errorMessage) = await processItem(item);
+				var (success, errorMessage) = await ConvertSingleAsync(tempMediaId, entityType, entityId);
 
-					if (success)
-					{
-						response.SucceededIds.Add(GetId(item));
-					}
-					else
-					{
-						response.FailedItems.Add(new BulkActionError
-						{
-							Id = GetId(item),
-							ErrorMessage = errorMessage ?? "Unknown error"
-						});
-					}
-				}
-				catch (Exception ex)
-				{
-					response.FailedItems.Add(new BulkActionError
-					{
-						Id = GetId(item),
-						ErrorMessage = $"Exception during processing: {ex.Message}"
-					});
-				}
+				if (success)
+					response.SucceededIds.Add(tempMediaId);
+				else
+					response.FailedItems.Add(new BulkActionError { Id = tempMediaId, ErrorMessage = errorMessage! });
 			}
 
-			if (saveChanges && response.SucceededIds.Count > 0)
-			{
+			if (response.SucceededIds.Count > 0)
 				await _unitOfWork.SaveChangesAsync();
-			}
 
 			return response;
 		}
 
-		private static Guid GetId<T>(T item) => item switch
+		public async Task<BulkActionResponse> DeleteMultipleMediaAsync(List<Guid> mediaIds)
 		{
-			Guid guid => guid,
-			_ => throw new ArgumentException($"Unsupported type: {typeof(T)}")
-		};
+			var response = new BulkActionResponse();
 
-		public async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(
-			List<Guid> temporaryMediaIds,
-			EntityType entityType,
-			Guid entityId)
-		{
-			return await ProcessBulkActionAsync(
-				temporaryMediaIds,
-				async (tempMediaId) => await ConvertSingleTemporaryMediaAsync(tempMediaId, entityType, entityId),
-				saveChanges: true);
+			foreach (var mediaId in mediaIds)
+			{
+				var media = await _unitOfWork.Media.GetByIdAsync(mediaId);
+				if (media == null || media.IsDeleted)
+				{
+					response.FailedItems.Add(new BulkActionError
+					{
+						Id = mediaId,
+						ErrorMessage = "Media not found."
+					});
+					continue;
+				}
+
+				try
+				{
+					media.EnsureNotPrimary();
+				}
+				catch (Exception ex)
+				{
+					response.FailedItems.Add(new BulkActionError { Id = mediaId, ErrorMessage = ex.Message });
+					continue;
+				}
+
+				if (!string.IsNullOrEmpty(media.PublicId))
+					await _supabaseService.DeleteImageAsync(media.Url, GetBucketName(media.EntityType));
+
+				_unitOfWork.Media.Remove(media);
+				response.SucceededIds.Add(mediaId);
+			}
+
+			if (response.SucceededIds.Count > 0)
+				await _unitOfWork.SaveChangesAsync();
+
+			return response;
 		}
 
-		private async Task<(bool success, string? errorMessage)> ConvertSingleTemporaryMediaAsync(
-			Guid tempMediaId,
-			EntityType entityType,
-			Guid entityId)
+		#region Private Helpers
+		private async Task<(bool Success, string? Error)> ConvertSingleAsync(
+		Guid tempMediaId,
+		EntityType entityType,
+		Guid entityId)
 		{
-			// Get temporary media
 			var tempMedia = await _unitOfWork.TemporaryMedia.GetByIdAsync(tempMediaId);
 			if (tempMedia == null)
-			{
-				return (false, "Temporary media not found");
-			}
-
-			if (entityType is not (EntityType.Review or EntityType.Product or EntityType.ProductVariant))
-			{
-				return (false, $"Unsupported entity type: {entityType}");
-			}
+				return (false, "Temporary media not found.");
 
 			try
 			{
@@ -105,15 +112,10 @@ namespace PerfumeGPT.Application.Services.Helpers
 			}
 
 			var media = Media.CreateForEntity(
-				entityType,
-				entityId,
-				tempMedia.Url,
-				tempMedia.AltText,
-				tempMedia.DisplayOrder,
-				tempMedia.IsPrimary,
-				tempMedia.PublicId,
-				tempMedia.FileSize,
-				tempMedia.MimeType);
+				entityType, entityId,
+				tempMedia.Url, tempMedia.AltText,
+				tempMedia.DisplayOrder, tempMedia.IsPrimary,
+				tempMedia.PublicId, tempMedia.FileSize, tempMedia.MimeType);
 
 			await _unitOfWork.Media.AddAsync(media);
 			_unitOfWork.TemporaryMedia.Remove(tempMedia);
@@ -121,15 +123,15 @@ namespace PerfumeGPT.Application.Services.Helpers
 			return (true, null);
 		}
 
-		public async Task<BulkActionResponse> DeleteMultipleMediaAsync(List<Guid> mediaIds)
+		private static string GetBucketName(EntityType entityType) => entityType switch
 		{
-			return await ProcessBulkActionAsync(
-				mediaIds,
-				async (mediaId) =>
-				{
-					var deleteResult = await _mediaService.DeleteMediaAsync(mediaId);
-					return (deleteResult.Success, deleteResult.Message);
-				});
-		}
+			EntityType.Product => "Products",
+			EntityType.ProductVariant => "ProductVariants",
+			EntityType.User => "ProfileAvatars",
+			EntityType.Review => "Reviews",
+			EntityType.OrderReturnRequest => "OrderReturnRequests",
+			_ => "Products"
+		};
+		#endregion Private Helpers
 	}
 }

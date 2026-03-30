@@ -47,10 +47,18 @@ namespace PerfumeGPT.Domain.Entities
 		}
 
 		// Business logic methods
-		public void AddDetail(StockAdjustmentDetail detail)
+		public StockAdjustmentDetail AddDetail(Guid productVariantId, Guid batchId, int adjustmentQuantity, string? note)
 		{
-			if (detail == null)
-				throw DomainException.BadRequest("Adjustment detail is required.");
+			var detail = StockAdjustmentDetail.Create(productVariantId, batchId, adjustmentQuantity, note);
+			AdjustmentDetails.Add(detail);
+
+			return detail;
+		}
+
+		public void AddApprovedDetail(Guid productVariantId, Guid batchId, int adjustmentQuantity, int approvedQuantity, string? note)
+		{
+			var detail = StockAdjustmentDetail.Create(productVariantId, batchId, adjustmentQuantity, note);
+			detail.Approve(approvedQuantity, note);
 
 			AdjustmentDetails.Add(detail);
 		}
@@ -71,24 +79,43 @@ namespace PerfumeGPT.Domain.Entities
 			Status = StockAdjustmentStatus.Completed;
 		}
 
+		public void Cancel(string? cancelReason = null)
+		{
+			if (Status == StockAdjustmentStatus.Completed || Status == StockAdjustmentStatus.Cancelled)
+				throw DomainException.BadRequest($"Cannot cancel a stock adjustment that is already {Status}.");
+
+			Status = StockAdjustmentStatus.Cancelled;
+
+			if (!string.IsNullOrWhiteSpace(cancelReason))
+			{
+				var formattedReason = cancelReason.Trim();
+				Note = string.IsNullOrWhiteSpace(Note) ? $"Canceled: {formattedReason}" : $"{Note} | Canceled: {formattedReason}";
+			}
+		}
+
 		public void UpdateStatus(StockAdjustmentStatus newStatus)
 		{
-			if (Status == StockAdjustmentStatus.Completed)
-				throw DomainException.BadRequest("Completed stock adjustments cannot have their status updated.");
+			if (Status == newStatus)
+				throw DomainException.BadRequest("Stock adjustment is already in this status.");
 
-			if (Status > newStatus)
-				throw DomainException.BadRequest("Cannot revert stock adjustment to a previous status.");
+			var validTransitions = new Dictionary<StockAdjustmentStatus, List<StockAdjustmentStatus>>
+			{
+				{ StockAdjustmentStatus.Pending, [StockAdjustmentStatus.InProgress, StockAdjustmentStatus.Completed, StockAdjustmentStatus.Cancelled] },
+				{ StockAdjustmentStatus.InProgress, [StockAdjustmentStatus.Completed, StockAdjustmentStatus.Cancelled] },
+				{ StockAdjustmentStatus.Completed, [] },
+				{ StockAdjustmentStatus.Cancelled, [] }
+			};
+
+			if (!(validTransitions.ContainsKey(Status) && validTransitions[Status].Contains(newStatus)))
+				throw DomainException.BadRequest($"Cannot change status from {Status} to {newStatus}.");
 
 			Status = newStatus;
 		}
 
-		public void EnsureDeletable()
+		public void EnsureIsPending()
 		{
-			if (Status == StockAdjustmentStatus.Completed)
-				throw DomainException.BadRequest("Completed stock adjustments cannot be deleted.");
-
-			if (Status == StockAdjustmentStatus.InProgress)
-				throw DomainException.BadRequest("In-progress stock adjustments cannot be deleted.");
+			if (Status != StockAdjustmentStatus.Pending)
+				throw DomainException.BadRequest("Only pending stock adjustments can be deleted.");
 		}
 	}
 }

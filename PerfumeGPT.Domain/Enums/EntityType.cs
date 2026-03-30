@@ -5,6 +5,7 @@ namespace PerfumeGPT.Domain.Enums
 		Product = 1,
 		ProductVariant,
 		User,
-		Review
+		Review,
+		OrderReturnRequest
 	}
 }

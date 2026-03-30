@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -13,10 +14,14 @@ namespace PerfumeGPT.API.Controllers
 	public class VouchersController : BaseApiController
 	{
 		private readonly IVoucherService _voucherService;
+		private readonly IValidator<CreateVoucherRequest> _createValidator;
+		private readonly IValidator<UpdateVoucherRequest> _updateValidator;
 
-		public VouchersController(IVoucherService voucherService)
+		public VouchersController(IVoucherService voucherService, IValidator<CreateVoucherRequest> createValidator, IValidator<UpdateVoucherRequest> updateValidator)
 		{
 			_voucherService = voucherService;
+			_createValidator = createValidator;
+			_updateValidator = updateValidator;
 		}
 
 		#region Admin Endpoints
@@ -29,7 +34,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> CreateVoucher([FromBody] CreateVoucherRequest request)
 		{
-			var validation = ValidateRequestBody<CreateVoucherRequest>(request);
+			var validation = await ValidateRequestAsync(_createValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _voucherService.CreateRegularVoucherAsync(request);
@@ -45,7 +50,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateVoucher(Guid voucherId, [FromBody] UpdateVoucherRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateVoucherRequest>(request);
+			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _voucherService.UpdateVoucherAsync(voucherId, request);

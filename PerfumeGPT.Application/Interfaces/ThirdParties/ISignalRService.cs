@@ -2,7 +2,6 @@
 {
 	public interface ISignalRService
 	{
-		Task NotifyNewOrderToStaff(string orderId, decimal totalAmount);
-		Task NotifyProductCreated(Guid id);
+		Task NotifyNewOrderToStaff(Guid orderId, decimal totalAmount, string message);
 	}
 }

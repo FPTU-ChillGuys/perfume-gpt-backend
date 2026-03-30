@@ -1,10 +1,55 @@
 ﻿using PerfumeGPT.Application.Interfaces.ThirdParties;
+using PerfumeGPT.Application.DTOs.Responses.Orders;
 using System.Net;
+using System.Text;
 
 namespace PerfumeGPT.Infrastructure.ThirdParties
 {
 	public class EmailTemplateService : IEmailTemplateService
 	{
+		public string GetInvoiceTemplate(ReceiptResponse invoice)
+		{
+			var itemsHtml = new StringBuilder();
+			foreach (var item in invoice.Items)
+			{
+				itemsHtml.Append($"""
+                    <tr>
+                    <td style="padding:8px;border:1px solid #e5e7eb;">{WebUtility.HtmlEncode(item.ProductName)}</td>
+                    <td style="padding:8px;border:1px solid #e5e7eb;">{WebUtility.HtmlEncode(item.VariantInfo)}</td>
+                    <td style="padding:8px;border:1px solid #e5e7eb;text-align:right;">{item.Quantity}</td>
+                    <td style="padding:8px;border:1px solid #e5e7eb;text-align:right;">{item.UnitPrice:N0}</td>
+                    <td style="padding:8px;border:1px solid #e5e7eb;text-align:right;">{item.Subtotal:N0}</td>
+                    </tr>
+                    """);
+			}
+
+			return $"""
+                    <!doctype html>
+                    <html>
+                      <head>
+                        <meta charset="utf-8">
+                        <meta name="viewport" content="width=device-width,initial-scale=1">
+                        <title>Invoice {invoice.OrderId}</title>
+                      </head>
+                      <body style="font-family:Arial,Helvetica,sans-serif;background:#f7f7f7;padding:20px;">
+                        <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+                          <table width="700" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;padding:24px;">
+                            <tr><td><h2 style="margin:0 0 12px;">PerfumeGPT Invoice</h2></td></tr>
+                            <tr><td style="padding-bottom:16px;color:#374151;">Order ID: <b>{invoice.OrderId}</b><br/>Date: {invoice.OrderDate:yyyy-MM-dd HH:mm:ss}<br/>Customer: {WebUtility.HtmlEncode(invoice.CustomerName)}<br/>Phone: {WebUtility.HtmlEncode(invoice.RecipientPhone)}<br/>Address: {WebUtility.HtmlEncode(invoice.RecipientAddress)}</td></tr>
+                            <tr><td>
+                              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">
+                                <thead><tr style="background:#f3f4f6;"><th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Product</th><th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Variant</th><th style="padding:8px;border:1px solid #e5e7eb;text-align:right;">Qty</th><th style="padding:8px;border:1px solid #e5e7eb;text-align:right;">Unit Price</th><th style="padding:8px;border:1px solid #e5e7eb;text-align:right;">Subtotal</th></tr></thead>
+                                <tbody>{itemsHtml}</tbody>
+                              </table>
+                            </td></tr>
+                            <tr><td style="padding-top:16px;text-align:right;color:#111827;">Subtotal: <b>{invoice.Subtotal:N0}</b><br/>Discount: <b>{invoice.Discount:N0}</b><br/>Total: <b>{invoice.Total:N0}</b><br/>Payment method: <b>{WebUtility.HtmlEncode(invoice.PaymentMethod)}</b></td></tr>
+                          </table>
+                        </td></tr></table>
+                      </body>
+                    </html>
+                    """;
+		}
+
 		public string GetRegisterTemplate(string username, string verifyUrl)
 		{
 			// Basic HTML email template for registration verification

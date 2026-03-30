@@ -14,10 +14,12 @@ using Microsoft.SemanticKernel;
 using Microsoft.Extensions.AI;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
+using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Infrastructure.BackgroundJobs;
+using PerfumeGPT.Infrastructure.BackgroundJobs.Schedulers;
 using PerfumeGPT.Infrastructure.ThirdParties;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
@@ -90,6 +92,8 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			// Register background job classes
 			services.AddScoped<StockReservationJob>();
 			services.AddScoped<TemporaryMediaCleanupJob>();
+			services.AddScoped<InvoiceEmailJob>();
+			services.AddScoped<IInvoiceEmailJobScheduler, InvoiceEmailJobScheduler>();
 			services.AddHostedService<StartupJobScheduler>();
 
 			// Configure ASP.NET Core Identity using the application's User entity and GUID roles

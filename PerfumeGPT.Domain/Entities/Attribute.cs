@@ -36,7 +36,6 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		// Business logic methods
 		public void Update(string? name, string? description, bool? isVariantLevel)
 		{
 			if (name != null)
@@ -48,12 +47,6 @@ namespace PerfumeGPT.Domain.Entities
 
 			if (description != null) Description = description.Trim();
 			if (isVariantLevel.HasValue) IsVariantLevel = isVariantLevel.Value;
-		}
-
-		public static void EnsureCanBeDeleted(bool isInUse)
-		{
-			if (isInUse)
-				throw DomainException.BadRequest("Attribute is in use and cannot be deleted.");
 		}
 
 		private static string GenerateInternalCode(string name) => name.ToUrlsFriendly().ToUpperInvariant();

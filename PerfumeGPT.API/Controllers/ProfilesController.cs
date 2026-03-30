@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Profiles;
@@ -13,10 +14,12 @@ namespace PerfumeGPT.API.Controllers
 	public class ProfilesController : BaseApiController
 	{
 		private readonly IProfileService _profileService;
+		private readonly IValidator<UpdateProfileRequest> _updateProfileValidator;
 
-		public ProfilesController(IProfileService profileService)
+		public ProfilesController(IProfileService profileService, IValidator<UpdateProfileRequest> updateProfileValidator)
 		{
 			_profileService = profileService;
+			_updateProfileValidator = updateProfileValidator;
 		}
 
 		[HttpGet("me")]
@@ -39,7 +42,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateProfile([FromBody] UpdateProfileRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateProfileRequest>(request);
+			var validation = await ValidateRequestAsync(_updateProfileValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();

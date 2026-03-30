@@ -8,6 +8,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	{
 		Task<List<AttributeValueLookupItem>> GetLookupListByAttributeIdAsync(int attributeId);
 		Task<List<int>> GetExistingIdsAsync(IEnumerable<int> ids);
+        Task<Dictionary<int, int>> GetAttributeMapByValueIdsAsync(IEnumerable<int> valueIds);
 		Task<bool> IsInUseAsync(int valueId);
 	}
 }

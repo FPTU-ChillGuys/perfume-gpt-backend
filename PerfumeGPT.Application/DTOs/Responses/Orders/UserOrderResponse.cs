@@ -7,6 +7,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public Guid Id { get; set; }
 		public OrderType Type { get; set; }
 		public OrderStatus Status { get; set; }
+		public bool IsReturnable { get; set; }
 		public PaymentStatus PaymentStatus { get; set; }
 		public decimal TotalAmount { get; set; }
 		public string? VoucherCode { get; set; }

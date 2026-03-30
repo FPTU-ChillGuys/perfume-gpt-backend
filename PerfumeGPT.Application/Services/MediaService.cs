@@ -1,11 +1,9 @@
-using FluentValidation;
 using MapsterMapper;
 using Microsoft.AspNetCore.Http;
 using PerfumeGPT.Application.DTOs.Requests.Media;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.Exceptions;
-using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
@@ -17,40 +15,28 @@ namespace PerfumeGPT.Application.Services
 	public class MediaService : IMediaService
 	{
 		#region Dependencies
-		private readonly IMediaRepository _mediaRepo;
 		private readonly ISupabaseService _supabaseService;
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IMapper _mapper;
-		private readonly IValidator<ProductUploadMediaRequest> _productUploadValidator;
-		private readonly IValidator<VariantUploadMediaRequest> _variantUploadValidator;
-		private readonly IValidator<ProfileAvtarUploadRequest> _profileAvtarUploadValidator;
 
 		private static readonly string[] AllowedImageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
 		private const long MaxFileSize = 5 * 1024 * 1024; // 5MB
 
 		public MediaService(
-			IMediaRepository mediaRepo,
 			ISupabaseService supabaseService,
 			IUnitOfWork unitOfWork,
-			IMapper mapper,
-			IValidator<ProductUploadMediaRequest> productUploadValidator,
-			IValidator<VariantUploadMediaRequest> variantUploadValidator,
-			IValidator<ProfileAvtarUploadRequest> profileAvtarUploadValidator)
+			IMapper mapper)
 		{
-			_mediaRepo = mediaRepo;
 			_supabaseService = supabaseService;
 			_unitOfWork = unitOfWork;
 			_mapper = mapper;
-			_productUploadValidator = productUploadValidator;
-			_variantUploadValidator = variantUploadValidator;
-			_profileAvtarUploadValidator = profileAvtarUploadValidator;
 		}
 		#endregion Dependencies
 
 		#region Media CRUD
 		public async Task<BaseResponse<List<MediaResponse>>> GetMediaByEntityAsync(EntityType entityType, Guid entityId)
 		{
-			var mediaList = await _mediaRepo.GetMediaByEntityTypeAsync(entityType, entityId);
+			var mediaList = await _unitOfWork.Media.GetMediaByEntityTypeAsync(entityType, entityId);
 			return BaseResponse<List<MediaResponse>>.Ok(
 				_mapper.Map<List<MediaResponse>>(mediaList),
 				"Media retrieved successfully");
@@ -58,7 +44,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<MediaResponse?>> GetPrimaryMediaAsync(EntityType entityType, Guid entityId)
 		{
-			var media = await _mediaRepo.GetPrimaryMediaAsync(entityType, entityId);
+			var media = await _unitOfWork.Media.GetPrimaryMediaAsync(entityType, entityId);
 			return BaseResponse<MediaResponse?>.Ok(
 				media != null ? _mapper.Map<MediaResponse>(media) : null,
 				media != null ? "Primary media retrieved successfully" : "No primary media found");
@@ -66,21 +52,21 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> SetPrimaryMediaAsync(Guid mediaId)
 		{
-			var media = await _mediaRepo.GetByIdAsync(mediaId);
+			var media = await _unitOfWork.Media.GetByIdAsync(mediaId);
 			if (media == null || media.IsDeleted)
 				throw AppException.NotFound("Media not found");
 
-			var existingPrimary = await _mediaRepo.GetPrimaryMediaAsync(media.EntityType, media.EntityId);
+			var existingPrimary = await _unitOfWork.Media.GetPrimaryMediaAsync(media.EntityType, media.EntityId);
 			if (existingPrimary != null && existingPrimary.Id != mediaId)
 			{
 				existingPrimary.UnsetPrimary();
-				_mediaRepo.Update(existingPrimary);
+				_unitOfWork.Media.Update(existingPrimary);
 			}
 
 			media.SetAsPrimary();
-			_mediaRepo.Update(media);
+			_unitOfWork.Media.Update(media);
 
-			var saved = await _mediaRepo.SaveChangesAsync();
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to set primary media");
 
 			return BaseResponse<string>.Ok(mediaId.ToString(), "Primary media set successfully");
@@ -88,7 +74,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> DeleteMediaAsync(Guid mediaId)
 		{
-			var media = await _mediaRepo.GetByIdAsync(mediaId)
+			var media = await _unitOfWork.Media.GetByIdAsync(mediaId)
 				?? throw AppException.NotFound("Media not found");
 
 			media.EnsureNotPrimary();
@@ -98,14 +84,14 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> DeleteAllMediaByEntityAsync(EntityType entityType, Guid entityId)
 		{
-			var mediaList = await _mediaRepo.GetMediaByEntityTypeAsync(entityType, entityId);
+			var mediaList = await _unitOfWork.Media.GetMediaByEntityTypeAsync(entityType, entityId);
 			var bucketName = GetBucketName(entityType);
 
 			foreach (var media in mediaList)
 				await _supabaseService.DeleteImageAsync(media.Url, bucketName);
 
-			var count = await _mediaRepo.DeleteAllMediaByEntityAsync(entityType, entityId);
-			var saved = await _mediaRepo.SaveChangesAsync();
+			var count = await _unitOfWork.Media.DeleteAllMediaByEntityAsync(entityType, entityId);
+			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to delete media");
 
 			return BaseResponse<string>.Ok(count.ToString(), $"{count} media items deleted successfully");
@@ -117,79 +103,66 @@ namespace PerfumeGPT.Application.Services
 		{
 			if (string.IsNullOrWhiteSpace(avatarUrl)) return false;
 
-			var existingMedia = await _mediaRepo.GetPrimaryMediaAsync(EntityType.User, userId);
+			var existingMedia = await _unitOfWork.Media.GetPrimaryMediaAsync(EntityType.User, userId);
 			if (existingMedia != null)
 			{
 				existingMedia.UpdateUrl(avatarUrl.Trim(), null, null, GetMimeTypeFromUrl(avatarUrl), altText);
-				_mediaRepo.Update(existingMedia);
-				return await _mediaRepo.SaveChangesAsync();
+				_unitOfWork.Media.Update(existingMedia);
+				return await _unitOfWork.SaveChangesAsync();
 			}
 
 			var profileMedia = Media.CreateFromUrl(
 				EntityType.User, userId, avatarUrl, altText, GetMimeTypeFromUrl(avatarUrl));
 
-			await _mediaRepo.AddAsync(profileMedia);
-			return await _mediaRepo.SaveChangesAsync();
+			await _unitOfWork.Media.AddAsync(profileMedia);
+			return await _unitOfWork.SaveChangesAsync();
 		}
 
 		public async Task<BaseResponse<string>> UploadProfileAvatarAsync(Guid userId, ProfileAvtarUploadRequest request)
 		{
-			var validationResult = await _profileAvtarUploadValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
+			var existingMedia = await _unitOfWork.Media.GetPrimaryMediaAsync(EntityType.User, userId);
 
-			try
+			if (existingMedia != null && !string.IsNullOrEmpty(existingMedia.PublicId))
+				await _supabaseService.DeleteImageAsync(existingMedia.Url, GetBucketName(EntityType.User));
+
+			using var stream = request.Avatar!.OpenReadStream();
+			var url = await _supabaseService.UploadImageAsync(
+				stream, request.Avatar.FileName, GetBucketName(EntityType.User));
+
+			if (string.IsNullOrEmpty(url))
+				throw AppException.Internal("Failed to upload avatar image");
+
+			if (existingMedia != null)
 			{
-				var existingMedia = await _mediaRepo.GetPrimaryMediaAsync(EntityType.User, userId);
-
-				if (existingMedia != null && !string.IsNullOrEmpty(existingMedia.PublicId))
-					await _supabaseService.DeleteImageAsync(existingMedia.Url, GetBucketName(EntityType.User));
-
-				using var stream = request.Avatar!.OpenReadStream();
-				var url = await _supabaseService.UploadImageAsync(
-					stream, request.Avatar.FileName, GetBucketName(EntityType.User));
-
-				if (string.IsNullOrEmpty(url))
-					throw AppException.Internal("Failed to upload avatar image");
-
-				if (existingMedia != null)
-				{
-					existingMedia.UpdateUrl(
-						url,
-						ExtractFileNameFromUrl(url),
-						request.Avatar.Length,
-						GetMimeType(request.Avatar.FileName),
-						request.AltText);
-					_mediaRepo.Update(existingMedia);
-					await _mediaRepo.SaveChangesAsync();
-					return BaseResponse<string>.Ok(url, "Profile avatar updated successfully");
-				}
-
-				var profileMedia = Media.CreateForEntity(
-					EntityType.User, userId, url,
-					request.AltText ?? "Profile picture",
-					displayOrder: 0, isPrimary: true,
+				existingMedia.UpdateUrl(
+					url,
 					ExtractFileNameFromUrl(url),
 					request.Avatar.Length,
-					GetMimeType(request.Avatar.FileName));
-
-				await _mediaRepo.AddAsync(profileMedia);
-				var saved = await _mediaRepo.SaveChangesAsync();
-				if (!saved) throw AppException.Internal("Failed to save profile avatar");
-
-				return BaseResponse<string>.Ok(url, "Profile avatar uploaded successfully");
+					GetMimeType(request.Avatar.FileName),
+					request.AltText);
+				_unitOfWork.Media.Update(existingMedia);
+				await _unitOfWork.SaveChangesAsync();
+				return BaseResponse<string>.Ok(url, "Profile avatar updated successfully");
 			}
-			catch (AppException) { throw; }
-			catch (Exception ex)
-			{
-				throw AppException.Internal($"Failed to upload profile avatar: {ex.Message}");
-			}
+
+			var profileMedia = Media.CreateForEntity(
+				EntityType.User, userId, url,
+				request.AltText ?? "Profile picture",
+				displayOrder: 0, isPrimary: true,
+				ExtractFileNameFromUrl(url),
+				request.Avatar.Length,
+				GetMimeType(request.Avatar.FileName));
+
+			await _unitOfWork.Media.AddAsync(profileMedia);
+			var saved = await _unitOfWork.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to save profile avatar");
+
+			return BaseResponse<string>.Ok(url, "Profile avatar uploaded successfully");
 		}
 
 		public async Task<BaseResponse<string>> DeleteProfileAvatarAsync(Guid userId)
 		{
-			var existingMedia = await _mediaRepo.GetPrimaryMediaAsync(EntityType.User, userId)
+			var existingMedia = await _unitOfWork.Media.GetPrimaryMediaAsync(EntityType.User, userId)
 				?? throw AppException.NotFound("Profile avatar not found");
 
 			return await DeleteMediaInternalAsync(existingMedia, userId.ToString(), "Profile avatar deleted successfully");
@@ -210,11 +183,6 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadProductTemporaryMediaAsync(
 		Guid? userId, ProductUploadMediaRequest request)
 		{
-			var validationResult = await _productUploadValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var imageRequests = request.Images
 				.Select(r => new ImageUploadItem(r.ImageFile, EntityType.Product, r.DisplayOrder, r.IsPrimary, r.AltText))
 				.ToList();
@@ -225,13 +193,18 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadVariantTemporaryMediaAsync(
 			Guid? userId, VariantUploadMediaRequest request)
 		{
-			var validationResult = await _variantUploadValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed",
-					[.. validationResult.Errors.Select(e => e.ErrorMessage)]);
-
 			var imageRequests = request.Images
 				.Select(r => new ImageUploadItem(r.ImageFile, EntityType.ProductVariant, r.DisplayOrder, r.IsPrimary, r.AltText))
+				.ToList();
+
+			return await UploadTemporaryMediaBulkAsync(userId, imageRequests);
+		}
+
+		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadOrderReturnRequestTemporaryMediaAsync(
+			Guid? userId, OrderReturnRequestUploadMediaRequest request)
+		{
+			var imageRequests = request.Images
+				.Select((file, i) => new ImageUploadItem(file, EntityType.OrderReturnRequest, i, false, null))
 				.ToList();
 
 			return await UploadTemporaryMediaBulkAsync(userId, imageRequests);
@@ -304,22 +277,14 @@ namespace PerfumeGPT.Application.Services
 
 		private async Task<BaseResponse<string>> DeleteMediaInternalAsync(Media media, string successData, string successMessage)
 		{
-			try
-			{
-				if (!string.IsNullOrEmpty(media.PublicId))
-					await _supabaseService.DeleteImageAsync(media.Url, GetBucketName(media.EntityType));
+			if (!string.IsNullOrEmpty(media.PublicId))
+				await _supabaseService.DeleteImageAsync(media.Url, GetBucketName(media.EntityType));
 
-				_mediaRepo.Remove(media);
-				var saved = await _mediaRepo.SaveChangesAsync();
-				if (!saved) throw AppException.Internal("Failed to delete media");
+			_unitOfWork.Media.Remove(media);
+			var saved = await _unitOfWork.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to delete media");
 
-				return BaseResponse<string>.Ok(successData, successMessage);
-			}
-			catch (AppException) { throw; }
-			catch (Exception ex)
-			{
-				throw AppException.Internal($"Failed to delete media: {ex.Message}");
-			}
+			return BaseResponse<string>.Ok(successData, successMessage);
 		}
 
 		private static string GetBucketName(EntityType entityType) => entityType switch
@@ -328,17 +293,14 @@ namespace PerfumeGPT.Application.Services
 			EntityType.ProductVariant => "ProductVariants",
 			EntityType.User => "ProfileAvatars",
 			EntityType.Review => "Reviews",
+			EntityType.OrderReturnRequest => "OrderReturnRequests",
 			_ => "Products"
 		};
 
 		private static string ExtractFileNameFromUrl(string url)
 		{
-			try
-			{
-				var segments = new Uri(url).AbsolutePath.Split('/');
-				return segments.Length > 0 ? segments[^1] : string.Empty;
-			}
-			catch { return string.Empty; }
+			var segments = new Uri(url).AbsolutePath.Split('/');
+			return segments.Length > 0 ? segments[^1] : string.Empty;
 		}
 
 		private static string? GetMimeType(string fileName) =>

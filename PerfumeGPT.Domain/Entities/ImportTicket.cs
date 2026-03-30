@@ -55,13 +55,41 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		// Business ogc methods
+		// Business logc methods
 		public void AddDetail(ImportDetail detail)
 		{
 			if (detail == null)
 				throw DomainException.BadRequest("Import detail is required.");
 
 			ImportDetails.Add(detail);
+		}
+
+		public void UpdateDetail(Guid detailId, Guid variantId, int expectedQuantity, decimal unitPrice)
+		{
+			ImportDetails ??= [];
+			var detail = ImportDetails.FirstOrDefault(d => d.Id == detailId)
+				?? throw DomainException.NotFound($"Import detail with ID {detailId} does not exist in this ticket.");
+
+			detail.UpdateExpected(variantId, expectedQuantity, unitPrice);
+		}
+
+		public void RemoveDetail(Guid detailId)
+		{
+			ImportDetails ??= [];
+			var detail = ImportDetails.FirstOrDefault(d => d.Id == detailId)
+				?? throw DomainException.NotFound($"Import detail with ID {detailId} does not exist in this ticket.");
+
+			ImportDetails.Remove(detail);
+		}
+
+		public void VerifyDetail(Guid detailId, int rejectedQuantity, string? note)
+		{
+			if (Status != ImportStatus.InProgress)
+				throw DomainException.BadRequest("Cannot verify details unless the import ticket is in progress.");
+			ImportDetails ??= [];
+			var detail = ImportDetails.FirstOrDefault(d => d.Id == detailId) ?? throw DomainException.NotFound($"Import detail with ID {detailId} does not exist in this ticket.");
+
+			detail.Verify(rejectedQuantity, note);
 		}
 
 		public void UpdateForPending(int supplierId, DateTime expectedArrivalDate, decimal totalCost)
@@ -98,19 +126,19 @@ namespace PerfumeGPT.Domain.Entities
 			if (Status == ImportStatus.Completed)
 				throw DomainException.BadRequest("Completed import tickets are immutable. Create an adjustment ticket if needed.");
 
-			if (Status == ImportStatus.Canceled)
+			if (Status == ImportStatus.Cancelled)
 				throw DomainException.BadRequest("Cancelled import tickets are read-only.");
 
-			if (Status == ImportStatus.InProgress && newStatus != ImportStatus.Canceled)
+			if (Status == ImportStatus.InProgress && newStatus != ImportStatus.Cancelled)
 				throw DomainException.BadRequest("Import ticket is locked while in progress. Complete verification or cancel it first.");
 
-			if (Status == ImportStatus.Pending && newStatus != ImportStatus.InProgress && newStatus != ImportStatus.Canceled)
+			if (Status == ImportStatus.Pending && newStatus != ImportStatus.InProgress && newStatus != ImportStatus.Cancelled)
 				throw DomainException.BadRequest("Pending tickets can only transition to InProgress or Canceled status.");
 
 			Status = newStatus;
 		}
 
-		public void EnsureDeletable()
+		public void EnsureIsPendingStatus()
 		{
 			if (Status != ImportStatus.Pending)
 				throw DomainException.BadRequest("Only pending import tickets can be deleted.");

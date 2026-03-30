@@ -17,6 +17,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual Order Order { get; set; } = null!;
 		public virtual ProductVariant ProductVariant { get; set; } = null!;
 		public virtual Review? Review { get; set; }
+		public virtual ICollection<OrderReturnRequestDetail> ReturnRequestDetails { get; set; } = [];
 
 		// Factory methods
 		public static OrderDetail Create(Guid variantId, int quantity, decimal unitPrice, string snapshot)

@@ -28,6 +28,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<UserVoucher> MarkVoucherAsReservedAsync(Guid? userId, string? emailOrPhone, Guid voucherId, Guid orderId);
 		Task<bool> MarkVoucherAsUsedAsync(Guid orderId);
 		Task<bool> ReleaseReservedVoucherAsync(Guid orderId);
+		Task<bool> RefundVoucherForCancelledOrderAsync(Guid orderId);
 
 		Task<decimal> CalculateVoucherDiscountAsync(string voucherCode, decimal totalPrice);
 	}

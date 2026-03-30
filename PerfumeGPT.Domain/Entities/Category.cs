@@ -21,6 +21,11 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
+		public void Rename(string name)
+		{
+			Name = NormalizeName(name);
+		}
+
 		// Business logic methods
 		public static string NormalizeName(string name)
 		{
@@ -28,17 +33,6 @@ namespace PerfumeGPT.Domain.Entities
 			if (string.IsNullOrWhiteSpace(normalized))
 				throw DomainException.BadRequest("Category name is required.");
 			return normalized;
-		}
-
-		public void Rename(string name)
-		{
-			Name = NormalizeName(name);
-		}
-
-		public static void EnsureCanBeDeleted(bool hasProducts)
-		{
-			if (hasProducts)
-				throw DomainException.BadRequest("Cannot delete category with associated products.");
 		}
 	}
 }

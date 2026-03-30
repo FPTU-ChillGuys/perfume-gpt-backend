@@ -7,6 +7,21 @@ namespace PerfumeGPT.Domain.Entities
 {
 	public class Campaign : BaseEntity<Guid>, IHasTimestamps, ISoftDelete
 	{
+		public sealed record PromotionItemSyncFactor(
+			Guid? Id,
+			Guid ProductVariantId,
+			Guid? BatchId,
+			PromotionType PromotionType,
+			int? MaxUsage);
+
+		public sealed record VoucherSyncFactor(
+			Guid? Id,
+			string Code,
+			decimal DiscountValue,
+			DiscountType DiscountType,
+			VoucherType ApplyType,
+			PromotionType TargetItemType);
+
 		protected Campaign() { }
 
 		public string Name { get; private set; } = null!;
@@ -46,7 +61,6 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		// Business logic methods
 		public void UpdateInfo(string name, string? description, DateTime startDate, DateTime endDate, CampaignType type)
 		{
 			ValidateName(name);
@@ -70,18 +84,176 @@ namespace PerfumeGPT.Domain.Entities
 			Status = newStatus;
 		}
 
-		public void EnsureUpdatable()
+		public PromotionItem AddPromotionItem(Guid variantId, Guid? batchId, PromotionType type, int? maxUsage)
 		{
-			if (Status == CampaignStatus.Active)
-				throw DomainException.BadRequest("Cannot update an active campaign. Please pause the campaign before updating.");
+			Items ??= [];
+
+			var item = PromotionItem.Create(
+				this.Id,
+				variantId,
+				batchId,
+				type,
+				maxUsage,
+				this.Status == CampaignStatus.Active);
+
+			Items.Add(item);
+			return item;
 		}
 
-		public void EnsureDeletable()
+		public Voucher AddVoucher(string code, decimal discountValue, DiscountType discountType, VoucherType applyType, PromotionType targetItemType)
 		{
-			if (Status == CampaignStatus.Active)
-				throw DomainException.BadRequest("Cannot delete an active campaign. Please pause the campaign before deleting.");
+			Vouchers ??= [];
+
+			var voucher = Voucher.CreateCampaign(
+				code,
+				discountValue,
+				discountType,
+				applyType,
+				targetItemType,
+				this.Id,
+				this.EndDate);
+
+			Vouchers.Add(voucher);
+			return voucher;
 		}
 
+		public void UpdatePromotionItem(Guid itemId, Guid productVariantId, Guid? batchId, PromotionType itemType, int? maxUsage)
+		{
+			if (itemId == Guid.Empty)
+				throw DomainException.BadRequest("Campaign item ID is required.");
+
+			Items ??= [];
+
+			var item = Items.FirstOrDefault(x => x.Id == itemId)
+				?? throw DomainException.NotFound("Campaign item not found.");
+
+			item.UpdateConfiguration(productVariantId, batchId, itemType, maxUsage, Status == CampaignStatus.Active);
+		}
+
+		public void UpdateVoucher(Guid voucherId, string code, decimal discountValue, DiscountType discountType, VoucherType applyType, PromotionType targetItemType)
+		{
+			if (voucherId == Guid.Empty)
+				throw DomainException.BadRequest("Campaign voucher ID is required.");
+
+			Vouchers ??= [];
+
+			var voucher = Vouchers.FirstOrDefault(x => x.Id == voucherId)
+				?? throw DomainException.NotFound("Campaign voucher not found.");
+
+			voucher.UpdateCampaign(code, discountValue, discountType, applyType, targetItemType, Id, EndDate);
+		}
+
+		public void RemovePromotionItem(Guid itemId)
+		{
+			if (itemId == Guid.Empty)
+				throw DomainException.BadRequest("Campaign item ID is required.");
+
+			Items ??= [];
+
+			var item = Items.FirstOrDefault(x => x.Id == itemId)
+				?? throw DomainException.NotFound("Campaign item not found.");
+
+			Items.Remove(item);
+		}
+
+		public void RemoveVoucher(Guid voucherId)
+		{
+			if (voucherId == Guid.Empty)
+				throw DomainException.BadRequest("Campaign voucher ID is required.");
+
+			Vouchers ??= [];
+
+			var voucher = Vouchers.FirstOrDefault(x => x.Id == voucherId)
+				?? throw DomainException.NotFound("Campaign voucher not found.");
+
+			Vouchers.Remove(voucher);
+		}
+
+		public void SyncPromotionItems(IEnumerable<PromotionItemSyncFactor> requestItems, bool isActive)
+		{
+			Items ??= [];
+
+			var requestItemList = requestItems.ToList();
+			var requestItemById = requestItemList
+				.Where(x => x.Id.HasValue && x.Id.Value != Guid.Empty)
+				.ToDictionary(x => x.Id!.Value, x => x);
+			var existingItemsById = Items.ToDictionary(x => x.Id, x => x);
+
+			var itemsToRemove = Items.Where(i => !requestItemById.ContainsKey(i.Id)).ToList();
+			foreach (var item in itemsToRemove)
+			{
+				Items.Remove(item);
+			}
+
+			foreach (var req in requestItemList)
+			{
+				if (req.Id.HasValue
+					 && req.Id.Value != Guid.Empty
+					 && existingItemsById.TryGetValue(req.Id.Value, out var existingItem))
+				{
+					existingItem.UpdateConfiguration(req.ProductVariantId, req.BatchId, req.PromotionType, req.MaxUsage, isActive);
+				}
+				else
+				{
+					AddPromotionItem(req.ProductVariantId, req.BatchId, req.PromotionType, req.MaxUsage);
+				}
+			}
+		}
+
+		public void SyncVouchers(IEnumerable<VoucherSyncFactor> requestVouchers)
+		{
+			Vouchers ??= [];
+
+			var requestVoucherList = requestVouchers.ToList();
+			var requestVoucherById = requestVoucherList
+				.Where(x => x.Id.HasValue && x.Id.Value != Guid.Empty)
+				.ToDictionary(x => x.Id!.Value, x => x);
+			var existingVouchersById = Vouchers.ToDictionary(x => x.Id, x => x);
+
+			// 1. Remove vouchers not present in the request
+			var vouchersToRemove = Vouchers.Where(v => !requestVoucherById.ContainsKey(v.Id)).ToList();
+			foreach (var voucher in vouchersToRemove)
+			{
+				Vouchers.Remove(voucher);
+			}
+
+			// 2. Update existing & add new
+			foreach (var req in requestVoucherList)
+			{
+				if (req.Id.HasValue
+					   && req.Id.Value != Guid.Empty
+					   && existingVouchersById.TryGetValue(req.Id.Value, out var existingVoucher))
+				{
+					existingVoucher.UpdateCampaign(
+						req.Code,
+						req.DiscountValue,
+						req.DiscountType,
+						req.ApplyType,
+						req.TargetItemType,
+						this.Id,
+						this.EndDate);
+				}
+				else
+				{
+					AddVoucher(
+						req.Code,
+						req.DiscountValue,
+						req.DiscountType,
+						req.ApplyType,
+						req.TargetItemType);
+				}
+			}
+		}
+
+		// Business logic methods
+
+		public void EnsureIsNotActive(string action = "modify")
+		{
+			if (Status == CampaignStatus.Active)
+				throw DomainException.BadRequest($"Cannot {action} an active campaign. Please pause the campaign before {action}ing.");
+		}
+
+		// Private helpers
 		private static void ValidateName(string name)
 		{
 			if (string.IsNullOrWhiteSpace(name))

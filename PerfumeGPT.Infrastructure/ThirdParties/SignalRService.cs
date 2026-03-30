@@ -13,16 +13,10 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			_hubContext = hubContext;
 		}
 
-		public async Task NotifyNewOrderToStaff(string orderId, decimal totalAmount)
+		public async Task NotifyNewOrderToStaff(Guid orderId, decimal totalAmount, string message)
 		{
-			await _hubContext.Clients.Group("StaffGroup")
-				.SendAsync("ReceiveAdminNotification", new { orderId, totalAmount });
-		}
-
-		public async Task NotifyProductCreated(Guid id)
-		{
-			await _hubContext.Clients.Group("StaffGroup")
-				.SendAsync("ProductCreated", new { id });
+			await _hubContext.Clients.Groups("StaffGroup", "AdminGroup")
+				 .SendAsync("ReceiveAdminNotification", new { orderId, totalAmount, message });
 		}
 	}
 }

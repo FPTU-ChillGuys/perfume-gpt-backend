@@ -2,7 +2,7 @@ using PerfumeGPT.Application.DTOs.Requests.Inventory;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Inventory;
 using PerfumeGPT.Application.Exceptions;
-using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
 
@@ -11,22 +11,20 @@ namespace PerfumeGPT.Application.Services
 	public class StockService : IStockService
 	{
 		#region Dependencies
-		private readonly IStockRepository _stockRepository;
-		private readonly IBatchRepository _batchRepository;
+		private readonly IUnitOfWork _unitOfWork;
 
-		public StockService(IStockRepository stockRepository, IBatchRepository batchRepository)
+		public StockService(IUnitOfWork unitOfWork)
 		{
-			_stockRepository = stockRepository;
-			_batchRepository = batchRepository;
+			_unitOfWork = unitOfWork;
 		}
 		#endregion Dependencies
 
 		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
-			=> await _stockRepository.HasSufficientStockAsync(variantId, requiredQuantity);
+			=> await _unitOfWork.Stocks.HasSufficientStockAsync(variantId, requiredQuantity);
 
 		public async Task<BaseResponse<PagedResult<StockResponse>>> GetInventoryAsync(GetPagedInventoryRequest request)
 		{
-			var (stockResponses, totalCount) = await _stockRepository.GetPagedInventoryAsync(request);
+			var (stockResponses, totalCount) = await _unitOfWork.Stocks.GetPagedInventoryAsync(request);
 
 			var pagedResult = new PagedResult<StockResponse>(
 				stockResponses,
@@ -40,7 +38,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<StockResponse>> GetStockByVariantIdAsync(Guid variantId)
 		{
-			var response = await _stockRepository.GetStockWithDetailsByVariantIdAsync(variantId)
+			var response = await _unitOfWork.Stocks.GetStockWithDetailsByVariantIdAsync(variantId)
 				?? throw AppException.NotFound($"Stock not found for variant {variantId}");
 
 			return BaseResponse<StockResponse>.Ok(response);
@@ -51,9 +49,9 @@ namespace PerfumeGPT.Application.Services
 			var now = DateTime.UtcNow;
 			var expiringSoonDate = now.AddDays(30);
 
-			var (totalVariants, totalStockQuantity, lowStockVariantsCount) = await _stockRepository.GetInventorySummaryDataAsync();
+			var (totalVariants, totalStockQuantity, lowStockVariantsCount) = await _unitOfWork.Stocks.GetInventorySummaryDataAsync();
 
-			var allBatches = await _batchRepository.GetAllAsync(asNoTracking: true);
+			var allBatches = await _unitOfWork.Batches.GetAllAsync(asNoTracking: true);
 
 			var summary = new InventorySummaryResponse
 			{
@@ -70,14 +68,14 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task InitStockAsync(Guid variantId, int initialQuantity, int lowThreshold)
 		{
-			var exists = await _stockRepository.FirstOrDefaultAsync(s => s.VariantId == variantId);
+			var exists = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
 			if (exists != null)
 			{
 				throw AppException.Conflict($"Stock for variant {variantId} already exists.");
 			}
 
 			var newStock = new Stock(variantId, initialQuantity, lowThreshold);
-			await _stockRepository.AddAsync(newStock);
+			await _unitOfWork.Stocks.AddAsync(newStock);
 		}
 	}
 }

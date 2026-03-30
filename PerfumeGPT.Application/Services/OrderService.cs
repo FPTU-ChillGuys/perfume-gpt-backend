@@ -1,3 +1,4 @@
+using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -17,7 +18,6 @@ namespace PerfumeGPT.Application.Services
 	public class OrderService : IOrderService
 	{
 		#region Dependencies
-
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly ICartService _cartService;
 		private readonly IVariantService _variantService;
@@ -30,6 +30,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IOrderFulfillmentService _fulfillmentService;
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IRecipientService _recipientService;
+		private readonly INotificationService _notificationService;
 		private readonly IAuditScope _auditScope;
 
 		public OrderService(
@@ -43,6 +44,7 @@ namespace PerfumeGPT.Application.Services
 			IOrderDetailsFactory orderDetailsFactory,
 			IStockReservationService stockReservationService,
 			IOrderFulfillmentService fulfillmentService,
+		 INotificationService notificationService,
 			IRecipientService recipientService,
 			IAuditScope auditScope,
 			ILoyaltyTransactionService loyaltyTransactionService)
@@ -57,11 +59,11 @@ namespace PerfumeGPT.Application.Services
 			_orderDetailsFactory = orderDetailsFactory;
 			_stockReservationService = stockReservationService;
 			_fulfillmentService = fulfillmentService;
+			_notificationService = notificationService;
 			_recipientService = recipientService;
 			_auditScope = auditScope;
 			_loyaltyTransactionService = loyaltyTransactionService;
 		}
-
 		#endregion Dependencies
 
 		public async Task<BaseResponse<string>> UpdateOrderAddressAsync(Guid orderId, Guid userId, UpdateOrderAddressRequest request)
@@ -90,8 +92,8 @@ namespace PerfumeGPT.Application.Services
 			   });
 		}
 
-		#region Query Operations
 
+		#region Query Operations
 		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersAsync(GetPagedOrdersRequest request)
 		{
 			var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request);
@@ -126,49 +128,50 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<PagedResult<OrderListItem>>.Ok(pagedResult, "Staff orders retrieved successfully.");
 		}
 
+		public async Task<BaseResponse<ReceiptResponse>> GetInvoiceAsync(Guid orderId)
+		{
+			var invoice = await _unitOfWork.Orders.GetInvoiceAsync(orderId)
+				?? throw AppException.NotFound("Order invoice not found.");
+
+			return BaseResponse<ReceiptResponse>.Ok(invoice, "Order invoice retrieved successfully.");
+		}
 		#endregion Query Operations
 
-		#region User Query Operations
 
+		#region User Query Operations
 		public async Task<BaseResponse<UserOrderResponse>> GetUserOrderByIdAsync(Guid orderId, Guid userId)
 		{
-			try
+			var order = await _unitOfWork.Orders.GetUserOrderWithFullDetailsAsync(orderId, userId);
+			if (order == null)
 			{
-				var order = await _unitOfWork.Orders.GetUserOrderWithFullDetailsAsync(orderId, userId);
-				if (order == null)
-				{
-					return BaseResponse<UserOrderResponse>.Fail("Order not found or does not belong to user.", ResponseErrorType.NotFound);
-				}
-				return BaseResponse<UserOrderResponse>.Ok(order, "Order retrieved successfully.");
+				return BaseResponse<UserOrderResponse>.Fail("Order not found or does not belong to user.", ResponseErrorType.NotFound);
 			}
-			catch (Exception ex)
-			{
-				return BaseResponse<UserOrderResponse>.Fail($"An error occurred while retrieving order: {ex.Message}", ResponseErrorType.InternalError);
-			}
+			return BaseResponse<UserOrderResponse>.Ok(order, "Order retrieved successfully.");
 		}
 
 		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersByUserIdAsync(Guid userId, GetPagedOrdersRequest request)
 		{
-			try
-			{
-				var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request, userId: userId);
+			var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request, userId: userId);
 
-				var pagedResult = new PagedResult<OrderListItem>(
-					orders,
-					request.PageNumber,
-					request.PageSize,
-					totalCount);
+			var pagedResult = new PagedResult<OrderListItem>(
+				orders,
+				request.PageNumber,
+				request.PageSize,
+				totalCount);
 
-				return BaseResponse<PagedResult<OrderListItem>>.Ok(pagedResult, "User orders retrieved successfully.");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<PagedResult<OrderListItem>>.Fail(
-					$"An error occurred while retrieving user orders: {ex.Message}",
-					ResponseErrorType.InternalError);
-			}
+			return BaseResponse<PagedResult<OrderListItem>>.Ok(pagedResult, "User orders retrieved successfully.");
 		}
 
+		public async Task<BaseResponse<ReceiptResponse>> GetMyInvoiceAsync(Guid orderId, Guid userId)
+		{
+			var invoice = await _unitOfWork.Orders.GetUserInvoiceAsync(orderId, userId);
+			if (invoice == null)
+			{
+				return BaseResponse<ReceiptResponse>.Fail("Order invoice not found or does not belong to user.", ResponseErrorType.NotFound);
+			}
+
+			return BaseResponse<ReceiptResponse>.Ok(invoice, "Order invoice retrieved successfully.");
+		}
 		#endregion User Query Operations
 
 		#region Checkout Operations
@@ -199,14 +202,19 @@ namespace PerfumeGPT.Application.Services
 				.Select(item => (item.VariantId, item.Quantity))
 				.ToList();
 
-				var orderDetails = await _orderDetailsFactory.CreateOrderDetailsAsync(itemsToValidate);
+				// Set payment expiration
+				var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
+
+				// Create order and populate details through aggregate methods
+				var order = Order.CreateOnline(userId, cartResponse.TotalPrice, paymentExpiresAt);
+				await _orderDetailsFactory.CreateOrderDetailsAsync(order, itemsToValidate);
 
 				// Validate voucher if provided (with subtotal + cart variant context)
 				VoucherResponse? voucher = null;
 
 				if (!string.IsNullOrEmpty(request.VoucherCode))
 				{
-					var subtotal = orderDetails.Sum(od => od.UnitPrice * od.Quantity);
+					var subtotal = order.OrderDetails.Sum(od => od.UnitPrice * od.Quantity);
 					voucher = await ValidateAndGetVoucherAsync(
 						request.VoucherCode,
 						userId,
@@ -214,9 +222,6 @@ namespace PerfumeGPT.Application.Services
 						subtotal,
 						itemsToValidate.Select(x => x.VariantId));
 				}
-
-				// Set payment expiration
-				var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
 
 				// Recalculate total right before reservation to detect promotion/batch drift
 				var latestTotalResponse = await _cartService.GetCartTotalAsync(userId, getCartTotalRequest);
@@ -226,8 +231,7 @@ namespace PerfumeGPT.Application.Services
 				if (Math.Abs(latestTotalResponse.Payload.TotalPrice - cartResponse.TotalPrice) > 0.0001m)
 					throw AppException.Conflict("Discount no longer matches what you saw. Please refresh cart total and checkout again.");
 
-				// Create order
-				var order = Order.CreateOnline(userId, cartResponse.TotalPrice, paymentExpiresAt, orderDetails);
+				// Persist order
 				await _unitOfWork.Orders.AddAsync(order);
 
 				// Setup shipping if not pickup
@@ -253,6 +257,7 @@ namespace PerfumeGPT.Application.Services
 				await _cartService.ClearCartAsync(userId, request.ItemIds);
 
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order.Id, cartResponse.TotalPrice, request.Payment.Method);
+				await _notificationService.CreateNewOrderNotificationAsync(order.Id, cartResponse.TotalPrice);
 
 				return BaseResponse<string>.Ok(response, "Checkout successful.");
 			});
@@ -263,128 +268,110 @@ namespace PerfumeGPT.Application.Services
 			if (request.OrderDetails.Count == 0)
 				throw AppException.BadRequest("No items in the order.");
 
-			try
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				// Resolve voucher if provided
+				VoucherResponse? voucher = null;
+				if (!string.IsNullOrEmpty(request.VoucherCode))
 				{
-					// Resolve voucher if provided
-					VoucherResponse? voucher = null;
-					if (!string.IsNullOrEmpty(request.VoucherCode))
+					voucher = await _voucherService.GetVoucherByCodeAsync(request.VoucherCode)
+						?? throw AppException.BadRequest("Invalid voucher code.");
+
+					if (voucher.ExpiryDate < DateTime.UtcNow)
+						throw AppException.BadRequest("Voucher has expired.");
+				}
+
+				// Create order details
+				var itemsToValidate = request.OrderDetails
+					.Select(od => (od.VariantId, od.Quantity))
+					.ToList();
+
+				var order = Order.CreateOffline(staffId, 0);
+				await _orderDetailsFactory.CreateOrderDetailsAsync(order, itemsToValidate);
+
+				// Calculate totals
+				decimal subtotal = order.OrderDetails.Sum(od => od.UnitPrice * od.Quantity);
+				decimal totalAmount = subtotal;
+
+				if (voucher != null)
+				{
+					var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(voucher.Code, subtotal);
+					totalAmount = discountedTotal;
+				}
+
+				order.SetTotalAmount(totalAmount);
+
+				// Persist order
+				await _unitOfWork.Orders.AddAsync(order);
+
+				// Mark voucher as reserved and link UserVoucher to order
+				if (voucher != null)
+				{
+					var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(
+						null,
+						request.Recipient?.RecipientPhoneNumber,
+						voucher.Id,
+						order.Id);
+
+					if (markVoucherResult != null)
 					{
-						voucher = await _voucherService.GetVoucherByCodeAsync(request.VoucherCode)
-							?? throw AppException.BadRequest("Invalid voucher code.");
+						var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
+							uv => uv.VoucherId == voucher.Id && uv.OrderId == order.Id);
 
-						if (voucher.ExpiryDate < DateTime.UtcNow)
-							throw AppException.BadRequest("Voucher has expired.");
-					}
-
-					// Create order details
-					var itemsToValidate = request.OrderDetails
-						.Select(od => (od.VariantId, od.Quantity))
-						.ToList();
-
-					var orderDetails = await _orderDetailsFactory.CreateOrderDetailsAsync(itemsToValidate);
-
-					// Calculate totals
-					decimal subtotal = orderDetails.Sum(od => od.UnitPrice * od.Quantity);
-					decimal totalAmount = subtotal;
-
-					if (voucher != null)
-					{
-						var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(voucher.Code, subtotal);
-						totalAmount = discountedTotal;
-					}
-
-					// Create order
-					var order = Order.CreateOffline(staffId, totalAmount, orderDetails);
-					await _unitOfWork.Orders.AddAsync(order);
-
-					// Mark voucher as reserved and link UserVoucher to order
-					if (voucher != null)
-					{
-						var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(
-							null,
-							request.Recipient?.RecipientPhoneNumber,
-							voucher.Id,
-							order.Id);
-
-						if (markVoucherResult != null)
+						if (userVoucher != null)
 						{
-							var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
-								uv => uv.VoucherId == voucher.Id && uv.OrderId == order.Id);
-
-							if (userVoucher != null)
-							{
-								order.AssignVoucher(userVoucher);
-								_unitOfWork.Orders.Update(order);
-							}
+							order.AssignVoucher(userVoucher);
+							_unitOfWork.Orders.Update(order);
 						}
 					}
 
-					// Setup shipping if needed
-					if (!request.IsPickupInStore && request.Recipient != null)
-					{
-						await _shippingHelper.SetupShippingInfoAsync(order.Id, request.Recipient, customerId: null, savedAddressId: null);
+					await _voucherService.MarkVoucherAsUsedAsync(voucher.Id);
+				}
 
-						totalAmount = order.TotalAmount;
-					}
+				// Setup shipping if needed
+				if (!request.IsPickupInStore && request.Recipient != null)
+				{
+					await _shippingHelper.SetupShippingInfoAsync(order.Id, request.Recipient, customerId: null, savedAddressId: null);
 
-					// Deduct inventory immediately for offline orders
-					var deductionResult = await _inventoryManager.DeductInventoryAsync(itemsToValidate);
-					if (!deductionResult)
-						throw AppException.BadRequest("Inventory deduction failed.");
+					totalAmount = order.TotalAmount;
+				}
 
-					var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(
-						order.Id,
-						totalAmount,
-						request.Payment.Method);
+				// Deduct inventory immediately for offline orders
+				var deductionResult = await _inventoryManager.DeductInventoryAsync(itemsToValidate);
+				if (!deductionResult)
+					throw AppException.BadRequest("Inventory deduction failed.");
 
-					return BaseResponse<string>.Ok(response, "In-store checkout successful.");
-				});
-			}
-			catch (AppException)
-			{
-				throw;
-			}
-			catch (Exception ex)
-			{
-				throw AppException.Internal($"An error occurred during in-store checkout: {ex.Message}");
-			}
+				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(
+					order.Id,
+					totalAmount,
+					request.Payment.Method);
+
+				return BaseResponse<string>.Ok(response, "In-store checkout successful.");
+			});
 		}
 
 		public async Task<BaseResponse<PreviewOrderResponse>> PreviewOrder(PreviewOrderRequest request)
 		{
-			try
+			if (request.BarCodes.Count == 0)
+				throw AppException.BadRequest("No items to preview.");
+
+			var items = await BuildPreviewItemsAsync(request.BarCodes);
+			if (!items.Success || items.Payload == null)
+				throw AppException.BadRequest(items.Message!);
+
+			decimal subtotal = items.Payload.Sum(i => i.Total);
+			decimal discount = await CalculateVoucherDiscountAsync(request.VoucherCode, subtotal);
+
+			var response = new PreviewOrderResponse
 			{
-				if (request.BarCodes.Count == 0)
-					throw AppException.BadRequest("No items to preview.");
+				Items = items.Payload,
+				SubTotal = subtotal,
+				ShippingFee = 0,
+				Discount = discount,
+				Total = subtotal + 0 - discount
+			};
 
-				var items = await BuildPreviewItemsAsync(request.BarCodes);
-				if (!items.Success || items.Payload == null)
-					throw AppException.BadRequest(items.Message!);
-
-				decimal subtotal = items.Payload.Sum(i => i.Total);
-				decimal discount = await CalculateVoucherDiscountAsync(request.VoucherCode, subtotal);
-
-				var response = new PreviewOrderResponse
-				{
-					Items = items.Payload,
-					SubTotal = subtotal,
-					ShippingFee = 0,
-					Discount = discount,
-					Total = subtotal + 0 - discount
-				};
-
-				return BaseResponse<PreviewOrderResponse>.Ok(response);
-			}
-			catch (AppException)
-			{
-				throw;
-			}
-			catch (Exception ex)
-			{
-				throw AppException.Internal($"An error occurred while previewing order: {ex.Message}");
-			}
+			return BaseResponse<PreviewOrderResponse>.Ok(response);
 		}
 
 		#endregion Checkout Operations
@@ -399,8 +386,49 @@ namespace PerfumeGPT.Application.Services
 					   ?? throw AppException.NotFound("Order not found.");
 
 				   // Validate offline order restrictions
-				   if (order.Type == OrderType.Offline && request.Status != OrderStatus.Canceled)
+				   if (order.Type == OrderType.Offline && request.Status != OrderStatus.Cancelled)
 					   throw AppException.BadRequest("Offline orders can only be cancelled. Other status updates are not allowed.");
+
+				   var pickListResponse = new PickListResponse();
+
+				   // Handle cancellation first to align refund/no-refund flows
+				   if (request.Status == OrderStatus.Cancelled)
+				   {
+					   var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
+
+					   // Paid cancellation => create cancel request, wait for approval/refund flow
+					   if (isRefundRequired)
+					   {
+						   var hasPendingCancelRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(
+							   x => x.OrderId == order.Id && x.Status == CancelRequestStatus.Pending);
+
+						   if (hasPendingCancelRequest)
+							   throw AppException.BadRequest("A pending cancel request already exists for this order.");
+
+						   var cancelRequest = OrderCancelRequest.Create(
+								order.Id,
+								staffId,
+								request.Note ?? "Staff cancelled order.",
+								true,
+								order.TotalAmount,
+								null,
+								request.Note);
+						   cancelRequest.Order = order;
+						   await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
+
+						   return BaseResponse<PickListResponse>.Ok(pickListResponse, "Cancel request submitted successfully.");
+					   }
+
+					   // staff cancels without refund => direct cancel
+					   await HandleOrderCancellationAsync(order);
+					   order.SetStaff(staffId);
+					   _unitOfWork.Orders.Update(order);
+
+					   var orderType = order.Type == OrderType.Online ? "online" : "in-store";
+					   return BaseResponse<PickListResponse>.Ok(pickListResponse, $"Order status updated to {request.Status} for {orderType} order.");
+				   }
+
+				   // return order handle
 
 				   // Update order status
 				   order.SetStatus(request.Status);
@@ -410,30 +438,10 @@ namespace PerfumeGPT.Application.Services
 				   // Update shipping status
 				   UpdateShippingStatus(order, request.Status);
 
-				   var pickListResponse = new PickListResponse();
-
 				   // Handle Processing status - return pick list
 				   if (request.Status == OrderStatus.Processing && order.Type == OrderType.Online)
 				   {
 					   pickListResponse = await _fulfillmentService.GetPickListAsync(order.Id);
-				   }
-
-				   // Handle cancellation
-				   if (request.Status == OrderStatus.Canceled)
-				   {
-					   await HandleOrderCancellationAsync(order);
-					   var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
-
-					   var cancelRequest = OrderCancelRequest.Create(
-							order.Id,
-							staffId,
-							request.Note ?? "Staff cancelled order.",
-							isRefundRequired,
-							isRefundRequired ? order.TotalAmount : null,
-							null,
-							request.Note);
-					   cancelRequest.Order = order;
-					   await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
 				   }
 
 				   // Handle delivery completion - update loyalty points
@@ -471,22 +479,33 @@ namespace PerfumeGPT.Application.Services
 				   // Validate order type
 				   order.EnsureOnlineOrder();
 
-				   // Validate status
 				   if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Processing)
 					   throw AppException.BadRequest($"Cannot cancel order with status {order.Status}. Only Pending or Processing orders can be cancelled.");
 
-				   if (order.Status == OrderStatus.Canceled)
-					   throw AppException.BadRequest("Order is already cancelled.");
+				   var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
 
-				   // Create OrderCancelRequest
-				   bool isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
+				   // Pending + Unpaid => auto cancel immediately
+				   if (order.Status == OrderStatus.Pending && !isRefundRequired)
+				   {
+					   await HandleOrderCancellationAsync(order);
+					   _unitOfWork.Orders.Update(order);
+
+					   return BaseResponse<string>.Ok("Order cancelled successfully.");
+				   }
+
+				   var hasPendingCancelRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(
+					   x => x.OrderId == order.Id && x.Status == CancelRequestStatus.Pending);
+
+				   if (hasPendingCancelRequest)
+					   throw AppException.BadRequest("A pending cancel request already exists for this order.");
+
 				   var cancelRequest = OrderCancelRequest.Create(
 						order.Id,
 						userId,
 						request.Reason ?? "Customer cancelled order.",
 						isRefundRequired,
-						isRefundRequired ? order.TotalAmount : null,
-						isRefundRequired ? null : userId);
+						isRefundRequired ? order.TotalAmount : null
+						);
 				   cancelRequest.Order = order;
 				   await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
 
@@ -495,15 +514,19 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion
 
-		#region Fulfillment Operations (Delegated)
+		#region Fulfillment Operations
 		public async Task<BaseResponse<PickListResponse>> GetOrderPickListAsync(Guid orderId)
 			=> BaseResponse<PickListResponse>.Ok(await _fulfillmentService.GetPickListAsync(orderId));
 
 		public async Task<BaseResponse<string>> FulfillOrderAsync(Guid orderId, Guid staffId, FulfillOrderRequest request)
-			=> BaseResponse<string>.Ok(await _fulfillmentService.FulfillOrderAsync(orderId, staffId, request));
+		{
+			return BaseResponse<string>.Ok(await _fulfillmentService.FulfillOrderAsync(orderId, staffId, request));
+		}
 
 		public async Task<BaseResponse<SwapDamagedStockResponse>> SwapDamagedStockAsync(Guid orderId, Guid staffId, SwapDamagedStockRequest request)
-			=> BaseResponse<SwapDamagedStockResponse>.Ok(await _fulfillmentService.SwapDamagedStockAsync(orderId, staffId, request));
+		{
+			return BaseResponse<SwapDamagedStockResponse>.Ok(await _fulfillmentService.SwapDamagedStockAsync(orderId, staffId, request));
+		}
 		#endregion Fulfillment Operations
 
 
@@ -596,20 +619,10 @@ namespace PerfumeGPT.Application.Services
 
 		private async Task HandleOrderCancellationAsync(Order order)
 		{
+			order.SetStatus(OrderStatus.Cancelled);
+			UpdateShippingStatus(order, OrderStatus.Cancelled);
 			await _stockReservationService.ReleaseReservationAsync(order.Id);
-			await ReleaseVoucherIfUsedAsync(order);
-		}
-
-		private async Task ReleaseVoucherIfUsedAsync(Order order)
-		{
-			if (!order.UserVoucherId.HasValue || !order.CustomerId.HasValue) return;
-
-			var userVoucher = order.UserVoucher
-				?? await _unitOfWork.UserVouchers.GetByIdAsync(order.UserVoucherId.Value);
-
-			if (userVoucher == null) return;
-
-			await _voucherService.ReleaseReservedVoucherAsync(order.Id);
+			await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
 		}
 
 		private async Task<VoucherResponse> ValidateAndGetVoucherAsync(
@@ -628,6 +641,13 @@ namespace PerfumeGPT.Application.Services
 			if (!voucherValidation) throw AppException.BadRequest("Voucher validation failed.");
 
 			return voucher;
+		}
+
+		private static async Task ValidateRequestAsync<T>(IValidator<T> validator, T request)
+		{
+			var validationResult = await validator.ValidateAsync(request);
+			if (!validationResult.IsValid)
+				throw AppException.BadRequest("Validation failed", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 		}
 		#endregion
 	}

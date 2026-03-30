@@ -8,5 +8,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	{
 		Task<(IEnumerable<Campaign> Items, int TotalCount)> GetPagedCampaignsAsync(GetPagedCampaignsRequest request);
 		Task<IEnumerable<PromotionItem>> GetCampaignItemsAsync(Guid campaignId, bool asNoTracking = true);
+		Task<Campaign?> GetCampaignWithDetailsAsync(Guid campaignId);
 	}
 }

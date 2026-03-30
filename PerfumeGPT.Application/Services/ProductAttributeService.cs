@@ -1,26 +1,17 @@
 ﻿using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
-using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
-using PerfumeGPT.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class ProductAttributeService : IProductAttributeService
 	{
 		#region Dependencies
-		private readonly IAttributeRepository _attributeRepo;
-		private readonly IAttributeValueRepository _attributeValueRepo;
-		private readonly IProductAttributeRepository _productAttributeRepo;
+		private readonly IUnitOfWork _unitOfWork;
 
-		public ProductAttributeService(
-			IAttributeRepository attributeRepo,
-			IAttributeValueRepository attributeValueRepo,
-			IProductAttributeRepository productAttributeRepo)
+		public ProductAttributeService(IUnitOfWork unitOfWork)
 		{
-			_attributeRepo = attributeRepo;
-			_attributeValueRepo = attributeValueRepo;
-			_productAttributeRepo = productAttributeRepo;
+			_unitOfWork = unitOfWork;
 		}
 		#endregion Dependencies
 
@@ -34,14 +25,14 @@ namespace PerfumeGPT.Application.Services
 			var valueIds = attributes.Select(a => a.ValueId).Distinct().ToList();
 
 			// Check existence in batch
-			var existingAttributes = await _attributeRepo.GetExistingIdsAsync(attributeIds);
+			var existingAttributes = await _unitOfWork.Attributes.GetExistingIdsAsync(attributeIds);
 			var missingAttributes = attributeIds.Except(existingAttributes).ToList();
 			if (missingAttributes.Count != 0)
 			{
 				errors.Add($"Attribute(s) not found: {string.Join(", ", missingAttributes)}");
 			}
 
-			var existingValues = await _attributeValueRepo.GetExistingIdsAsync(valueIds);
+			var existingValues = await _unitOfWork.AttributeValues.GetExistingIdsAsync(valueIds);
 			var missingValues = valueIds.Except(existingValues).ToList();
 			if (missingValues.Count != 0)
 			{
@@ -49,7 +40,7 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			// Load attribute entities once for level checks
-			var attributesEntities = await _attributeRepo.GetByIdsAsync(attributeIds);
+			var attributesEntities = await _unitOfWork.Attributes.GetByIdsAsync(attributeIds);
 
 			if (isForVariant)
 			{
@@ -70,16 +61,14 @@ namespace PerfumeGPT.Application.Services
 				}
 			}
 
-			// Fetch attribute values in batch to avoid per-item DB calls
-			var valueEntities = await _attributeValueRepo.Query()
-				.Where(v => valueIds.Contains(v.Id))
-				.ToDictionaryAsync(v => v.Id);
+			var valueAttributeMap = await _unitOfWork.AttributeValues.GetAttributeMapByValueIdsAsync(valueIds);
 
 			// Validate relation between attribute and value and duplicates
 			var seenPairs = new HashSet<(int AttributeId, int ValueId)>();
 			foreach (var attr in attributes)
 			{
-				if (!valueEntities.TryGetValue(attr.ValueId, out var val) || val.AttributeId != attr.AttributeId)
+				if (!valueAttributeMap.TryGetValue(attr.ValueId, out var valueAttributeId)
+					|| valueAttributeId != attr.AttributeId)
 				{
 					errors.Add($"AttributeId {attr.AttributeId} and ValueId {attr.ValueId} mismatch");
 					continue;
@@ -95,61 +84,28 @@ namespace PerfumeGPT.Application.Services
 			return errors;
 		}
 
-		public void ApplyAttributesToProductEntity(Product product, List<ProductAttributeDto>? attributes)
-		{
-			if (attributes == null || attributes.Count == 0) return;
-
-			product.ProductAttributes ??= [];
-			foreach (var a in attributes)
-			{
-				product.ProductAttributes.Add(ProductAttribute.Create(a.AttributeId, a.ValueId));
-			}
-		}
-
-		public void ApplyAttributesToVariantEntity(ProductVariant variant, List<ProductAttributeDto>? attributes)
-		{
-			if (attributes == null || attributes.Count == 0) return;
-
-			variant.ProductAttributes ??= [];
-			foreach (var a in attributes)
-			{
-				variant.ProductAttributes.Add(ProductAttribute.Create(a.AttributeId, a.ValueId));
-			}
-		}
-
 		public async Task ReplaceAttributesAsync(Guid entityId, List<ProductAttributeDto>? attributes, bool isVariant = false)
 		{
-			var existing = isVariant
-				? await _productAttributeRepo.GetByVariantIdAsync(entityId)
-				: await _productAttributeRepo.GetByProductIdAsync(entityId);
+			var attributeData = attributes?.Select(a => (a.AttributeId, a.ValueId)) ?? [];
 
-			if (existing.Count != 0)
+			if (isVariant)
 			{
-				_productAttributeRepo.RemoveRange(existing);
+				var variant = await _unitOfWork.Variants.GetByIdWithAttributesAsync(entityId);
+				if (variant == null) return;
+
+				variant.SyncAttributes(attributeData);
+				return;
 			}
 
-			if (attributes != null && attributes.Count > 0)
-			{
-				var newEntities = attributes
-					 .Select(a => isVariant
-						 ? ProductAttribute.CreateForVariant(entityId, a.AttributeId, a.ValueId)
-						 : ProductAttribute.CreateForProduct(entityId, a.AttributeId, a.ValueId))
-					 .ToList();
+			var product = await _unitOfWork.Products.GetProductByIdWithAttributesAsync(entityId);
+			if (product == null) return;
 
-				await _productAttributeRepo.AddRangeAsync(newEntities);
-			}
+			product.SyncAttributes(attributeData);
 		}
 
 		public async Task RemoveAttributesByEntityIdAsync(Guid entityId, bool isVariant = false)
 		{
-			var existing = isVariant
-				? await _productAttributeRepo.GetByVariantIdAsync(entityId)
-				: await _productAttributeRepo.GetByProductIdAsync(entityId);
-
-			if (existing.Count != 0)
-			{
-				_productAttributeRepo.RemoveRange(existing);
-			}
+			await ReplaceAttributesAsync(entityId, null, isVariant);
 		}
 	}
 }

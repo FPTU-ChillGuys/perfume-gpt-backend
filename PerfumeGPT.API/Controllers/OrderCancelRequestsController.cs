@@ -38,7 +38,8 @@ namespace PerfumeGPT.API.Controllers
 			if (validation != null) return validation;
 
 			var staffId = GetCurrentUserId();
-			var response = await _cancelRequestService.ProcessRequestAsync(id, staffId, request);
+			var userRole = User.IsInRole("admin") ? "admin" : "staff";
+			var response = await _cancelRequestService.ProcessRequestAsync(id, staffId, userRole, request);
 			return HandleResponse(response);
 		}
 	}

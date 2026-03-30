@@ -19,43 +19,21 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IBatchService _batchService;
-		private readonly IValidator<CreateImportTicketRequest> _createImportTicketValidator;
-		private readonly IValidator<VerifyImportTicketRequest> _verifyImportTicketValidator;
-		private readonly IValidator<UpdateImportStatusRequest> _updateImportStatusValidator;
-		private readonly IValidator<UpdateImportRequest> _updateImportValidator;
-		private readonly IValidator<UploadImportTicketFromExcelRequest> _createImportTicketFromExcelValidator;
 		private readonly ExcelTemplateGenerator _excelTemplateGenerator;
 
 		public ImportTicketService(
 			IUnitOfWork unitOfWork,
 			IBatchService batchService,
-			IValidator<CreateImportTicketRequest> createImportTicketValidator,
-			IValidator<VerifyImportTicketRequest> verifyImportTicketValidator,
-			IValidator<UpdateImportStatusRequest> updateImportTicketValidator,
-			IValidator<UpdateImportRequest> updateFullImportTicketValidator,
-			IValidator<UploadImportTicketFromExcelRequest> createImportTicketFromExcelValidator,
 			ExcelTemplateGenerator excelTemplateGenerator)
 		{
 			_unitOfWork = unitOfWork;
 			_batchService = batchService;
-			_createImportTicketValidator = createImportTicketValidator;
-			_verifyImportTicketValidator = verifyImportTicketValidator;
-			_updateImportStatusValidator = updateImportTicketValidator;
-			_updateImportValidator = updateFullImportTicketValidator;
-			_createImportTicketFromExcelValidator = createImportTicketFromExcelValidator;
 			_excelTemplateGenerator = excelTemplateGenerator;
 		}
 		#endregion Dependencies
 
 		public async Task<BaseResponse<string>> CreateImportTicketAsync(CreateImportTicketRequest request, Guid userId)
 		{
-			var validationResult = await _createImportTicketValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var validationErrors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Validation failed", validationErrors);
-			}
-
 			var supplier = await _unitOfWork.Suppliers.GetByIdAsync(request.SupplierId) ?? throw AppException.NotFound("Supplier not found.");
 
 			// Check for duplicate variant IDs in request
@@ -109,13 +87,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<CreateImportTicketRequest>> UploadImportTicketFromExcelAsync(UploadImportTicketFromExcelRequest request)
 		{
-			var validationResult = await _createImportTicketFromExcelValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var requestErrors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Validation failed", requestErrors);
-			}
-
 			// Validate Excel file
 			if (request.ExcelFile == null || request.ExcelFile.Length == 0)
 			{
@@ -246,13 +217,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> VerifyImportTicketAsync(Guid ticketId, VerifyImportTicketRequest request, Guid verifiedByUserId)
 		{
-			var validationResult = await _verifyImportTicketValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Validation failed", errors);
-			}
-
 			var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAsync(ticketId) ?? throw AppException.NotFound("Import ticket not found.");
 
 			if (importTicket.Status != ImportStatus.InProgress)
@@ -294,6 +258,7 @@ namespace PerfumeGPT.Application.Services
 
 			// Build dictionary for O(1) lookup
 			var importDetailLookup = importTicket.ImportDetails.ToDictionary(d => d.Id);
+			var mergedBatchesByDetailId = new Dictionary<Guid, List<CreateBatchRequest>>();
 
 			// Validate all import details and collect errors
 			var validationErrors = new List<string>();
@@ -329,6 +294,7 @@ namespace PerfumeGPT.Application.Services
 				else
 				{
 					var mergedBatches = MergeBatchesBySameCode(verifyDetail.Batches);
+					mergedBatchesByDetailId[verifyDetail.ImportDetailId] = mergedBatches;
 
 					foreach (var batchRequest in mergedBatches)
 					{
@@ -365,12 +331,12 @@ namespace PerfumeGPT.Application.Services
 					var acceptedQuantity = importDetail.ExpectedQuantity - verifyDetail.RejectedQuantity;
 
 					// Update import detail with reject quantity and note
-					importDetail.Verify(verifyDetail.RejectedQuantity, verifyDetail.Note);
+					importTicket.VerifyDetail(verifyDetail.ImportDetailId, verifyDetail.RejectedQuantity, verifyDetail.Note);
 					_unitOfWork.ImportDetails.Update(importDetail);
 
 					if (acceptedQuantity > 0)
 					{
-						var mergedBatches = MergeBatchesBySameCode(verifyDetail.Batches);
+						var mergedBatches = mergedBatchesByDetailId[verifyDetail.ImportDetailId];
 
 						await _batchService.CreateBatchesAsync(
 							importDetail.ProductVariantId,
@@ -411,13 +377,6 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateImportStatusAsync(Guid id, UpdateImportStatusRequest request)
 		{
-			var validationResult = await _updateImportStatusValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Validation failed", errors);
-			}
-
 			var importTicket = await _unitOfWork.ImportTickets.GetByIdAsync(id) ?? throw AppException.NotFound("Import ticket not found.");
 			importTicket.UpdateStatus(request.Status);
 			_unitOfWork.ImportTickets.Update(importTicket);
@@ -429,17 +388,14 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateImportTicketAsync(Guid id, UpdateImportRequest request)
 		{
-			var validationResult = await _updateImportValidator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				throw AppException.BadRequest("Validation failed", errors);
-			}
+			_ = await _unitOfWork.Suppliers.GetByIdAsync(request.SupplierId) ?? throw AppException.NotFound("Supplier not found.");
 
-			var supplier = await _unitOfWork.Suppliers.GetByIdAsync(request.SupplierId) ?? throw AppException.NotFound("Supplier not found.");
-			foreach (var detail in request.ImportDetails)
+			var requestedVariantIds = request.ImportDetails.Select(d => d.VariantId).Distinct().ToList();
+			var existingVariantIds = await _unitOfWork.Variants.GetExistingIdsAsync(requestedVariantIds);
+			var missingVariantIds = requestedVariantIds.Except(existingVariantIds).ToList();
+			if (missingVariantIds.Count != 0)
 			{
-				var variant = await _unitOfWork.Variants.GetByIdAsync(detail.VariantId) ?? throw AppException.NotFound($"Variant with ID {detail.VariantId} not found.");
+				throw AppException.NotFound($"Variants not found: {string.Join(", ", missingVariantIds)}");
 			}
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
@@ -462,13 +418,23 @@ namespace PerfumeGPT.Application.Services
 				var totalCost = request.ImportDetails.Sum(d => d.ExpectedQuantity * d.UnitPrice);
 				importTicket.UpdateForPending(request.SupplierId, request.ExpectedArrivalDate, totalCost);
 
-				var requestDetailIds = request.ImportDetails.Where(d => d.Id.HasValue).Select(d => d.Id!.Value).ToList();
+				var requestDetailIds = request.ImportDetails
+					 .Where(d => d.Id.HasValue)
+					 .Select(d => d.Id!.Value)
+					 .ToHashSet();
+
+				var ticketDetailIds = importTicket.ImportDetails.Select(d => d.Id).ToHashSet();
+				var unknownDetailIds = requestDetailIds.Except(ticketDetailIds).ToList();
+				if (unknownDetailIds.Count != 0)
+				{
+					throw AppException.BadRequest($"Unknown import detail IDs in request: {string.Join(", ", unknownDetailIds)}");
+				}
 
 				// Remove details that are not in the request
 				var detailsToRemove = importTicket.ImportDetails.Where(d => !requestDetailIds.Contains(d.Id)).ToList();
 				foreach (var detail in detailsToRemove)
 				{
-					_unitOfWork.ImportDetails.Remove(detail);
+					importTicket.RemoveDetail(detail.Id);
 				}
 
 				// Update existing and add new details
@@ -476,16 +442,11 @@ namespace PerfumeGPT.Application.Services
 				{
 					if (detailRequest.Id.HasValue)
 					{
-						// Update existing detail
-						var existingDetail = importTicket.ImportDetails.FirstOrDefault(d => d.Id == detailRequest.Id.Value);
-						if (existingDetail != null)
-						{
-							existingDetail.UpdateExpected(
-									  detailRequest.VariantId,
-									  detailRequest.ExpectedQuantity,
-									  detailRequest.UnitPrice);
-							_unitOfWork.ImportDetails.Update(existingDetail);
-						}
+						importTicket.UpdateDetail(
+							 detailRequest.Id.Value,
+							 detailRequest.VariantId,
+							 detailRequest.ExpectedQuantity,
+							 detailRequest.UnitPrice);
 					}
 					else
 					{
@@ -494,7 +455,6 @@ namespace PerfumeGPT.Application.Services
 							detailRequest.ExpectedQuantity,
 							detailRequest.UnitPrice);
 						importTicket.AddDetail(newDetail);
-						await _unitOfWork.ImportDetails.AddAsync(newDetail);
 					}
 				}
 
@@ -509,7 +469,7 @@ namespace PerfumeGPT.Application.Services
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAndBatchesAsync(id) ?? throw AppException.NotFound("Import ticket not found.");
-				importTicket.EnsureDeletable();
+				importTicket.EnsureIsPendingStatus();
 
 				foreach (var detail in importTicket.ImportDetails)
 				{
@@ -555,7 +515,7 @@ namespace PerfumeGPT.Application.Services
 			return groupedBatches;
 		}
 
-		private bool IsTotalQuantityValid(List<CreateBatchRequest> batchRequests, int expectedTotalQuantity)
+		private static bool IsTotalQuantityValid(List<CreateBatchRequest> batchRequests, int expectedTotalQuantity)
 		{
 			if (batchRequests == null || batchRequests.Count == 0)
 				return false;

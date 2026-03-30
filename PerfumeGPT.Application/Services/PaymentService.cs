@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
+using PerfumeGPT.Application.DTOs.Requests.Payments;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.VNPays;
@@ -19,21 +21,27 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IVoucherService _voucherService;
+		private readonly IInvoiceEmailJobScheduler _invoiceEmailJobScheduler;
+		private readonly ILogger<PaymentService> _logger;
 
 		public PaymentService(
 			IVnPayService vnPayService,
 			IUnitOfWork unitOfWork,
 			IHttpContextAccessor httpContextAccessor,
-			IVoucherService voucherService)
+			IVoucherService voucherService,
+			IInvoiceEmailJobScheduler invoiceEmailJobScheduler,
+			ILogger<PaymentService> logger)
 		{
 			_vnPayService = vnPayService;
 			_unitOfWork = unitOfWork;
 			_httpContextAccessor = httpContextAccessor;
 			_voucherService = voucherService;
+			_invoiceEmailJobScheduler = invoiceEmailJobScheduler;
+			_logger = logger;
 		}
 		#endregion Dependencies
 
-		public async Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, bool isSuccess, string? failureReason = null)
+		public async Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, ConfirmPaymentRequest request)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			   {
@@ -48,9 +56,9 @@ namespace PerfumeGPT.Application.Services
 				   var order = await _unitOfWork.Orders.GetByIdAsync(payment.OrderId)
 					   ?? throw AppException.NotFound("Order not found.");
 
-				   return isSuccess
+				   return request.IsSuccess
 					   ? await CompleteSuccessfulPayment(payment, order)
-					   : await HandleFailedPayment(payment, order, failureReason);
+					   : await HandleFailedPayment(payment, order, request.failureReason);
 			   });
 		}
 
@@ -66,49 +74,21 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		// VnPay methods
-		public async Task<BaseResponse<VnPayReturnResponse>> GetVnPayReturnResponseAsync(IQueryCollection queryParameters)
+		public async Task<VnPayReturnResponse> ProcessVnPayReturnAsync(IQueryCollection queryParameters)
 		{
-			var vnPayResponse = _vnPayService.GetPaymentResponseAsync(queryParameters);
-			if (vnPayResponse == null || vnPayResponse.PaymentId == Guid.Empty)
-			{
-				throw AppException.BadRequest("Invalid VNPay response.");
-			}
-
-			var payment = await _unitOfWork.Payments.GetByIdAsync(vnPayResponse.PaymentId)
-				   ?? throw AppException.NotFound("Payment record not found.");
-
-			var orderId = payment.OrderId;
-
-			var payload = new VnPayReturnResponse
-			{
-				PaymentId = payment.Id,
-				OrderId = orderId
-			};
-
-			if (vnPayResponse.IsSuccess == false)
-			{
-				throw AppException.BadRequest("VNPay payment failed: " + vnPayResponse.Message);
-			}
-
-			return BaseResponse<VnPayReturnResponse>.Ok(payload, "VNPay payment processed successfully.");
-		}
-
-		public async Task<BaseResponse<bool>> ProcessVnPayReturnAsync(IQueryCollection queryParameters)
-		{
-			var vnPayResponse = _vnPayService.GetPaymentResponseAsync(queryParameters);
-			if (vnPayResponse == null || vnPayResponse.PaymentId == Guid.Empty)
-			{
-				throw AppException.BadRequest("VNPay payment failed");
-			}
+			var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "VNPay payment failed");
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			   {
 				   var payment = await _unitOfWork.Payments.GetByIdAsync(vnPayResponse.PaymentId)
 					   ?? throw AppException.NotFound("Payment record not found.");
 
+				   var payload = CreateVnPayReturnResponse(payment, vnPayResponse.IsSuccess);
+
 				   if (!payment.IsPending())
 				   {
-					   return BaseResponse<bool>.Ok(true, "Payment already processed.");
+					   payload.IsSuccess = payment.TransactionStatus == TransactionStatus.Success;
+					   return payload;
 				   }
 
 				   if (payment.Amount != vnPayResponse.Amount)
@@ -119,10 +99,36 @@ namespace PerfumeGPT.Application.Services
 				   var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
 					   ?? throw AppException.NotFound("Order not found.");
 
-				   return vnPayResponse.IsSuccess
-					   ? await CompleteSuccessfulPayment(payment, order)
-					   : await HandleFailedPayment(payment, order, vnPayResponse.Message);
+				   if (vnPayResponse.IsSuccess)
+				   {
+					   await CompleteSuccessfulPayment(payment, order);
+					   return payload;
+				   }
+
+				   await HandleFailedPayment(payment, order, vnPayResponse.Message);
+				   return payload;
 			   });
+		}
+
+		private VnPaymentResponse GetValidatedVnPayResponse(IQueryCollection queryParameters, string invalidMessage)
+		{
+			var vnPayResponse = _vnPayService.GetPaymentResponseAsync(queryParameters);
+			if (vnPayResponse == null || vnPayResponse.PaymentId == Guid.Empty)
+			{
+				throw AppException.BadRequest(invalidMessage);
+			}
+
+			return vnPayResponse;
+		}
+
+		private static VnPayReturnResponse CreateVnPayReturnResponse(PaymentTransaction payment, bool isSuccess)
+		{
+			return new VnPayReturnResponse
+			{
+				PaymentId = payment.Id,
+				OrderId = payment.OrderId,
+				IsSuccess = isSuccess
+			};
 		}
 
 		// private methods
@@ -208,8 +214,10 @@ namespace PerfumeGPT.Application.Services
 			{
 				order.SetStatus(OrderStatus.Delivered);
 			}
-			else
+			if (payment.Method == PaymentMethod.VnPay)
+			{
 				order.SetStatus(OrderStatus.Pending);
+			}
 
 			_unitOfWork.Payments.Update(payment);
 			_unitOfWork.Orders.Update(order);
@@ -220,6 +228,15 @@ namespace PerfumeGPT.Application.Services
 				var receipt = Receipt.Create(payment.Id);
 
 				await _unitOfWork.Receipts.AddAsync(receipt);
+			}
+
+			try
+			{
+				_invoiceEmailJobScheduler.EnqueueSendInvoiceEmail(order.Id);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Unable to enqueue invoice email for order {OrderId}.", order.Id);
 			}
 
 			return BaseResponse<bool>.Ok(true, "Payment processed successfully.");
@@ -264,5 +281,6 @@ namespace PerfumeGPT.Application.Services
 					throw AppException.BadRequest("Unsupported payment method.");
 			}
 		}
+
 	}
 }

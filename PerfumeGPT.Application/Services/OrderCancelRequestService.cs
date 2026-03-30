@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using PerfumeGPT.Application.DTOs.Requests.OrderCancelRequests;
+using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.OrderCancelRequests;
+using PerfumeGPT.Application.DTOs.Responses.VNPays;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -43,95 +45,83 @@ namespace PerfumeGPT.Application.Services
 			);
 		}
 
-		public async Task<BaseResponse<string>> ProcessRequestAsync(Guid requestId, Guid processedBy, ProcessCancelRequest request)
+		public async Task<BaseResponse<string>> ProcessRequestAsync(Guid requestId, Guid processedBy, string userRole, ProcessCancelRequest request)
 		{
+			var cancelRequest = await _unitOfWork.OrderCancelRequests.GetByIdAsync(requestId)
+				?? throw AppException.NotFound("Cancel request not found.");
+
+			if (cancelRequest.Status != CancelRequestStatus.Pending)
+				throw AppException.BadRequest("This request has already been processed.");
+
+			if (cancelRequest.IsRefundRequired && userRole != UserRole.admin.ToString())
+			{
+				throw AppException.Forbidden("Only Administrators can approve cancellation requests that require a refund.");
+			}
+
+			VnPayRefundResponse? vnPayResponse = null;
+			var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
+				?? throw AppException.NotFound("Associated order not found.");
+
+			if (request.IsApproved && cancelRequest.IsRefundRequired)
+			{
+				var payment = (await _unitOfWork.Payments.GetAllAsync(
+							p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Success && p.Method == PaymentMethod.VnPay))
+							.OrderByDescending(p => p.CreatedAt)
+							.FirstOrDefault()
+							?? throw AppException.NotFound("No successful VNPay payment found for this order.");
+
+				var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext not available.");
+				var refundReq = new VnPayRefundRequest
+				{
+					OrderId = order.Id,
+					Amount = cancelRequest.RefundAmount ?? payment.Amount,
+					PaymentId = payment.Id,
+					TransactionType = "02",
+					CreateBy = processedBy.ToString(),
+					OrderInfo = $"Refund for Order {order.Id}",
+					TransactionDate = payment.CreatedAt.ToString("yyyyMMddHHmmss")
+				};
+
+				vnPayResponse = await _vnPayService.RefundAsync(context, refundReq);
+			}
+
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				var cancelRequest = await _unitOfWork.OrderCancelRequests.GetByIdAsync(requestId)
-					  ?? throw AppException.NotFound("Cancel request not found.");
+				var freshCancelReq = await _unitOfWork.OrderCancelRequests.GetByIdAsync(requestId)
+					?? throw AppException.NotFound("Cancel request not found during transaction.");
 
-				cancelRequest.Process(processedBy, request.IsApproved, request.StaffNote);
+				var freshOrder = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
+					?? throw AppException.NotFound("Associated order not found during transaction.");
+
+				freshCancelReq.Process(processedBy, request.IsApproved, request.StaffNote);
 
 				if (request.IsApproved)
 				{
-					var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId) ?? throw AppException.NotFound("Associated order not found.");
-					if (cancelRequest.IsRefundRequired)
+					if (freshCancelReq.IsRefundRequired)
 					{
-						// Attempt VM refund if possible
-						var payment = (await _unitOfWork.Payments.GetAllAsync(
-							p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Success))
-							.OrderByDescending(p => p.CreatedAt)
-							.FirstOrDefault();
-
-						if (payment != null && payment.Method == PaymentMethod.VnPay)
-						{
-							var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext not available.");
-
-							//var refundReq = new VnPayRefundRequest
-							//{
-							//	OrderId = order.Id,
-							//	Amount = cancelRequest.RefundAmount ?? payment.Amount,
-							//	PaymentId = payment.Id,
-							//	TransactionType = "02", // full refund
-							//	CreateBy = processedBy.ToString(),
-							//	OrderInfo = $"Refund for Order {order.Id}",
-							//};
-
-							//var refundRes = await _vnPayService.RefundAsync(context, refundReq);
-
-							//if (refundRes.IsSuccess)
-							//{
-							//	cancelRequest.IsRefunded = true;
-							//	cancelRequest.VnpTransactionNo = refundRes.TransactionNo;
-							//	order.PaymentStatus = PaymentStatus.Refunded;
-							//}
-							//else
-							//{
-							//	// We might still consider it approved, but log refund failure
-							//	cancelRequest.StaffNote += $" | Refund failed: {refundRes.Message}";
-							//}
-
-							cancelRequest.MarkRefunded();
-							order.MarkRefunded();
-						}
-						else
-						{
-							// If COD or other methods that require manual transfer
-							cancelRequest.MarkRefunded();
-							order.MarkRefunded();
-						}
+						freshCancelReq.MarkRefunded(vnPayResponse?.TransactionNo);
+						freshOrder.MarkRefunded();
 					}
 
-					// Process cancellation updates
-					order.SetStatus(OrderStatus.Canceled);
-					_unitOfWork.Orders.Update(order);
+					freshOrder.SetStatus(OrderStatus.Cancelled);
+					_unitOfWork.Orders.Update(freshOrder);
 
-					if (order.ShippingInfo != null)
+					if (freshOrder.ShippingInfo != null)
 					{
-						order.ShippingInfo.Cancel();
-						_unitOfWork.ShippingInfos.Update(order.ShippingInfo);
+						freshOrder.ShippingInfo.Cancel();
+						_unitOfWork.ShippingInfos.Update(freshOrder.ShippingInfo);
 					}
 
-					// Release stock reservation if online
-					if (order.Type == OrderType.Online)
-					{
-						await _stockReservationService.ReleaseReservationAsync(order.Id);
-					}
+					if (freshOrder.Type == OrderType.Online)
+						await _stockReservationService.ReleaseReservationAsync(freshOrder.Id);
 
-					// Release voucher if used
-					if (order.UserVoucherId.HasValue && order.CustomerId.HasValue)
-					{
-						var userVoucher = order.UserVoucher ?? await _unitOfWork.UserVouchers.GetByIdAsync(order.UserVoucherId.Value);
-						if (userVoucher != null)
-						{
-							await _voucherService.ReleaseReservedVoucherAsync(order.Id);
-						}
-					}
+					if (freshOrder.UserVoucherId.HasValue)
+						await _voucherService.RefundVoucherForCancelledOrderAsync(freshOrder.Id);
 				}
 
-				_unitOfWork.OrderCancelRequests.Update(cancelRequest);
+				_unitOfWork.OrderCancelRequests.Update(freshCancelReq);
 
-				return BaseResponse<string>.Ok(request.IsApproved ? "Cancel request approved." : "Cancel request rejected.");
+				return BaseResponse<string>.Ok(request.IsApproved ? "Cancel request approved and processed." : "Cancel request rejected.");
 			});
 		}
 	}

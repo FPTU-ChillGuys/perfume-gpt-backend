@@ -37,12 +37,5 @@ namespace PerfumeGPT.Domain.Entities
 
 			Value = value.Trim();
 		}
-
-		// Business logic methods
-		public static void EnsureCanBeDeleted(bool isInUse)
-		{
-			if (isInUse)
-				throw DomainException.BadRequest("Attribute value is in use and cannot be deleted.");
-		}
 	}
 }

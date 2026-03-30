@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -13,10 +14,16 @@ namespace PerfumeGPT.API.Controllers
 	public class StockAdjustmentsController : BaseApiController
 	{
 		private readonly IStockAdjustmentService _stockAdjustmentService;
+		private readonly IValidator<CreateStockAdjustmentRequest> _createValidator;
+		private readonly IValidator<VerifyStockAdjustmentRequest> _verifyValidator;
+		private readonly IValidator<UpdateStockAdjustmentStatusRequest> _updateStatusValidator;
 
-		public StockAdjustmentsController(IStockAdjustmentService stockAdjustmentService)
+		public StockAdjustmentsController(IStockAdjustmentService stockAdjustmentService, IValidator<CreateStockAdjustmentRequest> createValidator, IValidator<VerifyStockAdjustmentRequest> verifyValidator, IValidator<UpdateStockAdjustmentStatusRequest> updateStatusValidator)
 		{
 			_stockAdjustmentService = stockAdjustmentService;
+			_createValidator = createValidator;
+			_verifyValidator = verifyValidator;
+			_updateStatusValidator = updateStatusValidator;
 		}
 
 		[HttpPost]
@@ -27,7 +34,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> CreateStockAdjustment([FromBody] CreateStockAdjustmentRequest request)
 		{
-			var validation = ValidateRequestBody<CreateStockAdjustmentRequest>(request);
+			var validation = await ValidateRequestAsync(_createValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
@@ -43,7 +50,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> VerifyStockAdjustment([FromRoute] Guid adjustmentId, [FromBody] VerifyStockAdjustmentRequest request)
 		{
-			var validation = ValidateRequestBody<VerifyStockAdjustmentRequest>(request);
+			var validation = await ValidateRequestAsync(_verifyValidator, request);
 			if (validation != null) return validation;
 
 			var verifiedByUserId = GetCurrentUserId();
@@ -78,7 +85,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateAdjustmentStatus([FromRoute] Guid id, [FromBody] UpdateStockAdjustmentStatusRequest request)
 		{
-			var validation = ValidateRequestBody<UpdateStockAdjustmentStatusRequest>(request);
+			var validation = await ValidateRequestAsync(_updateStatusValidator, request);
 			if (validation != null) return validation;
 
 			var response = await _stockAdjustmentService.UpdateAdjustmentStatusAsync(id, request);

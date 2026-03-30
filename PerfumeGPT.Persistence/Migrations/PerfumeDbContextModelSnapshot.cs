@@ -732,6 +732,9 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<string>("MimeType")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("OrderReturnRequestId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("ProductId")
                         .HasColumnType("uniqueidentifier");
 
@@ -758,6 +761,8 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.HasIndex("IsPrimary");
 
+                    b.HasIndex("OrderReturnRequestId");
+
                     b.HasIndex("ProductId");
 
                     b.HasIndex("ProductVariantId");
@@ -767,6 +772,8 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasIndex("UserId")
                         .IsUnique()
                         .HasFilter("[UserId] IS NOT NULL");
+
+                    b.HasIndex("EntityType", "OrderReturnRequestId");
 
                     b.HasIndex("EntityType", "ProductId");
 
@@ -982,6 +989,108 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasIndex("VariantId");
 
                     b.ToTable("OrderDetails");
+                });
+
+            modelBuilder.Entity("PerfumeGPT.Domain.Entities.OrderReturnRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("ApprovedRefundAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CustomerNote")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("InspectedById")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InspectionNote")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsRefunded")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRestocked")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ProcessedById")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("RequestedRefundAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("StaffNote")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("VnpTransactionNo")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("InspectedById");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("ProcessedById");
+
+                    b.ToTable("OrderReturnRequests");
+                });
+
+            modelBuilder.Entity("PerfumeGPT.Domain.Entities.OrderReturnRequestDetail", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InspectionNote")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool?>("IsRestocked")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("OrderDetailId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ReturnRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ReturnedQuantity")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderDetailId");
+
+                    b.HasIndex("ReturnRequestId", "OrderDetailId")
+                        .IsUnique();
+
+                    b.ToTable("OrderReturnRequestDetails");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.PaymentTransaction", b =>
@@ -2221,6 +2330,11 @@ namespace PerfumeGPT.Persistence.Migrations
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Media", b =>
                 {
+                    b.HasOne("PerfumeGPT.Domain.Entities.OrderReturnRequest", "OrderReturnRequest")
+                        .WithMany("ProofImages")
+                        .HasForeignKey("OrderReturnRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PerfumeGPT.Domain.Entities.Product", "Product")
                         .WithMany("Media")
                         .HasForeignKey("ProductId")
@@ -2233,12 +2347,15 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.HasOne("PerfumeGPT.Domain.Entities.Review", "Review")
                         .WithMany("ReviewImages")
-                        .HasForeignKey("ReviewId");
+                        .HasForeignKey("ReviewId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PerfumeGPT.Domain.Entities.User", "User")
                         .WithOne("ProfilePicture")
                         .HasForeignKey("PerfumeGPT.Domain.Entities.Media", "UserId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("OrderReturnRequest");
 
                     b.Navigation("Product");
 
@@ -2348,6 +2465,58 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("Order");
 
                     b.Navigation("ProductVariant");
+                });
+
+            modelBuilder.Entity("PerfumeGPT.Domain.Entities.OrderReturnRequest", b =>
+                {
+                    b.HasOne("PerfumeGPT.Domain.Entities.User", "Customer")
+                        .WithMany("CustomerReturnRequests")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PerfumeGPT.Domain.Entities.User", "InspectedBy")
+                        .WithMany("InspectedReturnRequests")
+                        .HasForeignKey("InspectedById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PerfumeGPT.Domain.Entities.Order", "Order")
+                        .WithMany("ReturnRequests")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PerfumeGPT.Domain.Entities.User", "ProcessedBy")
+                        .WithMany("ProcessedReturnRequests")
+                        .HasForeignKey("ProcessedById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("InspectedBy");
+
+                    b.Navigation("Order");
+
+                    b.Navigation("ProcessedBy");
+                });
+
+            modelBuilder.Entity("PerfumeGPT.Domain.Entities.OrderReturnRequestDetail", b =>
+                {
+                    b.HasOne("PerfumeGPT.Domain.Entities.OrderDetail", "OrderDetail")
+                        .WithMany("ReturnRequestDetails")
+                        .HasForeignKey("OrderDetailId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PerfumeGPT.Domain.Entities.OrderReturnRequest", "ReturnRequest")
+                        .WithMany("ReturnDetails")
+                        .HasForeignKey("ReturnRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OrderDetail");
+
+                    b.Navigation("ReturnRequest");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.PaymentTransaction", b =>
@@ -2776,6 +2945,8 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("RecipientInfo")
                         .IsRequired();
 
+                    b.Navigation("ReturnRequests");
+
                     b.Navigation("ShippingInfo");
 
                     b.Navigation("StockReservations");
@@ -2785,7 +2956,16 @@ namespace PerfumeGPT.Persistence.Migrations
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.OrderDetail", b =>
                 {
+                    b.Navigation("ReturnRequestDetails");
+
                     b.Navigation("Review");
+                });
+
+            modelBuilder.Entity("PerfumeGPT.Domain.Entities.OrderReturnRequest", b =>
+                {
+                    b.Navigation("ProofImages");
+
+                    b.Navigation("ReturnDetails");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.PaymentTransaction", b =>
@@ -2870,7 +3050,11 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.Navigation("CustomerProfile");
 
+                    b.Navigation("CustomerReturnRequests");
+
                     b.Navigation("ImportTickets");
+
+                    b.Navigation("InspectedReturnRequests");
 
                     b.Navigation("LoyaltyTransactions");
 
@@ -2879,6 +3063,8 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("Orders");
 
                     b.Navigation("ProcessedCancelRequests");
+
+                    b.Navigation("ProcessedReturnRequests");
 
                     b.Navigation("ProfilePicture");
 

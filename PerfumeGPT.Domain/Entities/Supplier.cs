@@ -71,12 +71,6 @@ namespace PerfumeGPT.Domain.Entities
 			return normalized;
 		}
 
-		public static void EnsureCanBeDeleted(bool hasImportTickets)
-		{
-			if (hasImportTickets)
-				throw DomainException.BadRequest("Cannot delete supplier with associated import tickets.");
-		}
-
 		private static readonly Regex PhoneRegex = new("^(0)(3[2-9]|5[6789]|7[06789]|8[0-9]|9[0-9])[0-9]{7}$", RegexOptions.Compiled);
 	}
 }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 
@@ -7,62 +8,59 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 	{
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly ISupabaseService _supabaseService;
+		private readonly ILogger<TemporaryMediaCleanupJob> _logger;
 
-		public TemporaryMediaCleanupJob(IUnitOfWork unitOfWork, ISupabaseService supabaseService)
+		public TemporaryMediaCleanupJob(
+			IUnitOfWork unitOfWork,
+			ISupabaseService supabaseService,
+			ILogger<TemporaryMediaCleanupJob> logger)
 		{
 			_unitOfWork = unitOfWork;
 			_supabaseService = supabaseService;
+			_logger = logger;
 		}
 
 		public async Task CleanupExpiredMediaAsync()
 		{
-			try
+			_logger.LogInformation("Starting temporary media cleanup at {Time}", DateTime.UtcNow);
+
+			var expiredMedia = await _unitOfWork.TemporaryMedia.GetExpiredMediaAsync();
+			if (!expiredMedia.Any())
 			{
-				Console.WriteLine($"[TemporaryMediaCleanupJob] Starting cleanup at {DateTime.UtcNow}");
-
-				// Get all expired temporary media
-				var expiredMedia = await _unitOfWork.TemporaryMedia.GetExpiredMediaAsync();
-
-				if (!expiredMedia.Any())
-				{
-					Console.WriteLine("[TemporaryMediaCleanupJob] No expired media found");
-					return;
-				}
-
-				Console.WriteLine($"[TemporaryMediaCleanupJob] Found {expiredMedia.Count} expired media items");
-
-				var deletedCount = 0;
-				var storageDeletedCount = 0;
-
-				foreach (var media in expiredMedia)
-				{
-					try
-					{
-						// Delete from cloud storage (Supabase)
-						if (!string.IsNullOrEmpty(media.PublicId))
-						{
-							await _supabaseService.DeleteImageAsync(media.PublicId, "TemporaryReviews");
-							storageDeletedCount++;
-						}
-					}
-					catch (Exception ex)
-					{
-						// Log but continue - we still want to delete the DB record
-						Console.WriteLine($"[TemporaryMediaCleanupJob] Failed to delete {media.PublicId} from storage: {ex.Message}");
-					}
-				}
-
-				// Delete all expired records from database
-				deletedCount = await _unitOfWork.TemporaryMedia.DeleteExpiredMediaAsync();
-
-				Console.WriteLine($"[TemporaryMediaCleanupJob] Successfully deleted {deletedCount} database records and {storageDeletedCount} files from storage at {DateTime.UtcNow}");
+				_logger.LogInformation("No expired media found");
+				return;
 			}
-			catch (Exception ex)
+
+			_logger.LogInformation("Found {Count} expired media items to process", expiredMedia.Count);
+
+			var successfulDbDeletes = 0;
+			var successfulCloudDeletes = 0;
+
+			foreach (var media in expiredMedia)
 			{
-				Console.WriteLine($"[TemporaryMediaCleanupJob] Error during cleanup: {ex.Message}");
-				Console.WriteLine($"[TemporaryMediaCleanupJob] Stack trace: {ex.StackTrace}");
-				throw; // Re-throw so Hangfire can retry
+				try
+				{
+					if (!string.IsNullOrEmpty(media.PublicId))
+					{
+						await _supabaseService.DeleteImageAsync(media.PublicId, "TemporaryReviews");
+						successfulCloudDeletes++;
+					}
+
+					_unitOfWork.TemporaryMedia.Remove(media);
+					successfulDbDeletes++;
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Failed to delete media {MediaId} (PublicId: {PublicId})", media.Id, media.PublicId);
+				}
 			}
+
+			if (successfulDbDeletes > 0)
+			{
+				await _unitOfWork.SaveChangesAsync();
+			}
+
+			_logger.LogInformation("Cleanup completed. Deleted {DbCount} DB records and {CloudCount} files from Supabase.", successfulDbDeletes, successfulCloudDeletes);
 		}
 	}
 }
