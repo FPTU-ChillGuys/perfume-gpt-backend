@@ -16,7 +16,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<Order?> GetOrderForStatusUpdateAsync(Guid orderId);
 		Task<Order?> GetOrderForCancellationAsync(Guid orderId);
 		Task<Order?> GetOrderForMarkUsedVoucherAsync(Guid orderId);
-		Task<Order?> GetPaidOrderForPickListAsync(Guid orderId);
+		Task<Order?> GetOrderForPickListAsync(Guid orderId);
 		Task<Order?> GetOrderForFulfillmentAsync(Guid orderId);
 		Task<Order?> GetOrderForSwapDamagedStockAsync(Guid orderId);
 		Task<Order?> GetOrderWithDetailsForShippingAsync(Guid orderId);

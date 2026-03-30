@@ -32,7 +32,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		#region Pick List Generation
 		public async Task<PickListResponse> GetPickListAsync(Guid orderId)
 		{
-			var order = await _unitOfWork.Orders.GetPaidOrderForPickListAsync(orderId)
+			var order = await _unitOfWork.Orders.GetOrderForPickListAsync(orderId)
 				 ?? throw AppException.NotFound("Paid order not found.");
 
 			if (order.Type != OrderType.Online)

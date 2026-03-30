@@ -143,10 +143,10 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Include(o => o.UserVoucher)
 				.FirstOrDefaultAsync(o => o.Id == orderId);
 
-		public async Task<Order?> GetPaidOrderForPickListAsync(Guid orderId)
+		public async Task<Order?> GetOrderForPickListAsync(Guid orderId)
 			=> await _context.Orders
 				.Include(o => o.OrderDetails)
-				.FirstOrDefaultAsync(o => o.Id == orderId && o.PaymentStatus == PaymentStatus.Paid);
+				.FirstOrDefaultAsync(o => o.Id == orderId && o.Status == OrderStatus.Processing);
 
 		public async Task<Order?> GetOrderForFulfillmentAsync(Guid orderId)
 			=> await _context.Orders
