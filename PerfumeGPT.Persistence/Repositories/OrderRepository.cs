@@ -78,6 +78,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.ApplySorting(request.SortBy ?? "CreatedAt", request.IsDescending)
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
+				.AsSplitQuery()
 				.ProjectToType<OrderListItem>()
 				.ToListAsync();
 

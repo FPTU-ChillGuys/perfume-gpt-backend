@@ -14,6 +14,7 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			_kernel = kernel;
 		}
 
+		public INotificationRepository Notifications => GetRepo(ctx => new NotificationRepository(ctx));
 		public IScentNoteRepository ScentNotes => GetRepo(ctx => new ScentNoteRepository(ctx));
 		public IReviewRepository Reviews => GetRepo(ctx => new ReviewRepository(ctx));
 		public IProfileRepository Profiles => GetRepo(ctx => new ProfileRepository(ctx));

@@ -30,6 +30,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IOrderFulfillmentService _fulfillmentService;
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IRecipientService _recipientService;
+		private readonly INotificationService _notificationService;
 		private readonly IAuditScope _auditScope;
 
 		public OrderService(
@@ -43,6 +44,7 @@ namespace PerfumeGPT.Application.Services
 			IOrderDetailsFactory orderDetailsFactory,
 			IStockReservationService stockReservationService,
 			IOrderFulfillmentService fulfillmentService,
+		 INotificationService notificationService,
 			IRecipientService recipientService,
 			IAuditScope auditScope,
 			ILoyaltyTransactionService loyaltyTransactionService)
@@ -57,6 +59,7 @@ namespace PerfumeGPT.Application.Services
 			_orderDetailsFactory = orderDetailsFactory;
 			_stockReservationService = stockReservationService;
 			_fulfillmentService = fulfillmentService;
+			_notificationService = notificationService;
 			_recipientService = recipientService;
 			_auditScope = auditScope;
 			_loyaltyTransactionService = loyaltyTransactionService;
@@ -254,6 +257,7 @@ namespace PerfumeGPT.Application.Services
 				await _cartService.ClearCartAsync(userId, request.ItemIds);
 
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order.Id, cartResponse.TotalPrice, request.Payment.Method);
+				await _notificationService.CreateNewOrderNotificationAsync(order.Id, cartResponse.TotalPrice);
 
 				return BaseResponse<string>.Ok(response, "Checkout successful.");
 			});

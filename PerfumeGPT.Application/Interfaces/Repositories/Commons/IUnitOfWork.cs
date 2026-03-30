@@ -2,6 +2,7 @@
 {
 	public interface IUnitOfWork : IBaseUnitOfWork
 	{
+		INotificationRepository Notifications { get; }
 		IScentNoteRepository ScentNotes { get; }
 		IReviewRepository Reviews { get; }
 		IProfileRepository Profiles { get; }

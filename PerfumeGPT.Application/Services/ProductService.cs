@@ -84,8 +84,6 @@ namespace PerfumeGPT.Application.Services
 				? $"Product created successfully with {metadata.TotalFailed} media upload failure(s)."
 				: "Product created successfully";
 
-			await _signalRService.NotifyProductCreated(product.Id);
-
 			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
 		}
 

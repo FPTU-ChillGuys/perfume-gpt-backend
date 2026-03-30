@@ -18,6 +18,11 @@ namespace PerfumeGPT.Infrastructure.Hubs
 				await Groups.AddToGroupAsync(Context.ConnectionId, "StaffGroup");
 			}
 
+			if (string.Equals(role, UserRole.admin.ToString(), StringComparison.OrdinalIgnoreCase))
+			{
+				await Groups.AddToGroupAsync(Context.ConnectionId, "AdminGroup");
+			}
+
 			await base.OnConnectedAsync();
 		}
 
