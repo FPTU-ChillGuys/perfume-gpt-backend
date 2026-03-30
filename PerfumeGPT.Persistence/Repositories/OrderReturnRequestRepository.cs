@@ -75,7 +75,9 @@ namespace PerfumeGPT.Persistence.Repositories
 					CustomerId = r.CustomerId,
 					CustomerEmail = r.Customer != null ? r.Customer.Email : null,
 					ProcessedById = r.ProcessedById,
+					ProcessedByName = r.ProcessedBy != null ? (r.ProcessedBy.FullName ?? r.ProcessedBy.UserName) : null,
 					InspectedById = r.InspectedById,
+					InspectedByName = r.InspectedBy != null ? (r.InspectedBy.FullName ?? r.InspectedBy.UserName) : null,
 					Reason = r.Reason,
 					CustomerNote = r.CustomerNote,
 					StaffNote = r.StaffNote,
@@ -91,6 +93,9 @@ namespace PerfumeGPT.Persistence.Repositories
 						{
 							Id = d.Id,
 							OrderDetailId = d.OrderDetailId,
+							VariantId = d.OrderDetail.VariantId,
+							VariantSnapshot = d.OrderDetail.Snapshot,
+							VariantImageUrl = d.OrderDetail.ProductVariant.Media.Where(m => m.IsPrimary && !m.IsDeleted).Select(m => m.Url).FirstOrDefault(),
 							ReturnedQuantity = d.ReturnedQuantity,
 							IsRestocked = d.IsRestocked,
 							InspectionNote = d.InspectionNote

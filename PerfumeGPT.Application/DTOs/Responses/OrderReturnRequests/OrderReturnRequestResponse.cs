@@ -10,7 +10,9 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 		public Guid CustomerId { get; set; }
 		public string? CustomerEmail { get; set; }
 		public Guid? ProcessedById { get; set; }
+		public string? ProcessedByName { get; set; }
 		public Guid? InspectedById { get; set; }
+		public string? InspectedByName { get; set; }
 
 		public string Reason { get; set; } = null!;
 		public string? CustomerNote { get; set; }
@@ -35,6 +37,9 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 	{
 		public Guid Id { get; set; }
 		public Guid OrderDetailId { get; set; }
+		public Guid VariantId { get; set; }
+		public string? VariantSnapshot { get; set; }
+		public string? VariantImageUrl { get; set; }
 		public int ReturnedQuantity { get; set; }
 		public bool? IsRestocked { get; set; }
 		public string? InspectionNote { get; set; }
