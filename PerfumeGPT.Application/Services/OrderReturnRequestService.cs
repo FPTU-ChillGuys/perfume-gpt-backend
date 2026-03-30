@@ -3,6 +3,7 @@ using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -30,6 +31,26 @@ namespace PerfumeGPT.Application.Services
 			_vnPayService = vnPayService;
 			_httpContextAccessor = httpContextAccessor;
 			_mediaBulkActionHelper = mediaBulkActionHelper;
+		}
+
+		public async Task<BaseResponse<PagedResult<OrderReturnRequestResponse>>> GetPagedReturnRequestsAsync(GetPagedReturnRequestsRequest request)
+		{
+			var (items, totalCount) = await _unitOfWork.OrderReturnRequests.GetPagedResponsesAsync(request);
+
+			return BaseResponse<PagedResult<OrderReturnRequestResponse>>.Ok(
+				new PagedResult<OrderReturnRequestResponse>(items, request.PageNumber, request.PageSize, totalCount),
+				"Return requests retrieved successfully.");
+		}
+
+		public async Task<BaseResponse<OrderReturnRequestResponse>> GetReturnRequestByIdAsync(Guid requestId, Guid requesterId, bool isPrivilegedUser)
+		{
+			var returnRequest = await _unitOfWork.OrderReturnRequests.GetResponseByIdAsync(requestId)
+				?? throw AppException.NotFound("Return request not found.");
+
+			if (!isPrivilegedUser && returnRequest.CustomerId != requesterId)
+				throw AppException.Forbidden("You are not allowed to view this return request.");
+
+			return BaseResponse<OrderReturnRequestResponse>.Ok(returnRequest, "Return request retrieved successfully.");
 		}
 
 		public async Task<BaseResponse<string>> CreateReturnRequestAsync(Guid customerId, CreateReturnRequestDto request)

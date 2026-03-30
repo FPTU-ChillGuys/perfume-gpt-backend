@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using PerfumeGPT.Application.DTOs.Requests.OrderCancelRequests;
+using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.OrderCancelRequests;
 using PerfumeGPT.Application.DTOs.Responses.VNPays;
@@ -66,45 +67,22 @@ namespace PerfumeGPT.Application.Services
 				var payment = (await _unitOfWork.Payments.GetAllAsync(
 							p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Success && p.Method == PaymentMethod.VnPay))
 							.OrderByDescending(p => p.CreatedAt)
-							.FirstOrDefault();
+							.FirstOrDefault()
+							?? throw AppException.NotFound("No successful VNPay payment found for this order.");
 
-				if (payment != null)
+				var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext not available.");
+				var refundReq = new VnPayRefundRequest
 				{
-					// Gọi VNPay ở đây. DB hoàn toàn thảnh thơi không bị khóa.
-					//var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext not available.");
-					//vnPayResponse = await _vnPayService.RefundAsync(context, new VnPayRefundRequest { ... });
+					OrderId = order.Id,
+					Amount = cancelRequest.RefundAmount ?? payment.Amount,
+					PaymentId = payment.Id,
+					TransactionType = "02",
+					CreateBy = processedBy.ToString(),
+					OrderInfo = $"Refund for Order {order.Id}",
+					TransactionDate = payment.CreatedAt.ToString("yyyyMMddHHmmss")
+				};
 
-					//if (!vnPayResponse.IsSuccess)
-					//{
-					//	// Nếu VNPay thất bại, ta dừng luôn quá trình duyệt đơn hủy
-					//	throw AppException.BadRequest($"Refund failed via VNPay: {vnPayResponse.Message}. Cancellation aborted.");
-					//}
-
-
-					//var refundReq = new VnPayRefundRequest
-					//{
-					//	OrderId = order.Id,
-					//	Amount = cancelRequest.RefundAmount ?? payment.Amount,
-					//	PaymentId = payment.Id,
-					//	TransactionType = "02", // full refund
-					//	CreateBy = processedBy.ToString(),
-					//	OrderInfo = $"Refund for Order {order.Id}",
-					//};
-
-					//var refundRes = await _vnPayService.RefundAsync(context, refundReq);
-
-					//if (refundRes.IsSuccess)
-					//{
-					//	cancelRequest.IsRefunded = true;
-					//	cancelRequest.VnpTransactionNo = refundRes.TransactionNo;
-					//	order.PaymentStatus = PaymentStatus.Refunded;
-					//}
-					//else
-					//{
-					//	// We might still consider it approved, but log refund failure
-					//	cancelRequest.StaffNote += $" | Refund failed: {refundRes.Message}";
-					//}
-				}
+				vnPayResponse = await _vnPayService.RefundAsync(context, refundReq);
 			}
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>

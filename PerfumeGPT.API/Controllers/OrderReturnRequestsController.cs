@@ -6,6 +6,7 @@ using PerfumeGPT.Application.DTOs.Requests.Media;
 using PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
+using PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Enums;
 
@@ -32,6 +33,31 @@ namespace PerfumeGPT.API.Controllers
 			_startInspectionValidator = startInspectionValidator;
 			_recordInspectionValidator = recordInspectionValidator;
 			_rejectInspectionValidator = rejectInspectionValidator;
+		}
+
+		[HttpGet]
+		[Authorize(Roles = "admin,staff")]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderReturnRequestResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderReturnRequestResponse>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PagedResult<OrderReturnRequestResponse>>>> GetPagedReturnRequests([FromQuery] GetPagedReturnRequestsRequest request)
+		{
+			var response = await _returnRequestService.GetPagedReturnRequestsAsync(request);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("{id:guid}")]
+		[Authorize(Roles = "user,admin,staff")]
+		[ProducesResponseType(typeof(BaseResponse<OrderReturnRequestResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<OrderReturnRequestResponse>), StatusCodes.Status403Forbidden)]
+		[ProducesResponseType(typeof(BaseResponse<OrderReturnRequestResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<OrderReturnRequestResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<OrderReturnRequestResponse>>> GetReturnRequestById([FromRoute] Guid id)
+		{
+			var requesterId = GetCurrentUserId();
+			var isPrivilegedUser = User.IsInRole("admin") || User.IsInRole("staff");
+
+			var response = await _returnRequestService.GetReturnRequestByIdAsync(id, requesterId, isPrivilegedUser);
+			return HandleResponse(response);
 		}
 
 		[HttpPost]
