@@ -8,6 +8,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 		public string BucketVariantName { get; set; } = string.Empty;
 		public string BucketAvatarName { get; set; } = string.Empty;
 		public string BucketPreviewName { get; set; } = string.Empty;
+		public string BucketOrderReturnRequestName { get; set; } = string.Empty;
 	}
 }
 
