@@ -52,7 +52,7 @@ namespace PerfumeGPT.Application.Services
 			if (cancelRequest.Status != CancelRequestStatus.Pending)
 				throw AppException.BadRequest("This request has already been processed.");
 
-			if (cancelRequest.IsRefundRequired && userRole != "Admin")
+			if (cancelRequest.IsRefundRequired && userRole != UserRole.admin.ToString())
 			{
 				throw AppException.Forbidden("Only Administrators can approve cancellation requests that require a refund.");
 			}
