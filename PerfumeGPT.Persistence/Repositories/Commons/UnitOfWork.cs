@@ -2,16 +2,19 @@
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Persistence.Contexts;
 using Microsoft.SemanticKernel;
+using Elastic.Clients.Elasticsearch;
 
 namespace PerfumeGPT.Persistence.Repositories.Commons
 {
 	public class UnitOfWork : BaseUnitOfWork, IUnitOfWork
 	{
 		private readonly Kernel _kernel;
+		private readonly ElasticsearchClient _esClient;
 
-		public UnitOfWork(PerfumeDbContext context, Kernel kernel) : base(context)
+		public UnitOfWork(PerfumeDbContext context, Kernel kernel, ElasticsearchClient esClient) : base(context)
 		{
 			_kernel = kernel;
+			_esClient = esClient;
 		}
 
 		public INotificationRepository Notifications => GetRepo(ctx => new NotificationRepository(ctx));
@@ -49,6 +52,6 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 		public IOrderReturnRequestRepository OrderReturnRequests => GetRepo(ctx => new OrderReturnRequestRepository(ctx));
 		public IConcentrationRepository Concentrations => GetRepo(ctx => new ConcentrationRepository(ctx));
 		public ICategoryRepository Categories => GetRepo(ctx => new CategoryRepository(ctx));
-		public IProductRepository Products => GetRepo(ctx => new ProductRepository(ctx, _kernel));
+		public IProductRepository Products => GetRepo(ctx => new ProductRepository(ctx, _kernel, _esClient));
 	}
 }
