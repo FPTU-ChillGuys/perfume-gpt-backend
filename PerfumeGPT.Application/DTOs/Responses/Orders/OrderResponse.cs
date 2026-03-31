@@ -5,6 +5,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 	public class OrderResponse
 	{
 		public Guid Id { get; set; }
+		public string Code { get; set; } = null!;
 		public Guid? CustomerId { get; set; }
 		public string? CustomerName { get; set; }
 		public string? CustomerEmail { get; set; }

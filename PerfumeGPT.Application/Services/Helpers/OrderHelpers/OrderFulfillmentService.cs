@@ -41,7 +41,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 			var pickListItems = await BuildPickListItemsAsync(order.OrderDetails, reservations);
 
-			return new PickListResponse { OrderId = order.Id, Items = pickListItems };
+			return new PickListResponse { OrderId = order.Id, Code = order.Code, Items = pickListItems };
 		}
 
 		private async Task<List<PickListItemResponse>> BuildPickListItemsAsync(ICollection<OrderDetail> orderDetails, IEnumerable<StockReservation> reservations)

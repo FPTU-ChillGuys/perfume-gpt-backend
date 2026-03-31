@@ -3,6 +3,7 @@
 	public class ReceiptResponse
 	{
 		public Guid OrderId { get; set; }
+		public string Code { get; set; } = null!;
 		public DateTime OrderDate { get; set; }
 		public string OrderStatus { get; set; } = null!;
 		public string StaffName { get; set; } = null!;

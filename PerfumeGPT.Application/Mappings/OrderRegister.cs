@@ -11,6 +11,7 @@ namespace PerfumeGPT.Application.Mappings
 		{
 			config.NewConfig<Order, OrderResponse>()
 				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.Code, src => src.Code)
 				.Map(dest => dest.CustomerId, src => src.CustomerId)
 				.Map(dest => dest.CustomerName, src => src.Customer != null ? src.Customer.FullName : null)
 				.Map(dest => dest.CustomerEmail, src => src.Customer != null ? src.Customer.Email : null)
@@ -53,6 +54,7 @@ namespace PerfumeGPT.Application.Mappings
 
 			config.NewConfig<Order, OrderListItem>()
 				.Map(dest => dest.Id, src => src.Id)
+				.Map(dest => dest.Code, src => src.Code)
 				.Map(dest => dest.CustomerId, src => src.CustomerId)
 				.Map(dest => dest.CustomerName, src => src.Customer != null ? src.Customer.FullName : null)
 				.Map(dest => dest.StaffId, src => src.StaffId)

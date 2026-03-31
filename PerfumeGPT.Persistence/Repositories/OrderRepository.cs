@@ -219,6 +219,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			return new ReceiptResponse
 			{
 				OrderId = order.Id,
+				Code = order.Code,
 				OrderDate = order.PaidAt ?? order.CreatedAt,
 				OrderStatus = order.Status.ToString(),
 				StaffName = order.Staff?.FullName ?? "N/A",

@@ -1,5 +1,6 @@
 ﻿using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
+using PerfumeGPT.Domain.Commons.Helpers;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Domain.Exceptions;
 
@@ -11,6 +12,7 @@ namespace PerfumeGPT.Domain.Entities
 
 		public Guid? CustomerId { get; private set; }
 		public Guid? StaffId { get; private set; }
+		public string Code { get; private set; } = null!;
 		public OrderType Type { get; private set; }
 		public OrderStatus Status { get; private set; }
 		public decimal TotalAmount { get; private set; }
@@ -48,6 +50,7 @@ namespace PerfumeGPT.Domain.Entities
 			return new Order
 			{
 				CustomerId = customerId,
+				Code = OrderCodeGenerator.Generate(OrderType.Online),
 				Type = OrderType.Online,
 				Status = OrderStatus.Pending,
 				PaymentStatus = PaymentStatus.Unpaid,
@@ -66,6 +69,7 @@ namespace PerfumeGPT.Domain.Entities
 			return new Order
 			{
 				StaffId = staffId,
+				Code = OrderCodeGenerator.Generate(OrderType.Offline),
 				Type = OrderType.Offline,
 				Status = OrderStatus.Pending,
 				PaymentStatus = PaymentStatus.Unpaid,
