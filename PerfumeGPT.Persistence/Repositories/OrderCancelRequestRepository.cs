@@ -38,7 +38,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					RequestedById = r.RequestedById,
 					RequestedByEmail = r.RequestedBy != null ? r.RequestedBy.Email : null,
 					ProcessedById = r.ProcessedById,
-					Reason = r.Reason,
+					Reason = r.Reason.ToString(),
 					StaffNote = r.StaffNote,
 					Status = r.Status,
 					IsRefundRequired = r.IsRefundRequired,

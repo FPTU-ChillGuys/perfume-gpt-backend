@@ -1,4 +1,3 @@
-using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -44,7 +43,7 @@ namespace PerfumeGPT.Application.Services
 			IOrderDetailsFactory orderDetailsFactory,
 			IStockReservationService stockReservationService,
 			IOrderFulfillmentService fulfillmentService,
-		 INotificationService notificationService,
+			INotificationService notificationService,
 			IRecipientService recipientService,
 			IAuditScope auditScope,
 			ILoyaltyTransactionService loyaltyTransactionService)
@@ -173,6 +172,7 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<ReceiptResponse>.Ok(invoice, "Order invoice retrieved successfully.");
 		}
 		#endregion User Query Operations
+
 
 		#region Checkout Operations
 		public async Task<BaseResponse<string>> Checkout(Guid userId, CreateOrderRequest request)
@@ -376,6 +376,7 @@ namespace PerfumeGPT.Application.Services
 
 		#endregion Checkout Operations
 
+
 		#region Order Status Management
 
 		public async Task<BaseResponse<PickListResponse>> UpdateOrderStatusAsync(Guid orderId, Guid staffId, UpdateOrderStatusRequest request)
@@ -408,7 +409,7 @@ namespace PerfumeGPT.Application.Services
 						   var cancelRequest = OrderCancelRequest.Create(
 								order.Id,
 								staffId,
-								request.Note ?? "Staff cancelled order.",
+								CancelOrderReason.InsufficientStock,
 								true,
 								order.TotalAmount,
 								null,
@@ -430,6 +431,9 @@ namespace PerfumeGPT.Application.Services
 
 				   // return order handle
 
+				   if (request.Status == OrderStatus.Delivered)
+					   throw AppException.BadRequest("Delivered status is synchronized from shipping provider. Please run shipping sync instead.");
+
 				   // Update order status
 				   order.SetStatus(request.Status);
 				   order.SetStaff(staffId);
@@ -442,23 +446,6 @@ namespace PerfumeGPT.Application.Services
 				   if (request.Status == OrderStatus.Processing && order.Type == OrderType.Online)
 				   {
 					   pickListResponse = await _fulfillmentService.GetPickListAsync(order);
-				   }
-
-				   // Handle delivery completion - update loyalty points
-				   if (request.Status == OrderStatus.Delivered)
-				   {
-					   // Award loyalty points
-					   if (order.CustomerId.HasValue)
-					   {
-						   using (_auditScope.BeginSystemAction())
-						   {
-							   int pointsToAward = (int)(order.TotalAmount * 0.01m);
-							   if (pointsToAward > 0)
-							   {
-								   await _loyaltyTransactionService.PlusPointAsync(order.CustomerId.Value, pointsToAward, orderId, false);
-							   }
-						   }
-					   }
 				   }
 
 				   var orderTypeText = order.Type == OrderType.Online ? "online" : "in-store";
@@ -502,7 +489,7 @@ namespace PerfumeGPT.Application.Services
 				   var cancelRequest = OrderCancelRequest.Create(
 						order.Id,
 						userId,
-						request.Reason ?? "Customer cancelled order.",
+					  ParseCancelReason(request.Reason),
 						isRefundRequired,
 						isRefundRequired ? order.TotalAmount : null
 						);
@@ -513,6 +500,7 @@ namespace PerfumeGPT.Application.Services
 			   });
 		}
 		#endregion
+
 
 		#region Fulfillment Operations
 		public async Task<BaseResponse<PickListResponse>> GetOrderPickListAsync(Guid orderId)
@@ -629,6 +617,20 @@ namespace PerfumeGPT.Application.Services
 			await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
 		}
 
+		private static CancelOrderReason ParseCancelReason(string? reason)
+		{
+			if (string.IsNullOrWhiteSpace(reason))
+				return CancelOrderReason.ChangedMind;
+
+			if (Enum.TryParse<CancelOrderReason>(reason, true, out var parsedReason)
+				&& Enum.IsDefined(parsedReason))
+			{
+				return parsedReason;
+			}
+
+			throw AppException.BadRequest($"Invalid cancel reason. Allowed values: {string.Join(", ", Enum.GetNames<CancelOrderReason>())}.");
+		}
+
 		private async Task<VoucherResponse> ValidateAndGetVoucherAsync(
 			  string voucherCode,
 			  Guid userId,
@@ -645,13 +647,6 @@ namespace PerfumeGPT.Application.Services
 			if (!voucherValidation) throw AppException.BadRequest("Voucher validation failed.");
 
 			return voucher;
-		}
-
-		private static async Task ValidateRequestAsync<T>(IValidator<T> validator, T request)
-		{
-			var validationResult = await validator.ValidateAsync(request);
-			if (!validationResult.IsValid)
-				throw AppException.BadRequest("Validation failed", [.. validationResult.Errors.Select(e => e.ErrorMessage)]);
 		}
 		#endregion
 	}

@@ -78,10 +78,12 @@ namespace PerfumeGPT.Application.Services
 				if (request.RequestedRefundAmount > maxRequestableRefund)
 					throw AppException.BadRequest("Requested refund amount exceeds maximum refundable amount for the order.");
 
+				var returnReason = ParseReturnReason(request.Reason);
+
 				var returnRequest = OrderReturnRequest.Create(
 					request.OrderId,
 					customerId,
-					request.Reason,
+					returnReason,
 					request.RequestedRefundAmount,
 				  request.CustomerNote);
 
@@ -295,6 +297,17 @@ namespace PerfumeGPT.Application.Services
 
 				return BaseResponse<string>.Ok("Refund processed and return request completed.");
 			});
+		}
+
+		private static ReturnOrderReason ParseReturnReason(string reason)
+		{
+			if (Enum.TryParse<ReturnOrderReason>(reason, true, out var parsedReason)
+				&& Enum.IsDefined(parsedReason))
+			{
+				return parsedReason;
+			}
+
+			throw AppException.BadRequest($"Invalid return reason. Allowed values: {string.Join(", ", Enum.GetNames<ReturnOrderReason>())}.");
 		}
 	}
 }

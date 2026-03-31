@@ -13,8 +13,7 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid CustomerId { get; private set; }
 		public Guid? ProcessedById { get; private set; }
 		public Guid? InspectedById { get; private set; }
-
-		public string Reason { get; private set; } = null!;
+		public ReturnOrderReason Reason { get; private set; }
 		public string? CustomerNote { get; private set; }
 		public string? StaffNote { get; private set; }
 		public string? InspectionNote { get; private set; }
@@ -41,7 +40,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static OrderReturnRequest Create(
 			Guid orderId,
 			Guid customerId,
-			string reason,
+			ReturnOrderReason reason,
 			decimal requestedRefundAmount,
 		  string? customerNote = null)
 		{
@@ -51,9 +50,6 @@ namespace PerfumeGPT.Domain.Entities
 			if (customerId == Guid.Empty)
 				throw DomainException.BadRequest("Customer ID is required.");
 
-			if (string.IsNullOrWhiteSpace(reason))
-				throw DomainException.BadRequest("Return reason is required.");
-
 			if (requestedRefundAmount < 0)
 				throw DomainException.BadRequest("Requested refund amount cannot be negative.");
 
@@ -61,7 +57,7 @@ namespace PerfumeGPT.Domain.Entities
 			{
 				OrderId = orderId,
 				CustomerId = customerId,
-				Reason = reason.Trim(),
+				Reason = reason,
 				CustomerNote = string.IsNullOrWhiteSpace(customerNote) ? null : customerNote.Trim(),
 				Status = ReturnRequestStatus.Pending,
 				RequestedRefundAmount = requestedRefundAmount,

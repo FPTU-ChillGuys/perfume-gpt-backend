@@ -12,8 +12,7 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid OrderId { get; private set; }
 		public Guid RequestedById { get; private set; }
 		public Guid? ProcessedById { get; private set; }
-
-		public string Reason { get; private set; } = null!;
+		public CancelOrderReason Reason { get; private set; }
 		public string? StaffNote { get; private set; }
 		public CancelRequestStatus Status { get; private set; }
 
@@ -35,7 +34,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static OrderCancelRequest Create(
 			Guid orderId,
 			Guid requestedById,
-			string reason,
+			CancelOrderReason reason,
 			bool isRefundRequired,
 			decimal? refundAmount,
 			Guid? processedById = null,
@@ -46,9 +45,6 @@ namespace PerfumeGPT.Domain.Entities
 
 			if (requestedById == Guid.Empty)
 				throw DomainException.BadRequest("Requested by user is required.");
-
-			if (string.IsNullOrWhiteSpace(reason))
-				throw DomainException.BadRequest("Cancel reason is required.");
 
 			if (isRefundRequired && (!refundAmount.HasValue || refundAmount.Value < 0))
 				throw DomainException.BadRequest("Refund amount is invalid.");
@@ -61,7 +57,7 @@ namespace PerfumeGPT.Domain.Entities
 				OrderId = orderId,
 				RequestedById = requestedById,
 				ProcessedById = processedById,
-				Reason = reason.Trim(),
+				Reason = reason,
 				StaffNote = string.IsNullOrWhiteSpace(staffNote) ? null : staffNote.Trim(),
 				Status = CancelRequestStatus.Pending,
 				IsRefundRequired = isRefundRequired,

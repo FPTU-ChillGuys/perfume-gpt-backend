@@ -870,6 +870,10 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<PromotionItem>().Property(p => p.ItemType).HasConversion<string>();
 			builder.Entity<Campaign>().Property(p => p.Status).HasConversion<string>();
 			builder.Entity<Campaign>().Property(p => p.Type).HasConversion<string>();
+			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.Status).HasConversion<string>();
+			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.Reason).HasConversion<string>();
+			builder.Entity<OrderReturnRequest>().Property(orr => orr.Status).HasConversion<string>();
+			builder.Entity<OrderReturnRequest>().Property(orr => orr.Reason).HasConversion<string>();
 
 			// Configure NVarchar for string properties to avoid default max length issues
 			builder.Entity<Product>().Property(p => p.Description)
