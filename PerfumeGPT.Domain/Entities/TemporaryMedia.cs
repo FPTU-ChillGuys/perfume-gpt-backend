@@ -79,6 +79,10 @@ namespace PerfumeGPT.Domain.Entities
 				".gif" => "image/gif",
 				".webp" => "image/webp",
 				".svg" => "image/svg+xml",
+				".mp4" => "video/mp4",
+				".mov" => "video/quicktime",
+				".webm" => "video/webm",
+				".m4v" => "video/x-m4v",
 				_ => null
 			};
 	}

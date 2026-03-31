@@ -8,7 +8,6 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests;
 using PerfumeGPT.Application.Interfaces.Services;
-using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.API.Controllers
 {
@@ -146,25 +145,17 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpPost("images/temporary")]
+		[HttpPost("videos/temporary")]
 		[Authorize(Roles = "user")]
+		[RequestSizeLimit(104_857_600)]
+		[RequestFormLimits(MultipartBodyLengthLimit = 104_857_600)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages([FromForm] OrderReturnRequestUploadMediaRequest request)
+		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryVideos([FromForm] OrderReturnRequestUploadMediaRequest request)
 		{
 			var userId = GetCurrentUserId();
 			var response = await _mediaService.UploadOrderReturnRequestTemporaryMediaAsync(userId, request);
-			return HandleResponse(response);
-		}
-
-		[HttpGet("{id:guid}/images")]
-		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<List<MediaResponse>>>> GetReturnRequestImages([FromRoute] Guid id)
-		{
-			var response = await _mediaService.GetMediaByEntityAsync(EntityType.OrderReturnRequest, id);
 			return HandleResponse(response);
 		}
 	}

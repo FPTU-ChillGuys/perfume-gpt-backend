@@ -20,7 +20,9 @@ namespace PerfumeGPT.Application.Services
 		private readonly IMapper _mapper;
 
 		private static readonly string[] AllowedImageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+        private static readonly string[] AllowedVideoExtensions = [".mp4", ".mov", ".webm", ".m4v"];
 		private const long MaxFileSize = 5 * 1024 * 1024; // 5MB
+		private const long MaxVideoFileSize = 100 * 1024 * 1024; // 100MB
 
 		public MediaService(
 			ISupabaseService supabaseService,
@@ -203,11 +205,11 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadOrderReturnRequestTemporaryMediaAsync(
 			Guid? userId, OrderReturnRequestUploadMediaRequest request)
 		{
-			var imageRequests = request.Images
+          var videoRequests = request.Videos
 				.Select((file, i) => new ImageUploadItem(file, EntityType.OrderReturnRequest, i, false, null))
 				.ToList();
 
-			return await UploadTemporaryMediaBulkAsync(userId, imageRequests);
+          return await UploadTemporaryMediaBulkAsync(userId, videoRequests, ValidateVideoFile, "video");
 		}
 		#endregion Temporary Media
 
@@ -230,8 +232,13 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		private async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadTemporaryMediaBulkAsync(Guid? userId, List<ImageUploadItem> items)
+       private async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadTemporaryMediaBulkAsync(
+			Guid? userId,
+			List<ImageUploadItem> items,
+			Func<IFormFile?, string?>? validator = null,
+			string mediaType = "image")
 		{
+          validator ??= ValidateImageFile;
 			var bulkResult = new BulkActionResponse();
 			var uploadedMedia = new List<TemporaryMediaResponse>();
 
@@ -239,7 +246,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				var tempId = Guid.NewGuid();
 
-				var validationError = ValidateImageFile(item.File);
+             var validationError = validator(item.File);
 				if (validationError != null)
 				{
 					bulkResult.FailedItems.Add(new BulkActionError { Id = tempId, ErrorMessage = validationError });
@@ -272,7 +279,7 @@ namespace PerfumeGPT.Application.Services
 				bulkResult.SucceededIds.Add(tempMedia.Id);
 			}
 
-			return BuildTemporaryMediaResponse(uploadedMedia, bulkResult);
+          return BuildTemporaryMediaResponse(uploadedMedia, bulkResult, mediaType);
 		}
 
 		private async Task<BaseResponse<string>> DeleteMediaInternalAsync(Media media, string successData, string successMessage)
@@ -335,12 +342,29 @@ namespace PerfumeGPT.Application.Services
 			return null;
 		}
 
-		private static BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>> BuildTemporaryMediaResponse(
-		List<TemporaryMediaResponse> uploadedMedia, BulkActionResponse bulkResult)
+		private static string? ValidateVideoFile(IFormFile? file)
 		{
+			if (file == null || file.Length == 0)
+				return "Empty or null video file";
+
+			var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+			if (!AllowedVideoExtensions.Contains(extension))
+				return $"Invalid video format for {file.FileName}. Allowed: mp4, mov, webm, m4v";
+
+			if (file.Length > MaxVideoFileSize)
+				return $"Video size must be less than 100MB for {file.FileName}";
+
+			return null;
+		}
+
+		private static BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>> BuildTemporaryMediaResponse(
+      List<TemporaryMediaResponse> uploadedMedia, BulkActionResponse bulkResult, string mediaType)
+		{
+           var mediaTypePlural = $"{mediaType}s";
+
 			if (uploadedMedia.Count == 0)
 				return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Fail(
-					"Failed to upload any images",
+                  $"Failed to upload any {mediaTypePlural}",
 					ResponseErrorType.BadRequest,
 					[.. bulkResult.FailedItems.Select(f => f.ErrorMessage)]);
 
@@ -354,8 +378,8 @@ namespace PerfumeGPT.Application.Services
 				metadata.Operations.Count > 0 ? metadata : null);
 
 			var message = bulkResult.HasError
-				? $"Uploaded {uploadedMedia.Count} image(s). {bulkResult.FailedItems.Count} failed. Expires in 24 hours."
-				: $"Uploaded {uploadedMedia.Count} temporary image(s). Expires in 24 hours.";
+               ? $"Uploaded {uploadedMedia.Count} {mediaType}(s). {bulkResult.FailedItems.Count} failed. Expires in 24 hours."
+				: $"Uploaded {uploadedMedia.Count} temporary {mediaType}(s). Expires in 24 hours.";
 
 			return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Ok(result, message);
 		}
