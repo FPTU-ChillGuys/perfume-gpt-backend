@@ -16,5 +16,6 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		Task<bool> UpdateOrderCodAsync(UpdateCodRequest request);
 		Task<ShippingOrderDetailDto?> GetOrderDetailAsync(string orderCode);
 		Task<bool> UpdateOrderAsync(UpdateOrderRequest request);
+		Task<BaseResponse<string>> GetOrderInfoUrlAsync(GetOrderInfoRequest request);
 	}
 }

@@ -324,5 +324,46 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<ShippingOrderDetailDto>>();
 			return result?.Data;
 		}
+
+		public async Task<BaseResponse<string>> GetOrderInfoUrlAsync(GetOrderInfoRequest request)
+		{
+			if (request.TrackingNumbers.Count == 0)
+			{
+				return BaseResponse<string>.Fail("Tracking numbers are required.", ResponseErrorType.BadRequest);
+			}
+
+			var token = _configuration["GHN:Token"];
+			var getTokenUrl = _configuration["GHN:GetTokenUrl"];
+			var getOrderInfoUrl = _configuration["GHN:GetOrderInfoUrl"];
+
+			var requestBody = new
+			{
+				order_codes = request.TrackingNumbers
+			};
+
+			using var requestMessage = new HttpRequestMessage(HttpMethod.Post, getTokenUrl);
+			requestMessage.Headers.Add("Token", token);
+			requestMessage.Content = JsonContent.Create(requestBody);
+
+			var response = await _httpClient.SendAsync(requestMessage);
+			if (!response.IsSuccessStatusCode)
+			{
+				var errorContent = await response.Content.ReadAsStringAsync();
+				Console.WriteLine($"Error Detail: {errorContent}");
+				return BaseResponse<string>.Fail($"Failed to generate GHN token: {errorContent}");
+			}
+
+			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<GetOrderInfoTokenResponse>>();
+			if (result?.Code != 200 || string.IsNullOrWhiteSpace(result.Data?.Token) || string.IsNullOrWhiteSpace(getOrderInfoUrl))
+			{
+				return BaseResponse<string>.Fail("Invalid response from GHN when generating order info URL.");
+			}
+
+			var orderInfoUrl = getOrderInfoUrl.Contains('?')
+				? $"{getOrderInfoUrl}&token={result.Data.Token}"
+				: $"{getOrderInfoUrl}?token={result.Data.Token}";
+
+			return BaseResponse<string>.Ok(orderInfoUrl, "GHN order info URL generated successfully.");
+		}
 	}
 }
