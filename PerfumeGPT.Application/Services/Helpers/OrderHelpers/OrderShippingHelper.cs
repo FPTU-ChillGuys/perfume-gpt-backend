@@ -1,6 +1,5 @@
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
-using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -83,12 +82,13 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				OrderStatus.Delivering => ShippingStatus.Delivering,
 				OrderStatus.Delivered => ShippingStatus.Delivered,
 				OrderStatus.Cancelled => ShippingStatus.Cancelled,
+				OrderStatus.Returning => ShippingStatus.Returning,
 				OrderStatus.Returned => ShippingStatus.Returned,
 				_ => null
 			};
 		}
 
-		public async Task<BaseResponse<string>> CreateGHNShippingOrderAsync(
+		public async Task<bool> CreateGHNShippingOrderAsync(
 			Order order,
 			RecipientInfo recipientInfo)
 		{
@@ -146,8 +146,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				shippingInfo.SetTrackingNumber(ghnResponse.OrderCode);
 				_unitOfWork.ShippingInfos.Update(shippingInfo);
 			}
-
-			return BaseResponse<string>.Ok(ghnResponse.OrderCode, "GHN shipping order created successfully.");
+			var result = await _unitOfWork.SaveChangesAsync();
+			return result;
 		}
 	}
 }

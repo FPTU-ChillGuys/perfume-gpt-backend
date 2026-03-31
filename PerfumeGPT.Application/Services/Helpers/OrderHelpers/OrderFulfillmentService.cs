@@ -111,11 +111,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 				await _stockReservationService.CommitReservationAsync(order.Id);
 
-				order.SetStatus(OrderStatus.Delivering);
 				order.SetStaff(staffId);
 				_unitOfWork.Orders.Update(order);
-
-				MarkShippingAsDelivering(order);
 
 				orderForGhn = order;
 				recipientForGhn = recipientInfo;
@@ -126,18 +123,15 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			if (orderForGhn?.ShippingInfo != null && recipientForGhn != null)
 			{
 				var ghnOrderResult = await _shippingHelper.CreateGHNShippingOrderAsync(orderForGhn, recipientForGhn);
-				if (!ghnOrderResult.Success)
+				if (!ghnOrderResult)
 				{
-					return $"Order stock committed locally, BUT failed to create GHN order: {ghnOrderResult.Message}. Please check recipient info and retry GHN sync manually.";
+					return $"Order stock committed locally, BUT failed to create GHN order. Please check recipient info and retry GHN sync manually.";
 				}
 
-				await _unitOfWork.ExecuteInTransactionAsync(async () =>
-				{
-					return true;
-				});
+				return "Order fulfilled successfully. Stock committed and GHN shipping order created.";
 			}
 
-			return "Order fulfilled successfully. Stock committed and GHN shipping order created.";
+			return "Order fulfilled successfully. Stock committed.";
 		}
 
 		private async Task<Order> ValidateOrderForFulfillmentAsync(Guid orderId)
@@ -236,15 +230,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			}
 
 			return BaseResponse<bool>.Ok(true);
-		}
-
-		private void MarkShippingAsDelivering(Order order)
-		{
-			if (order.ShippingInfo != null)
-			{
-				order.ShippingInfo.MarkAsDelivering();
-				_unitOfWork.ShippingInfos.Update(order.ShippingInfo);
-			}
 		}
 
 		#endregion

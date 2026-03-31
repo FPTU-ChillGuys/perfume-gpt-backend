@@ -88,6 +88,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			// Register background job classes
 			services.AddScoped<StockReservationJob>();
 			services.AddScoped<TemporaryMediaCleanupJob>();
+			services.AddScoped<ShippingStatusSyncJob>();
 			services.AddScoped<InvoiceEmailJob>();
 			services.AddScoped<IInvoiceEmailJobScheduler, InvoiceEmailJobScheduler>();
 			services.AddHostedService<StartupJobScheduler>();

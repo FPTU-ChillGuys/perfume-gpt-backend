@@ -29,6 +29,12 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs.Schedulers
 				job => job.CleanupExpiredMediaAsync(),
 				"0 * * * *"); // Cron: every hour at minute 0 (e.g., 1:00, 2:00, 3:00, etc.)
 
+			// Sync GHN shipping statuses every 15 minutes
+			RecurringJob.AddOrUpdate<ShippingStatusSyncJob>(
+				"sync-ghn-shipping-status",
+				job => job.SyncGhnShippingStatusAsync(),
+				"*/15 * * * *"); // Cron: every 15 minutes
+
 			return Task.CompletedTask;
 		}
 

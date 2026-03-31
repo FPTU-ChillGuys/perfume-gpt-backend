@@ -59,12 +59,19 @@ namespace PerfumeGPT.Domain.Entities
 			Status = ShippingStatus.Cancelled;
 		}
 
-		public void MarkAsDelivering(DateTime? shippedDateUtc = null)
+		public void MarkAsDelivering()
 		{
 			if (Status == ShippingStatus.Delivered)
 				throw DomainException.BadRequest("Cannot set shipment to delivering after it is delivered.");
 
 			Status = ShippingStatus.Delivering;
+		}
+
+		public void MarkAsReturning()
+		{
+			if (Status != ShippingStatus.Delivering && Status != ShippingStatus.Delivered)
+				throw DomainException.BadRequest("Cannot mark as returning if shipment is not delivering or delivered.");
+			Status = ShippingStatus.Returning;
 		}
 
 		public void MarkAsReturned()

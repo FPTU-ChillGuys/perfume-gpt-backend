@@ -302,7 +302,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			return result;
 		}
 
-		public async Task<List<ShippingOrderDetailDto>?> GetOrderDetailAsync(string orderCode)
+		public async Task<ShippingOrderDetailDto?> GetOrderDetailAsync(string orderCode)
 		{
 			var token = _configuration["GHN:Token"];
 			var detailUrl = _configuration["GHN:GetOrderDetailUrl"];
@@ -321,7 +321,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return null;
 			}
 
-			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<List<ShippingOrderDetailDto>>>();
+			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<ShippingOrderDetailDto>>();
 			return result?.Data;
 		}
 	}

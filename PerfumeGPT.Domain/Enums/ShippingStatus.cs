@@ -6,7 +6,7 @@
 		Delivering,
 		Delivered,
 		Cancelled,
-		ReturnInProgress,
+		Returning,
 		Returned
 	}
 }
