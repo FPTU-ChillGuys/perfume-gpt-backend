@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Requests.OrderCancelRequests;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -20,19 +21,22 @@ namespace PerfumeGPT.Application.Services
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IVoucherService _voucherService;
+		private readonly IGHNService _ghnService;
 
 		public OrderCancelRequestService(
 			IUnitOfWork unitOfWork,
 			IVnPayService vnPayService,
 			IHttpContextAccessor httpContextAccessor,
 			IStockReservationService stockReservationService,
-			IVoucherService voucherService)
+		 IVoucherService voucherService,
+			IGHNService ghnService)
 		{
 			_unitOfWork = unitOfWork;
 			_vnPayService = vnPayService;
 			_httpContextAccessor = httpContextAccessor;
 			_stockReservationService = stockReservationService;
 			_voucherService = voucherService;
+			_ghnService = ghnService;
 		}
 		#endregion Dependencies
 
@@ -97,6 +101,14 @@ namespace PerfumeGPT.Application.Services
 
 				if (request.IsApproved)
 				{
+					if (!string.IsNullOrWhiteSpace(freshOrder.ShippingInfo?.TrackingNumber))
+					{
+						await _ghnService.CancelOrderAsync(new CancelOrderRequest
+						{
+							TrackingNumbers = [freshOrder.ShippingInfo.TrackingNumber]
+						});
+					}
+
 					if (freshCancelReq.IsRefundRequired)
 					{
 						freshCancelReq.MarkRefunded(vnPayResponse?.TransactionNo);

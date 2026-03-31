@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Responses.Address.GHNs;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.DTOs.Responses.GHNs;
 using PerfumeGPT.Application.DTOs.Responses.GHNs.Base;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
@@ -364,6 +365,45 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				: $"{getOrderInfoUrl}?token={result.Data.Token}";
 
 			return BaseResponse<string>.Ok(orderInfoUrl, "GHN order info URL generated successfully.");
+		}
+
+		public async Task CancelOrderAsync(CancelOrderRequest request)
+		{
+			if (request.TrackingNumbers.Count == 0)
+			{
+				throw AppException.BadRequest("Tracking numbers are required.");
+			}
+
+			var token = _configuration["GHN:Token"];
+			var shopId = _configuration["GHN:ShopId"];
+			var cancelOrderUrl = _configuration["GHN:CancelOrderUrl"];
+
+			var requestBody = new
+			{
+				order_codes = request.TrackingNumbers
+			};
+
+			using var requestMessage = new HttpRequestMessage(HttpMethod.Post, cancelOrderUrl);
+			requestMessage.Headers.Add("Token", token);
+			if (!string.IsNullOrWhiteSpace(shopId))
+			{
+				requestMessage.Headers.Add("ShopId", shopId);
+			}
+			requestMessage.Content = JsonContent.Create(requestBody);
+
+			var response = await _httpClient.SendAsync(requestMessage);
+			if (!response.IsSuccessStatusCode)
+			{
+				var errorContent = await response.Content.ReadAsStringAsync();
+				Console.WriteLine($"Error Detail: {errorContent}");
+				throw AppException.Internal($"Failed to cancel GHN order: {errorContent}");
+			}
+
+			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<object>>();
+			if (result?.Code != 200)
+			{
+				throw AppException.Internal(result?.Message ?? "GHN cancel order request failed.");
+			}
 		}
 	}
 }

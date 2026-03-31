@@ -1,4 +1,5 @@
 using PerfumeGPT.Application.DTOs.Requests.Carts;
+using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
@@ -8,6 +9,7 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
@@ -31,6 +33,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IRecipientService _recipientService;
 		private readonly INotificationService _notificationService;
 		private readonly IAuditScope _auditScope;
+		private readonly IGHNService _ghnService;
 
 		public OrderService(
 			IUnitOfWork unitOfWork,
@@ -46,7 +49,8 @@ namespace PerfumeGPT.Application.Services
 			INotificationService notificationService,
 			IRecipientService recipientService,
 			IAuditScope auditScope,
-			ILoyaltyTransactionService loyaltyTransactionService)
+		   ILoyaltyTransactionService loyaltyTransactionService,
+			IGHNService ghnService)
 		{
 			_unitOfWork = unitOfWork;
 			_cartService = cartService;
@@ -62,6 +66,7 @@ namespace PerfumeGPT.Application.Services
 			_recipientService = recipientService;
 			_auditScope = auditScope;
 			_loyaltyTransactionService = loyaltyTransactionService;
+			_ghnService = ghnService;
 		}
 		#endregion Dependencies
 
@@ -611,6 +616,14 @@ namespace PerfumeGPT.Application.Services
 
 		private async Task HandleOrderCancellationAsync(Order order)
 		{
+			if (!string.IsNullOrWhiteSpace(order.ShippingInfo?.TrackingNumber))
+			{
+				await _ghnService.CancelOrderAsync(new CancelOrderRequest
+				{
+					TrackingNumbers = [order.ShippingInfo.TrackingNumber]
+				});
+			}
+
 			order.SetStatus(OrderStatus.Cancelled);
 			UpdateShippingStatus(order, OrderStatus.Cancelled);
 			await _stockReservationService.ReleaseReservationAsync(order.Id);
