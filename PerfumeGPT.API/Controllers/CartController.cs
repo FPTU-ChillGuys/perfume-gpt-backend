@@ -32,10 +32,10 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<GetCartItemsResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<GetCartItemsResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<GetCartItemsResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<GetCartItemsResponse>>> GetCartItems([FromQuery] List<Guid>? itemIds)
+		public async Task<ActionResult<BaseResponse<GetCartItemsResponse>>> GetCartItems([FromQuery] GetPagedCartItemsRequest request)
 		{
 			var userId = GetCurrentUserId();
-			var result = await _cartService.GetCartItemsAsync(userId, itemIds);
+			var result = await _cartService.GetCartItemsAsync(userId, request);
 			return HandleResponse(result);
 		}
 

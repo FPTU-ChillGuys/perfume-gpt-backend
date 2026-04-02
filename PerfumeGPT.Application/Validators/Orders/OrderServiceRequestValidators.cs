@@ -53,7 +53,7 @@ namespace PerfumeGPT.Application.Validators.Orders
 		{
 			RuleFor(x => x.ItemIds)
 				.Must(ids => ids.Distinct().Count() == ids.Count)
-                .WithMessage("Duplicate item IDs are not allowed.")
+				.WithMessage("Duplicate item IDs are not allowed.")
 				.When(x => x.ItemIds != null);
 
 			RuleFor(x => x.ExpectedTotalPrice)
@@ -149,9 +149,7 @@ namespace PerfumeGPT.Application.Validators.Orders
 	{
 		public UserCancelOrderRequestValidator()
 		{
-			RuleFor(x => x.Reason)
-				.MaximumLength(1000).WithMessage("Reason must not exceed 1000 characters.")
-				.When(x => !string.IsNullOrWhiteSpace(x.Reason));
+			RuleFor(x => x.Reason).IsInEnum().WithMessage("Invalid cancellation reason.");
 		}
 	}
 

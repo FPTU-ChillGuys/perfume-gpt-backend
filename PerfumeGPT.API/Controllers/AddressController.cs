@@ -179,7 +179,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<AddressLevel4Response>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<AddressLevel4Response>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<AddressLevel4Response>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<AddressLevel4Response>>> GetStreetsAsync([FromQuery] AddressLevel4Request request)
+		public async Task<ActionResult<BaseResponse<AddressLevel4Response>>> GetStreetsAsync([FromQuery] GetAddressLevel4Request request)
 		{
 			var response = await _ghtkService.GetAddressLevel4Async(request);
 			return HandleResponse(response);

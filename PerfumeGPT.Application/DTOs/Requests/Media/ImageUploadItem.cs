@@ -3,10 +3,12 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Media
 {
-	public record ImageUploadItem(
-	IFormFile? File,
-	EntityType EntityType,
-	int DisplayOrder,
-	bool IsPrimary,
-	string? AltText);
+	public record ImageUploadItem
+	{
+		public IFormFile? File { get; init; }
+		public EntityType EntityType { get; init; }
+		public int DisplayOrder { get; init; }
+		public bool IsPrimary { get; init; }
+		public string? AltText { get; init; }
+	}
 }

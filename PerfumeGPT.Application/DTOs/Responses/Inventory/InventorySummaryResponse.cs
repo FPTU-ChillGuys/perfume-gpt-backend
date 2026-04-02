@@ -1,12 +1,12 @@
 namespace PerfumeGPT.Application.DTOs.Responses.Inventory
 {
-	public class InventorySummaryResponse
+	public record InventorySummaryResponse
 	{
-		public int TotalVariants { get; set; }
-		public int TotalStockQuantity { get; set; }
-		public int LowStockVariantsCount { get; set; }
-		public int TotalBatches { get; set; }
-		public int ExpiredBatchesCount { get; set; }
-		public int ExpiringSoonCount { get; set; } // Expiring within 30 days
+		public int TotalVariants { get; init; }
+		public int TotalStockQuantity { get; init; }
+		public int LowStockVariantsCount { get; init; }
+		public int TotalBatches { get; init; }
+		public int ExpiredBatchesCount { get; init; }
+		public int ExpiringSoonCount { get; init; } // Expiring within 30 days
 	}
 }

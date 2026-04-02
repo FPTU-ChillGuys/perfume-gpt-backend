@@ -2,8 +2,8 @@
 
 namespace PerfumeGPT.Application.DTOs.Requests.Media
 {
-	public class ReviewUploadMediaRequest
+	public record ReviewUploadMediaRequest
 	{
-		public List<IFormFile> Images { get; set; } = [];
+		public required List<IFormFile> Images { get; init; }
 	}
 }

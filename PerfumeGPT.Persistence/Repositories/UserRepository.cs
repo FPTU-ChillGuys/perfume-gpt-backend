@@ -17,16 +17,10 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		public async Task<User?> FindByPhoneNumberAsync(string phoneNumber)
-		{
-			if (string.IsNullOrWhiteSpace(phoneNumber))
-				return null;
-			return await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber);
-		}
+		=> await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber);
 
 		public async Task<User?> FindByPhoneOrEmailAsync(string phoneOrEmail)
 		{
-			if (string.IsNullOrWhiteSpace(phoneOrEmail))
-				return null;
 			var normalizedInput = phoneOrEmail.Trim().ToLower();
 			return await _userManager.Users.FirstOrDefaultAsync(u =>
 				(u.PhoneNumber != null && u.PhoneNumber == normalizedInput) ||

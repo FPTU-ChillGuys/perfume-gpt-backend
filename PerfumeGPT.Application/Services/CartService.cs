@@ -54,9 +54,9 @@ namespace PerfumeGPT.Application.Services
 			return response;
 		}
 
-		public async Task<BaseResponse<GetCartItemsResponse>> GetCartItemsAsync(Guid userId, List<Guid>? itemIds = null)
+		public async Task<BaseResponse<GetCartItemsResponse>> GetCartItemsAsync(Guid userId, GetPagedCartItemsRequest request)
 		{
-			var items = await _unitOfWork.CartItems.GetCartItemsByUserIdAsync(userId, itemIds);
+			var items = await _unitOfWork.CartItems.GetCartItemsByUserIdAsync(userId, request.ItemIds);
 			if (items == null || items.Count == 0)
 			{
 				return BaseResponse<GetCartItemsResponse>.Ok(

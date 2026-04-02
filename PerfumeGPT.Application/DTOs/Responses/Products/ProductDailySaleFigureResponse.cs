@@ -1,17 +1,17 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Products
+namespace PerfumeGPT.Application.DTOs.Responses.Products
 {
-	public class ProductDailySaleFigureResponse
+	public record ProductDailySaleFigureResponse
 	{
-		public Guid ProductId { get; set; }
-		public string ProductName { get; set; } = string.Empty;
-		public List<VariantDailySaleFigure> DailySaleFigures { get; set; } = [];
+		public Guid ProductId { get; init; }
+		public required string ProductName { get; init; }
+		public required List<VariantDailySaleFigure> DailySaleFigures { get; init; }
 	}
 
-	public class VariantDailySaleFigure
+	public record VariantDailySaleFigure
 	{
-		public Guid VariantId { get; set; }
-		public string VariantName { get; set; } = string.Empty;
-		public DateOnly Date { get; set; }
-		public int QuantitySold { get; set; }
+		public Guid VariantId { get; init; }
+		public required string VariantName { get; init; }
+		public DateOnly Date { get; init; }
+		public int QuantitySold { get; init; }
 	}
 }

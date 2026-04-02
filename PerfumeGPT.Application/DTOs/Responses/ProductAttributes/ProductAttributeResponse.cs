@@ -1,12 +1,12 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.ProductAttributes
+namespace PerfumeGPT.Application.DTOs.Responses.ProductAttributes
 {
-	public class ProductAttributeResponse
+	public record ProductAttributeResponse
 	{
-		public Guid Id { get; set; }
-		public int AttributeId { get; set; }
-		public int ValueId { get; set; }
-		public string Attribute { get; set; } = null!;
-		public string Description { get; set; } = string.Empty;
-		public string Value { get; set; } = null!;
+		public Guid Id { get; init; }
+		public int AttributeId { get; init; }
+		public int ValueId { get; init; }
+		public required string Attribute { get; init; }
+		public string? Description { get; init; }
+		public required string Value { get; init; }
 	}
 }

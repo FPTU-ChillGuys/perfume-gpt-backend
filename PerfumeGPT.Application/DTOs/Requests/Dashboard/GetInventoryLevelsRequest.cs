@@ -1,7 +1,7 @@
 namespace PerfumeGPT.Application.DTOs.Requests.Dashboard
 {
-	public class GetInventoryLevelsRequest
+	public record GetInventoryLevelsRequest
 	{
-		public int ExpiringWithinDays { get; set; } = 30;
+		public int ExpiringWithinDays { get; init; } = 30;
 	}
 }

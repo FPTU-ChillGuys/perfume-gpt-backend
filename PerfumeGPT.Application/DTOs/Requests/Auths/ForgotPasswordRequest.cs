@@ -1,8 +1,8 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.Auths
 {
-	public class ForgotPasswordRequest
+	public record ForgotPasswordRequest
 	{
-		public string Email { get; set; } = null!;
-		public string ClientUri { get; set; } = null!; //https://localhost:7011/api/auths/reset-password
+		public required string Email { get; init; }
+		public required string ClientUri { get; init; } //https://localhost:7011/api/auths/reset-password
 	}
 }

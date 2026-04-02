@@ -1,5 +1,4 @@
-﻿using Mapster;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Interfaces.Repositories;
@@ -116,14 +115,12 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		public async Task<bool> HasRedeemedVoucherAsync(Guid userId, Guid voucherId, string? guestEmailOrPhone)
-		{
-			return await _context.UserVouchers
+		=> await _context.UserVouchers
 				.AsNoTracking()
 				.AnyAsync(uv =>
 					(uv.UserId == userId && uv.VoucherId == voucherId) ||
 					(uv.GuestEmailOrPhone == guestEmailOrPhone && uv.VoucherId == voucherId)
 				);
-		}
 
 		public async Task<UserVoucher?> GetUnusedUserVoucherAsync(Guid userId, Guid voucherId)
 		{
@@ -151,7 +148,16 @@ namespace PerfumeGPT.Persistence.Repositories
 						&& uv.Voucher.RemainingQuantity > 0
 						&& !_context.UserVouchers.Any(used =>
 							used.UserId == userId && used.VoucherId == uv.VoucherId)))
-				.ProjectToType<AvailableVoucherResponse>()
+              .Select(uv => new AvailableVoucherResponse
+				{
+					Id = uv.Voucher.Id,
+					Code = uv.Voucher.Code,
+					DiscountValue = uv.Voucher.DiscountValue,
+					DiscountType = uv.Voucher.DiscountType,
+					MinOrderValue = uv.Voucher.MinOrderValue,
+					ExpiryDate = uv.Voucher.ExpiryDate,
+					RemainingQuantity = uv.Voucher.RemainingQuantity
+				})
 				.AsNoTracking();
 
 			var totalCount = await query.CountAsync();

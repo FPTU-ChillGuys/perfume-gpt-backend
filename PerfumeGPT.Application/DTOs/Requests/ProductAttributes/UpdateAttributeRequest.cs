@@ -1,9 +1,9 @@
 namespace PerfumeGPT.Application.DTOs.Requests.ProductAttributes
 {
-	public class UpdateAttributeRequest
+	public record UpdateAttributeRequest
 	{
-		public string Name { get; set; } = null!;
-		public string? Description { get; set; }
-		public bool IsVariantLevel { get; set; }
+		public required string Name { get; init; }
+		public string? Description { get; init; }
+		public bool IsVariantLevel { get; init; }
 	}
 }

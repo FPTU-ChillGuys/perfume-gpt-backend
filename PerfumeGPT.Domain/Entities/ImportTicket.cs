@@ -2,6 +2,7 @@
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Domain.Exceptions;
+using static PerfumeGPT.Domain.Entities.ImportDetail;
 
 namespace PerfumeGPT.Domain.Entities
 {
@@ -33,25 +34,24 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime? DeletedAt { get; set; }
 
 		// Factory methods
-		public static ImportTicket Create(Guid createdById, int supplierId, DateTime expectedArrivalDate, decimal totalCost)
+		public static ImportTicket Create(Guid createdById, ImportHeader header)
 		{
 			if (createdById == Guid.Empty)
 				throw DomainException.BadRequest("Created by user is required.");
 
-			if (supplierId <= 0)
+			if (header.SupplierId <= 0)
 				throw DomainException.BadRequest("Supplier is required.");
 
-			if (totalCost < 0)
+			if (header.TotalCost < 0)
 				throw DomainException.BadRequest("Total cost cannot be negative.");
 
 			return new ImportTicket
 			{
 				CreatedById = createdById,
-				SupplierId = supplierId,
-				ExpectedArrivalDate = expectedArrivalDate,
-				TotalCost = totalCost,
-				Status = ImportStatus.Pending,
-				ActualImportDate = DateTime.MinValue
+				SupplierId = header.SupplierId,
+				ExpectedArrivalDate = header.ExpectedArrivalDate,
+				TotalCost = header.TotalCost,
+				Status = ImportStatus.Pending
 			};
 		}
 
@@ -64,13 +64,13 @@ namespace PerfumeGPT.Domain.Entities
 			ImportDetails.Add(detail);
 		}
 
-		public void UpdateDetail(Guid detailId, Guid variantId, int expectedQuantity, decimal unitPrice)
+		public void UpdateDetail(Guid detailId, ImportItemInfo info)
 		{
 			ImportDetails ??= [];
 			var detail = ImportDetails.FirstOrDefault(d => d.Id == detailId)
 				?? throw DomainException.NotFound($"Import detail with ID {detailId} does not exist in this ticket.");
 
-			detail.UpdateExpected(variantId, expectedQuantity, unitPrice);
+			detail.UpdateExpected(info);
 		}
 
 		public void RemoveDetail(Guid detailId)
@@ -82,30 +82,30 @@ namespace PerfumeGPT.Domain.Entities
 			ImportDetails.Remove(detail);
 		}
 
-		public void VerifyDetail(Guid detailId, int rejectedQuantity, string? note)
+		public void VerifyDetail(Guid detailId, DetailVerification verification)
 		{
 			if (Status != ImportStatus.InProgress)
 				throw DomainException.BadRequest("Cannot verify details unless the import ticket is in progress.");
 			ImportDetails ??= [];
 			var detail = ImportDetails.FirstOrDefault(d => d.Id == detailId) ?? throw DomainException.NotFound($"Import detail with ID {detailId} does not exist in this ticket.");
 
-			detail.Verify(rejectedQuantity, note);
+			detail.Verify(verification);
 		}
 
-		public void UpdateForPending(int supplierId, DateTime expectedArrivalDate, decimal totalCost)
+		public void UpdateForPending(ImportHeader header)
 		{
 			if (Status != ImportStatus.Pending)
 				throw DomainException.BadRequest("Only pending import tickets can be updated.");
 
-			if (supplierId <= 0)
+			if (header.SupplierId <= 0)
 				throw DomainException.BadRequest("Supplier is required.");
 
-			if (totalCost < 0)
+			if (header.TotalCost < 0)
 				throw DomainException.BadRequest("Total cost cannot be negative.");
 
-			SupplierId = supplierId;
-			ExpectedArrivalDate = expectedArrivalDate;
-			TotalCost = totalCost;
+			SupplierId = header.SupplierId;
+			ExpectedArrivalDate = header.ExpectedArrivalDate;
+			TotalCost = header.TotalCost;
 		}
 
 		public void Complete(Guid verifiedById, DateTime actualImportDate)
@@ -143,5 +143,12 @@ namespace PerfumeGPT.Domain.Entities
 			if (Status != ImportStatus.Pending)
 				throw DomainException.BadRequest("Only pending import tickets can be deleted.");
 		}
+
+		// Records
+		public record ImportHeader(
+			int SupplierId,
+			DateTime ExpectedArrivalDate,
+			decimal TotalCost
+		);
 	}
 }

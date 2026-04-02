@@ -2,13 +2,13 @@
 
 namespace PerfumeGPT.Application.DTOs.Requests.Orders
 {
-	public class CreateInStoreOrderRequest
+	public record CreateInStoreOrderRequest
 	{
-		public string? VoucherCode { get; set; }
-		public bool IsPickupInStore { get; set; } = false;
+		public string? VoucherCode { get; init; }
+		public bool IsPickupInStore { get; init; } = false;
 
-		public List<CreateOrderDetailRequest> OrderDetails { get; set; } = new();
-		public RecipientInformation? Recipient { get; set; }
-		public PaymentInformation Payment { get; set; } = new PaymentInformation();
+		public required List<CreateOrderDetailRequest> OrderDetails { get; init; }
+		public RecipientInformation? Recipient { get; init; }
+		public required PaymentInformation Payment { get; init; }
 	}
 }

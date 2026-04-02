@@ -22,7 +22,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			_configuration = configuration;
 		}
 
-		public async Task<CalculateFeeResponse?> CalculateShippingFeeAsync(CalculateFeeRequest request)
+		public async Task<CalculateFeeResponse?> CalculateShippingFeeAsync(CalculateShippingFeeRequest request)
 		{
 			var token = _configuration["GHN:Token"];
 			var shopId = _configuration["GHN:ShopId"];

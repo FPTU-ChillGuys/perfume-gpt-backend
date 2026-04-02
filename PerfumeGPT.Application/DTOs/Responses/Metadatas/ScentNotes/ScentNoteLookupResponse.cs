@@ -1,8 +1,8 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Metadatas.ScentNotes
+namespace PerfumeGPT.Application.DTOs.Responses.Metadatas.ScentNotes
 {
-	public class ScentNoteLookupResponse
+	public record ScentNoteLookupResponse
 	{
-		public int Id { get; set; }
-		public string Name { get; set; } = string.Empty;
+		public int Id { get; init; }
+		public required string Name { get; init; }
 	}
 }

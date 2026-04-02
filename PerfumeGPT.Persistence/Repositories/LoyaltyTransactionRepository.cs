@@ -13,7 +13,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public LoyaltyTransactionRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<int> GetPointBalanceAsync(Guid userId)
-			=> await _context.LoyaltyTransactions.Where(lt => lt.UserId == userId).SumAsync(lt => lt.PointsChanged);
+		=> await _context.LoyaltyTransactions.Where(lt => lt.UserId == userId).SumAsync(lt => lt.PointsChanged);
 
 		public async Task<(List<LoyaltyTransactionHistoryItemResponse> Items, int TotalCount)> GetPagedHistoryByUserAsync(Guid userId, GetPagedUserLoyaltyTransactionsRequest request)
 		{

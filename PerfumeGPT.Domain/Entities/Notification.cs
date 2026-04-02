@@ -29,14 +29,7 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime CreatedAt { get; set; }
 
 		// Factory methods
-		public static Notification Create(
-			Guid userId,
-			NotificationType type,
-			string? message,
-			Guid? stockId = null,
-			Guid? orderId = null,
-			Guid? voucherId = null,
-			Guid? batchId = null)
+		public static Notification Create(Guid userId, NotificationPayload payload)
 		{
 			if (userId == Guid.Empty)
 				throw DomainException.BadRequest("User ID is required.");
@@ -44,12 +37,12 @@ namespace PerfumeGPT.Domain.Entities
 			return new Notification
 			{
 				UserId = userId,
-				Type = type,
-				Message = string.IsNullOrWhiteSpace(message) ? null : message.Trim(),
-				StockId = stockId,
-				OrderId = orderId,
-				VoucherId = voucherId,
-				BatchId = batchId,
+				Type = payload.Type,
+				Message = string.IsNullOrWhiteSpace(payload.Message) ? null : payload.Message.Trim(),
+				StockId = payload.StockId,
+				OrderId = payload.OrderId,
+				VoucherId = payload.VoucherId,
+				BatchId = payload.BatchId,
 				IsRead = false
 			};
 		}
@@ -58,6 +51,18 @@ namespace PerfumeGPT.Domain.Entities
 		public void MarkAsRead()
 		{
 			IsRead = true;
+		}
+
+		// Records
+		public record NotificationPayload
+		{
+			public required NotificationType Type { get; init; }
+			public string? Message { get; init; }
+
+			public Guid? StockId { get; init; }
+			public Guid? OrderId { get; init; }
+			public Guid? VoucherId { get; init; }
+			public Guid? BatchId { get; init; }
 		}
 	}
 }

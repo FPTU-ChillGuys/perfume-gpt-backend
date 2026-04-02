@@ -1,8 +1,7 @@
 ﻿using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Exceptions;
-using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
-using Mapster;
+using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.OlfactoryFamilies;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.OlfactoryFamilies;
@@ -14,9 +13,12 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		public OlfactoryFamilyService(IOlfactoryFamilyRepository olfactoryFamilyRepository, IUnitOfWork unitOfWork)
+		private readonly IMapper _mapper;
+
+		public OlfactoryFamilyService(IUnitOfWork unitOfWork, IMapper mapper)
 		{
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
 		#endregion Dependencies
 
@@ -54,7 +56,7 @@ namespace PerfumeGPT.Application.Services
 			await _unitOfWork.OlfactoryFamilies.AddAsync(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Could not create OlfactoryFamily.");
-			return BaseResponse<OlfactoryFamilyResponse>.Ok(entity.Adapt<OlfactoryFamilyResponse>());
+			return BaseResponse<OlfactoryFamilyResponse>.Ok(_mapper.Map<OlfactoryFamilyResponse>(entity));
 		}
 
 		public async Task<BaseResponse<OlfactoryFamilyResponse>> UpdateOlfactoryFamilyAsync(int id, UpdateOlfactoryFamilyRequest request)
@@ -72,7 +74,7 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Could not update OlfactoryFamily.");
 
-			return BaseResponse<OlfactoryFamilyResponse>.Ok(entity.Adapt<OlfactoryFamilyResponse>());
+			return BaseResponse<OlfactoryFamilyResponse>.Ok(_mapper.Map<OlfactoryFamilyResponse>(entity));
 		}
 
 		public async Task<BaseResponse<bool>> DeleteOlfactoryFamilyAsync(int id)

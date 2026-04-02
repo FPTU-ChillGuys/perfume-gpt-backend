@@ -11,11 +11,11 @@ namespace PerfumeGPT.Persistence.Repositories
 		public ProfileRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<CustomerProfile?> GetByUserIdWithPreferencesAsync(Guid userId)
-			=> await _context.CustomerProfiles
-				.Include(p => p.NotePreferences)
-				.Include(p => p.FamilyPreferences)
-				.Include(p => p.AttributePreferences)
-				.FirstOrDefaultAsync(p => p.UserId == userId);
+		=> await _context.CustomerProfiles
+			.Include(p => p.NotePreferences)
+			.Include(p => p.FamilyPreferences)
+			.Include(p => p.AttributePreferences)
+			.FirstOrDefaultAsync(p => p.UserId == userId);
 
 		public async Task<List<int>> GetMissingNoteIdsAsync(IEnumerable<int> noteIds)
 		{

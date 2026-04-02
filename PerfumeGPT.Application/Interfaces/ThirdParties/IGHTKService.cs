@@ -6,6 +6,6 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 {
 	public interface IGHTKService
 	{
-		Task<BaseResponse<AddressLevel4Response>> GetAddressLevel4Async(AddressLevel4Request request);
+		Task<BaseResponse<AddressLevel4Response>> GetAddressLevel4Async(GetAddressLevel4Request request);
 	}
 }

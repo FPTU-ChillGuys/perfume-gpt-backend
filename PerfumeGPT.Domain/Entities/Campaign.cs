@@ -2,26 +2,13 @@
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Domain.Exceptions;
+using static PerfumeGPT.Domain.Entities.PromotionItem;
+using static PerfumeGPT.Domain.Entities.Voucher;
 
 namespace PerfumeGPT.Domain.Entities
 {
 	public class Campaign : BaseEntity<Guid>, IHasTimestamps, ISoftDelete
 	{
-		public sealed record PromotionItemSyncFactor(
-			Guid? Id,
-			Guid ProductVariantId,
-			Guid? BatchId,
-			PromotionType PromotionType,
-			int? MaxUsage);
-
-		public sealed record VoucherSyncFactor(
-			Guid? Id,
-			string Code,
-			decimal DiscountValue,
-			DiscountType DiscountType,
-			VoucherType ApplyType,
-			PromotionType TargetItemType);
-
 		protected Campaign() { }
 
 		public string Name { get; private set; } = null!;
@@ -44,33 +31,21 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime? DeletedAt { get; set; }
 
 		// Factory methods
-		public static Campaign Create(string name, string? description, DateTime startDate, DateTime endDate, CampaignType type, CampaignStatus status)
+		public static Campaign Create(CampaignCreationFactor details)
 		{
-			ValidateName(name);
-			ValidateDateRange(startDate, endDate);
+			ValidateName(details.Name);
+			ValidateDateRange(details.StartDate, details.EndDate);
 
 			return new Campaign
 			{
 				Id = Guid.NewGuid(),
-				Name = name.Trim(),
-				Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
-				StartDate = startDate,
-				EndDate = endDate,
-				Type = type,
-				Status = status
+				Name = details.Name.Trim(),
+				Description = string.IsNullOrWhiteSpace(details.Description) ? null : details.Description.Trim(),
+				StartDate = details.StartDate,
+				EndDate = details.EndDate,
+				Type = details.Type,
+				Status = details.Status
 			};
-		}
-
-		public void UpdateInfo(string name, string? description, DateTime startDate, DateTime endDate, CampaignType type)
-		{
-			ValidateName(name);
-			ValidateDateRange(startDate, endDate);
-
-			Name = name.Trim();
-			Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
-			StartDate = startDate;
-			EndDate = endDate;
-			Type = type;
 		}
 
 		public void UpdateStatus(CampaignStatus newStatus, DateTime nowUtc)
@@ -84,40 +59,56 @@ namespace PerfumeGPT.Domain.Entities
 			Status = newStatus;
 		}
 
-		public PromotionItem AddPromotionItem(Guid variantId, Guid? batchId, PromotionType type, int? maxUsage)
+		public void UpdateInfo(CampaignUpdateInfoFactor details)
+		{
+			ValidateName(details.Name);
+			ValidateDateRange(details.StartDate, details.EndDate);
+
+			Name = details.Name.Trim();
+			Description = string.IsNullOrWhiteSpace(details.Description) ? null : details.Description.Trim();
+			StartDate = details.StartDate;
+			EndDate = details.EndDate;
+			Type = details.Type;
+		}
+
+		public PromotionItem AddPromotionItem(PromotionItemConfigFactor details)
 		{
 			Items ??= [];
 
-			var item = PromotionItem.Create(
-				this.Id,
-				variantId,
-				batchId,
-				type,
-				maxUsage,
-				this.Status == CampaignStatus.Active);
+			var item = PromotionItem.Create(new PromotionItemCreationFactor
+			{
+				CampaignId = this.Id,
+				ProductVariantId = details.ProductVariantId,
+				BatchId = details.BatchId,
+				ItemType = details.PromotionType,
+				MaxUsage = details.MaxUsage,
+				IsActive = this.Status == CampaignStatus.Active
+			});
 
 			Items.Add(item);
 			return item;
 		}
 
-		public Voucher AddVoucher(string code, decimal discountValue, DiscountType discountType, VoucherType applyType, PromotionType targetItemType)
+		public Voucher AddVoucher(VoucherConfigFactor details)
 		{
 			Vouchers ??= [];
 
-			var voucher = Voucher.CreateCampaign(
-				code,
-				discountValue,
-				discountType,
-				applyType,
-				targetItemType,
-				this.Id,
-				this.EndDate);
+			var voucher = Voucher.CreateCampaign(new VoucherCampaignConfigFactor
+			{
+				Code = details.Code,
+				DiscountValue = details.DiscountValue,
+				DiscountType = details.DiscountType,
+				ApplyType = details.ApplyType,
+				TargetItemType = details.TargetItemType,
+				CampaignId = this.Id,
+				ExpiryDate = this.EndDate
+			});
 
 			Vouchers.Add(voucher);
 			return voucher;
 		}
 
-		public void UpdatePromotionItem(Guid itemId, Guid productVariantId, Guid? batchId, PromotionType itemType, int? maxUsage)
+		public void UpdatePromotionItem(Guid itemId, PromotionItemConfigFactor details)
 		{
 			if (itemId == Guid.Empty)
 				throw DomainException.BadRequest("Campaign item ID is required.");
@@ -127,10 +118,17 @@ namespace PerfumeGPT.Domain.Entities
 			var item = Items.FirstOrDefault(x => x.Id == itemId)
 				?? throw DomainException.NotFound("Campaign item not found.");
 
-			item.UpdateConfiguration(productVariantId, batchId, itemType, maxUsage, Status == CampaignStatus.Active);
+			item.UpdateConfiguration(new PromotionItemUpdateFactor
+			{
+				ProductVariantId = details.ProductVariantId,
+				BatchId = details.BatchId,
+				ItemType = details.PromotionType,
+				MaxUsage = details.MaxUsage,
+				IsActive = Status == CampaignStatus.Active
+			});
 		}
 
-		public void UpdateVoucher(Guid voucherId, string code, decimal discountValue, DiscountType discountType, VoucherType applyType, PromotionType targetItemType)
+		public void UpdateVoucher(Guid voucherId, VoucherConfigFactor details)
 		{
 			if (voucherId == Guid.Empty)
 				throw DomainException.BadRequest("Campaign voucher ID is required.");
@@ -140,7 +138,16 @@ namespace PerfumeGPT.Domain.Entities
 			var voucher = Vouchers.FirstOrDefault(x => x.Id == voucherId)
 				?? throw DomainException.NotFound("Campaign voucher not found.");
 
-			voucher.UpdateCampaign(code, discountValue, discountType, applyType, targetItemType, Id, EndDate);
+			voucher.UpdateCampaign(new VoucherCampaignConfigFactor
+			{
+				Code = details.Code,
+				DiscountValue = details.DiscountValue,
+				DiscountType = details.DiscountType,
+				ApplyType = details.ApplyType,
+				TargetItemType = details.TargetItemType,
+				CampaignId = this.Id,
+				ExpiryDate = this.EndDate
+			});
 		}
 
 		public void RemovePromotionItem(Guid itemId)
@@ -191,11 +198,24 @@ namespace PerfumeGPT.Domain.Entities
 					 && req.Id.Value != Guid.Empty
 					 && existingItemsById.TryGetValue(req.Id.Value, out var existingItem))
 				{
-					existingItem.UpdateConfiguration(req.ProductVariantId, req.BatchId, req.PromotionType, req.MaxUsage, isActive);
+					existingItem.UpdateConfiguration(new PromotionItemUpdateFactor
+					{
+						ProductVariantId = req.ProductVariantId,
+						BatchId = req.BatchId,
+						ItemType = req.PromotionType,
+						MaxUsage = req.MaxUsage,
+						IsActive = isActive
+					});
 				}
 				else
 				{
-					AddPromotionItem(req.ProductVariantId, req.BatchId, req.PromotionType, req.MaxUsage);
+					AddPromotionItem(new PromotionItemConfigFactor
+					{
+						ProductVariantId = req.ProductVariantId,
+						BatchId = req.BatchId,
+						PromotionType = req.PromotionType,
+						MaxUsage = req.MaxUsage
+					});
 				}
 			}
 		}
@@ -210,37 +230,39 @@ namespace PerfumeGPT.Domain.Entities
 				.ToDictionary(x => x.Id!.Value, x => x);
 			var existingVouchersById = Vouchers.ToDictionary(x => x.Id, x => x);
 
-			// 1. Remove vouchers not present in the request
 			var vouchersToRemove = Vouchers.Where(v => !requestVoucherById.ContainsKey(v.Id)).ToList();
 			foreach (var voucher in vouchersToRemove)
 			{
 				Vouchers.Remove(voucher);
 			}
 
-			// 2. Update existing & add new
 			foreach (var req in requestVoucherList)
 			{
 				if (req.Id.HasValue
 					   && req.Id.Value != Guid.Empty
 					   && existingVouchersById.TryGetValue(req.Id.Value, out var existingVoucher))
 				{
-					existingVoucher.UpdateCampaign(
-						req.Code,
-						req.DiscountValue,
-						req.DiscountType,
-						req.ApplyType,
-						req.TargetItemType,
-						this.Id,
-						this.EndDate);
+					existingVoucher.UpdateCampaign(new VoucherCampaignConfigFactor
+					{
+						Code = req.Code,
+						DiscountValue = req.DiscountValue,
+						DiscountType = req.DiscountType,
+						ApplyType = req.ApplyType,
+						TargetItemType = req.TargetItemType,
+						CampaignId = this.Id,
+						ExpiryDate = this.EndDate
+					});
 				}
 				else
 				{
-					AddVoucher(
-						req.Code,
-						req.DiscountValue,
-						req.DiscountType,
-						req.ApplyType,
-						req.TargetItemType);
+					AddVoucher(new VoucherConfigFactor
+					{
+						Code = req.Code,
+						DiscountValue = req.DiscountValue,
+						DiscountType = req.DiscountType,
+						ApplyType = req.ApplyType,
+						TargetItemType = req.TargetItemType
+					});
 				}
 			}
 		}
@@ -264,6 +286,62 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			if (endDate <= startDate)
 				throw DomainException.BadRequest("Campaign end date must be after start date.");
+		}
+
+		// Records
+		public sealed record PromotionItemSyncFactor
+		{
+			public Guid? Id { get; init; }
+			public required Guid ProductVariantId { get; init; }
+			public Guid? BatchId { get; init; }
+			public required PromotionType PromotionType { get; init; }
+			public int? MaxUsage { get; init; }
+		}
+
+		public sealed record VoucherSyncFactor
+		{
+			public Guid? Id { get; init; }
+			public required string Code { get; init; }
+			public required decimal DiscountValue { get; init; }
+			public required DiscountType DiscountType { get; init; }
+			public required VoucherType ApplyType { get; init; }
+			public required PromotionType TargetItemType { get; init; }
+		}
+
+		public sealed record CampaignCreationFactor
+		{
+			public required string Name { get; init; }
+			public string? Description { get; init; }
+			public required DateTime StartDate { get; init; }
+			public required DateTime EndDate { get; init; }
+			public required CampaignType Type { get; init; }
+			public required CampaignStatus Status { get; init; }
+		}
+
+		public sealed record CampaignUpdateInfoFactor
+		{
+			public required string Name { get; init; }
+			public string? Description { get; init; }
+			public required DateTime StartDate { get; init; }
+			public required DateTime EndDate { get; init; }
+			public required CampaignType Type { get; init; }
+		}
+
+		public sealed record PromotionItemConfigFactor
+		{
+			public required Guid ProductVariantId { get; init; }
+			public Guid? BatchId { get; init; }
+			public required PromotionType PromotionType { get; init; }
+			public int? MaxUsage { get; init; }
+		}
+
+		public sealed record VoucherConfigFactor
+		{
+			public required string Code { get; init; }
+			public required decimal DiscountValue { get; init; }
+			public required DiscountType DiscountType { get; init; }
+			public required VoucherType ApplyType { get; init; }
+			public required PromotionType TargetItemType { get; init; }
 		}
 	}
 }

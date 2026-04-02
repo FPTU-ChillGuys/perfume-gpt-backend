@@ -20,28 +20,24 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual Batch Batch { get; set; } = null!;
 
 		// Factory methods
-		public static StockAdjustmentDetail Create(
-			Guid productVariantId,
-			Guid batchId,
-			int adjustmentQuantity,
-			string? note)
+		public static StockAdjustmentDetail Create(StockAdjustmentDetailPayload payload)
 		{
-			if (productVariantId == Guid.Empty)
+			if (payload.ProductVariantId == Guid.Empty)
 				throw DomainException.BadRequest("Product variant ID is required.");
 
-			if (batchId == Guid.Empty)
+			if (payload.BatchId == Guid.Empty)
 				throw DomainException.BadRequest("Batch ID is required.");
 
-			if (adjustmentQuantity == 0)
+			if (payload.AdjustmentQuantity == 0)
 				throw DomainException.BadRequest("Adjustment quantity cannot be 0.");
 
 			return new StockAdjustmentDetail
 			{
-				ProductVariantId = productVariantId,
-				BatchId = batchId,
-				AdjustmentQuantity = adjustmentQuantity,
+				ProductVariantId = payload.ProductVariantId,
+				BatchId = payload.BatchId,
+				AdjustmentQuantity = payload.AdjustmentQuantity,
 				ApprovedQuantity = 0,
-				Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim()
+				Note = string.IsNullOrWhiteSpace(payload.Note) ? null : payload.Note.Trim()
 			};
 		}
 
@@ -50,6 +46,15 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			ApprovedQuantity = approvedQuantity;
 			Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+		}
+
+		// Records
+		public record StockAdjustmentDetailPayload
+		{
+			public required Guid ProductVariantId { get; init; }
+			public required Guid BatchId { get; init; }
+			public required int AdjustmentQuantity { get; init; }
+			public string? Note { get; init; }
 		}
 	}
 }

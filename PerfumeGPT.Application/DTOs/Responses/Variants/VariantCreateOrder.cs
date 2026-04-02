@@ -1,9 +1,9 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Variants
+namespace PerfumeGPT.Application.DTOs.Responses.Variants
 {
-	public class VariantCreateOrder
+	public record VariantCreateOrder
 	{
-		public Guid Id { get; set; }
-		public decimal UnitPrice { get; set; }
-		public string Snapshot { get; set; } = null!;
+		public Guid Id { get; init; }
+		public decimal UnitPrice { get; init; }
+		public required string Snapshot { get; init; }
 	}
 }

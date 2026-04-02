@@ -2,57 +2,57 @@ namespace PerfumeGPT.Application.DTOs.Responses.GHNs
 {
 	using System.Text.Json.Serialization;
 
-	public class CreateShippingOrderResponse
+	public record CreateShippingOrderResponse
 	{
 		[JsonPropertyName("order_code")]
-		public string OrderCode { get; set; } = null!;
+		public required string OrderCode { get; init; }
 
 		[JsonPropertyName("sort_code")]
-		public string SortCode { get; set; } = null!;
+		public required string SortCode { get; init; }
 
 		[JsonPropertyName("trans_type")]
-		public string TransType { get; set; } = null!;
+		public required string TransType { get; init; }
 
 		[JsonPropertyName("ward_encode")]
-		public string WardEncode { get; set; } = null!;
+		public required string WardEncode { get; init; }
 
 		[JsonPropertyName("district_encode")]
-		public string DistrictEncode { get; set; } = null!;
+		public required string DistrictEncode { get; init; }
 
 		[JsonPropertyName("fee")]
-		public ShippingFeeDetails Fee { get; set; } = null!;
+		public required ShippingFeeDetails Fee { get; init; }
 
 		[JsonPropertyName("total_fee")]
-		public int TotalFee { get; set; }
+		public int TotalFee { get; init; }
 
 		[JsonPropertyName("expected_delivery_time")]
-		public DateTime? ExpectedDeliveryTime { get; set; }
+		public DateTime? ExpectedDeliveryTime { get; init; }
 	}
 
-	public class ShippingFeeDetails
+	public record ShippingFeeDetails
 	{
 		[JsonPropertyName("main_service")]
-		public int MainService { get; set; }
+		public int MainService { get; init; }
 
 		[JsonPropertyName("insurance")]
-		public int Insurance { get; set; }
+		public int Insurance { get; init; }
 
 		[JsonPropertyName("station_do")]
-		public int StationDo { get; set; }
+		public int StationDo { get; init; }
 
 		[JsonPropertyName("station_pu")]
-		public int StationPu { get; set; }
+		public int StationPu { get; init; }
 
 		[JsonPropertyName("return")]
-		public int Return { get; set; }
+		public int Return { get; init; }
 
 		[JsonPropertyName("r2s")]
-		public int R2S { get; set; }
+		public int R2S { get; init; }
 
 		[JsonPropertyName("coupon")]
-		public int Coupon { get; set; }
+		public int Coupon { get; init; }
 
 		[JsonPropertyName("cod_failed_fee")]
-		public int CodFailedFee { get; set; }
+		public int CodFailedFee { get; init; }
 	}
 }

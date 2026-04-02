@@ -1,8 +1,8 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.Auths
 {
-	public class VerifyEmailRequest
+	public record VerifyEmailRequest
 	{
-		public string Email { get; set; } = null!;
-		public string Token { get; set; } = null!;
+		public required string Email { get; init; }
+		public required string Token { get; init; }
 	}
 }

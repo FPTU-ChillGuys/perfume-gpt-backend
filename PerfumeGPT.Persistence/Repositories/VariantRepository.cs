@@ -16,8 +16,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public VariantRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<List<VariantLookupItem>> GetLookupList(Guid? productId = null)
-		{
-			return await _context.ProductVariants
+		=> await _context.ProductVariants
 			  .Where(v => !v.IsDeleted
 					&& v.Status != VariantStatus.Discontinued
 					&& (!productId.HasValue || v.ProductId == productId.Value))
@@ -37,11 +36,9 @@ namespace PerfumeGPT.Persistence.Repositories
 				})
 				.AsNoTracking()
 				.ToListAsync();
-		}
 
 		public async Task<ProductVariantResponse?> GetByBarcodeAsync(string barcode)
-		{
-			return await _context.ProductVariants
+		=> await _context.ProductVariants
 			   .Where(v => !v.IsDeleted && v.Barcode == barcode)
 				.Select(v => new ProductVariantResponse
 				{
@@ -83,28 +80,25 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsSplitQuery()
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
-		}
 
 		public async Task<ProductVariant?> GetBySkuAsync(string sku)
-			=> await _context.ProductVariants
-			   .Where(v => !v.IsDeleted && v.Sku == sku)
-				.FirstOrDefaultAsync();
+		=> await _context.ProductVariants
+		   .Where(v => !v.IsDeleted && v.Sku == sku)
+			.FirstOrDefaultAsync();
 
 		public async Task<ProductVariant?> GetByIdWithAttributesAsync(Guid variantId)
-			=> await _context.ProductVariants
-				.Where(v => !v.IsDeleted && v.Id == variantId)
-				.Include(v => v.ProductAttributes)
-				.FirstOrDefaultAsync();
+		=> await _context.ProductVariants
+			.Where(v => !v.IsDeleted && v.Id == variantId)
+			.Include(v => v.ProductAttributes)
+			.FirstOrDefaultAsync();
 
 		public async Task<List<ProductVariant>> GetVariantsWithDetailsByIdsAsync(IEnumerable<Guid> variantIds)
-		{
-			return await _context.ProductVariants
+		=> await _context.ProductVariants
 				.Where(v => !v.IsDeleted && variantIds.Contains(v.Id))
 				.Include(v => v.Product)
 				.Include(v => v.Concentration)
 				.AsNoTracking()
 				.ToListAsync();
-		}
 
 		public async Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId)
 		{
@@ -195,30 +189,32 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			if (raw.ActiveVoucher != null)
 			{
-				response.CampaignName = raw.ActiveVoucher.CampaignName;
-				response.VoucherCode = raw.ActiveVoucher.Code;
-
 				var discounted = raw.ActiveVoucher.DiscountType == DiscountType.Percentage
 					? response.BasePrice * (1 - raw.ActiveVoucher.DiscountValue / 100m)
 					: response.BasePrice - raw.ActiveVoucher.DiscountValue;
 
-				response.DiscountedPrice = discounted < 0 ? 0 : discounted;
+				response = response with
+				{
+					CampaignName = raw.ActiveVoucher.CampaignName,
+					VoucherCode = raw.ActiveVoucher.Code,
+					DiscountedPrice = discounted < 0 ? 0 : discounted
+				};
 			}
 
 			return response;
 		}
 
 		public async Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId)
-			=> await _context.ProductVariants
-			  .Where(v => !v.IsDeleted && v.Id == variantId)
-				.Select(v => new VariantCreateOrder
-				{
-					Id = v.Id,
-					UnitPrice = v.BasePrice,
-					Snapshot = $"{v.Product.Name} - {v.VolumeMl}ml - {v.Concentration.Name} - {v.Type}"
-				})
-				.AsNoTracking()
-				.FirstOrDefaultAsync();
+		=> await _context.ProductVariants
+		  .Where(v => !v.IsDeleted && v.Id == variantId)
+			.Select(v => new VariantCreateOrder
+			{
+				Id = v.Id,
+				UnitPrice = v.BasePrice,
+				Snapshot = $"{v.Product.Name} - {v.VolumeMl}ml - {v.Concentration.Name} - {v.Type}"
+			})
+			.AsNoTracking()
+			.FirstOrDefaultAsync();
 
 		public async Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(
 		GetPagedVariantsRequest request)
@@ -266,10 +262,10 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		public async Task<List<Guid>> GetExistingIdsAsync(List<Guid> ids)
-			=> await _context.ProductVariants
-			 .Where(v => !v.IsDeleted && ids.Contains(v.Id))
-				.Select(v => v.Id)
-				.ToListAsync();
+		=> await _context.ProductVariants
+		 .Where(v => !v.IsDeleted && ids.Contains(v.Id))
+			.Select(v => v.Id)
+			.ToListAsync();
 	}
 }
 

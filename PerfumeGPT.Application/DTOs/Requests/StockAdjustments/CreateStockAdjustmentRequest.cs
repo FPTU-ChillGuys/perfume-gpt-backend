@@ -2,19 +2,19 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.StockAdjustments
 {
-	public class CreateStockAdjustmentRequest
+	public record CreateStockAdjustmentRequest
 	{
-		public DateTime AdjustmentDate { get; set; }
-		public StockAdjustmentReason Reason { get; set; }
-		public string? Note { get; set; }
-		public List<CreateStockAdjustmentDetailRequest> AdjustmentDetails { get; set; } = [];
+		public DateTime AdjustmentDate { get; init; }
+		public StockAdjustmentReason Reason { get; init; }
+		public string? Note { get; init; }
+		public required List<CreateStockAdjustmentDetailRequest> AdjustmentDetails { get; init; }
 	}
 
-	public class CreateStockAdjustmentDetailRequest
+	public record CreateStockAdjustmentDetailRequest
 	{
-		public Guid VariantId { get; set; }
-		public Guid BatchId { get; set; }
-		public int AdjustmentQuantity { get; set; }
-		public string? Note { get; set; }
+		public Guid VariantId { get; init; }
+		public Guid BatchId { get; init; }
+		public int AdjustmentQuantity { get; init; }
+		public string? Note { get; init; }
 	}
 }

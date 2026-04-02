@@ -9,6 +9,8 @@ using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using static PerfumeGPT.Domain.Entities.Media;
+using static PerfumeGPT.Domain.Entities.TemporaryMedia;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -20,7 +22,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IMapper _mapper;
 
 		private static readonly string[] AllowedImageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
-        private static readonly string[] AllowedVideoExtensions = [".mp4", ".mov", ".webm", ".m4v"];
+		private static readonly string[] AllowedVideoExtensions = [".mp4", ".mov", ".webm", ".m4v"];
 		private const long MaxFileSize = 5 * 1024 * 1024; // 5MB
 		private const long MaxVideoFileSize = 100 * 1024 * 1024; // 100MB
 
@@ -106,17 +108,34 @@ namespace PerfumeGPT.Application.Services
 			if (string.IsNullOrWhiteSpace(avatarUrl)) return false;
 
 			var existingMedia = await _unitOfWork.Media.GetPrimaryMediaAsync(EntityType.User, userId);
+			var mimeType = GetMimeTypeFromUrl(avatarUrl);
+
 			if (existingMedia != null)
 			{
-				existingMedia.UpdateUrl(avatarUrl.Trim(), null, null, GetMimeTypeFromUrl(avatarUrl), altText);
+				var fileMetadata = new FileMetadata
+				{
+					Url = avatarUrl,
+					PublicId = null,
+					FileSize = null,
+					MimeType = mimeType
+				};
+
+				existingMedia.UpdateFile(fileMetadata, altText);
 				_unitOfWork.Media.Update(existingMedia);
-				return await _unitOfWork.SaveChangesAsync();
+			}
+			else
+			{
+				var basicInfo = new BasicMediaInfo
+				{
+					Url = avatarUrl,
+					AltText = altText,
+					MimeType = mimeType
+				};
+
+				var profileMedia = Media.CreateBasic(EntityType.User, userId, basicInfo);
+				await _unitOfWork.Media.AddAsync(profileMedia);
 			}
 
-			var profileMedia = Media.CreateFromUrl(
-				EntityType.User, userId, avatarUrl, altText, GetMimeTypeFromUrl(avatarUrl));
-
-			await _unitOfWork.Media.AddAsync(profileMedia);
 			return await _unitOfWork.SaveChangesAsync();
 		}
 
@@ -124,9 +143,11 @@ namespace PerfumeGPT.Application.Services
 		{
 			var existingMedia = await _unitOfWork.Media.GetPrimaryMediaAsync(EntityType.User, userId);
 
+			// 1. Clean up old image on Cloud
 			if (existingMedia != null && !string.IsNullOrEmpty(existingMedia.PublicId))
 				await _supabaseService.DeleteImageAsync(existingMedia.Url, GetBucketName(EntityType.User));
 
+			// 2. Upload new image
 			using var stream = request.Avatar!.OpenReadStream();
 			var url = await _supabaseService.UploadImageAsync(
 				stream, request.Avatar.FileName, GetBucketName(EntityType.User));
@@ -134,32 +155,41 @@ namespace PerfumeGPT.Application.Services
 			if (string.IsNullOrEmpty(url))
 				throw AppException.Internal("Failed to upload avatar image");
 
+			var fileMetadata = new FileMetadata
+			{
+				Url = url,
+				PublicId = ExtractFileNameFromUrl(url),
+				FileSize = request.Avatar.Length,
+				MimeType = GetMimeType(request.Avatar.FileName)
+			};
+
 			if (existingMedia != null)
 			{
-				existingMedia.UpdateUrl(
-					url,
-					ExtractFileNameFromUrl(url),
-					request.Avatar.Length,
-					GetMimeType(request.Avatar.FileName),
-					request.AltText);
+				existingMedia.UpdateFile(fileMetadata, request.AltText);
 				_unitOfWork.Media.Update(existingMedia);
-				await _unitOfWork.SaveChangesAsync();
-				return BaseResponse<string>.Ok(url, "Profile avatar updated successfully");
+			}
+			else
+			{
+				var displayInfo = new MediaDisplayInfo
+				{
+					AltText = request.AltText ?? "Profile picture",
+					DisplayOrder = 0,
+					IsPrimary = true
+				};
+
+				var profileMedia = Media.Create(EntityType.User, userId, fileMetadata, displayInfo);
+				await _unitOfWork.Media.AddAsync(profileMedia);
 			}
 
-			var profileMedia = Media.CreateForEntity(
-				EntityType.User, userId, url,
-				request.AltText ?? "Profile picture",
-				displayOrder: 0, isPrimary: true,
-				ExtractFileNameFromUrl(url),
-				request.Avatar.Length,
-				GetMimeType(request.Avatar.FileName));
-
-			await _unitOfWork.Media.AddAsync(profileMedia);
+			// 5. Commit Transaction
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to save profile avatar");
 
-			return BaseResponse<string>.Ok(url, "Profile avatar uploaded successfully");
+			var message = existingMedia != null
+				? "Profile avatar updated successfully"
+				: "Profile avatar uploaded successfully";
+
+			return BaseResponse<string>.Ok(url, message);
 		}
 
 		public async Task<BaseResponse<string>> DeleteProfileAvatarAsync(Guid userId)
@@ -176,8 +206,14 @@ namespace PerfumeGPT.Application.Services
 		Guid? userId, ReviewUploadMediaRequest request)
 		{
 			var imageRequests = request.Images
-				.Select((file, i) => new ImageUploadItem(file, EntityType.Review, i, false, null))
-				.ToList();
+				.Select((file, i) => new ImageUploadItem
+				{
+					File = file,
+					EntityType = EntityType.Review,
+					DisplayOrder = i,
+					IsPrimary = false,
+					AltText = null
+				}).ToList();
 
 			return await UploadTemporaryMediaBulkAsync(userId, imageRequests);
 		}
@@ -186,8 +222,14 @@ namespace PerfumeGPT.Application.Services
 		Guid? userId, ProductUploadMediaRequest request)
 		{
 			var imageRequests = request.Images
-				.Select(r => new ImageUploadItem(r.ImageFile, EntityType.Product, r.DisplayOrder, r.IsPrimary, r.AltText))
-				.ToList();
+				.Select(r => new ImageUploadItem
+				{
+					File = r.ImageFile,
+					EntityType = EntityType.Product,
+					DisplayOrder = r.DisplayOrder,
+					IsPrimary = r.IsPrimary,
+					AltText = r.AltText
+				}).ToList();
 
 			return await UploadTemporaryMediaBulkAsync(userId, imageRequests);
 		}
@@ -196,8 +238,14 @@ namespace PerfumeGPT.Application.Services
 			Guid? userId, VariantUploadMediaRequest request)
 		{
 			var imageRequests = request.Images
-				.Select(r => new ImageUploadItem(r.ImageFile, EntityType.ProductVariant, r.DisplayOrder, r.IsPrimary, r.AltText))
-				.ToList();
+				.Select(r => new ImageUploadItem
+				{
+					File = r.ImageFile,
+					EntityType = EntityType.ProductVariant,
+					DisplayOrder = r.DisplayOrder,
+					IsPrimary = r.IsPrimary,
+					AltText = r.AltText
+				}).ToList();
 
 			return await UploadTemporaryMediaBulkAsync(userId, imageRequests);
 		}
@@ -205,11 +253,17 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadOrderReturnRequestTemporaryMediaAsync(
 			Guid? userId, OrderReturnRequestUploadMediaRequest request)
 		{
-          var videoRequests = request.Videos
-				.Select((file, i) => new ImageUploadItem(file, EntityType.OrderReturnRequest, i, false, null))
-				.ToList();
+			var videoRequests = request.Videos
+				.Select((file, i) => new ImageUploadItem
+				{
+					File = file,
+					EntityType = EntityType.OrderReturnRequest,
+					DisplayOrder = i,
+					IsPrimary = false,
+					AltText = null
+				}).ToList();
 
-          return await UploadTemporaryMediaBulkAsync(userId, videoRequests, ValidateVideoFile, "video");
+			return await UploadTemporaryMediaBulkAsync(userId, videoRequests, ValidateVideoFile, "video");
 		}
 		#endregion Temporary Media
 
@@ -232,21 +286,21 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-       private async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadTemporaryMediaBulkAsync(
-			Guid? userId,
-			List<ImageUploadItem> items,
-			Func<IFormFile?, string?>? validator = null,
-			string mediaType = "image")
+		private async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadTemporaryMediaBulkAsync(
+			 Guid? userId,
+			 List<ImageUploadItem> items,
+			 Func<IFormFile?, string?>? validator = null,
+			 string mediaType = "image")
 		{
-          validator ??= ValidateImageFile;
-			var bulkResult = new BulkActionResponse();
+			validator ??= ValidateImageFile;
+			var bulkResult = new BulkActionResponse { SucceededIds = [], FailedItems = [] };
 			var uploadedMedia = new List<TemporaryMediaResponse>();
 
 			foreach (var item in items)
 			{
 				var tempId = Guid.NewGuid();
 
-             var validationError = validator(item.File);
+				var validationError = validator(item.File);
 				if (validationError != null)
 				{
 					bulkResult.FailedItems.Add(new BulkActionError { Id = tempId, ErrorMessage = validationError });
@@ -260,17 +314,21 @@ namespace PerfumeGPT.Application.Services
 					continue;
 				}
 
-				var tempMedia = TemporaryMedia.Create(
-					  url!,
-					  item.File!.FileName,
-					  item.File.Length,
-					  userId,
-					  item.EntityType,
-					  item.DisplayOrder,
-					  item.IsPrimary,
-					  item.AltText,
-					  ExtractFileNameFromUrl(url!),
-					  TimeSpan.FromHours(24));
+				var payload = new TemporaryMediaPayload
+				{
+					Url = url!,
+					FileName = item.File!.FileName,
+					FileSize = item.File.Length,
+					PublicId = ExtractFileNameFromUrl(url!),
+					AltText = item.AltText,
+					DisplayOrder = item.DisplayOrder,
+					IsPrimary = item.IsPrimary,
+					UploadedByUserId = userId,
+					TargetEntityType = item.EntityType,
+					ExpiresIn = TimeSpan.FromHours(24)
+				};
+
+				var tempMedia = TemporaryMedia.Create(payload);
 
 				await _unitOfWork.TemporaryMedia.AddAsync(tempMedia);
 				await _unitOfWork.SaveChangesAsync();
@@ -279,7 +337,7 @@ namespace PerfumeGPT.Application.Services
 				bulkResult.SucceededIds.Add(tempMedia.Id);
 			}
 
-          return BuildTemporaryMediaResponse(uploadedMedia, bulkResult, mediaType);
+			return BuildTemporaryMediaResponse(uploadedMedia, bulkResult, mediaType);
 		}
 
 		private async Task<BaseResponse<string>> DeleteMediaInternalAsync(Media media, string successData, string successMessage)
@@ -358,17 +416,17 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		private static BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>> BuildTemporaryMediaResponse(
-      List<TemporaryMediaResponse> uploadedMedia, BulkActionResponse bulkResult, string mediaType)
+	  List<TemporaryMediaResponse> uploadedMedia, BulkActionResponse bulkResult, string mediaType)
 		{
-           var mediaTypePlural = $"{mediaType}s";
+			var mediaTypePlural = $"{mediaType}s";
 
 			if (uploadedMedia.Count == 0)
 				return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Fail(
-                  $"Failed to upload any {mediaTypePlural}",
+				  $"Failed to upload any {mediaTypePlural}",
 					ResponseErrorType.BadRequest,
 					[.. bulkResult.FailedItems.Select(f => f.ErrorMessage)]);
 
-			var metadata = new BulkActionMetadata();
+			var metadata = new BulkActionMetadata { Operations = [] };
 			if (bulkResult.TotalProcessed > 0)
 				metadata.Operations.Add(
 					BulkOperationResult.FromBulkActionResponse("Temporary Media Upload", bulkResult));
@@ -378,7 +436,7 @@ namespace PerfumeGPT.Application.Services
 				metadata.Operations.Count > 0 ? metadata : null);
 
 			var message = bulkResult.HasError
-               ? $"Uploaded {uploadedMedia.Count} {mediaType}(s). {bulkResult.FailedItems.Count} failed. Expires in 24 hours."
+			   ? $"Uploaded {uploadedMedia.Count} {mediaType}(s). {bulkResult.FailedItems.Count} failed. Expires in 24 hours."
 				: $"Uploaded {uploadedMedia.Count} temporary {mediaType}(s). Expires in 24 hours.";
 
 			return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Ok(result, message);

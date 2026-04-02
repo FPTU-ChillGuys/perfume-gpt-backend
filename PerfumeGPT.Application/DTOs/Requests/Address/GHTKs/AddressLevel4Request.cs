@@ -1,9 +1,9 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.Address.GHTKs
 {
-	public class AddressLevel4Request
+	public record GetAddressLevel4Request
 	{
-		public string Province { get; set; } = string.Empty;
-		public string District { get; set; } = string.Empty;
-		public string Ward_street { get; set; } = string.Empty;
+		public required string Province { get; init; }
+		public required string District { get; init; }
+		public required string Ward_street { get; init; }
 	}
 }

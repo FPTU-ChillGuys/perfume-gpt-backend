@@ -4,14 +4,14 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Campaigns
 {
-	public class CreateCampaignRequest
+	public record CreateCampaignRequest
 	{
-		public string Name { get; set; } = string.Empty;
-		public string? Description { get; set; }
-		public DateTime StartDate { get; set; }
-		public DateTime EndDate { get; set; }
-		public CampaignType Type { get; set; }
-		public List<CreateCampaignPromotionItemRequest> Items { get; set; } = [];
-		public List<CreateCampaignVoucherRequest> Vouchers { get; set; } = [];
+		public required string Name { get; init; }
+		public string? Description { get; init; }
+		public DateTime StartDate { get; init; }
+		public DateTime EndDate { get; init; }
+		public CampaignType Type { get; init; }
+		public required List<CreateCampaignPromotionItemRequest> Items { get; init; }
+		public required List<CreateCampaignVoucherRequest> Vouchers { get; init; }
 	}
 }

@@ -2,7 +2,7 @@
 
 namespace PerfumeGPT.Application.DTOs.Requests.Vouchers
 {
-	public class GetPagedRedeemableVouchersRequest : PagingAndSortingQuery
+	public record GetPagedRedeemableVouchersRequest : PagingAndSortingQuery
 	{
 	}
 }

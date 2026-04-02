@@ -2,10 +2,11 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Loyalty
 {
-	public class ManualChangeRequest
+	public record ManualChangeRequest
 	{
-		public LoyaltyTransactionType TransactionType { get; set; }
-		public int Points { get; set; }
-		public string Reason { get; set; } = string.Empty;
+		public Guid UserId { get; init; }
+		public LoyaltyTransactionType TransactionType { get; init; }
+		public int Points { get; init; }
+		public required string Reason { get; init; }
 	}
 }

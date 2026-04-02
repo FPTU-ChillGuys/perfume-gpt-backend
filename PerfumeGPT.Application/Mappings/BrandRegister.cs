@@ -1,6 +1,4 @@
 ﻿using Mapster;
-using PerfumeGPT.Application.DTOs.Responses.Metadatas.Brands;
-using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Mappings
 {
@@ -8,9 +6,8 @@ namespace PerfumeGPT.Application.Mappings
 	{
 		public void Register(TypeAdapterConfig config)
 		{
-			config.NewConfig<Brand, BrandResponse>()
-				.Map(dest => dest.Id, src => src.Id)
-				.Map(dest => dest.Name, src => src.Name);
+			config.NewConfig<Domain.Entities.Brand, DTOs.Responses.Metadatas.Brands.BrandLookupItem>()
+				.MapToConstructor(true);
 		}
 	}
 }

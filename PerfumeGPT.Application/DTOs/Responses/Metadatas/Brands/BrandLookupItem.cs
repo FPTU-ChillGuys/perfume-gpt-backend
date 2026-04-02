@@ -1,8 +1,8 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Metadatas.Brands
+namespace PerfumeGPT.Application.DTOs.Responses.Metadatas.Brands
 {
-	public class BrandLookupItem
+	public record BrandLookupItem
 	{
-		public int Id { get; set; }
-		public string Name { get; set; } = null!;
+		public int Id { get; init; }
+		public required string Name { get; init; }
 	}
 }

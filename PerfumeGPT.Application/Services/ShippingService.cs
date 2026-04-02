@@ -107,7 +107,8 @@ namespace PerfumeGPT.Application.Services
 
 			return normalized switch
 			{
-				"ready_to_pick" or "picking" or "picked" or "storing" or "sorting" or "transporting" or "delivering" or "money_collect_picking" or "money_collect_delivering" => ShippingStatus.Delivering,
+				"ready_to_pick" => ShippingStatus.Pending,
+				"picking" or "picked" or "storing" or "sorting" or "transporting" or "delivering" or "money_collect_picking" or "money_collect_delivering" => ShippingStatus.Delivering,
 				"delivered" => ShippingStatus.Delivered,
 				"cancel" => ShippingStatus.Cancelled,
 				"returning" or "return" or "return_transporting" or "return_sorting" or "waiting_to_return" or "delivery_fail" or "return_fail" => ShippingStatus.Returning,

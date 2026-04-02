@@ -2,8 +2,8 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Campaigns
 {
-	public class UpdateCampaignStatusRequest
+	public record UpdateCampaignStatusRequest
 	{
-		public CampaignStatus Status { get; set; }
+		public CampaignStatus Status { get; init; }
 	}
 }

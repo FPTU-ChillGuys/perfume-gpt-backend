@@ -1,5 +1,4 @@
-﻿using Mapster;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Interfaces.Repositories;
@@ -29,13 +28,28 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		public async Task<VoucherResponse?> GetByCodeAsync(string code)
-		{
-			return await _context.Vouchers
+		=> await _context.Vouchers
 				.Where(v => v.Code.ToLower() == code.ToLower() && !v.IsDeleted)
-				.ProjectToType<VoucherResponse>()
+			   .Select(v => new VoucherResponse
+			   {
+				   Id = v.Id,
+				   Code = v.Code,
+				   DiscountValue = v.DiscountValue,
+				   DiscountType = v.DiscountType,
+				   CampaignId = v.CampaignId,
+				   ApplyType = v.ApplyType,
+				   TargetItemType = v.TargetItemType ?? default,
+				   RequiredPoints = v.RequiredPoints,
+				   MinOrderValue = v.MinOrderValue,
+				   ExpiryDate = v.ExpiryDate,
+				   IsExpired = v.ExpiryDate < DateTime.UtcNow,
+				   TotalQuantity = v.TotalQuantity,
+				   RemainingQuantity = v.RemainingQuantity,
+				   IsPublic = v.IsPublic,
+				   CreatedAt = v.CreatedAt
+			   })
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
-		}
 
 		public async Task<(List<RedeemableVoucherResponse> Items, int TotalCount)> GetPagedRedeemableVouchersAsync(GetPagedRedeemableVouchersRequest request)
 		{
@@ -49,7 +63,19 @@ namespace PerfumeGPT.Persistence.Repositories
 				.OrderByDescending(v => v.CreatedAt)
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
-				.ProjectToType<RedeemableVoucherResponse>()
+			 .Select(v => new RedeemableVoucherResponse
+			 {
+				 Id = v.Id,
+				 Code = v.Code,
+				 DiscountValue = v.DiscountValue,
+				 DiscountType = v.DiscountType,
+				 RequiredPoints = v.RequiredPoints,
+				 MinOrderValue = v.MinOrderValue,
+				 ExpiryDate = v.ExpiryDate,
+				 IsExpired = v.ExpiryDate < DateTime.UtcNow,
+				 RemainingQuantity = v.RemainingQuantity,
+				 CreatedAt = v.CreatedAt
+			 })
 				.ToListAsync();
 
 			return (items, totalCount);

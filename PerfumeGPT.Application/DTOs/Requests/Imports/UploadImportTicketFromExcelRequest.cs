@@ -2,10 +2,10 @@ using Microsoft.AspNetCore.Http;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Imports
 {
-	public class UploadImportTicketFromExcelRequest
+	public record UploadImportTicketFromExcelRequest
 	{
-		public IFormFile ExcelFile { get; set; } = null!;
-		public int SupplierId { get; set; }
-		public DateTime ExpectedArrivalDate { get; set; }
+		public required IFormFile ExcelFile { get; init; }
+		public int SupplierId { get; init; }
+		public DateTime ExpectedArrivalDate { get; init; }
 	}
 }

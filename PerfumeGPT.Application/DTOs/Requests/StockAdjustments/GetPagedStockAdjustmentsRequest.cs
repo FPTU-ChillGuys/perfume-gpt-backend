@@ -3,11 +3,11 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.StockAdjustments
 {
-	public class GetPagedStockAdjustmentsRequest : PagingAndSortingQuery
+	public record GetPagedStockAdjustmentsRequest : PagingAndSortingQuery
 	{
-		public StockAdjustmentReason? Reason { get; set; }
-		public StockAdjustmentStatus? Status { get; set; }
-		public DateTime? FromDate { get; set; }
-		public DateTime? ToDate { get; set; }
+		public StockAdjustmentReason? Reason { get; init; }
+		public StockAdjustmentStatus? Status { get; init; }
+		public DateTime? FromDate { get; init; }
+		public DateTime? ToDate { get; init; }
 	}
 }

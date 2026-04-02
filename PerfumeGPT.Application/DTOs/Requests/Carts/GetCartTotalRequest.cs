@@ -2,11 +2,11 @@
 
 namespace PerfumeGPT.Application.DTOs.Requests.Carts
 {
-	public class GetCartTotalRequest
+	public record GetCartTotalRequest
 	{
-		public string? VoucherCode { get; set; }
-		public List<Guid> ItemIds { get; set; } = [];
-		public Guid? SavedAddressId { get; set; }
-		public RecipientInformation? Recipient { get; set; }
+		public string? VoucherCode { get; init; }
+		public List<Guid> ItemIds { get; init; } = [];
+		public Guid? SavedAddressId { get; init; }
+		public RecipientInformation? Recipient { get; init; }
 	}
 }

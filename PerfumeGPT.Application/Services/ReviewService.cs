@@ -46,7 +46,7 @@ namespace PerfumeGPT.Application.Services
 			if (!saved)
 				throw AppException.Internal("Failed to create review");
 
-			var metadata = new BulkActionMetadata();
+			var metadata = new BulkActionMetadata { Operations = [] };
 			if (request.TemporaryMediaIds != null && request.TemporaryMediaIds.Count != 0)
 			{
 				var conversionResult = await _helper.ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIds, EntityType.Review, review.Id);

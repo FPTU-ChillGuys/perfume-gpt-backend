@@ -25,16 +25,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual Order Order { get; set; } = null!;
 
 		// Factory methods
-		public static RecipientInfo Create(
-			Guid orderId,
-			string recipientName,
-			string recipientPhoneNumber,
-			int districtId,
-			string districtName,
-			string wardCode,
-			string wardName,
-			string provinceName,
-			string fullAddress)
+		public static RecipientInfo Create(Guid orderId, RecipientPayload payload)
 		{
 			if (orderId == Guid.Empty)
 				throw DomainException.BadRequest("Order ID is required.");
@@ -44,61 +35,58 @@ namespace PerfumeGPT.Domain.Entities
 				OrderId = orderId
 			};
 
-			recipientInfo.UpdateRecipient(
-				recipientName,
-				recipientPhoneNumber,
-				districtId,
-				districtName,
-				wardCode,
-				wardName,
-				provinceName,
-				fullAddress);
+			recipientInfo.UpdateRecipient(payload);
 
 			return recipientInfo;
 		}
 
-		public void UpdateRecipient(
-			string recipientName,
-			string recipientPhoneNumber,
-			int districtId,
-			string districtName,
-			string wardCode,
-			string wardName,
-			string provinceName,
-			string fullAddress)
+		public void UpdateRecipient(RecipientPayload payload)
 		{
-			if (string.IsNullOrWhiteSpace(recipientName))
+			if (string.IsNullOrWhiteSpace(payload.RecipientName))
 				throw DomainException.BadRequest("Recipient name is required.");
 
-			if (string.IsNullOrWhiteSpace(recipientPhoneNumber))
+			if (string.IsNullOrWhiteSpace(payload.RecipientPhoneNumber))
 				throw DomainException.BadRequest("Recipient phone number is required.");
 
-			if (districtId <= 0)
+			if (payload.DistrictId <= 0)
 				throw DomainException.BadRequest("District ID must be greater than 0.");
 
-			if (string.IsNullOrWhiteSpace(districtName))
+			if (string.IsNullOrWhiteSpace(payload.DistrictName))
 				throw DomainException.BadRequest("District name is required.");
 
-			if (string.IsNullOrWhiteSpace(wardCode))
+			if (string.IsNullOrWhiteSpace(payload.WardCode))
 				throw DomainException.BadRequest("Ward code is required.");
 
-			if (string.IsNullOrWhiteSpace(wardName))
+			if (string.IsNullOrWhiteSpace(payload.WardName))
 				throw DomainException.BadRequest("Ward name is required.");
 
-			if (string.IsNullOrWhiteSpace(provinceName))
+			if (string.IsNullOrWhiteSpace(payload.ProvinceName))
 				throw DomainException.BadRequest("Province name is required.");
 
-			if (string.IsNullOrWhiteSpace(fullAddress))
+			if (string.IsNullOrWhiteSpace(payload.FullAddress))
 				throw DomainException.BadRequest("Full address is required.");
 
-			RecipientName = recipientName.Trim();
-			RecipientPhoneNumber = recipientPhoneNumber.Trim();
-			DistrictId = districtId;
-			DistrictName = districtName.Trim();
-			WardCode = wardCode.Trim();
-			WardName = wardName.Trim();
-			ProvinceName = provinceName.Trim();
-			FullAddress = fullAddress.Trim();
+			RecipientName = payload.RecipientName.Trim();
+			RecipientPhoneNumber = payload.RecipientPhoneNumber.Trim();
+			DistrictId = payload.DistrictId;
+			DistrictName = payload.DistrictName.Trim();
+			WardCode = payload.WardCode.Trim();
+			WardName = payload.WardName.Trim();
+			ProvinceName = payload.ProvinceName.Trim();
+			FullAddress = payload.FullAddress.Trim();
+		}
+
+		// Records
+		public record RecipientPayload
+		{
+			public required string RecipientName { get; init; }
+			public required string RecipientPhoneNumber { get; init; }
+			public required int DistrictId { get; init; }
+			public required string DistrictName { get; init; }
+			public required string WardCode { get; init; }
+			public required string WardName { get; init; }
+			public required string ProvinceName { get; init; }
+			public required string FullAddress { get; init; }
 		}
 	}
 }

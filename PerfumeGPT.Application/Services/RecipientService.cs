@@ -68,16 +68,8 @@ namespace PerfumeGPT.Application.Services
 		{
 			var recipientData = await ResolveRecipientDataAsync(request, savedAddressId, customerId);
 
-			var recipientInfo = RecipientInfo.Create(
-				 orderId,
-				 recipientData.RecipientName,
-				 recipientData.RecipientPhoneNumber,
-				 recipientData.DistrictId,
-				 recipientData.DistrictName,
-				 recipientData.WardCode,
-				 recipientData.WardName,
-				 recipientData.ProvinceName,
-				 recipientData.FullAddress);
+			var payload = _mapper.Map<RecipientInfo.RecipientPayload>(recipientData);
+			var recipientInfo = RecipientInfo.Create(orderId, payload);
 
 			await _unitOfWork.RecipientInfos.AddAsync(recipientInfo);
 			return recipientInfo;
@@ -91,15 +83,8 @@ namespace PerfumeGPT.Application.Services
 		{
 			var recipientData = await ResolveRecipientDataAsync(request, savedAddressId, userId);
 
-			existingRecipient.UpdateRecipient(
-				  recipientData.RecipientName,
-				  recipientData.RecipientPhoneNumber,
-				  recipientData.DistrictId,
-				  recipientData.DistrictName,
-				  recipientData.WardCode,
-				  recipientData.WardName,
-				  recipientData.ProvinceName,
-				  recipientData.FullAddress);
+			var payload = _mapper.Map<RecipientInfo.RecipientPayload>(recipientData);
+			existingRecipient.UpdateRecipient(payload);
 
 			_unitOfWork.RecipientInfos.Update(existingRecipient);
 			return existingRecipient;

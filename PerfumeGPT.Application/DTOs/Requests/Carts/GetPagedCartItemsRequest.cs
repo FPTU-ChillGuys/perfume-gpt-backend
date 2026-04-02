@@ -2,7 +2,8 @@
 
 namespace PerfumeGPT.Application.DTOs.Requests.Carts
 {
-    public class GetPagedCartItemsRequest : PagingAndSortingQuery
-    {
-    }
+	public record GetPagedCartItemsRequest : PagingAndSortingQuery
+	{
+		public List<Guid>? ItemIds { get; init; }
+	}
 }

@@ -5,19 +5,20 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
+using MapsterMapper;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class BatchService : IBatchService
 	{
-		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IMapper _mapper;
 
-		public BatchService(IUnitOfWork unitOfWork)
+		public BatchService(IUnitOfWork unitOfWork, IMapper mapper)
 		{
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
-		#endregion
 
 		public async Task CreateBatchesAsync(Guid variantId, Guid importDetailId, List<CreateBatchRequest> batchRequests)
 		{
@@ -26,13 +27,13 @@ namespace PerfumeGPT.Application.Services
 
 			foreach (var batchRequest in batchRequests)
 			{
-				var batch = Batch.CreateForImport(
-					variantId,
-					importDetailId,
-					batchRequest.BatchCode,
-					batchRequest.ManufactureDate,
-					batchRequest.ExpiryDate,
-					batchRequest.Quantity);
+				var createBatchDto = _mapper.Map<Batch.CreateForImportDto>(batchRequest) with
+				{
+					VariantId = variantId,
+					ImportDetailId = importDetailId
+				};
+
+				var batch = Batch.CreateForImport(createBatchDto);
 
 				await _unitOfWork.Batches.AddAsync(batch);
 			}
@@ -102,11 +103,11 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Quantity must be greater than 0.");
 			}
 
-			var result = await _unitOfWork.Batches.IncreaseBatchQuantityAsync(batchId, quantity);
-			if (!result)
-			{
-				throw AppException.BadRequest("Failed to increase batch quantity.");
-			}
+			var batch = await _unitOfWork.Batches.GetByIdAsync(batchId)
+				?? throw AppException.NotFound($"Batch {batchId} not found");
+
+			batch.IncreaseQuantity(quantity);
+			_unitOfWork.Batches.Update(batch);
 
 			var variantId = await _unitOfWork.Batches.GetVariantIdByBatchIdAsync(batchId);
 			if (variantId.HasValue)
@@ -122,11 +123,11 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Quantity must be greater than 0.");
 			}
 
-			var result = await _unitOfWork.Batches.DecreaseBatchQuantityAsync(batchId, quantity);
-			if (!result)
-			{
-				throw AppException.BadRequest("Failed to decrease batch quantity.");
-			}
+			var batch = await _unitOfWork.Batches.GetByIdAsync(batchId)
+				?? throw AppException.NotFound($"Batch {batchId} not found");
+
+			batch.DecreaseQuantity(quantity);
+			_unitOfWork.Batches.Update(batch);
 
 			var variantId = await _unitOfWork.Batches.GetVariantIdByBatchIdAsync(batchId);
 			if (variantId.HasValue)

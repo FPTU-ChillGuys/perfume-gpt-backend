@@ -3,9 +3,9 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Loyalty
 {
-	public class GetPagedLoyaltyTransactionsRequest : PagingAndSortingQuery
+	public record GetPagedLoyaltyTransactionsRequest : PagingAndSortingQuery
 	{
-		public Guid? UserId { get; set; }
-		public LoyaltyTransactionType? TransactionType { get; set; }
+		public Guid? UserId { get; init; }
+		public LoyaltyTransactionType? TransactionType { get; init; }
 	}
 }

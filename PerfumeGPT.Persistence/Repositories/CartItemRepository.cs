@@ -1,5 +1,4 @@
-﻿using Mapster;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Responses.CartItems;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
@@ -20,7 +19,22 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(ci => itemIds.Contains(ci.Id) && ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0);
 
 			return await query
-				.ProjectToType<GetCartItemResponse>()
+               .Select(ci => new GetCartItemResponse
+				{
+					CartItemId = ci.Id,
+					VariantId = ci.VariantId,
+					VariantName = $"{ci.ProductVariant.Product.Name} - {ci.ProductVariant.Concentration.Name} - {ci.ProductVariant.VolumeMl}ml",
+					ImageUrl = ci.ProductVariant.Media != null
+						? (ci.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
+							?? ci.ProductVariant.Media.Select(m => m.Url).FirstOrDefault()
+							?? string.Empty)
+						: string.Empty,
+					VolumeMl = ci.ProductVariant.VolumeMl,
+					Type = ci.ProductVariant.Type,
+					VariantPrice = ci.ProductVariant.BasePrice,
+					Quantity = ci.Quantity,
+					IsAvailable = ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0
+				})
 				.ToListAsync();
 		}
 
@@ -32,7 +46,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(ci => itemIds.Contains(ci.Id) && ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0);
 
 			return await query
-				.Select(ci => new CartCheckoutItemDto
+               .Select(ci => new CartCheckoutItemDto
 				{
 					VariantId = ci.VariantId,
 					Quantity = ci.Quantity
@@ -48,7 +62,13 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(ci => itemIds.Contains(ci.Id) && ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0);
 
 			return await query
-				.ProjectToType<CartItemPriceDto>()
+              .Select(ci => new CartItemPriceDto
+				{
+					VariantId = ci.VariantId,
+					VariantName = $"{ci.ProductVariant.Product.Name} - {ci.ProductVariant.Concentration.Name} - {ci.ProductVariant.VolumeMl}ml",
+					VariantPrice = ci.ProductVariant.BasePrice,
+					Quantity = ci.Quantity
+				})
 				.ToListAsync();
 		}
 

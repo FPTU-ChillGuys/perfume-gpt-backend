@@ -31,14 +31,7 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime? UpdatedAt { get; set; }
 
 		// Factory methods
-		public static OrderCancelRequest Create(
-			Guid orderId,
-			Guid requestedById,
-			CancelOrderReason reason,
-			bool isRefundRequired,
-			decimal? refundAmount,
-			Guid? processedById = null,
-			string? staffNote = null)
+		public static OrderCancelRequest Create(Guid orderId, Guid requestedById, CancelRequestPayload payload)
 		{
 			if (orderId == Guid.Empty)
 				throw DomainException.BadRequest("Order ID is required.");
@@ -46,22 +39,22 @@ namespace PerfumeGPT.Domain.Entities
 			if (requestedById == Guid.Empty)
 				throw DomainException.BadRequest("Requested by user is required.");
 
-			if (isRefundRequired && (!refundAmount.HasValue || refundAmount.Value < 0))
+			if (payload.IsRefundRequired && (!payload.RefundAmount.HasValue || payload.RefundAmount.Value < 0))
 				throw DomainException.BadRequest("Refund amount is invalid.");
 
-			if (processedById.HasValue && processedById.Value == Guid.Empty)
+			if (payload.ProcessedById.HasValue && payload.ProcessedById.Value == Guid.Empty)
 				throw DomainException.BadRequest("Processed by user is invalid.");
 
 			return new OrderCancelRequest
 			{
 				OrderId = orderId,
 				RequestedById = requestedById,
-				ProcessedById = processedById,
-				Reason = reason,
-				StaffNote = string.IsNullOrWhiteSpace(staffNote) ? null : staffNote.Trim(),
+				ProcessedById = payload.ProcessedById,
+				Reason = payload.Reason,
+				StaffNote = string.IsNullOrWhiteSpace(payload.StaffNote) ? null : payload.StaffNote.Trim(),
 				Status = CancelRequestStatus.Pending,
-				IsRefundRequired = isRefundRequired,
-				RefundAmount = refundAmount,
+				IsRefundRequired = payload.IsRefundRequired,
+				RefundAmount = payload.RefundAmount,
 				IsRefunded = false
 			};
 		}
@@ -84,6 +77,16 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			IsRefunded = true;
 			VnpTransactionNo = string.IsNullOrWhiteSpace(vnpTransactionNo) ? null : vnpTransactionNo.Trim();
+		}
+
+		// Records
+		public record CancelRequestPayload
+		{
+			public required CancelOrderReason Reason { get; init; }
+			public bool IsRefundRequired { get; init; }
+			public decimal? RefundAmount { get; init; }
+			public Guid? ProcessedById { get; init; }
+			public string? StaffNote { get; init; }
 		}
 	}
 }

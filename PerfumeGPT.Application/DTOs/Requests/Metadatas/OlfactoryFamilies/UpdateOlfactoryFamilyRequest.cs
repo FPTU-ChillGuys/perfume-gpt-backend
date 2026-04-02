@@ -1,7 +1,7 @@
 namespace PerfumeGPT.Application.DTOs.Requests.Metadatas.OlfactoryFamilies
 {
-	public class UpdateOlfactoryFamilyRequest
+	public record UpdateOlfactoryFamilyRequest
 	{
-		public string Name { get; set; } = null!;
+		public required string Name { get; init; }
 	}
 }

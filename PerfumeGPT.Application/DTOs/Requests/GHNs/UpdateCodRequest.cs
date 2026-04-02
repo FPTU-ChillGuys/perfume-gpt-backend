@@ -1,8 +1,8 @@
 namespace PerfumeGPT.Application.DTOs.Requests.GHNs
 {
-    public class UpdateCodRequest
-    {
-        public string OrderCode { get; set; } = null!;
-        public int CodAmount { get; set; }
-    }
+	public record UpdateCodRequest
+	{
+		public int CodAmount { get; init; }
+		public required string OrderCode { get; init; }
+	}
 }

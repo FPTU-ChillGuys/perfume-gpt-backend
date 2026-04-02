@@ -1,18 +1,18 @@
-﻿using PerfumeGPT.Domain.Enums;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Vouchers
 {
-	public class RedeemableVoucherResponse
+	public record RedeemableVoucherResponse
 	{
-		public Guid Id { get; set; }
-		public string Code { get; set; } = null!;
-		public decimal DiscountValue { get; set; }
-		public DiscountType DiscountType { get; set; }
-		public int? RequiredPoints { get; set; }
-		public decimal? MinOrderValue { get; set; }
-		public DateTime ExpiryDate { get; set; }
-		public bool IsExpired { get; set; }
-		public int? RemainingQuantity { get; set; }
-		public DateTime CreatedAt { get; set; }
+		public Guid Id { get; init; }
+		public required string Code { get; init; }
+		public decimal DiscountValue { get; init; }
+		public DiscountType DiscountType { get; init; }
+		public int? RequiredPoints { get; init; }
+		public decimal? MinOrderValue { get; init; }
+		public DateTime ExpiryDate { get; init; }
+		public bool IsExpired { get; init; }
+		public int? RemainingQuantity { get; init; }
+		public DateTime CreatedAt { get; init; }
 	}
 }

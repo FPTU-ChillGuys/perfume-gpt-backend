@@ -1,8 +1,8 @@
 namespace PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests
 {
-	public class ProcessInitialReturnDto
+	public record ProcessInitialReturnDto
 	{
-		public bool IsApproved { get; set; }
-		public string? StaffNote { get; set; }
+		public bool IsApproved { get; init; }
+		public string? StaffNote { get; init; }
 	}
 }

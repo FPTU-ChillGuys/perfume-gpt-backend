@@ -17,23 +17,23 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<ImportTicket> ImportTickets { get; set; } = [];
 
 		// Factory methods
-		public static Supplier Create(string name, string contactEmail, string phone, string address)
+		public static Supplier Create(SupplierPayload payload)
 		{
 			return new Supplier
 			{
-				Name = NormalizeName(name),
-				ContactEmail = NormalizeEmail(contactEmail),
-				Phone = NormalizePhone(phone),
-				Address = NormalizeAddress(address)
+				Name = NormalizeName(payload.Name),
+				ContactEmail = NormalizeEmail(payload.ContactEmail),
+				Phone = NormalizePhone(payload.Phone),
+				Address = NormalizeAddress(payload.Address)
 			};
 		}
 
-		public void UpdateDetails(string name, string contactEmail, string phone, string address)
+		public void UpdateDetails(SupplierPayload payload)
 		{
-			Name = NormalizeName(name);
-			ContactEmail = NormalizeEmail(contactEmail);
-			Phone = NormalizePhone(phone);
-			Address = NormalizeAddress(address);
+			Name = NormalizeName(payload.Name);
+			ContactEmail = NormalizeEmail(payload.ContactEmail);
+			Phone = NormalizePhone(payload.Phone);
+			Address = NormalizeAddress(payload.Address);
 		}
 
 		// Business logic methods
@@ -72,5 +72,14 @@ namespace PerfumeGPT.Domain.Entities
 		}
 
 		private static readonly Regex PhoneRegex = new("^(0)(3[2-9]|5[6789]|7[06789]|8[0-9]|9[0-9])[0-9]{7}$", RegexOptions.Compiled);
+
+		// Records
+		public record SupplierPayload
+		{
+			public required string Name { get; init; }
+			public required string ContactEmail { get; init; }
+			public required string Phone { get; init; }
+			public required string Address { get; init; }
+		}
 	}
 }

@@ -3,14 +3,14 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Products
 {
-	public class GetPagedProductRequest : PagingAndSortingQuery
+	public record GetPagedProductRequest : PagingAndSortingQuery
 	{
-		public Gender? Gender { get; set; }
-		public int? CategoryId { get; set; }
-		public int? BrandId { get; set; }
-		public int? Volume { get; set; }
-		public decimal? FromPrice { get; set; }
-		public decimal? ToPrice { get; set; }
-		public bool? IsAvailable { get; set; }
+		public Gender? Gender { get; init; }
+		public int? CategoryId { get; init; }
+		public int? BrandId { get; init; }
+		public int? Volume { get; init; }
+		public decimal? FromPrice { get; init; }
+		public decimal? ToPrice { get; init; }
+		public bool? IsAvailable { get; init; }
 	}
 }

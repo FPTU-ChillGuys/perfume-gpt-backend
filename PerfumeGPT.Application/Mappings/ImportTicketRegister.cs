@@ -19,7 +19,8 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.TotalCost, src => src.TotalCost)
 				.Map(dest => dest.Status, src => src.Status)
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt)
-				.Map(dest => dest.ImportDetails, src => src.ImportDetails);
+				.Map(dest => dest.ImportDetails, src => src.ImportDetails)
+				.MapToConstructor(true);
 
 			config.NewConfig<ImportTicket, ImportTicketListItem>()
 				.Map(dest => dest.Id, src => src.Id)
@@ -31,7 +32,8 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.TotalCost, src => src.TotalCost)
 				.Map(dest => dest.Status, src => src.Status)
 				.Map(dest => dest.TotalItems, src => src.ImportDetails.Count)
-				.Map(dest => dest.CreatedAt, src => src.CreatedAt);
+				.Map(dest => dest.CreatedAt, src => src.CreatedAt)
+				.MapToConstructor(true);
 		}
 	}
 }

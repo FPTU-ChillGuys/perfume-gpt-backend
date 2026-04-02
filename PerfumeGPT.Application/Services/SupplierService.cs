@@ -1,4 +1,4 @@
-using Mapster;
+using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Suppliers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.Suppliers;
@@ -13,10 +13,12 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IMapper _mapper;
 
-		public SupplierService(IUnitOfWork unitOfWork)
+		public SupplierService(IUnitOfWork unitOfWork, IMapper mapper)
 		{
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
 		#endregion Dependencies
 
@@ -53,13 +55,14 @@ namespace PerfumeGPT.Application.Services
 			if (emailExists)
 				throw AppException.Conflict("Supplier contact email already exists.");
 
-			var entity = Supplier.Create(request.Name, request.ContactEmail, request.Phone, request.Address);
+			var payload = _mapper.Map<Supplier.SupplierPayload>(request);
+			var entity = Supplier.Create(payload);
 			await _unitOfWork.Suppliers.AddAsync(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create supplier");
 
-			return BaseResponse<SupplierResponse>.Ok(entity.Adapt<SupplierResponse>());
+			return BaseResponse<SupplierResponse>.Ok(_mapper.Map<SupplierResponse>(entity));
 		}
 
 		public async Task<BaseResponse<SupplierResponse>> UpdateSupplierAsync(int id, UpdateSupplierRequest request)
@@ -78,13 +81,14 @@ namespace PerfumeGPT.Application.Services
 			if (emailExists)
 				throw AppException.Conflict("Supplier contact email already exists.");
 
-			entity.UpdateDetails(request.Name, request.ContactEmail, request.Phone, request.Address);
+			var payload = _mapper.Map<Supplier.SupplierPayload>(request);
+			entity.UpdateDetails(payload);
 			_unitOfWork.Suppliers.Update(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update supplier");
 
-			return BaseResponse<SupplierResponse>.Ok(entity.Adapt<SupplierResponse>());
+			return BaseResponse<SupplierResponse>.Ok(_mapper.Map<SupplierResponse>(entity));
 		}
 
 		public async Task<BaseResponse<bool>> DeleteSupplierAsync(int id)

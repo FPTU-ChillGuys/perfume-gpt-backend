@@ -34,35 +34,29 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime CreatedAt { get; set; }
 
 		// Factory methods
-		public static Batch CreateForImport(
-			Guid variantId,
-			Guid importDetailId,
-			string batchCode,
-			DateTime manufactureDate,
-			DateTime expiryDate,
-			int quantity)
+		public static Batch CreateForImport(CreateForImportDto dto)
 		{
-			if (string.IsNullOrWhiteSpace(batchCode))
+			if (string.IsNullOrWhiteSpace(dto.BatchCode))
 				throw DomainException.BadRequest("Batch code is required.");
 
-			if (quantity <= 0)
+			if (dto.Quantity <= 0)
 				throw DomainException.BadRequest("Batch quantity must be greater than 0.");
 
-			if (expiryDate <= manufactureDate)
+			if (dto.ExpiryDate <= dto.ManufactureDate)
 				throw DomainException.BadRequest("Expiry date must be later than manufacture date.");
 
-			if (expiryDate <= DateTime.UtcNow)
+			if (dto.ExpiryDate <= DateTime.UtcNow)
 				throw DomainException.BadRequest("Expiry date must be in the future.");
 
 			return new Batch
 			{
-				VariantId = variantId,
-				ImportDetailId = importDetailId,
-				BatchCode = batchCode.Trim(),
-				ManufactureDate = manufactureDate,
-				ExpiryDate = expiryDate,
-				ImportQuantity = quantity,
-				RemainingQuantity = quantity,
+				VariantId = dto.VariantId,
+				ImportDetailId = dto.ImportDetailId,
+				BatchCode = dto.BatchCode.Trim(),
+				ManufactureDate = dto.ManufactureDate,
+				ExpiryDate = dto.ExpiryDate,
+				ImportQuantity = dto.Quantity,
+				RemainingQuantity = dto.Quantity,
 				ReservedQuantity = 0
 			};
 		}
@@ -106,6 +100,17 @@ namespace PerfumeGPT.Domain.Entities
 			if (ReservedQuantity < quantity)
 				throw DomainException.BadRequest("Cannot release more than reserved quantity.");
 			ReservedQuantity -= quantity;
+		}
+
+		// Records
+		public sealed record CreateForImportDto
+		{
+			public Guid VariantId { get; init; }
+			public Guid ImportDetailId { get; init; }
+			public required string BatchCode { get; init; }
+			public DateTime ManufactureDate { get; init; }
+			public DateTime ExpiryDate { get; init; }
+			public int Quantity { get; init; }
 		}
 	}
 }

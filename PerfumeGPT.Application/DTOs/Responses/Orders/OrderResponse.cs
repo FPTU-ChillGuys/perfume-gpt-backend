@@ -2,87 +2,87 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Orders
 {
-	public class OrderResponse
+	public record OrderResponse
 	{
-		public Guid Id { get; set; }
-		public string Code { get; set; } = null!;
-		public Guid? CustomerId { get; set; }
-		public string? CustomerName { get; set; }
-		public string? CustomerEmail { get; set; }
-		public Guid? StaffId { get; set; }
-		public string? StaffName { get; set; }
-		public OrderType Type { get; set; }
-		public OrderStatus Status { get; set; }
-		public PaymentStatus PaymentStatus { get; set; }
-		public decimal TotalAmount { get; set; }
-		public Guid? VoucherId { get; set; }
-		public string? VoucherCode { get; set; }
-		public DateTime? PaymentExpiresAt { get; set; }
-		public DateTime? PaidAt { get; set; }
-		public DateTime CreatedAt { get; set; }
-		public DateTime? UpdatedAt { get; set; }
+		public Guid Id { get; init; }
+		public required string Code { get; init; }
+		public Guid? CustomerId { get; init; }
+		public string? CustomerName { get; init; }
+		public string? CustomerEmail { get; init; }
+		public Guid? StaffId { get; init; }
+		public string? StaffName { get; init; }
+		public OrderType Type { get; init; }
+		public OrderStatus Status { get; init; }
+		public PaymentStatus PaymentStatus { get; init; }
+		public decimal TotalAmount { get; init; }
+		public Guid? VoucherId { get; init; }
+		public string? VoucherCode { get; init; }
+		public DateTime? PaymentExpiresAt { get; init; }
+		public DateTime? PaidAt { get; init; }
+		public DateTime CreatedAt { get; init; }
+		public DateTime? UpdatedAt { get; init; }
 
 		// payment Info
 		public List<PaymentInfoResponse>? PaymentTransactions { set; get; }
 
 		// Shipping Info
-		public ShippingInfoResponse? ShippingInfo { get; set; }
+		public ShippingInfoResponse? ShippingInfo { get; init; }
 
 		// Recipient Info
-		public RecipientInfoResponse? RecipientInfo { get; set; }
+		public RecipientInfoResponse? RecipientInfo { get; init; }
 
 		// Order Details
-		public List<OrderDetailResponse> OrderDetails { get; set; } = [];
+		public required List<OrderDetailResponse> OrderDetails { get; init; }
 	}
 
-	public class PaymentInfoResponse
+	public record PaymentInfoResponse
 	{
-		public Guid Id { get; set; }
-		public TransactionStatus Status { get; set; }
-		public PaymentMethod PaymentMethod { get; set; }
-		public string? FailureReason { get; set; }
-		public decimal TotalAmount { get; set; }
+		public Guid Id { get; init; }
+		public TransactionStatus Status { get; init; }
+		public PaymentMethod PaymentMethod { get; init; }
+		public string? FailureReason { get; init; }
+		public decimal TotalAmount { get; init; }
 	}
 
-	public class ShippingInfoResponse
+	public record ShippingInfoResponse
 	{
-		public Guid Id { get; set; }
-		public CarrierName CarrierName { get; set; }
-		public string? TrackingNumber { get; set; }
-		public decimal ShippingFee { get; set; }
-		public ShippingStatus Status { get; set; }
-		public int? LeadTime { get; set; }
-		public DateTime? ShippedDate { get; set; }
+		public Guid Id { get; init; }
+		public CarrierName CarrierName { get; init; }
+		public string? TrackingNumber { get; init; }
+		public decimal ShippingFee { get; init; }
+		public ShippingStatus Status { get; init; }
+		public int? LeadTime { get; init; }
+		public DateTime? ShippedDate { get; init; }
 	}
 
-	public class RecipientInfoResponse
+	public record RecipientInfoResponse
 	{
-		public Guid Id { get; set; }
-		public string? RecipientName { get; set; }
-		public string? RecipientPhoneNumber { get; set; }
-		public string DistrictName { get; set; } = null!;
-		public string WardName { get; set; } = null!;
-		public string ProvinceName { get; set; } = null!;
-		public string FullAddress { get; set; } = null!;
+		public Guid Id { get; init; }
+		public string? RecipientName { get; init; }
+		public string? RecipientPhoneNumber { get; init; }
+		public required string DistrictName { get; init; }
+		public required string WardName { get; init; }
+		public required string ProvinceName { get; init; }
+		public required string FullAddress { get; init; }
 	}
 
-	public class OrderDetailResponse
+	public record OrderDetailResponse
 	{
-		public Guid Id { get; set; }
-		public Guid VariantId { get; set; }
-		public string VariantName { get; set; } = null!;
-		public string? ImageUrl { get; set; }
-		public int Quantity { get; set; }
-		public decimal UnitPrice { get; set; }
-		public decimal Total { get; set; }
-		public List<ReservedBatchResponse> ReservedBatches { get; set; } = [];
+		public Guid Id { get; init; }
+		public Guid VariantId { get; init; }
+		public required string VariantName { get; init; }
+		public string? ImageUrl { get; init; }
+		public int Quantity { get; init; }
+		public decimal UnitPrice { get; init; }
+		public decimal Total { get; init; }
+		public required List<ReservedBatchResponse> ReservedBatches { get; init; }
 	}
 
-	public class ReservedBatchResponse
+	public record ReservedBatchResponse
 	{
-		public Guid BatchId { get; set; }
-		public string BatchCode { get; set; } = null!;
-		public int ReservedQuantity { get; set; }
-		public DateTime ExpiryDate { get; set; }
+		public Guid BatchId { get; init; }
+		public required string BatchCode { get; init; }
+		public int ReservedQuantity { get; init; }
+		public DateTime ExpiryDate { get; init; }
 	}
 }

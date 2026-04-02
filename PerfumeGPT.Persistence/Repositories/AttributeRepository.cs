@@ -1,5 +1,4 @@
-﻿using Mapster;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Responses.ProductAttributes.Attributes;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Persistence.Contexts;
@@ -13,13 +12,13 @@ namespace PerfumeGPT.Persistence.Repositories
 		public AttributeRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<List<int>> GetExistingIdsAsync(IEnumerable<int> ids)
-			=> await _context.Attributes.Where(a => ids.Contains(a.Id)).Select(a => a.Id).ToListAsync();
+		=> await _context.Attributes.Where(a => ids.Contains(a.Id)).Select(a => a.Id).ToListAsync();
 
 		public async Task<List<Attribute>> GetByIdsAsync(IEnumerable<int> ids)
-			=> await _context.Attributes.Where(a => ids.Contains(a.Id)).ToListAsync();
+		=> await _context.Attributes.Where(a => ids.Contains(a.Id)).ToListAsync();
 
 		public async Task<bool> IsInUseAsync(int attributeId)
-			=> await _context.ProductAttributes.AnyAsync(pa => pa.AttributeId == attributeId);
+		=> await _context.ProductAttributes.AnyAsync(pa => pa.AttributeId == attributeId);
 
 		public async Task<List<AttributeLookupItem>> GetLookupListAsync(bool? isVariantLevel = null)
 		{
@@ -29,7 +28,16 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(a => a.IsVariantLevel == isVariantLevel.Value);
 			}
 
-			return await query.ProjectToType<AttributeLookupItem>().ToListAsync();
+			return await query
+				  .Select(a => new AttributeLookupItem
+				  {
+					  Id = a.Id,
+					  InternalCode = a.InternalCode,
+					  Name = a.Name,
+					  Description = a.Description,
+					  IsVariantLevel = a.IsVariantLevel
+				  })
+				  .ToListAsync();
 		}
 	}
 }

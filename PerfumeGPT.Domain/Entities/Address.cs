@@ -28,55 +28,35 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual User User { get; set; } = null!;
 
 		// Factory methods
-		public static Address CreateForUser(
-			 Guid userId,
-			 string recipientName,
-			 string recipientPhoneNumber,
-			 string street,
-			 string ward,
-			 string district,
-			 string city,
-			 string wardCode,
-			 int districtId,
-			 int provinceId,
-			 bool isDefault)
+		public static Address CreateForUser(Guid userId, AddressDetails details, bool isDefault)
 		{
 			return new Address
 			{
 				UserId = userId,
-				RecipientName = recipientName,
-				RecipientPhoneNumber = recipientPhoneNumber,
-				Street = street,
-				Ward = ward,
-				District = district,
-				City = city,
-				WardCode = wardCode,
-				DistrictId = districtId,
-				ProvinceId = provinceId,
+				RecipientName = details.RecipientName,
+				RecipientPhoneNumber = details.RecipientPhoneNumber,
+				Street = details.Street,
+				Ward = details.Ward,
+				District = details.District,
+				City = details.City,
+				WardCode = details.WardCode,
+				DistrictId = details.DistrictId,
+				ProvinceId = details.ProvinceId,
 				IsDefault = isDefault
 			};
 		}
 
-		public void Update(
-			string recipientName,
-			string recipientPhoneNumber,
-			string street,
-			string ward,
-			string district,
-			string city,
-			string wardCode,
-			int districtId,
-			int provinceId)
+		public void UpdateDetails(AddressDetails details)
 		{
-			RecipientName = recipientName;
-			RecipientPhoneNumber = recipientPhoneNumber;
-			Street = street;
-			Ward = ward;
-			District = district;
-			City = city;
-			WardCode = wardCode;
-			DistrictId = districtId;
-			ProvinceId = provinceId;
+			RecipientName = details.RecipientName;
+			RecipientPhoneNumber = details.RecipientPhoneNumber;
+			Street = details.Street;
+			Ward = details.Ward;
+			District = details.District;
+			City = details.City;
+			WardCode = details.WardCode;
+			DistrictId = details.DistrictId;
+			ProvinceId = details.ProvinceId;
 		}
 
 		// Business logic methods
@@ -94,5 +74,18 @@ namespace PerfumeGPT.Domain.Entities
 
 		public void SetAsDefault() => IsDefault = true;
 		public void UnsetDefault() => IsDefault = false;
+
+		// DTOs
+		public record AddressDetails(
+			string RecipientName,
+			string RecipientPhoneNumber,
+			string Street,
+			string Ward,
+			string District,
+			string City,
+			string WardCode,
+			int DistrictId,
+			int ProvinceId
+		);
 	}
 }

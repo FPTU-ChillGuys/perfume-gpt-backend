@@ -9,6 +9,7 @@ using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using static PerfumeGPT.Domain.Entities.Voucher;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -49,16 +50,19 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.Conflict("Voucher code already exists");
 			}
 
-			var voucher = Voucher.CreateRegular(
-				request.Code,
-				request.DiscountValue,
-				request.DiscountType,
-				request.ApplyType,
-				request.RequiredPoints,
-				request.MinOrderValue,
-				request.ExpiryDate,
-				request.TotalQuantity,
-				request.IsPublic);
+			// ĐÃ FIX: Map vào VoucherRegularCreationFactor
+			var voucher = Voucher.CreateRegular(new VoucherRegularCreationFactor
+			{
+				Code = request.Code,
+				DiscountValue = request.DiscountValue,
+				DiscountType = request.DiscountType,
+				ApplyType = request.ApplyType,
+				RequiredPoints = request.RequiredPoints,
+				MinOrderValue = request.MinOrderValue,
+				ExpiryDate = request.ExpiryDate,
+				TotalQuantity = request.TotalQuantity,
+				IsPublic = request.IsPublic
+			});
 
 			await _unitOfWork.Vouchers.AddAsync(voucher);
 			var saved = await _unitOfWork.SaveChangesAsync();
@@ -84,17 +88,21 @@ namespace PerfumeGPT.Application.Services
 				}
 			}
 
-			voucher.UpdateRegular(
-				  request.Code,
-				  request.DiscountValue,
-				  request.DiscountType,
-				  request.ApplyType,
-				  request.RequiredPoints,
-				  request.MinOrderValue,
-				  request.ExpiryDate,
-				  request.TotalQuantity,
-				  request.RemainingQuantity,
-				  request.IsPublic);
+			// ĐÃ FIX: Map vào VoucherRegularUpdateFactor
+			voucher.UpdateRegular(new VoucherRegularUpdateFactor
+			{
+				Code = request.Code,
+				DiscountValue = request.DiscountValue,
+				DiscountType = request.DiscountType,
+				ApplyType = request.ApplyType,
+				RequiredPoints = request.RequiredPoints,
+				MinOrderValue = request.MinOrderValue,
+				ExpiryDate = request.ExpiryDate,
+				TotalQuantity = request.TotalQuantity,
+				RemainingQuantity = request.RemainingQuantity,
+				IsPublic = request.IsPublic
+			});
+
 			_unitOfWork.Vouchers.Update(voucher);
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update voucher");

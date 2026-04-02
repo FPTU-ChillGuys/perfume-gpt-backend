@@ -1,30 +1,30 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Orders
+namespace PerfumeGPT.Application.DTOs.Responses.Orders
 {
-	public class ReceiptResponse
+	public record ReceiptResponse
 	{
-		public Guid OrderId { get; set; }
-		public string Code { get; set; } = null!;
-		public DateTime OrderDate { get; set; }
-		public string OrderStatus { get; set; } = null!;
-		public string StaffName { get; set; } = null!;
-		public string CustomerName { get; set; } = null!;
-		public string RecipientPhone { get; set; } = null!;
-		public string RecipientAddress { get; set; } = null!;
-		public List<ReceiptItemDto> Items { get; set; } = null!;
-		public decimal Subtotal { get; set; }
-		public decimal Discount { get; set; }
-		public decimal Tax { get; set; }
-		public decimal Total { get; set; }
-		public string PaymentMethod { get; set; } = null!;
-		public string? Note { get; set; }
+		public Guid OrderId { get; init; }
+		public required string Code { get; init; }
+		public DateTime OrderDate { get; init; }
+		public required string OrderStatus { get; init; }
+		public required string StaffName { get; init; }
+		public required string CustomerName { get; init; }
+		public required string RecipientPhone { get; init; }
+		public required string RecipientAddress { get; init; }
+		public required List<ReceiptItemDto> Items { get; init; }
+		public decimal Subtotal { get; init; }
+		public decimal Discount { get; init; }
+		public decimal Tax { get; init; }
+		public decimal Total { get; init; }
+		public required string PaymentMethod { get; init; }
+		public string? Note { get; init; }
 	}
 
-	public class ReceiptItemDto
+	public record ReceiptItemDto
 	{
-		public string ProductName { get; set; } = null!;
-		public string VariantInfo { get; set; } = null!; // e.g., "50ml Eau de Parfum"
-		public int Quantity { get; set; }
-		public decimal UnitPrice { get; set; }
-		public decimal Subtotal { get; set; }
+		public required string ProductName { get; init; }
+		public required string VariantInfo { get; init; } // e.g., "50ml Eau de Parfum"
+		public int Quantity { get; init; }
+		public decimal UnitPrice { get; init; }
+		public decimal Subtotal { get; init; }
 	}
 }

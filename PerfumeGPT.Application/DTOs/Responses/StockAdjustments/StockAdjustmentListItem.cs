@@ -2,14 +2,14 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.StockAdjustments
 {
-	public class StockAdjustmentListItem
+	public record StockAdjustmentListItem
 	{
-		public Guid Id { get; set; }
-		public string CreatedByName { get; set; } = string.Empty;
-		public DateTime AdjustmentDate { get; set; }
-		public StockAdjustmentReason Reason { get; set; }
-		public StockAdjustmentStatus Status { get; set; }
-		public int TotalItems { get; set; }
-		public DateTime CreatedAt { get; set; }
+		public Guid Id { get; init; }
+		public required string CreatedByName { get; init; }
+		public DateTime AdjustmentDate { get; init; }
+		public StockAdjustmentReason Reason { get; init; }
+		public StockAdjustmentStatus Status { get; init; }
+		public int TotalItems { get; init; }
+		public DateTime CreatedAt { get; init; }
 	}
 }

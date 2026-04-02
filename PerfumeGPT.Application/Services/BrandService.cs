@@ -1,4 +1,4 @@
-﻿using Mapster;
+﻿using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Brands;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.Brands;
@@ -11,14 +11,14 @@ namespace PerfumeGPT.Application.Services
 {
 	public class BrandService : IBrandService
 	{
-		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IMapper _mapper;
 
-		public BrandService(IUnitOfWork unitOfWork)
+		public BrandService(IUnitOfWork unitOfWork, IMapper mapper)
 		{
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
-		#endregion Dependencies
 
 		public async Task<BaseResponse<List<BrandLookupItem>>> GetBrandLookupAsync()
 		{
@@ -53,7 +53,8 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create brand");
 
-			return BaseResponse<BrandResponse>.Ok(entity.Adapt<BrandResponse>());
+			var createdBrand = _mapper.Map<BrandResponse>(entity);
+			return BaseResponse<BrandResponse>.Ok(createdBrand);
 		}
 
 		public async Task<BaseResponse<BrandResponse>> UpdateBrandAsync(int id, UpdateBrandRequest request)
@@ -73,7 +74,8 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update brand");
 
-			return BaseResponse<BrandResponse>.Ok(entity.Adapt<BrandResponse>());
+			var updatedBrand = _mapper.Map<BrandResponse>(entity);
+			return BaseResponse<BrandResponse>.Ok(updatedBrand);
 		}
 
 		public async Task<BaseResponse<bool>> DeleteBrandAsync(int id)

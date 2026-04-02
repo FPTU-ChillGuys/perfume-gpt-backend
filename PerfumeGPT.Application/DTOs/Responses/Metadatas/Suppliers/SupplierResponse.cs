@@ -1,11 +1,11 @@
 namespace PerfumeGPT.Application.DTOs.Responses.Metadatas.Suppliers
 {
-	public class SupplierResponse
+	public record SupplierResponse
 	{
-		public int Id { get; set; }
-		public string Name { get; set; } = null!;
-		public string ContactEmail { get; set; } = null!;
-		public string Phone { get; set; } = null!;
-		public string Address { get; set; } = null!;
+		public int Id { get; init; }
+		public required string Name { get; init; }
+		public required string ContactEmail { get; init; }
+		public required string Phone { get; init; }
+		public required string Address { get; init; }
 	}
 }

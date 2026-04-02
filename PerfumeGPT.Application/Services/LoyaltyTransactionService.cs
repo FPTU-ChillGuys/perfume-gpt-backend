@@ -5,6 +5,7 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
+using static PerfumeGPT.Domain.Entities.LoyaltyTransaction;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -51,10 +52,14 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<bool> PlusPointAsync(Guid userId, int points, Guid? orderId, bool saveChanges = true, string? reason = null)
 		{
-			if (points <= 0)
-				throw AppException.BadRequest("Points must be greater than 0.");
+			var info = new EarnTransactionInfo
+			{
+				Points = points,
+				OrderId = orderId,
+				Reason = reason
+			};
 
-			var transaction = LoyaltyTransaction.CreateEarn(userId, points, orderId, reason);
+			var transaction = LoyaltyTransaction.CreateEarn(userId, info);
 
 			await _unitOfWork.LoyaltyTransactions.AddAsync(transaction);
 
@@ -70,14 +75,19 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<bool> RedeemPointAsync(Guid userId, int points, Guid? voucherId, Guid? orderId, bool saveChanges = true, string? reason = null)
 		{
-			if (points <= 0)
-				throw AppException.BadRequest("Points must be greater than 0.");
-
 			var currentBalance = await _unitOfWork.LoyaltyTransactions.GetPointBalanceAsync(userId);
 			if (currentBalance < points)
 				throw AppException.BadRequest("Insufficient loyalty points.");
 
-			var transaction = LoyaltyTransaction.CreateSpend(userId, points, voucherId, orderId, reason);
+			var info = new SpendTransactionInfo
+			{
+				Points = points,
+				VoucherId = voucherId,
+				OrderId = orderId,
+				Reason = reason
+			};
+
+			var transaction = LoyaltyTransaction.CreateSpend(userId, info);
 
 			await _unitOfWork.LoyaltyTransactions.AddAsync(transaction);
 
@@ -100,7 +110,14 @@ namespace PerfumeGPT.Application.Services
 					throw AppException.BadRequest("Insufficient loyalty points.");
 			}
 
-			var transaction = LoyaltyTransaction.CreateManual(userId, request.TransactionType, request.Points, request.Reason);
+			var info = new ManualTransactionInfo
+			{
+				TransactionType = request.TransactionType,
+				Points = request.Points,
+				Reason = request.Reason
+			};
+
+			var transaction = LoyaltyTransaction.CreateManual(userId, info);
 			await _unitOfWork.LoyaltyTransactions.AddAsync(transaction);
 
 			var saved = await _unitOfWork.SaveChangesAsync();

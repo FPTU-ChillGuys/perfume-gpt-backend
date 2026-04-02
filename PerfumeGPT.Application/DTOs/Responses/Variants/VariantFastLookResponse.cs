@@ -1,15 +1,15 @@
-﻿using PerfumeGPT.Application.DTOs.Responses.Media;
+using PerfumeGPT.Application.DTOs.Responses.Media;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Variants
 {
-	public class VariantFastLookResponse
+	public record VariantFastLookResponse
 	{
-		public Guid Id { get; set; }
-		public string Sku { get; set; } = null!;
-		public string DisplayName { get; set; } = null!;
-		public decimal Price { get; set; }
-		public decimal? RetailPrice { get; set; }
-		public int StockQuantity { get; set; }
-		public MediaResponse? Media { get; set; }
+		public Guid Id { get; init; }
+		public required string Sku { get; init; }
+		public required string DisplayName { get; init; }
+		public decimal Price { get; init; }
+		public decimal? RetailPrice { get; init; }
+		public int StockQuantity { get; init; }
+		public MediaResponse? Media { get; init; }
 	}
 }

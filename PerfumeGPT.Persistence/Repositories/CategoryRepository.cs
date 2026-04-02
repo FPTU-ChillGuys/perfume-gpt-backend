@@ -1,5 +1,4 @@
-﻿using Mapster;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.Categories;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
@@ -13,24 +12,36 @@ namespace PerfumeGPT.Persistence.Repositories
 		public CategoryRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<List<CategoriesLookupItem>> GetCategoriesLookupItemsAsync()
-			=> await _context.Categories
-				.AsNoTracking()
-				.ProjectToType<CategoriesLookupItem>()
-				.ToListAsync();
+		=> await _context.Categories
+			.AsNoTracking()
+			.Select(c => new CategoriesLookupItem
+			{
+				Id = c.Id,
+				Name = c.Name
+			})
+			.ToListAsync();
 
 		public async Task<List<CategoryResponse>> GetAllCategoriesAsync()
-			=> await _context.Categories
-				.AsNoTracking()
-				.ProjectToType<CategoryResponse>()
-				.ToListAsync();
+		=> await _context.Categories
+			.AsNoTracking()
+			.Select(c => new CategoryResponse
+			{
+				Id = c.Id,
+				Name = c.Name
+			})
+			.ToListAsync();
 
 		public async Task<CategoryResponse?> GetCategoryByIdAsync(int id)
-			=> await _context.Categories
-				.Where(c => c.Id == id)
-				.ProjectToType<CategoryResponse>()
-				.FirstOrDefaultAsync();
+		=> await _context.Categories
+			.Where(c => c.Id == id)
+			.Select(c => new CategoryResponse
+			{
+				Id = c.Id,
+				Name = c.Name
+			})
+			.FirstOrDefaultAsync();
 
 		public async Task<bool> HasProductsAsync(int categoryId)
-			=> await _context.Products.AnyAsync(p => p.CategoryId == categoryId);
+		=> await _context.Products.AnyAsync(p => p.CategoryId == categoryId);
 	}
 }

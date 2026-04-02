@@ -10,6 +10,7 @@ using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using static PerfumeGPT.Domain.Entities.StockAdjustmentDetail;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -35,6 +36,15 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PagedResult<OrderReturnRequestResponse>>> GetPagedReturnRequestsAsync(GetPagedReturnRequestsRequest request)
 		{
 			var (items, totalCount) = await _unitOfWork.OrderReturnRequests.GetPagedResponsesAsync(request);
+
+			return BaseResponse<PagedResult<OrderReturnRequestResponse>>.Ok(
+				new PagedResult<OrderReturnRequestResponse>(items, request.PageNumber, request.PageSize, totalCount),
+				"Return requests retrieved successfully.");
+		}
+
+		public async Task<BaseResponse<PagedResult<OrderReturnRequestResponse>>> GetPagedUserReturnRequestsAsync(Guid userId, GetPagedUserReturnRequestsRequest request)
+		{
+			var (items, totalCount) = await _unitOfWork.OrderReturnRequests.GetPagedUserResponsesAsync(userId, request);
 
 			return BaseResponse<PagedResult<OrderReturnRequestResponse>>.Ok(
 				new PagedResult<OrderReturnRequestResponse>(items, request.PageNumber, request.PageSize, totalCount),
@@ -78,14 +88,13 @@ namespace PerfumeGPT.Application.Services
 				if (request.RequestedRefundAmount > maxRequestableRefund)
 					throw AppException.BadRequest("Requested refund amount exceeds maximum refundable amount for the order.");
 
-				var returnReason = ParseReturnReason(request.Reason);
-
-				var returnRequest = OrderReturnRequest.Create(
-					request.OrderId,
-					customerId,
-					returnReason,
-					request.RequestedRefundAmount,
-				  request.CustomerNote);
+				var requestPayload = new OrderReturnRequest.ReturnRequestPayload
+				{
+					Reason = request.Reason,
+					RequestedRefundAmount = request.RequestedRefundAmount,
+					CustomerNote = request.CustomerNote
+				};
+				var returnRequest = OrderReturnRequest.Create(request.OrderId, customerId, requestPayload);
 
 				await _unitOfWork.OrderReturnRequests.AddAsync(returnRequest);
 
@@ -203,11 +212,15 @@ namespace PerfumeGPT.Application.Services
 							reservation.Batch.IncreaseQuantity(qtyFromThisReservation);
 							_unitOfWork.Batches.Update(reservation.Batch);
 
-							stockAdjustment.AddApprovedDetail(item.Key,
-								reservation.BatchId,
-								qtyFromThisReservation,
-								qtyFromThisReservation,
-								note);
+							var detailPayload = new StockAdjustmentDetailPayload
+							{
+								ProductVariantId = item.Key,
+								BatchId = reservation.BatchId,
+								AdjustmentQuantity = qtyFromThisReservation,
+								Note = note
+							};
+
+							stockAdjustment.AddApprovedDetail(detailPayload, approvedQuantity: qtyFromThisReservation);
 
 							remainingToRestock -= qtyFromThisReservation;
 						}
@@ -297,17 +310,6 @@ namespace PerfumeGPT.Application.Services
 
 				return BaseResponse<string>.Ok("Refund processed and return request completed.");
 			});
-		}
-
-		private static ReturnOrderReason ParseReturnReason(string reason)
-		{
-			if (Enum.TryParse<ReturnOrderReason>(reason, true, out var parsedReason)
-				&& Enum.IsDefined(parsedReason))
-			{
-				return parsedReason;
-			}
-
-			throw AppException.BadRequest($"Invalid return reason. Allowed values: {string.Join(", ", Enum.GetNames<ReturnOrderReason>())}.");
 		}
 	}
 }

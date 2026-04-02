@@ -2,8 +2,8 @@ using PerfumeGPT.Application.DTOs.Requests.Imports.ImportDetails;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Imports
 {
-	public class VerifyImportTicketRequest
+	public record VerifyImportTicketRequest
 	{
-		public List<VerifyImportDetailRequest> ImportDetails { get; set; } = [];
+		public required List<VerifyImportDetailRequest> ImportDetails { get; init; }
 	}
 }

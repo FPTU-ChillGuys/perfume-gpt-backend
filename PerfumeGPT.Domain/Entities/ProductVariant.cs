@@ -44,116 +44,79 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime? UpdatedAt { get; set; }
 
 		// Factory method
-		public static ProductVariant Create(
-			Guid productId,
-			string barcode,
-			string sku,
-			int volumeMl,
-			int concentrationId,
-			VariantType type,
-			int sillage,
-			int longevity,
-			decimal basePrice,
-			decimal? retailPrice = null,
-			VariantStatus status = VariantStatus.Active)
+		public static ProductVariant Create(Guid productId, VariantPayload payload)
 		{
 			if (productId == Guid.Empty)
 				throw DomainException.BadRequest("Product ID is required.");
 
-			if (string.IsNullOrWhiteSpace(barcode))
-				throw DomainException.BadRequest("Barcode is required.");
-
-			if (string.IsNullOrWhiteSpace(sku))
-				throw DomainException.BadRequest("SKU is required.");
-
-			if (volumeMl <= 0)
-				throw DomainException.BadRequest("Volume must be greater than 0.");
-
-			if (concentrationId <= 0)
-				throw DomainException.BadRequest("Invalid concentration.");
-
-			if (basePrice <= 0)
-				throw DomainException.BadRequest("Base price must be greater than 0.");
-
-			if (retailPrice.HasValue && retailPrice.Value <= 0)
-				throw DomainException.BadRequest("Retail price must be greater than 0.");
+			ValidateCore(payload);
 
 			return new ProductVariant
 			{
 				ProductId = productId,
-				Barcode = barcode.Trim(),
-				Sku = sku.Trim().ToUpperInvariant(),
-				VolumeMl = volumeMl,
-				ConcentrationId = concentrationId,
-				Type = type,
-				Sillage = sillage,
-				Longevity = longevity,
-				BasePrice = basePrice,
-				RetailPrice = retailPrice,
-				Status = status
+				Barcode = payload.Barcode.Trim(),
+				Sku = payload.Sku.Trim().ToUpperInvariant(),
+				VolumeMl = payload.VolumeMl,
+				ConcentrationId = payload.ConcentrationId,
+				Type = payload.Type,
+				Sillage = payload.Sillage,
+				Longevity = payload.Longevity,
+				BasePrice = payload.BasePrice,
+				RetailPrice = payload.RetailPrice,
+				Status = payload.Status
 			};
 		}
 
 		// Business logic methods
-		public void Update(
-			string? barcode,
-			string? sku,
-			int? volumeMl,
-			int? concentrationId,
-			VariantType? type,
-			int? sillage,
-			int? longevity,
-			decimal? basePrice,
-			decimal? retailPrice,
-			VariantStatus? status)
+		public void Update(UpdateVariantPayload payload)
 		{
-			if (barcode != null)
+			if (payload.Barcode != null)
 			{
-				if (string.IsNullOrWhiteSpace(barcode))
+				if (string.IsNullOrWhiteSpace(payload.Barcode))
 					throw DomainException.BadRequest("Barcode cannot be empty.");
-				Barcode = barcode.Trim();
+				Barcode = payload.Barcode.Trim();
 			}
 
-			if (sku != null)
+			if (payload.Sku != null)
 			{
-				if (string.IsNullOrWhiteSpace(sku))
+				if (string.IsNullOrWhiteSpace(payload.Sku))
 					throw DomainException.BadRequest("SKU cannot be empty.");
-				Sku = sku.Trim().ToUpperInvariant();
+				Sku = payload.Sku.Trim().ToUpperInvariant();
 			}
 
-			if (volumeMl.HasValue)
+			if (payload.VolumeMl.HasValue)
 			{
-				if (volumeMl.Value <= 0)
+				if (payload.VolumeMl.Value <= 0)
 					throw DomainException.BadRequest("Volume must be greater than 0.");
-				VolumeMl = volumeMl.Value;
+				VolumeMl = payload.VolumeMl.Value;
 			}
 
-			if (concentrationId.HasValue)
+			if (payload.ConcentrationId.HasValue)
 			{
-				if (concentrationId.Value <= 0)
+				if (payload.ConcentrationId.Value <= 0)
 					throw DomainException.BadRequest("Invalid concentration.");
-				ConcentrationId = concentrationId.Value;
+				ConcentrationId = payload.ConcentrationId.Value;
 			}
 
-			if (type.HasValue) Type = type.Value;
-			if (sillage.HasValue) Sillage = sillage.Value;
-			if (longevity.HasValue) Longevity = longevity.Value;
+			if (payload.Type.HasValue) Type = payload.Type.Value;
+			if (payload.Sillage.HasValue) Sillage = payload.Sillage.Value;
+			if (payload.Longevity.HasValue) Longevity = payload.Longevity.Value;
 
-			if (basePrice.HasValue)
+			if (payload.BasePrice.HasValue)
 			{
-				if (basePrice.Value <= 0)
+				if (payload.BasePrice.Value <= 0)
 					throw DomainException.BadRequest("Base price must be greater than 0.");
-				BasePrice = basePrice.Value;
+				BasePrice = payload.BasePrice.Value;
 			}
 
-			if (retailPrice.HasValue)
+			if (payload.RetailPrice.HasValue)
 			{
-				if (retailPrice.Value <= 0)
+				if (payload.RetailPrice.Value <= 0)
 					throw DomainException.BadRequest("Retail price must be greater than 0.");
-				RetailPrice = retailPrice.Value;
+				RetailPrice = payload.RetailPrice.Value;
 			}
 
-			if (status.HasValue) Status = status.Value;
+			if (payload.Status.HasValue) Status = payload.Status.Value;
 		}
 
 		public void EnsureNotDeleted()
@@ -188,6 +151,56 @@ namespace PerfumeGPT.Domain.Entities
 
 			if (Status == VariantStatus.Inactive)
 				throw DomainException.BadRequest("This product variant is currently inactive.");
+		}
+
+		private static void ValidateCore(VariantPayload payload)
+		{
+			if (string.IsNullOrWhiteSpace(payload.Barcode))
+				throw DomainException.BadRequest("Barcode is required.");
+
+			if (string.IsNullOrWhiteSpace(payload.Sku))
+				throw DomainException.BadRequest("SKU is required.");
+
+			if (payload.VolumeMl <= 0)
+				throw DomainException.BadRequest("Volume must be greater than 0.");
+
+			if (payload.ConcentrationId <= 0)
+				throw DomainException.BadRequest("Invalid concentration.");
+
+			if (payload.BasePrice <= 0)
+				throw DomainException.BadRequest("Base price must be greater than 0.");
+
+			if (payload.RetailPrice.HasValue && payload.RetailPrice.Value <= 0)
+				throw DomainException.BadRequest("Retail price must be greater than 0.");
+		}
+
+		// Records
+		public record VariantPayload
+		{
+			public required string Barcode { get; init; }
+			public required string Sku { get; init; }
+			public required int VolumeMl { get; init; }
+			public required int ConcentrationId { get; init; }
+			public required VariantType Type { get; init; }
+			public required int Sillage { get; init; }
+			public required int Longevity { get; init; }
+			public required decimal BasePrice { get; init; }
+			public decimal? RetailPrice { get; init; }
+			public VariantStatus Status { get; init; } = VariantStatus.Active;
+		}
+
+		public record UpdateVariantPayload
+		{
+			public string? Barcode { get; init; }
+			public string? Sku { get; init; }
+			public int? VolumeMl { get; init; }
+			public int? ConcentrationId { get; init; }
+			public VariantType? Type { get; init; }
+			public int? Sillage { get; init; }
+			public int? Longevity { get; init; }
+			public decimal? BasePrice { get; init; }
+			public decimal? RetailPrice { get; init; }
+			public VariantStatus? Status { get; init; }
 		}
 	}
 }

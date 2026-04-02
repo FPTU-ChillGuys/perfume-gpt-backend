@@ -10,14 +10,12 @@ namespace PerfumeGPT.Application.Services
 {
 	public class AttributeValueService : IAttributeValueService
 	{
-		#region Depedencies
 		private readonly IUnitOfWork _unitOfWork;
 
 		public AttributeValueService(IUnitOfWork unitOfWork)
 		{
 			_unitOfWork = unitOfWork;
 		}
-		#endregion Dependencies
 
 		public async Task<BaseResponse<List<AttributeValueLookupItem>>> GetLookupListByAttributeIdAsync(int attributeId)
 		{

@@ -2,8 +2,8 @@ using PerfumeGPT.Application.DTOs.Responses.Variants;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Products
 {
-	public class ProductListItemWithVariants : ProductListItem
+	public record ProductListItemWithVariants : ProductListItem
 	{
-		public List<VariantSummaryItem> Variants { get; set; } = [];
+		public required List<VariantSummaryItem> Variants { get; init; }
 	}
 }

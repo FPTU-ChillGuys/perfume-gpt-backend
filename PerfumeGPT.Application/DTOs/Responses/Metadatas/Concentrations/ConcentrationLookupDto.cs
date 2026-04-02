@@ -1,8 +1,8 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Metadatas.Concentrations
+namespace PerfumeGPT.Application.DTOs.Responses.Metadatas.Concentrations
 {
-	public class ConcentrationLookupDto
+	public record ConcentrationLookupDto
 	{
-		public int Id { get; set; }
-		public string Name { get; set; } = null!;
+		public int Id { get; init; }
+		public required string Name { get; init; }
 	}
 }

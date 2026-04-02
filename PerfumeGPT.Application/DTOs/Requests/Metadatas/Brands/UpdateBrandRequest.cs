@@ -1,7 +1,7 @@
 namespace PerfumeGPT.Application.DTOs.Requests.Metadatas.Brands
 {
-	public class UpdateBrandRequest
+	public record UpdateBrandRequest
 	{
-		public string Name { get; set; } = null!;
+		public required string Name { get; init; }
 	}
 }

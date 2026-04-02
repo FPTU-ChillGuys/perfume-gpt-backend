@@ -3,10 +3,10 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Campaigns
 {
-	public class GetPagedCampaignsRequest : PagingAndSortingQuery
+	public record GetPagedCampaignsRequest : PagingAndSortingQuery
 	{
-		public string? SearchTerm { get; set; }
-		public CampaignStatus? Status { get; set; }
-		public CampaignType? Type { get; set; }
+		public string? SearchTerm { get; init; }
+		public CampaignStatus? Status { get; init; }
+		public CampaignType? Type { get; init; }
 	}
 }

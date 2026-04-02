@@ -27,7 +27,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			GHTK_PartnerCode = _configuration["GHTK:PartnerCode"] ?? throw new NullReferenceException("Missing GHTK parner code!");
 		}
 
-		public async Task<BaseResponse<AddressLevel4Response>> GetAddressLevel4Async(AddressLevel4Request request)
+		public async Task<BaseResponse<AddressLevel4Response>> GetAddressLevel4Async(GetAddressLevel4Request request)
 		{
 			var httpRequest = new HttpRequestMessage(HttpMethod.Get, GHTK_BaseUrl + GHTK_GetAddressLevel4Url);
 			httpRequest.Headers.Add("Token", GHTK_Token);

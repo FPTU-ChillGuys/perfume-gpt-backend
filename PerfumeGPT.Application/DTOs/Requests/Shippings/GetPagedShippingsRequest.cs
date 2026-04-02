@@ -3,11 +3,11 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Shippings
 {
-	public class GetPagedShippingsRequest : PagingAndSortingQuery
+	public record GetPagedShippingsRequest : PagingAndSortingQuery
 	{
-		public ShippingStatus? Status { get; set; }
-		public CarrierName? CarrierName { get; set; }
-		public Guid? OrderId { get; set; }
-		public string? TrackingNumber { get; set; }
+		public ShippingStatus? Status { get; init; }
+		public CarrierName? CarrierName { get; init; }
+		public Guid? OrderId { get; init; }
+		public string? TrackingNumber { get; init; }
 	}
 }

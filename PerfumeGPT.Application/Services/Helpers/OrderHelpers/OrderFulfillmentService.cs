@@ -7,6 +7,7 @@ using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using static PerfumeGPT.Domain.Entities.StockAdjustmentDetail;
 
 namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 {
@@ -330,12 +331,14 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				 StockAdjustmentReason.Damage,
 				 damageNote ?? $"Damaged during order picking for Order {orderId}");
 
-			stockAdjustment.AddApprovedDetail(
-				variantId,
-				batchId,
-				-quantity,
-				-quantity,
-				damageNote);
+			var detailPayload = new StockAdjustmentDetailPayload
+			{
+				ProductVariantId = variantId,
+				BatchId = batchId,
+				AdjustmentQuantity = -quantity,
+				Note = damageNote
+			};
+			stockAdjustment.AddApprovedDetail(detailPayload, -quantity);
 
 			stockAdjustment.UpdateStatus(StockAdjustmentStatus.InProgress);
 			stockAdjustment.Complete(staffId);

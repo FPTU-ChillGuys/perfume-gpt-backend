@@ -2,9 +2,9 @@ using Microsoft.AspNetCore.Http;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Media
 {
-	public class ProfileAvtarUploadRequest
+	public record ProfileAvtarUploadRequest
 	{
-		public IFormFile Avatar { get; set; } = null!;
-		public string? AltText { get; set; }
+		public required IFormFile Avatar { get; init; }
+		public string? AltText { get; init; }
 	}
 }

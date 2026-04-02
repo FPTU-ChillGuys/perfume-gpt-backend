@@ -1,8 +1,8 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.Auths
 {
-	public class LoginRequest
+	public record LoginRequest
 	{
-		public string Credential { get; set; } = null!;
-		public string Password { get; set; } = null!;
+		public required string Credential { get; init; }
+		public required string Password { get; init; }
 	}
 }

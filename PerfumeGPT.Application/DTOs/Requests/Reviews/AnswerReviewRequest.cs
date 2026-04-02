@@ -1,7 +1,7 @@
 namespace PerfumeGPT.Application.DTOs.Requests.Reviews
 {
-	public class AnswerReviewRequest
+	public record AnswerReviewRequest
 	{
-		public string StaffFeedbackComment { get; set; } = string.Empty;
+		public required string StaffFeedbackComment { get; init; }
 	}
 }

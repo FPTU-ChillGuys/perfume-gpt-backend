@@ -3,22 +3,22 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Variants
 {
-	public class CreateVariantRequest
+	public record CreateVariantRequest
 	{
-		public Guid ProductId { get; set; }
-		public string Barcode { get; set; } = null!;
-		public string Sku { get; set; } = null!;
-		public int VolumeMl { get; set; }
-		public int ConcentrationId { get; set; }
-		public int Sillage { get; set; }
-		public int Longevity { get; set; }
-		public VariantType Type { get; set; }
-		public decimal BasePrice { get; set; }
-		public decimal? RetailPrice { get; set; }
-		public VariantStatus Status { get; set; }
-		public int LowStockThreshold { get; set; }
-		public List<ProductAttributeDto>? Attributes { get; set; }
-		public List<Guid>? TemporaryMediaIds { get; set; }
+		public Guid ProductId { get; init; }
+		public required string Barcode { get; init; }
+		public required string Sku { get; init; }
+		public int VolumeMl { get; init; }
+		public int ConcentrationId { get; init; }
+		public int Sillage { get; init; }
+		public int Longevity { get; init; }
+		public VariantType Type { get; init; }
+		public decimal BasePrice { get; init; }
+		public decimal? RetailPrice { get; init; }
+		public VariantStatus Status { get; init; }
+		public int LowStockThreshold { get; init; }
+		public List<ProductAttributeDto>? Attributes { get; init; }
+		public List<Guid>? TemporaryMediaIds { get; init; }
 	}
 }
 

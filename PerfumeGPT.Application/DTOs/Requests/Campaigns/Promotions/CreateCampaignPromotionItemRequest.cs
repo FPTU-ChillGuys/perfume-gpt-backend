@@ -2,11 +2,11 @@
 
 namespace PerfumeGPT.Application.DTOs.Requests.Campaigns.Promotions
 {
-	public class CreateCampaignPromotionItemRequest
+	public record CreateCampaignPromotionItemRequest
 	{
-		public Guid ProductVariantId { get; set; }
-		public Guid? BatchId { get; set; }
-		public PromotionType PromotionType { get; set; }
-		public int? MaxUsage { get; set; }
+		public Guid ProductVariantId { get; init; }
+		public Guid? BatchId { get; init; }
+		public PromotionType PromotionType { get; init; }
+		public int? MaxUsage { get; init; }
 	}
 }

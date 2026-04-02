@@ -1,23 +1,25 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
+﻿using MapsterMapper;
+using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.ProductAttributes.Attributes;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using static PerfumeGPT.Domain.Entities.Attribute;
 using Attribute = PerfumeGPT.Domain.Entities.Attribute;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class AttributeService : IAttributeService
 	{
-		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IMapper _mapper;
 
-		public AttributeService(IUnitOfWork unitOfWork)
+		public AttributeService(IUnitOfWork unitOfWork, IMapper mapper)
 		{
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
-		#endregion Dependencies
 
 		public async Task<BaseResponse<List<AttributeLookupItem>>> GetLookupListAsync(bool? isVariantLevel = null)
 		{
@@ -29,12 +31,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> CreateAttributeAsync(CreateAttributeRequest request)
 		{
-			var entity = Attribute.Create(
-				request.InternalCode,
-				request.Name,
-				request.Description,
-				request.IsVariantLevel);
-
+			var details = _mapper.Map<AttributeCreationDetails>(request);
+			var entity = Attribute.Create(details);
 			await _unitOfWork.Attributes.AddAsync(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create attribute");
@@ -47,7 +45,8 @@ namespace PerfumeGPT.Application.Services
 			var entity = await _unitOfWork.Attributes.GetByIdAsync(attributeId)
 				 ?? throw AppException.NotFound("Attribute not found");
 
-			entity.Update(request.Name, request.Description, request.IsVariantLevel);
+			var details = _mapper.Map<AttributeUpdateDetails>(request);
+			entity.Update(details);
 			_unitOfWork.Attributes.Update(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();

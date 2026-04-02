@@ -24,7 +24,13 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<CreateCampaignVoucherRequest> _createCampaignVoucherValidator;
 		private readonly IValidator<UpdateCampaignVoucherRequest> _updateCampaignVoucherValidator;
 
-		public CampaignsController(ICampaignService campaignService, IValidator<CreateCampaignRequest> createCampaignValidator, IValidator<UpdateCampaignRequest> updateCampaignValidator, IValidator<CreateCampaignPromotionItemRequest> createCampaignPromotionItemValidator, IValidator<CreateCampaignVoucherRequest> createCampaignVoucherValidator, IValidator<UpdateCampaignVoucherRequest> updateCampaignVoucherValidator, IValidator<UpdateCampaignPromotionItemRequest> updateCampaignPromotionItemValidator)
+		public CampaignsController(ICampaignService campaignService,
+			IValidator<CreateCampaignRequest> createCampaignValidator,
+			IValidator<UpdateCampaignRequest> updateCampaignValidator,
+			IValidator<CreateCampaignPromotionItemRequest> createCampaignPromotionItemValidator,
+			IValidator<CreateCampaignVoucherRequest> createCampaignVoucherValidator,
+			IValidator<UpdateCampaignVoucherRequest> updateCampaignVoucherValidator,
+			IValidator<UpdateCampaignPromotionItemRequest> updateCampaignPromotionItemValidator)
 		{
 			_campaignService = campaignService;
 			_createCampaignValidator = createCampaignValidator;

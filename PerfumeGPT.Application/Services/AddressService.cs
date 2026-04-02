@@ -1,23 +1,25 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.Address;
+﻿using MapsterMapper;
+using PerfumeGPT.Application.DTOs.Requests.Address;
 using PerfumeGPT.Application.DTOs.Responses.Address;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
+using static PerfumeGPT.Domain.Entities.Address;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class AddressService : IAddressService
 	{
-		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IMapper _mapper;
 
-		public AddressService(IUnitOfWork unitOfWork)
+		public AddressService(IUnitOfWork unitOfWork, IMapper mapper)
 		{
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
-		#endregion Dependencies
 
 		public async Task<BaseResponse<string>> CreateAddressAsync(Guid userId, CreateAddressRequest request)
 		{
@@ -32,18 +34,8 @@ namespace PerfumeGPT.Application.Services
 				if (currentDefault != null) _unitOfWork.Addresses.Update(currentDefault);
 			}
 
-			var address = Address.CreateForUser(
-				userId,
-				request.RecipientName,
-				request.RecipientPhoneNumber,
-				request.Street,
-				request.Ward,
-				request.District,
-				request.City,
-				request.WardCode,
-				request.DistrictId,
-				request.ProvinceId,
-				shouldBeDefault);
+			var addressDetails = _mapper.Map<AddressDetails>(request);
+			var address = Address.CreateForUser(userId, addressDetails, shouldBeDefault);
 
 			await _unitOfWork.Addresses.AddAsync(address);
 			var saved = await _unitOfWork.SaveChangesAsync();
@@ -58,16 +50,8 @@ namespace PerfumeGPT.Application.Services
 				?? throw AppException.NotFound("Address not found");
 
 			address.EnsureOwnedBy(userId);
-			address.Update(
-				  request.RecipientName,
-				  request.RecipientPhoneNumber,
-				  request.Street,
-				  request.Ward,
-				  request.District,
-				  request.City,
-				  request.WardCode,
-				  request.DistrictId,
-				  request.ProvinceId);
+			var updatedDetails = _mapper.Map<AddressDetails>(request);
+			address.UpdateDetails(updatedDetails);
 			_unitOfWork.Addresses.Update(address);
 
 			var saved = await _unitOfWork.SaveChangesAsync();

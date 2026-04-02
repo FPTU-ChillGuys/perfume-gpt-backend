@@ -2,15 +2,15 @@ using System.Text.Json.Serialization;
 
 namespace PerfumeGPT.Application.DTOs.Responses.GHNs.Base
 {
-	public class GHNApiResponse<T>
+	public record GHNApiResponse<T>
 	{
 		[JsonPropertyName("code")]
-		public int Code { get; set; }
+		public int Code { get; init; }
 
 		[JsonPropertyName("message")]
-		public string Message { get; set; } = string.Empty;
+		public required string Message { get; init; }
 
 		[JsonPropertyName("data")]
-		public T Data { get; set; } = default!;
+		public T? Data { get; init; }
 	}
 }

@@ -1,14 +1,14 @@
 namespace PerfumeGPT.Application.DTOs.Requests.StockAdjustments
 {
-	public class VerifyStockAdjustmentRequest
+	public record VerifyStockAdjustmentRequest
 	{
-		public List<VerifyStockAdjustmentDetailRequest> AdjustmentDetails { get; set; } = [];
+		public required List<VerifyStockAdjustmentDetailRequest> AdjustmentDetails { get; init; }
 	}
 
-	public class VerifyStockAdjustmentDetailRequest
+	public record VerifyStockAdjustmentDetailRequest
 	{
-		public Guid DetailId { get; set; }
-		public int ApprovedQuantity { get; set; }
-		public string? Note { get; set; }
+		public Guid DetailId { get; init; }
+		public int ApprovedQuantity { get; init; }
+		public string? Note { get; init; }
 	}
 }

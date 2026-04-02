@@ -3,7 +3,7 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Imports
 {
-	public class GetPagedImportTicketsRequest : PagingAndSortingQuery
+	public record GetPagedImportTicketsRequest : PagingAndSortingQuery
 	{
 		public int? SupplierId { get; set; }
 		public ImportStatus? Status { get; set; }

@@ -40,77 +40,65 @@ namespace PerfumeGPT.Domain.Entities
 		public SqlVector<float>? Embedding { get; set; }
 
 		// Factory method
-		public static Product Create(
-			string name,
-			int brandId,
-			int categoryId,
-			string origin,
-			Gender gender,
-			int releaseYear,
-			string? description = null)
+		public static Product Create(ProductPayload payload)
 		{
-			ValidateCore(name, brandId, categoryId, origin, releaseYear);
+			ValidateCore(payload);
 
 			return new Product
 			{
-				Name = name.Trim(),
-				BrandId = brandId,
-				CategoryId = categoryId,
-				Origin = origin.Trim(),
-				Gender = gender,
-				ReleaseYear = releaseYear,
-				Description = description?.Trim()
+				Name = payload.Name.Trim(),
+				BrandId = payload.BrandId,
+				CategoryId = payload.CategoryId,
+				Origin = payload.Origin.Trim(),
+				Gender = payload.Gender,
+				ReleaseYear = payload.ReleaseYear,
+				Description = payload.Description?.Trim()
 			};
 		}
 
 		// Business logic methods
-		public void Update(
-			string? name,
-			int? brandId,
-			int? categoryId,
-			string? origin,
-			Gender? gender,
-			int? releaseYear,
-			string? description)
+		public void Update(UpdateProductPayload payload)
 		{
-			if (name != null)
+			if (payload.Name != null)
 			{
-				if (string.IsNullOrWhiteSpace(name))
+				if (string.IsNullOrWhiteSpace(payload.Name))
 					throw DomainException.BadRequest("Product name cannot be empty.");
-				Name = name.Trim();
+				Name = payload.Name.Trim();
 			}
 
-			if (brandId.HasValue)
+			if (payload.BrandId.HasValue)
 			{
-				if (brandId.Value <= 0)
+				if (payload.BrandId.Value <= 0)
 					throw DomainException.BadRequest("Invalid brand.");
-				BrandId = brandId.Value;
+				BrandId = payload.BrandId.Value;
 			}
 
-			if (categoryId.HasValue)
+			if (payload.CategoryId.HasValue)
 			{
-				if (categoryId.Value <= 0)
+				if (payload.CategoryId.Value <= 0)
 					throw DomainException.BadRequest("Invalid category.");
-				CategoryId = categoryId.Value;
+				CategoryId = payload.CategoryId.Value;
 			}
 
-			if (origin != null)
+			if (payload.Origin != null)
 			{
-				if (string.IsNullOrWhiteSpace(origin))
+				if (string.IsNullOrWhiteSpace(payload.Origin))
 					throw DomainException.BadRequest("Origin cannot be empty.");
-				Origin = origin.Trim();
+				Origin = payload.Origin.Trim();
 			}
 
-			if (gender.HasValue) Gender = gender.Value;
+			if (payload.Gender.HasValue)
+				Gender = payload.Gender.Value;
 
-			if (releaseYear.HasValue)
+			if (payload.ReleaseYear.HasValue)
 			{
-				if (releaseYear.Value < 1900 || releaseYear.Value > DateTime.UtcNow.Year + 1)
+				if (payload.ReleaseYear.Value < 1900 || payload.ReleaseYear.Value > DateTime.UtcNow.Year + 1)
 					throw DomainException.BadRequest("Invalid release year.");
-				ReleaseYear = releaseYear.Value;
+				ReleaseYear = payload.ReleaseYear.Value;
 			}
 
-			if (description != null) Description = description.Trim();
+			if (payload.Description != null)
+				Description = payload.Description.Trim();
 		}
 
 		public void ReplaceScentMaps(IEnumerable<(int NoteId, NoteType Type)> scentNotes)
@@ -167,23 +155,45 @@ namespace PerfumeGPT.Domain.Entities
 					"Cannot delete product with active variants. Please delete all variants first.");
 		}
 
-		private static void ValidateCore(
-			string name, int brandId, int categoryId, string origin, int releaseYear)
+		private static void ValidateCore(ProductPayload payload)
 		{
-			if (string.IsNullOrWhiteSpace(name))
+			if (string.IsNullOrWhiteSpace(payload.Name))
 				throw DomainException.BadRequest("Product name is required.");
 
-			if (brandId <= 0)
+			if (payload.BrandId <= 0)
 				throw DomainException.BadRequest("Invalid brand.");
 
-			if (categoryId <= 0)
+			if (payload.CategoryId <= 0)
 				throw DomainException.BadRequest("Invalid category.");
 
-			if (string.IsNullOrWhiteSpace(origin))
+			if (string.IsNullOrWhiteSpace(payload.Origin))
 				throw DomainException.BadRequest("Product origin is required.");
 
-			if (releaseYear < 1900 || releaseYear > DateTime.UtcNow.Year + 1)
+			if (payload.ReleaseYear < 1900 || payload.ReleaseYear > DateTime.UtcNow.Year + 1)
 				throw DomainException.BadRequest("Invalid release year.");
+		}
+
+		// Records
+		public record ProductPayload
+		{
+			public required string Name { get; init; }
+			public required int BrandId { get; init; }
+			public required int CategoryId { get; init; }
+			public required string Origin { get; init; }
+			public required Gender Gender { get; init; }
+			public required int ReleaseYear { get; init; }
+			public string? Description { get; init; }
+		}
+
+		public record UpdateProductPayload
+		{
+			public string? Name { get; init; }
+			public int? BrandId { get; init; }
+			public int? CategoryId { get; init; }
+			public string? Origin { get; init; }
+			public Gender? Gender { get; init; }
+			public int? ReleaseYear { get; init; }
+			public string? Description { get; init; }
 		}
 	}
 }

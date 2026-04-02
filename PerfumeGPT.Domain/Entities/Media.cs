@@ -50,29 +50,19 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime CreatedAt { get; set; }
 
 		// Factory methods
-		public static Media CreateForEntity(
-		EntityType entityType,
-		Guid entityId,
-		string url,
-		string? altText,
-		int displayOrder,
-		bool isPrimary,
-		string? publicId,
-		long? fileSize,
-		string? mimeType)
+		public static Media Create(EntityType entityType, Guid entityId, FileMetadata file, MediaDisplayInfo display)
 		{
-			if (string.IsNullOrWhiteSpace(url))
-				throw DomainException.BadRequest("Media URL is required.");
+			ValidateUrl(file.Url);
 
 			var media = new Media
 			{
-				Url = url.Trim(),
-				AltText = altText,
-				DisplayOrder = displayOrder,
-				IsPrimary = isPrimary,
-				PublicId = publicId,
-				FileSize = fileSize,
-				MimeType = mimeType,
+				Url = file.Url.Trim(),
+				PublicId = file.PublicId,
+				FileSize = file.FileSize,
+				MimeType = file.MimeType,
+				AltText = display.AltText,
+				DisplayOrder = display.DisplayOrder,
+				IsPrimary = display.IsPrimary,
 				EntityType = entityType
 			};
 
@@ -80,45 +70,40 @@ namespace PerfumeGPT.Domain.Entities
 			return media;
 		}
 
-		public static Media CreateFromUrl(
-		EntityType entityType,
-		Guid entityId,
-		string url,
-		string? altText = null,
-		string? mimeType = null)
+		public static Media CreateBasic(EntityType entityType, Guid entityId, BasicMediaInfo info)
 		{
-			if (string.IsNullOrWhiteSpace(url))
-				throw DomainException.BadRequest("Media URL is required.");
+			ValidateUrl(info.Url);
 
 			var media = new Media
 			{
-				Url = url.Trim(),
-				AltText = altText ?? "Profile picture",
+				Url = info.Url.Trim(),
+				AltText = info.AltText ?? "Profile picture",
 				DisplayOrder = 0,
 				IsPrimary = true,
-				MimeType = mimeType,
+				MimeType = info.MimeType,
 				EntityType = entityType
 			};
 
 			media.SetEntityId(entityType, entityId);
 			return media;
+		}
+
+		public void UpdateFile(FileMetadata file, string? altText = null)
+		{
+			ValidateUrl(file.Url);
+
+			Url = file.Url.Trim();
+			PublicId = file.PublicId;
+			FileSize = file.FileSize;
+			MimeType = file.MimeType;
+
+			if (altText != null)
+				AltText = altText;
 		}
 
 		// Business logic methods
 		public void SetAsPrimary() => IsPrimary = true;
 		public void UnsetPrimary() => IsPrimary = false;
-
-		public void UpdateUrl(string url, string? publicId, long? fileSize, string? mimeType, string? altText)
-		{
-			if (string.IsNullOrWhiteSpace(url))
-				throw DomainException.BadRequest("Media URL is required.");
-
-			Url = url.Trim();
-			PublicId = publicId;
-			FileSize = fileSize;
-			MimeType = mimeType;
-			if (altText != null) AltText = altText;
-		}
 
 		public void EnsureNotPrimary()
 		{
@@ -137,6 +122,35 @@ namespace PerfumeGPT.Domain.Entities
 				case EntityType.Review: ReviewId = entityId; break;
 				case EntityType.OrderReturnRequest: OrderReturnRequestId = entityId; break;
 			}
+		}
+
+		private static void ValidateUrl(string url)
+		{
+			if (string.IsNullOrWhiteSpace(url))
+				throw DomainException.BadRequest("Media URL is required.");
+		}
+
+		// Records
+		public record FileMetadata
+		{
+			public required string Url { get; init; }
+			public string? PublicId { get; init; }
+			public long? FileSize { get; init; }
+			public string? MimeType { get; init; }
+		}
+
+		public record MediaDisplayInfo
+		{
+			public string? AltText { get; init; }
+			public int DisplayOrder { get; init; } = 0;
+			public bool IsPrimary { get; init; } = false;
+		}
+
+		public record BasicMediaInfo
+		{
+			public required string Url { get; init; }
+			public string? AltText { get; init; }
+			public string? MimeType { get; init; }
 		}
 	}
 }

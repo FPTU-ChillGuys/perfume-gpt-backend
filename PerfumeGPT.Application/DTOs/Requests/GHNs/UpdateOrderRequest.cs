@@ -1,45 +1,45 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.GHNs
 {
-	public class UpdateOrderRequest
+	public record UpdateOrderRequest
 	{
-		public string OrderCode { get; set; } = null!;
+		public required string OrderCode { get; init; }
 
 		// Sender
-		public string? FromName { get; set; }
-		public string? FromPhone { get; set; }
-		public string? FromAddress { get; set; }
-		public string? FromWardCode { get; set; }
-		public int? FromDistrictId { get; set; }
+		public string? FromName { get; init; }
+		public string? FromPhone { get; init; }
+		public string? FromAddress { get; init; }
+		public string? FromWardCode { get; init; }
+		public int? FromDistrictId { get; init; }
 
 		// Recipient
-		public string? ToName { get; set; }
-		public string? ToPhone { get; set; }
-		public string? ToAddress { get; set; }
-		public string? ToWardCode { get; set; }
-		public int? ToDistrictId { get; set; }
+		public string? ToName { get; init; }
+		public string? ToPhone { get; init; }
+		public string? ToAddress { get; init; }
+		public string? ToWardCode { get; init; }
+		public int? ToDistrictId { get; init; }
 
 		// Return info
-		public string? ReturnPhone { get; set; }
-		public string? ReturnAddress { get; set; }
-		public string? ReturnWardCode { get; set; }
-		public int? ReturnDistrictId { get; set; }
+		public string? ReturnPhone { get; init; }
+		public string? ReturnAddress { get; init; }
+		public string? ReturnWardCode { get; init; }
+		public int? ReturnDistrictId { get; init; }
 
-		public string? ClientOrderCode { get; set; }
-		public int? CodAmount { get; set; }
-		public string? Content { get; set; }
+		public string? ClientOrderCode { get; init; }
+		public int? CodAmount { get; init; }
+		public string? Content { get; init; }
 
 		// Dimensions
-		public int? Weight { get; set; }
-		public int? Length { get; set; }
-		public int? Width { get; set; }
-		public int? Height { get; set; }
+		public int? Weight { get; init; }
+		public int? Length { get; init; }
+		public int? Width { get; init; }
+		public int? Height { get; init; }
 
-		public int? PickStationId { get; set; }
-		public int? InsuranceValue { get; set; }
-		public string? Coupon { get; set; }
-		public int? PaymentTypeId { get; set; }
-		public string? Note { get; set; }
-		public string? RequiredNote { get; set; }
-		public string? PickShift { get; set; }
+		public int? PickStationId { get; init; }
+		public int? InsuranceValue { get; init; }
+		public string? Coupon { get; init; }
+		public int? PaymentTypeId { get; init; }
+		public string? Note { get; init; }
+		public string? RequiredNote { get; init; }
+		public string? PickShift { get; init; }
 	}
 }

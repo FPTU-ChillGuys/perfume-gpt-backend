@@ -34,7 +34,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 
 		#region Order Status Management
 
-		Task<BaseResponse<PickListResponse>> UpdateOrderStatusAsync(Guid orderId, Guid staffId, UpdateOrderStatusRequest request);
+		Task<BaseResponse<PickListResponse?>> UpdateOrderStatusAsync(Guid orderId, Guid staffId, UpdateOrderStatusRequest request);
 		Task<BaseResponse<string>> CancelOrderAsync(Guid orderId, Guid userId, UserCancelOrderRequest request);
 
 		#endregion

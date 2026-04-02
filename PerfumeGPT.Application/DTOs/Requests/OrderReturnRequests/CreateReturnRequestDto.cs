@@ -1,11 +1,13 @@
+using PerfumeGPT.Domain.Enums;
+
 namespace PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests
 {
-	public class CreateReturnRequestDto
+	public record CreateReturnRequestDto
 	{
-		public Guid OrderId { get; set; }
-		public string Reason { get; set; } = string.Empty;
-		public decimal RequestedRefundAmount { get; set; }
-		public string? CustomerNote { get; set; }
-		public List<Guid>? TemporaryMediaIds { get; set; }
+		public Guid OrderId { get; init; }
+		public required ReturnOrderReason Reason { get; init; }
+		public decimal RequestedRefundAmount { get; init; }
+		public string? CustomerNote { get; init; }
+		public List<Guid>? TemporaryMediaIds { get; init; }
 	}
 }

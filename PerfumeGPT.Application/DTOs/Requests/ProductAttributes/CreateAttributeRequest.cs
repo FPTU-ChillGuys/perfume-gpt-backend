@@ -1,10 +1,10 @@
 namespace PerfumeGPT.Application.DTOs.Requests.ProductAttributes
 {
-	public class CreateAttributeRequest
+	public record CreateAttributeRequest
 	{
-		public string? InternalCode { get; set; }
-		public string Name { get; set; } = null!;
-		public string? Description { get; set; }
-		public bool IsVariantLevel { get; set; }
+		public string? InternalCode { get; init; }
+		public required string Name { get; init; }
+		public string? Description { get; init; }
+		public bool IsVariantLevel { get; init; }
 	}
 }

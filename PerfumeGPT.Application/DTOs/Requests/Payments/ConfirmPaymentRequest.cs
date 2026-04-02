@@ -1,8 +1,8 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.Payments
 {
-	public class ConfirmPaymentRequest
+	public record ConfirmPaymentRequest
 	{
-		public bool IsSuccess { get; set; }
-		public string? failureReason { get; set; }
+		public bool IsSuccess { get; init; }
+		public string? FailureReason { get; init; }
 	}
 }

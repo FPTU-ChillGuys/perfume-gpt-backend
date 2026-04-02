@@ -1,11 +1,11 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Orders.OrderDetails
+namespace PerfumeGPT.Application.DTOs.Responses.Orders.OrderDetails
 {
-	public class OrderDetailListItems
+	public record OrderDetailListItems
 	{
-		public Guid VariantId { get; set; }
-		public string VariantName { get; set; } = null!;
-		public string ImageUrl { get; set; } = null!;
-		public int Quantity { get; set; }
-		public int Total { get; set; }
+		public Guid VariantId { get; init; }
+		public required string VariantName { get; init; }
+		public required string ImageUrl { get; init; }
+		public int Quantity { get; init; }
+		public int Total { get; init; }
 	}
 }

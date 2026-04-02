@@ -1,39 +1,39 @@
-﻿using PerfumeGPT.Application.DTOs.Responses.Media;
+using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Variants
 {
-	public class ProductVariantResponse
+	public record ProductVariantResponse
 	{
-		public Guid Id { get; set; }
-		public string Barcode { get; set; } = null!;
-		public string Sku { get; set; } = null!;
-		public int VolumeMl { get; set; }
-		public int ConcentrationId { get; set; }
-		public string ConcentrationName { get; set; } = null!;
-		public VariantType Type { get; set; }
-		public decimal BasePrice { get; set; }
-		public decimal? RetailPrice { get; set; }
-		public VariantStatus Status { get; set; }
-		public int StockQuantity { get; set; }
-		public int Sillage { get; set; }
-		public int Longevity { get; set; }
+		public Guid Id { get; init; }
+		public required string Barcode { get; init; }
+		public required string Sku { get; init; }
+		public int VolumeMl { get; init; }
+		public int ConcentrationId { get; init; }
+		public required string ConcentrationName { get; init; }
+		public VariantType Type { get; init; }
+		public decimal BasePrice { get; init; }
+		public decimal? RetailPrice { get; init; }
+		public VariantStatus Status { get; init; }
+		public int StockQuantity { get; init; }
+		public int Sillage { get; init; }
+		public int Longevity { get; init; }
 
 		// Product details
-		public Guid ProductId { get; set; }
-		public string ProductName { get; set; } = null!;
+		public Guid ProductId { get; init; }
+		public required string ProductName { get; init; }
 
 		// Media
-		public List<MediaResponse> Media { get; set; } = [];
+		public required List<MediaResponse> Media { get; init; }
 
 		// Campaign details 
-		public string? CampaignName { get; set; }
-		public string? VoucherCode { get; set; }
-		public decimal? DiscountedPrice { get; set; }
+		public string? CampaignName { get; init; }
+		public string? VoucherCode { get; init; }
+		public decimal? DiscountedPrice { get; init; }
 
 		// Attributes
-		public List<ProductAttributeResponse>? Attributes { get; set; }
+		public List<ProductAttributeResponse>? Attributes { get; init; }
 	}
 }
 

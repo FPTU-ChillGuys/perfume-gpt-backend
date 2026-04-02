@@ -12,19 +12,19 @@ namespace PerfumeGPT.Persistence.Repositories
 		public StockReservationRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<IEnumerable<StockReservation>> GetByOrderIdAsync(Guid orderId)
-			=> await _context.StockReservations
-				.Include(sr => sr.Batch)
-				.Include(sr => sr.ProductVariant)
-				.Where(sr => sr.OrderId == orderId)
-				.ToListAsync();
+		=> await _context.StockReservations
+			.Include(sr => sr.Batch)
+			.Include(sr => sr.ProductVariant)
+			.Where(sr => sr.OrderId == orderId)
+			.ToListAsync();
 
 		public async Task<IEnumerable<StockReservation>> GetExpiredReservationsAsync()
-			=> await _context.StockReservations
-				.Include(sr => sr.Order)
-				.Include(sr => sr.Batch)
-				.Include(sr => sr.ProductVariant)
-				.Where(sr => sr.Status == ReservationStatus.Reserved
-					&& sr.ExpiresAt <= DateTime.UtcNow)
-				.ToListAsync();
+		=> await _context.StockReservations
+			.Include(sr => sr.Order)
+			.Include(sr => sr.Batch)
+			.Include(sr => sr.ProductVariant)
+			.Where(sr => sr.Status == ReservationStatus.Reserved
+				&& sr.ExpiresAt <= DateTime.UtcNow)
+			.ToListAsync();
 	}
 }

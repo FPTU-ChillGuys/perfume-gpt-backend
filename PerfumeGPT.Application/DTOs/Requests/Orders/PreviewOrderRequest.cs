@@ -1,10 +1,10 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.Orders
 {
-	public class PreviewOrderRequest
+	public record PreviewOrderRequest
 	{
-		public List<string> BarCodes { get; set; } = new List<string>();
-		public string WardCode { get; set; } = string.Empty;
-		public int DistrictId { get; set; }
-		public string? VoucherCode { get; set; }
+		public required List<string> BarCodes { get; init; }
+		public required string WardCode { get; init; }
+		public int DistrictId { get; init; }
+		public string? VoucherCode { get; init; }
 	}
 }

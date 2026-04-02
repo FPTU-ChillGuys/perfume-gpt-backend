@@ -1,24 +1,24 @@
-﻿using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
+using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Variants
 {
-	public class VariantPagedItem
+	public record VariantPagedItem
 	{
-		public Guid Id { get; set; }
-		public Guid ProductId { get; set; }
-		public string? PrimaryImageUrl { get; set; }
-		public string Barcode { get; set; } = null!;
-		public string Sku { get; set; } = null!;
-		public int VolumeMl { get; set; }
-		public int ConcentrationId { get; set; }
-		public string ConcentrationName { get; set; } = null!;
-		public VariantType Type { get; set; }
-		public decimal BasePrice { get; set; }
-		public decimal? RetailPrice { get; set; }
-		public VariantStatus Status { get; set; }
-		public int StockQuantity { get; set; }
-		public List<ProductAttributeResponse>? Attributes { get; set; }
+		public Guid Id { get; init; }
+		public Guid ProductId { get; init; }
+		public string? PrimaryImageUrl { get; init; }
+		public required string Barcode { get; init; }
+		public required string Sku { get; init; }
+		public int VolumeMl { get; init; }
+		public int ConcentrationId { get; init; }
+		public required string ConcentrationName { get; init; }
+		public VariantType Type { get; init; }
+		public decimal BasePrice { get; init; }
+		public decimal? RetailPrice { get; init; }
+		public VariantStatus Status { get; init; }
+		public int StockQuantity { get; init; }
+		public List<ProductAttributeResponse>? Attributes { get; init; }
 	}
 }
 

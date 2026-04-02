@@ -1,5 +1,4 @@
-﻿using Mapster;
-using Microsoft.Data.SqlTypes;
+﻿using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.SemanticKernel;
@@ -33,12 +32,12 @@ namespace PerfumeGPT.Persistence.Repositories
 				.FirstOrDefaultAsync(p => p.Id == productId);
 
 		public async Task<Product?> GetProductAggregateForUpdateAsync(Guid productId)
-			=> await _context.Products
-				.Where(p => !p.IsDeleted && p.Id == productId)
-				.Include(p => p.ProductFamilyMaps)
-				.Include(p => p.ProductScentMaps)
-				.Include(p => p.ProductAttributes)
-				.FirstOrDefaultAsync();
+		=> await _context.Products
+			.Where(p => !p.IsDeleted && p.Id == productId)
+			.Include(p => p.ProductFamilyMaps)
+			.Include(p => p.ProductScentMaps)
+			.Include(p => p.ProductAttributes)
+			.FirstOrDefaultAsync();
 
 		public async Task<bool> HasActiveVariantsAsync(Guid productId)
 			=> await _context.Products
@@ -209,14 +208,16 @@ namespace PerfumeGPT.Persistence.Repositories
 
 					if (x.ActiveVoucher != null)
 					{
-						variant.CampaignName = x.ActiveVoucher.CampaignName;
-						variant.VoucherCode = x.ActiveVoucher.Code;
-
 						var discounted = x.ActiveVoucher.DiscountType == DiscountType.Percentage
 							? variant.BasePrice * (1 - x.ActiveVoucher.DiscountValue / 100m)
 							: variant.BasePrice - x.ActiveVoucher.DiscountValue;
 
-						variant.DiscountedPrice = discounted < 0 ? 0 : discounted;
+						variant = variant with
+						{
+							CampaignName = x.ActiveVoucher.CampaignName,
+							VoucherCode = x.ActiveVoucher.Code,
+							DiscountedPrice = discounted < 0 ? 0 : discounted
+						};
 					}
 
 					return variant;
@@ -342,13 +343,14 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = itemsWithTags
 				.Select(x =>
 				{
-					if (x.HasSaleTag)
-						x.Item.Tags.Add("sale");
+					var tags = new List<string>();
+					if (x.HasSaleTag) tags.Add("sale");
+					if (x.HasNewTag) tags.Add("new");
 
-					if (x.HasNewTag)
-						x.Item.Tags.Add("new");
-
-					return x.Item;
+					return x.Item with
+					{
+						Tags = tags.Count != 0 ? tags : null
+					};
 				})
 				.ToList();
 
@@ -438,13 +440,14 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = itemsWithTags
 				.Select(x =>
 				{
-					if (x.HasSaleTag)
-						x.Item.Tags.Add("sale");
+					var tags = new List<string>();
+					if (x.HasSaleTag) tags.Add("sale");
+					if (x.HasNewTag) tags.Add("new");
 
-					if (x.HasNewTag)
-						x.Item.Tags.Add("new");
-
-					return x.Item;
+					return x.Item with
+					{
+						Tags = tags.Count != 0 ? tags : null
+					};
 				})
 				.ToList();
 
@@ -514,12 +517,15 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = itemsWithTags
 				.Select(x =>
 				{
+					var finalTags = new List<string>
+					{
+						"new"
+					};
+
 					if (x.HasSaleTag)
-						x.Item.Tags.Add("sale");
+						finalTags.Add("sale");
 
-					x.Item.Tags.Add("new");
-
-					return x.Item;
+					return x.Item with { Tags = finalTags };
 				})
 				.ToList();
 
@@ -635,13 +641,14 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = itemsWithTags
 				.Select(x =>
 				{
-					if (x.HasSaleTag)
-						x.Item.Tags.Add("sale");
+					var tags = new List<string>();
+					if (x.HasSaleTag) tags.Add("sale");
+					if (x.HasNewTag) tags.Add("new");
 
-					if (x.HasNewTag)
-						x.Item.Tags.Add("new");
-
-					return x.Item;
+					return x.Item with
+					{
+						Tags = tags.Count != 0 ? tags : null
+					};
 				})
 				.ToList();
 
@@ -651,7 +658,28 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<ProductInforResponse?> GetProductInfoAsync(Guid productId)
 			=> await _context.Products
 			  .Where(p => !p.IsDeleted && p.Id == productId)
-				.ProjectToType<ProductInforResponse>()
+              .Select(p => new ProductInforResponse
+				{
+					ProductCode = p.Id.ToString(),
+					BrandName = p.Brand.Name,
+					Origin = p.Origin,
+					ReleaseYear = p.ReleaseYear,
+					Gender = p.Gender,
+					ScentGroup = string.Join(", ", p.ProductFamilyMaps.Select(pfm => pfm.OlfactoryFamily.Name)),
+					Style = string.Join(", ", p.ProductAttributes
+						.Where(pa => pa.Attribute.InternalCode == "STYLE")
+						.Select(pa => pa.Value.Value)),
+					TopNotes = string.Join(", ", p.ProductScentMaps
+						.Where(psm => psm.NoteType == NoteType.Top)
+						.Select(psm => psm.ScentNote.Name)),
+					HeartNotes = string.Join(", ", p.ProductScentMaps
+						.Where(psm => psm.NoteType == NoteType.Heart)
+						.Select(psm => psm.ScentNote.Name)),
+					BaseNotes = string.Join(", ", p.ProductScentMaps
+						.Where(psm => psm.NoteType == NoteType.Base)
+						.Select(psm => psm.ScentNote.Name)),
+					Description = p.Description ?? string.Empty
+				})
 				.AsSplitQuery()
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
@@ -736,7 +764,40 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
-				.ProjectToType<ProductListItemWithVariants>()
+               .Select(p => new ProductListItemWithVariants
+				{
+					Id = p.Id,
+					Name = p.Name,
+					BrandId = p.BrandId,
+					BrandName = p.Brand.Name,
+					CategoryId = p.CategoryId,
+					CategoryName = p.Category.Name,
+					Description = p.Description,
+					NumberOfVariants = p.Variants.Count(v => !v.IsDeleted),
+					VariantPrices = p.Variants.Where(v => !v.IsDeleted).Select(v => v.BasePrice).ToList(),
+					PrimaryImage = p.Media
+						.Where(m => m.IsPrimary && !m.IsDeleted)
+						.Select(m => new MediaResponse
+						{
+							Id = m.Id,
+							Url = m.Url,
+							AltText = m.AltText,
+							IsPrimary = m.IsPrimary,
+							DisplayOrder = m.DisplayOrder,
+							MimeType = m.MimeType,
+							FileSize = m.FileSize
+						})
+						.FirstOrDefault(),
+					Variants = p.Variants
+						.Where(v => !v.IsDeleted)
+						.Select(v => new VariantSummaryItem
+						{
+							Id = v.Id,
+							DisplayName = $"{v.Concentration.Name} - {v.VolumeMl}ml",
+							ConcentrationName = v.Concentration.Name
+						})
+						.ToList()
+				})
 				.ToListAsync();
 
 			return (items, totalCount);

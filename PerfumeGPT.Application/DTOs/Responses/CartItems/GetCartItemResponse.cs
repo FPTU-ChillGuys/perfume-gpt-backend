@@ -1,18 +1,18 @@
-﻿using PerfumeGPT.Domain.Enums;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.CartItems
 {
-	public class GetCartItemResponse
+	public record GetCartItemResponse
 	{
-		public Guid CartItemId { get; set; }
-		public Guid VariantId { get; set; }
-		public string VariantName { get; set; } = null!;
-		public string ImageUrl { get; set; } = string.Empty;
-		public int VolumeMl { get; set; }
-		public VariantType Type { get; set; }
-		public decimal VariantPrice { get; set; }
-		public int Quantity { get; set; }
-		public bool IsAvailable { get; set; }
+		public Guid CartItemId { get; init; }
+		public Guid VariantId { get; init; }
+		public required string VariantName { get; init; }
+		public required string ImageUrl { get; init; }
+		public int VolumeMl { get; init; }
+		public VariantType Type { get; init; }
+		public decimal VariantPrice { get; init; }
+		public int Quantity { get; init; }
+		public bool IsAvailable { get; init; }
 		public decimal SubTotal => VariantPrice * Quantity;
 	}
 }

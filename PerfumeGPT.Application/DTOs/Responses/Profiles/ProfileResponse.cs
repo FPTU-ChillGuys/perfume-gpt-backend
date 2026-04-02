@@ -2,33 +2,33 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Profiles
 {
-	public class ProfileResponse
+	public record ProfileResponse
 	{
-		public DateTime? DateOfBirth { get; set; }
-		public decimal? MinBudget { get; set; }
-		public decimal? MaxBudget { get; set; }
+		public DateTime? DateOfBirth { get; init; }
+		public decimal? MinBudget { get; init; }
+		public decimal? MaxBudget { get; init; }
 
-		public List<CustomerNotePreferenceResponse> NotePreferences { get; set; } = [];
-		public List<CustomerFamilyPreferenceRespone> FamilyPreferences { get; set; } = [];
-		public List<CustomerAttributePreferenceResponse> AttributePreferences { get; set; } = [];
+		public required List<CustomerNotePreferenceResponse> NotePreferences { get; init; }
+		public required List<CustomerFamilyPreferenceRespone> FamilyPreferences { get; init; }
+		public required List<CustomerAttributePreferenceResponse> AttributePreferences { get; init; }
 	}
 
-	public class CustomerNotePreferenceResponse
+	public record CustomerNotePreferenceResponse
 	{
-		public int NoteId { get; set; }
-		public string NoteName { get; set; } = string.Empty;
-		public NoteType NoteType { get; set; }
+		public int NoteId { get; init; }
+		public required string NoteName { get; init; }
+		public NoteType NoteType { get; init; }
 	}
 
-	public class CustomerFamilyPreferenceRespone
+	public record CustomerFamilyPreferenceRespone
 	{
-		public int FamilyId { get; set; }
-		public string FamilyName { get; set; } = string.Empty;
+		public int FamilyId { get; init; }
+		public required string FamilyName { get; init; }
 	}
 
-	public class CustomerAttributePreferenceResponse
+	public record CustomerAttributePreferenceResponse
 	{
-		public int AttributeValueId { get; set; }
-		public string AttributeValueName { get; set; } = string.Empty;
+		public int AttributeValueId { get; init; }
+		public required string AttributeValueName { get; init; }
 	}
 }

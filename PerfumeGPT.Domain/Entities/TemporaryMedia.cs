@@ -28,39 +28,29 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime CreatedAt { get; set; }
 
 		// Factory methods
-		public static TemporaryMedia Create(
-			string url,
-			string fileName,
-			long fileSize,
-			Guid? uploadedByUserId,
-			EntityType targetEntityType,
-			int displayOrder,
-			bool isPrimary = false,
-			string? altText = null,
-			string? publicId = null,
-			TimeSpan? expiresIn = null)
+		public static TemporaryMedia Create(TemporaryMediaPayload payload)
 		{
-			if (string.IsNullOrWhiteSpace(url))
+			if (string.IsNullOrWhiteSpace(payload.Url))
 				throw DomainException.BadRequest("Temporary media URL is required.");
 
-			if (string.IsNullOrWhiteSpace(fileName))
+			if (string.IsNullOrWhiteSpace(payload.FileName))
 				throw DomainException.BadRequest("Temporary media file name is required.");
 
-			if (fileSize <= 0)
+			if (payload.FileSize <= 0)
 				throw DomainException.BadRequest("Temporary media file size must be greater than 0.");
 
 			return new TemporaryMedia
 			{
-				Url = url.Trim(),
-				AltText = altText,
-				DisplayOrder = displayOrder,
-				IsPrimary = isPrimary,
-				PublicId = publicId,
-				FileSize = fileSize,
-				MimeType = GetMimeType(fileName),
-				UploadedByUserId = uploadedByUserId,
-				TargetEntityType = targetEntityType,
-				ExpiresAt = DateTime.UtcNow.Add(expiresIn ?? TimeSpan.FromHours(24))
+				Url = payload.Url.Trim(),
+				AltText = payload.AltText?.Trim(),
+				DisplayOrder = payload.DisplayOrder,
+				IsPrimary = payload.IsPrimary,
+				PublicId = payload.PublicId?.Trim(),
+				FileSize = payload.FileSize,
+				MimeType = GetMimeType(payload.FileName),
+				UploadedByUserId = payload.UploadedByUserId,
+				TargetEntityType = payload.TargetEntityType,
+				ExpiresAt = DateTime.UtcNow.Add(payload.ExpiresIn ?? TimeSpan.FromHours(24))
 			};
 		}
 
@@ -85,5 +75,22 @@ namespace PerfumeGPT.Domain.Entities
 				".m4v" => "video/x-m4v",
 				_ => null
 			};
+
+		// Records
+		public record TemporaryMediaPayload
+		{
+			public required string Url { get; init; }
+			public required string FileName { get; init; }
+			public required long FileSize { get; init; }
+			public string? PublicId { get; init; }
+
+			public string? AltText { get; init; }
+			public int DisplayOrder { get; init; } = 0;
+			public bool IsPrimary { get; init; } = false;
+
+			public Guid? UploadedByUserId { get; init; }
+			public required EntityType TargetEntityType { get; init; }
+			public TimeSpan? ExpiresIn { get; init; }
+		}
 	}
 }

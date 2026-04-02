@@ -1,5 +1,4 @@
-﻿using Mapster;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.Concentrations;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
@@ -13,21 +12,36 @@ namespace PerfumeGPT.Persistence.Repositories
 		public ConcentrationRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<List<ConcentrationLookupDto>> GetConcentrationLookupsAsync()
-			=> await _context.Concentrations.AsNoTracking().ProjectToType<ConcentrationLookupDto>().ToListAsync();
+	  => await _context.Concentrations
+			.AsNoTracking()
+			.Select(c => new ConcentrationLookupDto
+			{
+				Id = c.Id,
+				Name = c.Name
+			})
+			.ToListAsync();
 
 		public async Task<List<ConcentrationResponse>> GetAllConcentrationsAsync()
-			=> await _context.Concentrations
-				.AsNoTracking()
-				.ProjectToType<ConcentrationResponse>()
-				.ToListAsync();
+		=> await _context.Concentrations
+			.AsNoTracking()
+		 .Select(c => new ConcentrationResponse
+		 {
+			 Id = c.Id,
+			 Name = c.Name
+		 })
+			.ToListAsync();
 
 		public async Task<ConcentrationResponse?> GetConcentrationByIdAsync(int id)
-			=> await _context.Concentrations
-				.Where(c => c.Id == id)
-				.ProjectToType<ConcentrationResponse>()
-				.FirstOrDefaultAsync();
+		=> await _context.Concentrations
+			.Where(c => c.Id == id)
+		 .Select(c => new ConcentrationResponse
+		 {
+			 Id = c.Id,
+			 Name = c.Name
+		 })
+			.FirstOrDefaultAsync();
 
 		public async Task<bool> HasVariantsAsync(int concentrationId)
-			=> await _context.ProductVariants.AnyAsync(v => v.ConcentrationId == concentrationId);
+		=> await _context.ProductVariants.AnyAsync(v => v.ConcentrationId == concentrationId);
 	}
 }

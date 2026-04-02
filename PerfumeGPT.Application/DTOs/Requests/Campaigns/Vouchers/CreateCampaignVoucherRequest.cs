@@ -2,12 +2,12 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Campaigns.Vouchers
 {
-	public class CreateCampaignVoucherRequest
+	public record CreateCampaignVoucherRequest
 	{
-		public string Code { get; set; } = null!;
-		public decimal DiscountValue { get; set; }
-		public PromotionType TargetItemType { get; set; }
-		public DiscountType DiscountType { get; set; }
-		public VoucherType ApplyType { get; set; }
+		public required string Code { get; init; }
+		public decimal DiscountValue { get; init; }
+		public PromotionType TargetItemType { get; init; }
+		public DiscountType DiscountType { get; init; }
+		public VoucherType ApplyType { get; init; }
 	}
 }

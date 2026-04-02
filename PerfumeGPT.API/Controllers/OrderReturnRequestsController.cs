@@ -48,10 +48,10 @@ namespace PerfumeGPT.API.Controllers
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderReturnRequestResponse>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderReturnRequestResponse>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PagedResult<OrderReturnRequestResponse>>>> GetMyReturnRequests([FromQuery] GetPagedReturnRequestsRequest request)
+		public async Task<ActionResult<BaseResponse<PagedResult<OrderReturnRequestResponse>>>> GetMyReturnRequests([FromQuery] GetPagedUserReturnRequestsRequest request)
 		{
-			request.CustomerId = GetCurrentUserId();
-			var response = await _returnRequestService.GetPagedReturnRequestsAsync(request);
+			var userId = GetCurrentUserId();
+			var response = await _returnRequestService.GetPagedUserReturnRequestsAsync(userId, request);
 			return HandleResponse(response);
 		}
 

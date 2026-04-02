@@ -2,6 +2,7 @@ using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Domain.Exceptions;
+using static PerfumeGPT.Domain.Entities.StockAdjustmentDetail;
 
 namespace PerfumeGPT.Domain.Entities
 {
@@ -47,18 +48,18 @@ namespace PerfumeGPT.Domain.Entities
 		}
 
 		// Business logic methods
-		public StockAdjustmentDetail AddDetail(Guid productVariantId, Guid batchId, int adjustmentQuantity, string? note)
+		public StockAdjustmentDetail AddDetail(StockAdjustmentDetailPayload payload)
 		{
-			var detail = StockAdjustmentDetail.Create(productVariantId, batchId, adjustmentQuantity, note);
+			var detail = StockAdjustmentDetail.Create(payload);
 			AdjustmentDetails.Add(detail);
 
 			return detail;
 		}
 
-		public void AddApprovedDetail(Guid productVariantId, Guid batchId, int adjustmentQuantity, int approvedQuantity, string? note)
+		public void AddApprovedDetail(StockAdjustmentDetailPayload payload, int approvedQuantity)
 		{
-			var detail = StockAdjustmentDetail.Create(productVariantId, batchId, adjustmentQuantity, note);
-			detail.Approve(approvedQuantity, note);
+			var detail = StockAdjustmentDetail.Create(payload);
+			detail.Approve(approvedQuantity, payload.Note);
 
 			AdjustmentDetails.Add(detail);
 		}

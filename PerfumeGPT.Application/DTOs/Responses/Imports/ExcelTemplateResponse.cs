@@ -1,9 +1,9 @@
 namespace PerfumeGPT.Application.DTOs.Responses.Imports
 {
-	public class ExcelTemplateResponse
+	public record ExcelTemplateResponse
 	{
-		public byte[] FileContent { get; set; } = null!;
-		public string FileName { get; set; } = null!;
-		public string ContentType { get; set; } = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+		public required byte[] FileContent { get; init; }
+		public required string FileName { get; init; }
+		public string ContentType { get; init; } = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 	}
 }

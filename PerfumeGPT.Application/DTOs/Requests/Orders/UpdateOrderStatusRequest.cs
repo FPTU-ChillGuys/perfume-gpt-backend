@@ -2,9 +2,9 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Orders
 {
-	public class UpdateOrderStatusRequest
+	public record UpdateOrderStatusRequest
 	{
-		public OrderStatus Status { get; set; }
-		public string? Note { get; set; }
+		public OrderStatus Status { get; init; }
+		public string? Note { get; init; }
 	}
 }

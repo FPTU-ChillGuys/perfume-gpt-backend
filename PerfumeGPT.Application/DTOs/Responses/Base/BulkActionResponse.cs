@@ -1,4 +1,4 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Base
+namespace PerfumeGPT.Application.DTOs.Responses.Base
 {
 	// ==================== INTERNAL SERVICE LAYER ====================
 
@@ -6,10 +6,10 @@
 	/// Internal response used by service methods to track bulk operation results.
 	/// This is transformed into BulkActionResult for API responses.
 	/// </summary>
-	public class BulkActionResponse
+	public record BulkActionResponse
 	{
-		public List<Guid> SucceededIds { get; set; } = [];
-		public List<BulkActionError> FailedItems { get; set; } = [];
+		public required List<Guid> SucceededIds { get; init; }
+		public required List<BulkActionError> FailedItems { get; init; }
 
 		public int TotalProcessed => SucceededIds.Count + FailedItems.Count;
 		public bool HasError => FailedItems.Count != 0;
@@ -18,10 +18,10 @@
 	/// <summary>
 	/// Represents a single error in a bulk operation (shared by all bulk types)
 	/// </summary>
-	public class BulkActionError
+	public record BulkActionError
 	{
-		public Guid Id { get; set; }
-		public string ErrorMessage { get; set; } = null!;
+		public Guid Id { get; init; }
+		public required string ErrorMessage { get; init; }
 	}
 
 	// ==================== API LAYER ====================
@@ -31,10 +31,10 @@
 	/// Used in API responses when operations involve multiple items that can partially succeed/fail.
 	/// </summary>
 	/// <typeparam name="T">The type of the main payload (e.g., Guid for created entity ID, string for messages)</typeparam>
-	public class BulkActionResult<T>
+	public record BulkActionResult<T>
 	{
-		public T? Data { get; set; }
-		public BulkActionMetadata? Metadata { get; set; }
+		public T? Data { get; init; }
+		public BulkActionMetadata? Metadata { get; init; }
 
 		public BulkActionResult(T data, BulkActionMetadata? metadata = null)
 		{
@@ -47,9 +47,9 @@
 	/// Metadata about bulk operations performed during the request.
 	/// Contains aggregated information about all operations (e.g., Media Upload, Media Deletion).
 	/// </summary>
-	public class BulkActionMetadata
+	public record BulkActionMetadata
 	{
-		public List<BulkOperationResult> Operations { get; set; } = [];
+		public required List<BulkOperationResult> Operations { get; init; }
 
 		public bool HasPartialFailure => Operations.Any(o => o.HasError);
 		public bool AllSucceeded => Operations.All(o => !o.HasError);
@@ -62,12 +62,12 @@
 	/// Result of a specific bulk operation (e.g., "Media Deletion", "Media Upload").
 	/// Contains success/failure counts and detailed error information.
 	/// </summary>
-	public class BulkOperationResult
+	public record BulkOperationResult
 	{
-		public string OperationName { get; set; } = null!;
-		public int SucceededCount { get; set; }
-		public int FailedCount { get; set; }
-		public List<BulkActionError> Errors { get; set; } = [];
+		public required string OperationName { get; init; }
+		public int SucceededCount { get; init; }
+		public int FailedCount { get; init; }
+		public required List<BulkActionError> Errors { get; init; }
 
 		public int TotalProcessed => SucceededCount + FailedCount;
 		public bool HasError => Errors.Count > 0;

@@ -21,56 +21,59 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual Order? Order { get; set; }
 
 		// Factory methods
-		public static LoyaltyTransaction CreateManual(Guid userId, LoyaltyTransactionType transactionType, int points, string reason)
+		public static LoyaltyTransaction CreateManual(Guid userId, ManualTransactionInfo info)
 		{
-			if (string.IsNullOrWhiteSpace(reason))
+			if (string.IsNullOrWhiteSpace(info.Reason))
 				throw DomainException.BadRequest("Reason is required for manual loyalty point changes.");
 
-			return transactionType switch
+			return info.TransactionType switch
 			{
-				LoyaltyTransactionType.Earn => CreateEarn(userId, points, reason: reason),
-				LoyaltyTransactionType.Spend => CreateSpend(userId, points, reason: reason),
+				LoyaltyTransactionType.Earn => CreateEarn(userId, new EarnTransactionInfo
+				{
+					Points = info.Points,
+					Reason = info.Reason
+				}),
+				LoyaltyTransactionType.Spend => CreateSpend(userId, new SpendTransactionInfo
+				{
+					Points = info.Points,
+					Reason = info.Reason
+				}),
 				_ => throw DomainException.BadRequest("Unsupported loyalty transaction type.")
 			};
 		}
 
-		public static LoyaltyTransaction CreateEarn(Guid userId, int points, Guid? orderId = null, string? reason = null)
+		public static LoyaltyTransaction CreateEarn(Guid userId, EarnTransactionInfo info)
 		{
-			ValidateCreateArgs(userId, points);
+			ValidateCreateArgs(userId, info.Points);
 
 			return new LoyaltyTransaction
 			{
 				UserId = userId,
-				OrderId = orderId,
+				OrderId = info.OrderId,
 				TransactionType = LoyaltyTransactionType.Earn,
-				PointsChanged = points,
-				Reason = string.IsNullOrWhiteSpace(reason)
-					? orderId.HasValue ? $"Earned from Order {orderId}" : "Manual point addition"
-					: reason.Trim()
+				PointsChanged = info.Points,
+				Reason = string.IsNullOrWhiteSpace(info.Reason)
+					? info.OrderId.HasValue ? $"Earned from Order {info.OrderId}" : "Manual point addition"
+					: info.Reason.Trim()
 			};
 		}
 
-		public static LoyaltyTransaction CreateSpend(
-			Guid userId,
-			int points,
-			Guid? voucherId = null,
-			Guid? orderId = null,
-			string? reason = null)
+		public static LoyaltyTransaction CreateSpend(Guid userId, SpendTransactionInfo info)
 		{
-			ValidateCreateArgs(userId, points);
+			ValidateCreateArgs(userId, info.Points);
 
 			return new LoyaltyTransaction
 			{
 				UserId = userId,
-				VoucherId = voucherId,
-				OrderId = orderId,
+				VoucherId = info.VoucherId,
+				OrderId = info.OrderId,
 				TransactionType = LoyaltyTransactionType.Spend,
-				PointsChanged = -points,
-				Reason = string.IsNullOrWhiteSpace(reason)
-					? voucherId.HasValue
-						? $"Redeemed for Voucher {voucherId}"
-						: orderId.HasValue ? $"Redeemed for Order {orderId} returned" : "Manual point redemption"
-					: reason.Trim()
+				PointsChanged = -info.Points,
+				Reason = string.IsNullOrWhiteSpace(info.Reason)
+					? info.VoucherId.HasValue
+						? $"Redeemed for Voucher {info.VoucherId}"
+						: info.OrderId.HasValue ? $"Redeemed for Order {info.OrderId} returned" : "Manual point redemption"
+					: info.Reason.Trim()
 			};
 		}
 
@@ -81,6 +84,29 @@ namespace PerfumeGPT.Domain.Entities
 
 			if (points <= 0)
 				throw DomainException.BadRequest("Points must be greater than 0.");
+		}
+
+		// Records
+		public record EarnTransactionInfo
+		{
+			public required int Points { get; init; }
+			public Guid? OrderId { get; init; }
+			public string? Reason { get; init; }
+		}
+
+		public record SpendTransactionInfo
+		{
+			public required int Points { get; init; }
+			public Guid? VoucherId { get; init; }
+			public Guid? OrderId { get; init; }
+			public string? Reason { get; init; }
+		}
+
+		public record ManualTransactionInfo
+		{
+			public required LoyaltyTransactionType TransactionType { get; init; }
+			public required int Points { get; init; }
+			public required string Reason { get; init; }
 		}
 	}
 }

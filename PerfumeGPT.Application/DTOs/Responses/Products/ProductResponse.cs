@@ -1,42 +1,42 @@
-﻿using PerfumeGPT.Application.DTOs.Responses.Media;
+using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Products
 {
-	public class ProductScentNoteResponse
+	public record ProductScentNoteResponse
 	{
-		public int NoteId { get; set; }
-		public string Name { get; set; } = null!;
-		public NoteType Type { get; set; }
+		public int NoteId { get; init; }
+		public required string Name { get; init; }
+		public NoteType Type { get; init; }
 	}
 
-	public class ProductOlfactoryFamilyResponse
+	public record ProductOlfactoryFamilyResponse
 	{
-		public int OlfactoryFamilyId { get; set; }
-		public string Name { get; set; } = null!;
+		public int OlfactoryFamilyId { get; init; }
+		public required string Name { get; init; }
 	}
 
-	public class ProductResponse
+	public record ProductResponse
 	{
-		public Guid Id { get; set; }
-		public string? Name { get; set; }
-		public Gender Gender { get; set; }
-		public string Origin { get; set; } = null!;
-		public int ReleaseYear { get; set; }
-		public int BrandId { get; set; }
-		public string BrandName { get; set; } = null!;
-		public int CategoryId { get; set; }
-		public string CategoryName { get; set; } = null!;
-		public string? Description { get; set; }
-		public int NumberOfVariants { get; set; }
-		public List<MediaResponse> Media { get; set; } = [];
-		public List<ProductVariantResponse> Variants { get; set; } = [];
-		public List<ProductAttributeResponse> Attributes { get; set; } = [];
+		public Guid Id { get; init; }
+		public string? Name { get; init; }
+		public Gender Gender { get; init; }
+		public required string Origin { get; init; }
+		public int ReleaseYear { get; init; }
+		public int BrandId { get; init; }
+		public required string BrandName { get; init; }
+		public int CategoryId { get; init; }
+		public required string CategoryName { get; init; }
+		public string? Description { get; init; }
+		public int NumberOfVariants { get; init; }
+		public required List<MediaResponse> Media { get; init; }
+		public required List<ProductVariantResponse> Variants { get; init; }
+		public required List<ProductAttributeResponse> Attributes { get; init; }
 
-		public List<ProductOlfactoryFamilyResponse> OlfactoryFamilies { get; set; } = [];
-		public List<ProductScentNoteResponse> ScentNotes { get; set; } = [];
+		public required List<ProductOlfactoryFamilyResponse> OlfactoryFamilies { get; init; }
+		public required List<ProductScentNoteResponse> ScentNotes { get; init; }
 	}
 }
 

@@ -1,5 +1,4 @@
-﻿using Mapster;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.OlfactoryFamilies;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
@@ -13,16 +12,35 @@ namespace PerfumeGPT.Persistence.Repositories
 		public OlfactoryFamilyRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<bool> HasAssociationsAsync(int olfactoryFamilyId)
-			=> await _context.ProductFamilyMaps.AnyAsync(x => x.OlfactoryFamilyId == olfactoryFamilyId)
-				|| await _context.CustomerFamilyPreferences.AnyAsync(x => x.FamilyId == olfactoryFamilyId);
+		=> await _context.ProductFamilyMaps.AnyAsync(x => x.OlfactoryFamilyId == olfactoryFamilyId)
+			|| await _context.CustomerFamilyPreferences.AnyAsync(x => x.FamilyId == olfactoryFamilyId);
 
 		public async Task<List<OlfactoryLookupResponse>> GetOlfactoryFamilyLookupListAsync()
-			=> await _context.OlfactoryFamilies.ProjectToType<OlfactoryLookupResponse>().ToListAsync();
+	 => await _context.OlfactoryFamilies
+			.Select(x => new OlfactoryLookupResponse
+			{
+				Id = x.Id,
+				Name = x.Name
+			})
+			.ToListAsync();
 
 		public async Task<List<OlfactoryFamilyResponse>> GetAllOlfactoryFamiliesAsync()
-			=> await _context.OlfactoryFamilies.ProjectToType<OlfactoryFamilyResponse>().ToListAsync();
+	 => await _context.OlfactoryFamilies
+			.Select(x => new OlfactoryFamilyResponse
+			{
+				Id = x.Id,
+				Name = x.Name
+			})
+			.ToListAsync();
 
 		public async Task<OlfactoryFamilyResponse?> GetOlfactoryFamilyByIdAsync(int id)
-			=> await _context.OlfactoryFamilies.Where(x => x.Id == id).ProjectToType<OlfactoryFamilyResponse>().FirstOrDefaultAsync();
+	  => await _context.OlfactoryFamilies
+			.Where(x => x.Id == id)
+			.Select(x => new OlfactoryFamilyResponse
+			{
+				Id = x.Id,
+				Name = x.Name
+			})
+			.FirstOrDefaultAsync();
 	}
 }

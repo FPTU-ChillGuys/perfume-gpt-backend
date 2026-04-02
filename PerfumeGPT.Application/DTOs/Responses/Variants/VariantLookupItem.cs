@@ -1,15 +1,15 @@
 namespace PerfumeGPT.Application.DTOs.Responses.Variants
 {
-	public class VariantLookupItem
+	public record VariantLookupItem
 	{
-		public Guid Id { get; set; }
-		public string Barcode { get; set; } = null!;
-		public string Sku { get; set; } = null!;
-		public string DisplayName { get; set; } = null!;
-		public int VolumeMl { get; set; }
-		public string ConcentrationName { get; set; } = null!;
-		public decimal BasePrice { get; set; }
-		public string? PrimaryImageUrl { get; set; }
+		public Guid Id { get; init; }
+		public required string Barcode { get; init; }
+		public required string Sku { get; init; }
+		public required string DisplayName { get; init; }
+		public int VolumeMl { get; init; }
+		public required string ConcentrationName { get; init; }
+		public decimal BasePrice { get; init; }
+		public string? PrimaryImageUrl { get; init; }
 	}
 }
 

@@ -2,7 +2,7 @@
 
 namespace PerfumeGPT.Application.DTOs.Requests.Variants
 {
-	public class GetPagedVariantsRequest : PagingAndSortingQuery
+	public record GetPagedVariantsRequest : PagingAndSortingQuery
 	{
 	}
 }

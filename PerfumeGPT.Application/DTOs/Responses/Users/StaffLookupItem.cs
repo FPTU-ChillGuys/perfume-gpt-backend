@@ -1,10 +1,10 @@
 namespace PerfumeGPT.Application.DTOs.Responses.Users
 {
-	public class StaffLookupItem
+	public record StaffLookupItem
 	{
-		public Guid Id { get; set; }
-		public string UserName { get; set; } = string.Empty;
-		public string FullName { get; set; } = string.Empty;
-		public string Email { get; set; } = string.Empty;
+		public Guid Id { get; init; }
+		public required string UserName { get; init; }
+		public required string FullName { get; init; }
+		public required string Email { get; init; }
 	}
 }

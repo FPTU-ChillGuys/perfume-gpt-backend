@@ -1,9 +1,9 @@
 namespace PerfumeGPT.Application.DTOs.Responses.Variants
 {
-	public class VariantSummaryItem
+	public record VariantSummaryItem
 	{
-		public Guid Id { get; set; }
-		public string DisplayName { get; set; } = null!;
-		public string ConcentrationName { get; set; } = null!;
+		public Guid Id { get; init; }
+		public required string DisplayName { get; init; }
+		public required string ConcentrationName { get; init; }
 	}
 }

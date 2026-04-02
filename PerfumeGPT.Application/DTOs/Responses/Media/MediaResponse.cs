@@ -1,13 +1,13 @@
 namespace PerfumeGPT.Application.DTOs.Responses.Media
 {
-	public class MediaResponse
+	public record MediaResponse
 	{
-		public Guid Id { get; set; }
-		public string Url { get; set; } = null!;
-		public string? AltText { get; set; }
-		public int DisplayOrder { get; set; }
-		public bool IsPrimary { get; set; }
-		public long? FileSize { get; set; }
-		public string? MimeType { get; set; }
+		public Guid Id { get; init; }
+		public required string Url { get; init; }
+		public string? AltText { get; init; }
+		public int DisplayOrder { get; init; }
+		public bool IsPrimary { get; init; }
+		public long? FileSize { get; init; }
+		public string? MimeType { get; init; }
 	}
 }

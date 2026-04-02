@@ -1,10 +1,10 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.Auths
 {
-	public class ResetPasswordRequest
+	public record ResetPasswordRequest
 	{
-		public string Password { get; set; } = string.Empty;
-		public string ConfirmPassword { get; set; } = string.Empty;
-		public string Email { get; set; } = string.Empty;
-		public string Token { get; set; } = string.Empty;
+		public required string Password { get; init; }
+		public required string ConfirmPassword { get; init; }
+		public required string Email { get; init; }
+		public required string Token { get; init; }
 	}
 }

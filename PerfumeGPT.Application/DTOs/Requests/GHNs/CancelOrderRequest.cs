@@ -1,7 +1,7 @@
 namespace PerfumeGPT.Application.DTOs.Requests.GHNs
 {
-	public class CancelOrderRequest
+	public record CancelOrderRequest
 	{
-		public List<string> TrackingNumbers { get; set; } = [];
+		public required List<string> TrackingNumbers { get; init; }
 	}
 }

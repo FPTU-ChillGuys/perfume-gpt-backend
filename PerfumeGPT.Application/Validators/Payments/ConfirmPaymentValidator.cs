@@ -11,7 +11,7 @@ namespace PerfumeGPT.Application.Validators.Payments
 				.NotNull().WithMessage("Payment success status must be provided.");
 			When(x => !x.IsSuccess, () =>
 			{
-				RuleFor(x => x.failureReason)
+				RuleFor(x => x.FailureReason)
 					.NotEmpty().WithMessage("Failure reason must be provided when payment is not successful.");
 			});
 		}

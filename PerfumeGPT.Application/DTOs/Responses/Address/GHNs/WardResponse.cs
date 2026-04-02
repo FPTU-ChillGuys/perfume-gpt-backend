@@ -2,33 +2,33 @@ using System.Text.Json.Serialization;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Address.GHNs
 {
-	public class WardResponse
+	public record WardResponse
 	{
 		[JsonPropertyName("WardCode")]
-		public string WardCode { get; set; } = null!;
+		public required string WardCode { get; init; }
 
 		[JsonPropertyName("DistrictID")]
-		public int DistrictID { get; set; }
+		public int DistrictID { get; init; }
 
 		[JsonPropertyName("WardName")]
-		public string WardName { get; set; } = string.Empty;
+		public required string WardName { get; init; }
 
 		[JsonPropertyName("NameExtension")]
-		public List<string> NameExtension { get; set; } = new List<string>();
+		public required List<string> NameExtension { get; init; }
 
 		[JsonPropertyName("CanUpdateCOD")]
-		public bool CanUpdateCOD { get; set; }
+		public bool CanUpdateCOD { get; init; }
 
 		[JsonPropertyName("SupportType")]
-		public int SupportType { get; set; }
+		public int SupportType { get; init; }
 
 		[JsonPropertyName("Status")]
-		public int Status { get; set; }
+		public int Status { get; init; }
 
 		[JsonPropertyName("CreatedDate")]
-		public string CreatedDate { get; set; } = string.Empty;
+		public required string CreatedDate { get; init; }
 
 		[JsonPropertyName("UpdatedDate")]
-		public string UpdatedDate { get; set; } = string.Empty;
+		public required string UpdatedDate { get; init; }
 	}
 }

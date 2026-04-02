@@ -2,30 +2,30 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Orders
 {
-	public class UserOrderResponse
+	public record UserOrderResponse
 	{
-		public Guid Id { get; set; }
-		public OrderType Type { get; set; }
-		public OrderStatus Status { get; set; }
-		public bool IsReturnable { get; set; }
-		public PaymentStatus PaymentStatus { get; set; }
-		public decimal TotalAmount { get; set; }
-		public string? VoucherCode { get; set; }
-		public DateTime? PaymentExpiresAt { get; set; }
-		public DateTime? PaidAt { get; set; }
-		public DateTime CreatedAt { get; set; }
-		public DateTime? UpdatedAt { get; set; }
+		public Guid Id { get; init; }
+		public OrderType Type { get; init; }
+		public OrderStatus Status { get; init; }
+		public bool IsReturnable { get; init; }
+		public PaymentStatus PaymentStatus { get; init; }
+		public decimal TotalAmount { get; init; }
+		public string? VoucherCode { get; init; }
+		public DateTime? PaymentExpiresAt { get; init; }
+		public DateTime? PaidAt { get; init; }
+		public DateTime CreatedAt { get; init; }
+		public DateTime? UpdatedAt { get; init; }
 
 		// Payment Info
-		public List<PaymentInfoResponse>? PaymentTransactions { get; set; }
+		public List<PaymentInfoResponse>? PaymentTransactions { get; init; }
 
 		// Shipping Info
-		public ShippingInfoResponse? ShippingInfo { get; set; }
+		public ShippingInfoResponse? ShippingInfo { get; init; }
 
 		// Recipient Info
-		public RecipientInfoResponse? RecipientInfo { get; set; }
+		public RecipientInfoResponse? RecipientInfo { get; init; }
 
 		// Order Details
-		public List<OrderDetailResponse> OrderDetails { get; set; } = [];
+		public required List<OrderDetailResponse> OrderDetails { get; init; }
 	}
 }

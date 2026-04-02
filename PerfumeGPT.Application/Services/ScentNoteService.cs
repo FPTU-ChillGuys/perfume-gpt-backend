@@ -1,7 +1,7 @@
 ﻿using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Domain.Entities;
-using Mapster;
+using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.ScentNotes;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.ScentNotes;
@@ -12,10 +12,12 @@ namespace PerfumeGPT.Application.Services
 	public class ScentNoteService : IScentNoteService
 	{
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IMapper _mapper;
 
-		public ScentNoteService(IUnitOfWork unitOfWork)
+		public ScentNoteService(IUnitOfWork unitOfWork, IMapper mapper)
 		{
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
 
 		public async Task<BaseResponse<List<ScentNoteLookupResponse>>> GetScentNoteLookupListAsync()
@@ -50,7 +52,7 @@ namespace PerfumeGPT.Application.Services
 			await _unitOfWork.ScentNotes.AddAsync(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Could not create ScentNote.");
-			return BaseResponse<ScentNoteResponse>.Ok(entity.Adapt<ScentNoteResponse>());
+			return BaseResponse<ScentNoteResponse>.Ok(_mapper.Map<ScentNoteResponse>(entity));
 		}
 
 		public async Task<BaseResponse<ScentNoteResponse>> UpdateScentNoteAsync(int id, UpdateScentNoteRequest request)
@@ -68,7 +70,7 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Could not update ScentNote.");
 
-			return BaseResponse<ScentNoteResponse>.Ok(entity.Adapt<ScentNoteResponse>());
+			return BaseResponse<ScentNoteResponse>.Ok(_mapper.Map<ScentNoteResponse>(entity));
 		}
 
 		public async Task<BaseResponse<bool>> DeleteScentNoteAsync(int id)

@@ -28,7 +28,7 @@ namespace PerfumeGPT.Application.Services
 			IVnPayService vnPayService,
 			IHttpContextAccessor httpContextAccessor,
 			IStockReservationService stockReservationService,
-		 IVoucherService voucherService,
+			IVoucherService voucherService,
 			IGHNService ghnService)
 		{
 			_unitOfWork = unitOfWork;

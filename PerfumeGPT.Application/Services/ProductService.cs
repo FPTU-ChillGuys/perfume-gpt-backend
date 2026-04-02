@@ -1,3 +1,4 @@
+using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
@@ -19,20 +20,21 @@ namespace PerfumeGPT.Application.Services
 		private readonly IMediaService _mediaService;
 		private readonly MediaBulkActionHelper _helper;
 		private readonly IProductAttributeService _productAttributeService;
-		private readonly ISignalRService _signalRService;
+		private readonly IMapper _mapper;
 
 		public ProductService(
 			IMediaService mediaService,
 			MediaBulkActionHelper helper,
 			IProductAttributeService productAttributeService,
 			ISignalRService signalRService,
-			IUnitOfWork unitOfWork)
+			IUnitOfWork unitOfWork,
+			IMapper mapper)
 		{
 			_mediaService = mediaService;
 			_helper = helper;
 			_productAttributeService = productAttributeService;
-			_signalRService = signalRService;
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
 		#endregion Dependencies
 
@@ -42,14 +44,8 @@ namespace PerfumeGPT.Application.Services
 			if (attributeErrors.Count != 0)
 				throw AppException.BadRequest("Validation failed", attributeErrors);
 
-			var product = Product.Create(
-				request.Name,
-				request.BrandId,
-				request.CategoryId,
-				request.Origin,
-				request.Gender,
-				request.ReleaseYear,
-				request.Description);
+			var payload = _mapper.Map<Product.ProductPayload>(request);
+			var product = Product.Create(payload);
 
 			if (request.OlfactoryFamilyIds?.Count > 0)
 				product.ReplaceFamilyMaps(request.OlfactoryFamilyIds);
@@ -64,7 +60,7 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create product");
 
-			var metadata = new BulkActionMetadata();
+			var metadata = new BulkActionMetadata { Operations = [] };
 			if (request.TemporaryMediaIds?.Count > 0)
 			{
 				var conversionResult = await ConvertTemporaryMediaToPermanentAsync(
@@ -98,7 +94,7 @@ namespace PerfumeGPT.Application.Services
 			if (attributeErrors.Count != 0)
 				throw AppException.BadRequest("Validation failed", attributeErrors);
 
-			var metadata = new BulkActionMetadata();
+			var metadata = new BulkActionMetadata { Operations = [] };
 
 			if (request.MediaIdsToDelete?.Count > 0)
 			{
@@ -117,14 +113,8 @@ namespace PerfumeGPT.Application.Services
 						BulkOperationResult.FromBulkActionResponse("Media Upload", conversionResult));
 			}
 
-			product.Update(
-				request.Name,
-				request.BrandId,
-				request.CategoryId,
-				request.Origin,
-				request.Gender,
-				request.ReleaseYear,
-				request.Description);
+			var payload = _mapper.Map<Product.UpdateProductPayload>(request);
+			product.Update(payload);
 
 			if (request.OlfactoryFamilyIds != null)
 				product.ReplaceFamilyMaps(request.OlfactoryFamilyIds);

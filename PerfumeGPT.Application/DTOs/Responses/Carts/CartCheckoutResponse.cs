@@ -2,10 +2,10 @@ using PerfumeGPT.Application.DTOs.Responses.CartItems;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Carts
 {
-	public class CartCheckoutResponse
+	public record CartCheckoutResponse
 	{
-		public List<CartCheckoutItemDto> Items { get; set; } = [];
-		public decimal ShippingFee { get; set; }
-		public decimal TotalPrice { get; set; }
+		public required List<CartCheckoutItemDto> Items { get; init; }
+		public decimal ShippingFee { get; init; }
+		public decimal TotalPrice { get; init; }
 	}
 }

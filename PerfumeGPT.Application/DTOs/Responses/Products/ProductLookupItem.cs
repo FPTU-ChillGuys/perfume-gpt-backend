@@ -1,10 +1,10 @@
 namespace PerfumeGPT.Application.DTOs.Responses.Products
 {
-	public class ProductLookupItem
+	public record ProductLookupItem
 	{
-		public Guid Id { get; set; }
-		public string Name { get; set; } = null!;
-		public string BrandName { get; set; } = null!;
-		public string? PrimaryImageUrl { get; set; }
+		public Guid Id { get; init; }
+		public required string Name { get; init; }
+		public required string BrandName { get; init; }
+		public string? PrimaryImageUrl { get; init; }
 	}
 }

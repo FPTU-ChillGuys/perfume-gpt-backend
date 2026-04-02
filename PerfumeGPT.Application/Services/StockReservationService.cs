@@ -137,98 +137,70 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<int> ProcessExpiredReservationsAsync()
 		{
-			var expiredReservations = await _unitOfWork.StockReservations.GetExpiredReservationsAsync();
-
-			if (!expiredReservations.Any())
-				return 0;
-
-
-			// Calculate total reserved quantities per variant BEFORE changing status
-			// Only count reservations that will actually be released (exclude paid orders)
-			var variantIds = expiredReservations.Select(r => r.VariantId).Distinct();
-			var reservedByVariant = new Dictionary<Guid, int>();
-
-			foreach (var variantId in variantIds)
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				var totalReserved = expiredReservations
-					.Where(r => r.VariantId == variantId
-						&& r.Status == ReservationStatus.Reserved
-						&& (r.Order == null || r.Order.PaymentStatus != PaymentStatus.Paid))
-					.Sum(r => r.ReservedQuantity);
+				var expiredReservations = await _unitOfWork.StockReservations.GetExpiredReservationsAsync();
 
-				reservedByVariant[variantId] = totalReserved;
-			}
+				if (!expiredReservations.Any())
+					return 0;
 
-			// Collect affected orders for status update
-			var affectedOrders = new HashSet<Guid>();
-			var count = 0;
+				var variantIds = expiredReservations.Select(r => r.VariantId).Distinct().ToList();
+				var reservedByVariant = new Dictionary<Guid, int>();
+				var affectedOrders = new HashSet<Guid>();
+				var count = 0;
 
-			foreach (var reservation in expiredReservations)
-			{
-				if (reservation.Status != ReservationStatus.Reserved)
+				foreach (var reservation in expiredReservations)
 				{
-					continue;
+					if (reservation.Status != ReservationStatus.Reserved) continue;
+					if (reservation.Order != null && reservation.Order.PaymentStatus == PaymentStatus.Paid) continue;
+
+					if (!reservedByVariant.ContainsKey(reservation.VariantId))
+						reservedByVariant[reservation.VariantId] = 0;
+
+					reservedByVariant[reservation.VariantId] += reservation.ReservedQuantity;
+
+					reservation.Batch.Release(reservation.ReservedQuantity);
+					_unitOfWork.Batches.Update(reservation.Batch);
+
+					reservation.Release();
+					_unitOfWork.StockReservations.Update(reservation);
+
+					if (reservation.Order != null && reservation.Order.Status == OrderStatus.Pending)
+					{
+						affectedOrders.Add(reservation.OrderId);
+					}
+
+					count++;
 				}
 
-				// Skip reservations for paid orders - they are waiting for staff to package
-				if (reservation.Order != null && reservation.Order.PaymentStatus == PaymentStatus.Paid)
+				if (count == 0) return 0;
+
+				var stocksToUpdate = await _unitOfWork.Stocks
+					 .GetAllAsync(s => variantIds.Contains(s.VariantId));
+
+				foreach (var stock in stocksToUpdate)
 				{
-					continue;
+					if (reservedByVariant.TryGetValue(stock.VariantId, out var totalReserved) && totalReserved > 0)
+					{
+						stock.ReleaseReservation(totalReserved);
+						_unitOfWork.Stocks.Update(stock);
+					}
 				}
 
-				// Update batch: decrease reserved quantity
-				var batch = reservation.Batch;
-				batch.Release(reservation.ReservedQuantity);
-				_unitOfWork.Batches.Update(batch);
-
-				reservation.Release();
-				_unitOfWork.StockReservations.Update(reservation);
-
-				// Track order for cancellation
-				if (reservation.Order != null && reservation.Order.Status == OrderStatus.Pending)
+				if (affectedOrders.Count != 0)
 				{
-					affectedOrders.Add(reservation.OrderId);
+					var ordersToUpdate = await _unitOfWork.Orders
+						 .GetAllAsync(o => affectedOrders.Contains(o.Id) && o.Status == OrderStatus.Pending);
+
+					foreach (var order in ordersToUpdate)
+					{
+						order.SetStatus(OrderStatus.Cancelled);
+						_unitOfWork.Orders.Update(order);
+					}
 				}
 
-				count++;
-			}
-
-			// Update stock: decrease reserved quantity using pre-calculated totals
-			foreach (var variantId in variantIds)
-			{
-				var totalReserved = reservedByVariant[variantId];
-
-				if (totalReserved <= 0) continue;
-
-				var stock = await _unitOfWork.Stocks
-					.FirstOrDefaultAsync(s => s.VariantId == variantId);
-
-				if (stock != null)
-				{
-					stock.ReleaseReservation(totalReserved);
-					_unitOfWork.Stocks.Update(stock);
-				}
-			}
-
-			// Update affected orders to Canceled status
-			foreach (var orderId in affectedOrders)
-			{
-				var order = await _unitOfWork.Orders
-					.FirstOrDefaultAsync(o => o.Id == orderId);
-
-				if (order != null && order.Status == OrderStatus.Pending)
-				{
-					order.SetStatus(OrderStatus.Cancelled);
-					_unitOfWork.Orders.Update(order);
-				}
-			}
-
-			if (count > 0)
-			{
-				await _unitOfWork.SaveChangesAsync();
-			}
-
-			return count;
+				return count;
+			});
 		}
 	}
 }

@@ -1,7 +1,9 @@
-﻿namespace PerfumeGPT.Application.DTOs.Requests.Orders
+﻿using PerfumeGPT.Domain.Enums;
+
+namespace PerfumeGPT.Application.DTOs.Requests.Orders
 {
-	public class UserCancelOrderRequest
+	public record UserCancelOrderRequest
 	{
-		public string? Reason { get; set; }
+		public CancelOrderReason Reason { get; init; }
 	}
 }

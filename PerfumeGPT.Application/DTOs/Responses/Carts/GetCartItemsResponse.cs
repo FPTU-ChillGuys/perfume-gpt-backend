@@ -2,8 +2,8 @@ using PerfumeGPT.Application.DTOs.Responses.CartItems;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Carts
 {
-	public class GetCartItemsResponse
+	public record GetCartItemsResponse
 	{
-		public List<GetCartItemResponse> Items { get; set; } = [];
+		public required List<GetCartItemResponse> Items { get; init; }
 	}
 }

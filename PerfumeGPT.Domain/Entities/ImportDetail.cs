@@ -20,43 +20,42 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<Batch> Batches { get; set; } = [];
 
 		// Factory methods
-		public static ImportDetail Create(Guid productVariantId, int expectedQuantity, decimal unitPrice)
+		public static ImportDetail Create(ImportItemInfo item)
 		{
-			ValidateVariantId(productVariantId);
-			ValidateExpectedQuantity(expectedQuantity);
-			ValidateUnitPrice(unitPrice);
+			ValidateVariantId(item.VariantId);
+			ValidateExpectedQuantity(item.Quantity);
+			ValidateUnitPrice(item.UnitPrice);
 
 			return new ImportDetail
 			{
-				ProductVariantId = productVariantId,
-				ExpectedQuantity = expectedQuantity,
-				UnitPrice = unitPrice,
-				RejectedQuantity = 0
+				ProductVariantId = item.VariantId,
+				ExpectedQuantity = item.Quantity,
+				UnitPrice = item.UnitPrice
 			};
 		}
 
 		// Business logic methods
-		public void UpdateExpected(Guid productVariantId, int expectedQuantity, decimal unitPrice)
+		public void UpdateExpected(ImportItemInfo item)
 		{
-			ValidateVariantId(productVariantId);
-			ValidateExpectedQuantity(expectedQuantity);
-			ValidateUnitPrice(unitPrice);
+			ValidateVariantId(item.VariantId);
+			ValidateExpectedQuantity(item.Quantity);
+			ValidateUnitPrice(item.UnitPrice);
 
-			ProductVariantId = productVariantId;
-			ExpectedQuantity = expectedQuantity;
-			UnitPrice = unitPrice;
+			ProductVariantId = item.VariantId;
+			ExpectedQuantity = item.Quantity;
+			UnitPrice = item.UnitPrice;
 		}
 
-		public void Verify(int rejectedQuantity, string? note)
+		public void Verify(DetailVerification detail)
 		{
-			if (rejectedQuantity < 0)
+			if (detail.RejectedQuantity < 0)
 				throw DomainException.BadRequest("Rejected quantity cannot be negative.");
 
-			if (rejectedQuantity > ExpectedQuantity)
+			if (detail.RejectedQuantity > ExpectedQuantity)
 				throw DomainException.BadRequest("Rejected quantity cannot exceed expected quantity.");
 
-			RejectedQuantity = rejectedQuantity;
-			Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+			RejectedQuantity = detail.RejectedQuantity;
+			Note = string.IsNullOrWhiteSpace(detail.Note) ? null : detail.Note.Trim();
 		}
 
 		private static void ValidateVariantId(Guid productVariantId)
@@ -76,5 +75,17 @@ namespace PerfumeGPT.Domain.Entities
 			if (unitPrice <= 0)
 				throw DomainException.BadRequest("Unit price must be greater than 0.");
 		}
+
+		// Records
+		public record ImportItemInfo(
+			Guid VariantId,
+			int Quantity,
+			decimal UnitPrice
+		);
+
+		public record DetailVerification(
+			int RejectedQuantity,
+			string? Note
+		);
 	}
 }

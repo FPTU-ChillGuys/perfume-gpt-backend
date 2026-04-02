@@ -4,6 +4,8 @@ using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using PerfumeGPT.Domain.Exceptions;
+using static PerfumeGPT.Domain.Entities.Media;
 
 namespace PerfumeGPT.Application.Services.Helpers
 {
@@ -34,7 +36,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 			if (!SupportedEntityTypes.Contains(entityType))
 				throw AppException.BadRequest($"Unsupported entity type: {entityType}");
 
-			var response = new BulkActionResponse();
+			var response = new BulkActionResponse { SucceededIds = [], FailedItems = [] };
 
 			foreach (var tempMediaId in temporaryMediaIds)
 			{
@@ -54,7 +56,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 
 		public async Task<BulkActionResponse> DeleteMultipleMediaAsync(List<Guid> mediaIds)
 		{
-			var response = new BulkActionResponse();
+			var response = new BulkActionResponse { SucceededIds = [], FailedItems = [] };
 
 			foreach (var mediaId in mediaIds)
 			{
@@ -93,10 +95,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 		}
 
 		#region Private Helpers
-		private async Task<(bool Success, string? Error)> ConvertSingleAsync(
-		Guid tempMediaId,
-		EntityType entityType,
-		Guid entityId)
+		private async Task<(bool Success, string? Error)> ConvertSingleAsync(Guid tempMediaId, EntityType entityType, Guid entityId)
 		{
 			var tempMedia = await _unitOfWork.TemporaryMedia.GetByIdAsync(tempMediaId);
 			if (tempMedia == null)
@@ -106,16 +105,27 @@ namespace PerfumeGPT.Application.Services.Helpers
 			{
 				tempMedia.EnsureNotExpired();
 			}
-			catch (Exception ex)
+			catch (DomainException ex)
 			{
 				return (false, ex.Message);
 			}
 
-			var media = Media.CreateForEntity(
-				entityType, entityId,
-				tempMedia.Url, tempMedia.AltText,
-				tempMedia.DisplayOrder, tempMedia.IsPrimary,
-				tempMedia.PublicId, tempMedia.FileSize, tempMedia.MimeType);
+			var fileMetadata = new FileMetadata
+			{
+				Url = tempMedia.Url,
+				PublicId = tempMedia.PublicId,
+				FileSize = tempMedia.FileSize,
+				MimeType = tempMedia.MimeType
+			};
+
+			var displayInfo = new MediaDisplayInfo
+			{
+				AltText = tempMedia.AltText,
+				DisplayOrder = tempMedia.DisplayOrder,
+				IsPrimary = tempMedia.IsPrimary
+			};
+
+			var media = Media.Create(entityType, entityId, fileMetadata, displayInfo);
 
 			await _unitOfWork.Media.AddAsync(media);
 			_unitOfWork.TemporaryMedia.Remove(tempMedia);

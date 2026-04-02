@@ -1,13 +1,13 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Batches
+namespace PerfumeGPT.Application.DTOs.Responses.Batches
 {
-	public class BatchResponse
+	public record BatchResponse
 	{
-		public Guid Id { get; set; }
-		public string BatchCode { get; set; } = null!;
-		public DateTime ManufactureDate { get; set; }
-		public DateTime ExpiryDate { get; set; }
-		public int ImportQuantity { get; set; }
-		public int RemainingQuantity { get; set; }
-		public DateTime CreatedAt { get; set; }
+		public Guid Id { get; init; }
+		public required string BatchCode { get; init; }
+		public DateTime ManufactureDate { get; init; }
+		public DateTime ExpiryDate { get; init; }
+		public int ImportQuantity { get; init; }
+		public int RemainingQuantity { get; init; }
+		public DateTime CreatedAt { get; init; }
 	}
 }

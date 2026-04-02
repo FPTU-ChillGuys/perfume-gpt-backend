@@ -2,8 +2,8 @@ using Microsoft.AspNetCore.Http;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Media
 {
-	public class OrderReturnRequestUploadMediaRequest
+	public record OrderReturnRequestUploadMediaRequest
 	{
-       public List<IFormFile> Videos { get; set; } = [];
+		public required List<IFormFile> Videos { get; init; }
 	}
 }

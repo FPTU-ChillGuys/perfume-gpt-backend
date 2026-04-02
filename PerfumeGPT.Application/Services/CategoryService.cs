@@ -1,4 +1,4 @@
-﻿using Mapster;
+﻿using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Categories;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.Categories;
@@ -12,14 +12,14 @@ namespace PerfumeGPT.Application.Services
 {
 	public class CategoryService : ICategoryService
 	{
-		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IMapper _mapper;
 
-		public CategoryService(ICategoryRepository categoryRepository, IUnitOfWork unitOfWork)
+		public CategoryService(ICategoryRepository categoryRepository, IUnitOfWork unitOfWork, IMapper mapper)
 		{
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
-		#endregion Dependencies
 
 		public async Task<BaseResponse<List<CategoriesLookupItem>>> GetCategoryLookupAsync()
 		{
@@ -54,7 +54,7 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create category");
 
-			return BaseResponse<CategoryResponse>.Ok(entity.Adapt<CategoryResponse>());
+			return BaseResponse<CategoryResponse>.Ok(_mapper.Map<CategoryResponse>(entity));
 		}
 
 		public async Task<BaseResponse<CategoryResponse>> UpdateCategoryAsync(int id, UpdateCategoryRequest request)
@@ -73,7 +73,7 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update category");
 
-			return BaseResponse<CategoryResponse>.Ok(entity.Adapt<CategoryResponse>());
+			return BaseResponse<CategoryResponse>.Ok(_mapper.Map<CategoryResponse>(entity));
 		}
 
 		public async Task<BaseResponse<bool>> DeleteCategoryAsync(int id)

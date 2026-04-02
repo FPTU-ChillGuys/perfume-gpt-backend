@@ -1,5 +1,4 @@
-﻿using Mapster;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Responses.Address;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
@@ -15,13 +14,39 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<AddressResponse?> GetUserAddressById(Guid userId, Guid addressId)
 		=> await _context.Addresses
 			.Where(a => a.UserId == userId && a.Id == addressId)
-			.ProjectToType<AddressResponse>()
+           .Select(a => new AddressResponse
+			{
+				Id = a.Id,
+				RecipientName = a.RecipientName,
+				RecipientPhoneNumber = a.RecipientPhoneNumber,
+				Street = a.Street,
+				Ward = a.Ward,
+				District = a.District,
+				City = a.City,
+				WardCode = a.WardCode,
+				DistrictId = a.DistrictId,
+				ProvinceId = a.ProvinceId,
+				IsDefault = a.IsDefault
+			})
 			.FirstOrDefaultAsync();
 
 		public async Task<AddressResponse?> GetDefaultAddressAsync(Guid userId)
 		=> await _context.Addresses
 			.Where(a => a.UserId == userId && a.IsDefault)
-			.ProjectToType<AddressResponse>()
+           .Select(a => new AddressResponse
+			{
+				Id = a.Id,
+				RecipientName = a.RecipientName,
+				RecipientPhoneNumber = a.RecipientPhoneNumber,
+				Street = a.Street,
+				Ward = a.Ward,
+				District = a.District,
+				City = a.City,
+				WardCode = a.WardCode,
+				DistrictId = a.DistrictId,
+				ProvinceId = a.ProvinceId,
+				IsDefault = a.IsDefault
+			})
 			.FirstOrDefaultAsync();
 
 		public async Task<List<AddressResponse>> GetUserAddresses(Guid userId)
@@ -29,7 +54,22 @@ namespace PerfumeGPT.Persistence.Repositories
 			.AsNoTracking()
 			.Where(a => a.UserId == userId)
 			.OrderByDescending(a => a.CreatedAt)
-			.ProjectToType<AddressResponse>()
+			.Select(a => new AddressResponse
+			{
+				Id = a.Id,
+				RecipientName = a.RecipientName,
+				RecipientPhoneNumber = a.RecipientPhoneNumber,
+				Street = a.Street,
+				Ward = a.Ward,
+				District = a.District,
+				City = a.City,
+
+				WardCode = a.WardCode,
+				DistrictId = a.DistrictId,
+				ProvinceId = a.ProvinceId,
+
+				IsDefault = a.IsDefault
+			})
 			.ToListAsync();
 	}
 }

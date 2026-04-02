@@ -64,6 +64,55 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (pagedData, totalCount);
 		}
 
+		public async Task<(List<OrderReturnRequestResponse> Items, int TotalCount)> GetPagedUserResponsesAsync(Guid userId, GetPagedUserReturnRequestsRequest request)
+		{
+			var query = _context.OrderReturnRequests
+				.Include(r => r.Customer)
+				.Where(r => r.CustomerId == userId)
+				.AsNoTracking()
+				.AsQueryable();
+
+			if (request.Status.HasValue)
+				query = query.Where(r => r.Status == request.Status.Value);
+
+			if (request.IsRefunded.HasValue)
+				query = query.Where(r => r.IsRefunded == request.IsRefunded.Value);
+
+			var totalCount = await query.CountAsync();
+
+			query = request.IsDescending
+				? query.OrderByDescending(r => r.CreatedAt)
+				: query.OrderBy(r => r.CreatedAt);
+
+			var pagedData = await query
+				.Skip((request.PageNumber - 1) * request.PageSize)
+				.Take(request.PageSize)
+				.Select(r => new OrderReturnRequestResponse
+				{
+					Id = r.Id,
+					OrderId = r.OrderId,
+					CustomerId = r.CustomerId,
+					CustomerEmail = r.Customer != null ? r.Customer.Email : null,
+					ProcessedById = r.ProcessedById,
+					InspectedById = r.InspectedById,
+					Reason = r.Reason.ToString(),
+					CustomerNote = r.CustomerNote,
+					StaffNote = r.StaffNote,
+					InspectionNote = r.InspectionNote,
+					Status = r.Status,
+					RequestedRefundAmount = r.RequestedRefundAmount,
+					ApprovedRefundAmount = r.ApprovedRefundAmount,
+					IsRefunded = r.IsRefunded,
+					VnpTransactionNo = r.VnpTransactionNo,
+					IsRestocked = r.IsRestocked,
+					CreatedAt = r.CreatedAt,
+					UpdatedAt = r.UpdatedAt
+				})
+				.ToListAsync();
+
+			return (pagedData, totalCount);
+		}
+
 		public async Task<OrderReturnRequestResponse?> GetResponseByIdAsync(Guid requestId)
 			=> await _context.OrderReturnRequests
 				.AsNoTracking()
@@ -107,18 +156,18 @@ namespace PerfumeGPT.Persistence.Repositories
 				.FirstOrDefaultAsync();
 
 		public async Task<OrderReturnRequest?> GetByIdWithOrderAsync(Guid requestId)
-			=> await _context.OrderReturnRequests
-				.Include(r => r.Order)
-				.Include(r => r.ProofImages)
-				.AsSplitQuery()
-				.FirstOrDefaultAsync(r => r.Id == requestId);
+		=> await _context.OrderReturnRequests
+			.Include(r => r.Order)
+			.Include(r => r.ProofImages)
+			.AsSplitQuery()
+			.FirstOrDefaultAsync(r => r.Id == requestId);
 
 		public async Task<OrderReturnRequest?> GetByIdWithOrderDetailsAsync(Guid requestId)
-			=> await _context.OrderReturnRequests
-				.Include(r => r.Order)
-					.ThenInclude(o => o.OrderDetails)
-				.Include(r => r.ProofImages)
-				.AsSplitQuery()
-				.FirstOrDefaultAsync(r => r.Id == requestId);
+		=> await _context.OrderReturnRequests
+			.Include(r => r.Order)
+				.ThenInclude(o => o.OrderDetails)
+			.Include(r => r.ProofImages)
+			.AsSplitQuery()
+			.FirstOrDefaultAsync(r => r.Id == requestId);
 	}
 }

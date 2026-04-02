@@ -2,15 +2,15 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Loyalty
 {
-	public class LoyaltyTransactionHistoryItemResponse
+	public record LoyaltyTransactionHistoryItemResponse
 	{
-		public Guid Id { get; set; }
-		public Guid UserId { get; set; }
-		public Guid? VoucherId { get; set; }
-		public Guid? OrderId { get; set; }
-		public LoyaltyTransactionType TransactionType { get; set; }
-		public int PointsChanged { get; set; }
-		public int AbsolutePoints { get; set; }
-		public string Reason { get; set; } = null!;
+		public Guid Id { get; init; }
+		public Guid UserId { get; init; }
+		public Guid? VoucherId { get; init; }
+		public Guid? OrderId { get; init; }
+		public LoyaltyTransactionType TransactionType { get; init; }
+		public int PointsChanged { get; init; }
+		public int AbsolutePoints { get; init; }
+		public required string Reason { get; init; }
 	}
 }

@@ -2,20 +2,20 @@
 
 namespace PerfumeGPT.Application.DTOs.Requests.Profiles
 {
-	public class UpdateProfileRequest
+	public record UpdateProfileRequest
 	{
-		public DateTime? DateOfBirth { get; set; }
-		public decimal? MinBudget { get; set; }
-		public decimal? MaxBudget { get; set; }
+		public DateTime? DateOfBirth { get; init; }
+		public decimal? MinBudget { get; init; }
+		public decimal? MaxBudget { get; init; }
 
-		public List<UpdateNotePreferenceRequest> NotePreferenceIds { get; set; } = [];
-		public List<int> FamilyPreferenceIds { get; set; } = [];
-		public List<int> AttributePreferenceIds { get; set; } = [];
+		public List<UpdateNotePreferenceRequest>? NotePreferenceIds { get; init; }
+		public List<int>? FamilyPreferenceIds { get; init; }
+		public List<int>? AttributePreferenceIds { get; init; }
 	}
 
-	public class UpdateNotePreferenceRequest
+	public record UpdateNotePreferenceRequest
 	{
-		public int NoteId { get; set; }
-		public NoteType NoteType { get; set; }
+		public int NoteId { get; init; }
+		public NoteType NoteType { get; init; }
 	}
 }

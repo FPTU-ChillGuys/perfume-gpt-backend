@@ -1,5 +1,5 @@
-using Mapster;
 using Microsoft.EntityFrameworkCore;
+using PerfumeGPT.Application.DTOs.Responses.Batches;
 using PerfumeGPT.Application.DTOs.Requests.Imports;
 using PerfumeGPT.Application.DTOs.Responses.Imports;
 using PerfumeGPT.Application.Interfaces.Repositories;
@@ -14,24 +14,58 @@ namespace PerfumeGPT.Persistence.Repositories
 		public ImportTicketRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<ImportTicket?> GetByIdWithDetailsAsync(Guid id)
-			=> await _context.ImportTickets
-				.AsNoTracking()
-				.Include(it => it.ImportDetails)
-				.FirstOrDefaultAsync(it => it.Id == id);
+		=> await _context.ImportTickets
+			.AsNoTracking()
+			.Include(it => it.ImportDetails)
+			.FirstOrDefaultAsync(it => it.Id == id);
 
 		public async Task<ImportTicketResponse?> GetResponseByIdAsync(Guid id)
-			=> await _context.ImportTickets
-				.AsNoTracking()
-				.AsSplitQuery()
-				.Where(it => it.Id == id)
-				.ProjectToType<ImportTicketResponse>()
-				.FirstOrDefaultAsync();
+		=> await _context.ImportTickets
+			.AsNoTracking()
+			.AsSplitQuery()
+			.Where(it => it.Id == id)
+          .Select(it => new ImportTicketResponse
+			{
+				Id = it.Id,
+				CreatedByName = it.CreatedByUser.FullName ?? "Unknown",
+				VerifiedByName = it.VerifiedByUser != null ? it.VerifiedByUser.FullName : null,
+				SupplierId = it.SupplierId,
+				SupplierName = it.Supplier.Name ?? "Unknown",
+				ExpectedArrivalDate = it.ExpectedArrivalDate,
+				ActualImportDate = it.ActualImportDate,
+				TotalCost = it.TotalCost,
+				Status = it.Status,
+				CreatedAt = it.CreatedAt,
+				ImportDetails = it.ImportDetails.Select(d => new ImportDetailResponse
+				{
+					Id = d.Id,
+					VariantId = d.ProductVariantId,
+					VariantName = $"{d.ProductVariant.Product.Name ?? "Unknown"} - {d.ProductVariant.VolumeMl}",
+					VariantSku = d.ProductVariant != null ? d.ProductVariant.Sku : "Unknown",
+					ExpectedQuantity = d.ExpectedQuantity,
+					UnitPrice = d.UnitPrice,
+					TotalPrice = d.ExpectedQuantity * d.UnitPrice,
+					RejectedQuantity = d.RejectedQuantity,
+					Note = d.Note,
+					Batches = d.Batches.Select(b => new BatchResponse
+					{
+						Id = b.Id,
+						BatchCode = b.BatchCode,
+						ManufactureDate = b.ManufactureDate,
+						ExpiryDate = b.ExpiryDate,
+						ImportQuantity = b.ImportQuantity,
+						RemainingQuantity = b.RemainingQuantity,
+						CreatedAt = b.CreatedAt
+					}).ToList()
+				}).ToList()
+			})
+			.FirstOrDefaultAsync();
 
 		public async Task<ImportTicket?> GetByIdWithDetailsAndBatchesAsync(Guid id)
-			=> await _context.ImportTickets
-				.Include(it => it.ImportDetails)
-					.ThenInclude(d => d.Batches)
-				.FirstOrDefaultAsync(it => it.Id == id);
+		=> await _context.ImportTickets
+			.Include(it => it.ImportDetails)
+				.ThenInclude(d => d.Batches)
+			.FirstOrDefaultAsync(it => it.Id == id);
 
 		public async Task<(List<ImportTicketListItem> Items, int TotalCount)> GetPagedAsync(GetPagedImportTicketsRequest request)
 		{
@@ -62,7 +96,19 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
 				.AsSplitQuery()
-				.ProjectToType<ImportTicketListItem>()
+              .Select(it => new ImportTicketListItem
+				{
+					Id = it.Id,
+					CreatedByName = it.CreatedByUser != null ? it.CreatedByUser.FullName : "Unknown",
+					VerifiedByName = it.VerifiedByUser != null ? it.VerifiedByUser.FullName : null,
+					SupplierName = it.Supplier != null ? it.Supplier.Name : "Unknown",
+					ExpectedArrivalDate = it.ExpectedArrivalDate,
+					ActualImportDate = it.ActualImportDate,
+					TotalCost = it.TotalCost,
+					Status = it.Status,
+					TotalItems = it.ImportDetails.Count,
+					CreatedAt = it.CreatedAt
+				})
 				.ToListAsync();
 
 			return (items, totalCount);

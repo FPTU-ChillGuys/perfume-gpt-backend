@@ -64,13 +64,10 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		public async Task<ShippingInfo?> GetByOrderIdAsync(Guid orderId)
-		{
-			return await _context.ShippingInfos.FirstOrDefaultAsync(si => si.OrderId == orderId);
-		}
+		=> await _context.ShippingInfos.FirstOrDefaultAsync(si => si.OrderId == orderId);
 
 		public async Task<List<ShippingInfo>> GetSyncCandidatesForGhnAsync()
-		{
-			return await _context.ShippingInfos
+		=> await _context.ShippingInfos
 				.Include(si => si.Order)
 				.Where(si => si.CarrierName == CarrierName.GHN
 					&& !string.IsNullOrWhiteSpace(si.TrackingNumber)
@@ -78,11 +75,9 @@ namespace PerfumeGPT.Persistence.Repositories
 					&& si.Status != ShippingStatus.Delivered
 					&& si.Status != ShippingStatus.Returned)
 				.ToListAsync();
-		}
 
 		public async Task<List<ShippingInfo>> GetSyncCandidatesForGhnByUserIdAsync(Guid userId)
-		{
-			return await _context.ShippingInfos
+		=> await _context.ShippingInfos
 				.Include(si => si.Order)
 				.Where(si => si.Order.CustomerId == userId
 					&& si.CarrierName == CarrierName.GHN
@@ -91,6 +86,5 @@ namespace PerfumeGPT.Persistence.Repositories
 					&& si.Status != ShippingStatus.Delivered
 					&& si.Status != ShippingStatus.Returned)
 				.ToListAsync();
-		}
 	}
 }

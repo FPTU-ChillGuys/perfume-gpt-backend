@@ -4,18 +4,18 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Products
 {
-	public class CreateProductRequest
+	public record CreateProductRequest
 	{
-		public string Name { get; set; } = null!;
-		public int BrandId { get; set; }
-		public int CategoryId { get; set; }
-		public Gender Gender { get; set; }
-		public string Origin { get; set; } = null!;
-		public int ReleaseYear { get; set; }
-		public string? Description { get; set; }
-		public List<int> OlfactoryFamilyIds { get; set; } = [];
-		public List<Guid>? TemporaryMediaIds { get; set; }
-		public List<ScentNoteDto> ScentNotes { get; set; } = [];
-		public List<ProductAttributeDto>? Attributes { get; set; }
+		public required string Name { get; init; }
+		public int BrandId { get; init; }
+		public int CategoryId { get; init; }
+		public Gender Gender { get; init; }
+		public required string Origin { get; init; }
+		public int ReleaseYear { get; init; }
+		public string? Description { get; init; }
+		public required List<int> OlfactoryFamilyIds { get; init; }
+		public List<Guid>? TemporaryMediaIds { get; init; }
+		public required List<ScentNoteDto> ScentNotes { get; init; }
+		public List<ProductAttributeDto>? Attributes { get; init; }
 	}
 }

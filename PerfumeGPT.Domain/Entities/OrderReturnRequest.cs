@@ -37,12 +37,7 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime? UpdatedAt { get; set; }
 
 		// Factory methods
-		public static OrderReturnRequest Create(
-			Guid orderId,
-			Guid customerId,
-			ReturnOrderReason reason,
-			decimal requestedRefundAmount,
-		  string? customerNote = null)
+		public static OrderReturnRequest Create(Guid orderId, Guid customerId, ReturnRequestPayload payload)
 		{
 			if (orderId == Guid.Empty)
 				throw DomainException.BadRequest("Order ID is required.");
@@ -50,22 +45,20 @@ namespace PerfumeGPT.Domain.Entities
 			if (customerId == Guid.Empty)
 				throw DomainException.BadRequest("Customer ID is required.");
 
-			if (requestedRefundAmount < 0)
+			if (payload.RequestedRefundAmount < 0)
 				throw DomainException.BadRequest("Requested refund amount cannot be negative.");
 
-			var request = new OrderReturnRequest
+			return new OrderReturnRequest
 			{
 				OrderId = orderId,
 				CustomerId = customerId,
-				Reason = reason,
-				CustomerNote = string.IsNullOrWhiteSpace(customerNote) ? null : customerNote.Trim(),
+				Reason = payload.Reason,
+				CustomerNote = string.IsNullOrWhiteSpace(payload.CustomerNote) ? null : payload.CustomerNote.Trim(),
 				Status = ReturnRequestStatus.Pending,
-				RequestedRefundAmount = requestedRefundAmount,
+				RequestedRefundAmount = payload.RequestedRefundAmount,
 				ApprovedRefundAmount = null,
 				IsRefunded = false
 			};
-
-			return request;
 		}
 
 		// Business logic methods
@@ -137,6 +130,14 @@ namespace PerfumeGPT.Domain.Entities
 			IsRefunded = true;
 			VnpTransactionNo = string.IsNullOrWhiteSpace(vnpTransactionNo) ? null : vnpTransactionNo.Trim();
 			Status = ReturnRequestStatus.Completed;
+		}
+
+		// Records 
+		public record ReturnRequestPayload
+		{
+			public required ReturnOrderReason Reason { get; init; }
+			public required decimal RequestedRefundAmount { get; init; }
+			public string? CustomerNote { get; init; }
 		}
 	}
 }

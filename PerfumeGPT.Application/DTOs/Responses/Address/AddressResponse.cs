@@ -1,22 +1,22 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Address
+namespace PerfumeGPT.Application.DTOs.Responses.Address
 {
-	public class AddressResponse
+	public record AddressResponse
 	{
-		public Guid Id { get; set; }
-		public string RecipientName { get; set; } = string.Empty;
-		public string RecipientPhoneNumber { get; set; } = string.Empty;
+		public Guid Id { get; init; }
+		public required string RecipientName { get; init; }
+		public required string RecipientPhoneNumber { get; init; }
 
 		// Address details
-		public string Street { get; set; } = string.Empty;
-		public string Ward { get; set; } = string.Empty;
-		public string District { get; set; } = string.Empty;
-		public string City { get; set; } = string.Empty;
+		public required string Street { get; init; }
+		public required string Ward { get; init; }
+		public required string District { get; init; }
+		public required string City { get; init; }
 
 		// Address from GHN
-		public string WardCode { get; set; } = null!;
-		public int DistrictId { get; set; }
-		public int ProvinceId { get; set; }
+		public required string WardCode { get; init; }
+		public int DistrictId { get; init; }
+		public int ProvinceId { get; init; }
 
-		public bool IsDefault { get; set; }
+		public bool IsDefault { get; init; }
 	}
 }

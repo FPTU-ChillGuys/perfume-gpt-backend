@@ -1,10 +1,10 @@
 namespace PerfumeGPT.Application.DTOs.Requests.Metadatas.Suppliers
 {
-	public class UpdateSupplierRequest
+	public record UpdateSupplierRequest
 	{
-		public string Name { get; set; } = null!;
-		public string ContactEmail { get; set; } = null!;
-		public string Phone { get; set; } = null!;
-		public string Address { get; set; } = null!;
+		public required string Name { get; init; }
+		public required string ContactEmail { get; init; }
+		public required string Phone { get; init; }
+		public required string Address { get; init; }
 	}
 }

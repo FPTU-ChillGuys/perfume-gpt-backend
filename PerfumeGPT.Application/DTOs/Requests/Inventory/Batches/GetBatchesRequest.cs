@@ -2,11 +2,11 @@ using PerfumeGPT.Application.DTOs.Requests.Base;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Inventory.Batches
 {
-	public class GetBatchesRequest : PagingAndSortingQuery
+	public record GetBatchesRequest : PagingAndSortingQuery
 	{
-		public Guid? VariantId { get; set; }
-		public string? SearchTerm { get; set; }
-		public bool? IsExpired { get; set; }
-		public bool? IsExpiringSoon { get; set; } // Within 30 days
+		public Guid? VariantId { get; init; }
+		public string? SearchTerm { get; init; }
+		public bool? IsExpired { get; init; }
+		public bool? IsExpiringSoon { get; init; } // Within 30 days
 	}
 }

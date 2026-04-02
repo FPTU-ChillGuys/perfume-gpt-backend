@@ -1,14 +1,14 @@
 namespace PerfumeGPT.Application.DTOs.Requests.Orders
 {
-	public class FulfillOrderRequest
+	public record FulfillOrderRequest
 	{
-		public List<FulfillOrderItemRequest> Items { get; set; } = [];
+		public required List<FulfillOrderItemRequest> Items { get; init; }
 	}
 
-	public class FulfillOrderItemRequest
+	public record FulfillOrderItemRequest
 	{
-		public Guid OrderDetailId { get; set; }
-		public string ScannedBatchCode { get; set; } = null!;
-		public int Quantity { get; set; }
+		public Guid OrderDetailId { get; init; }
+		public required string ScannedBatchCode { get; init; }
+		public int Quantity { get; init; }
 	}
 }

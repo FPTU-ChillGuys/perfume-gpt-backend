@@ -1,11 +1,11 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.Auths
 {
-	public class RegisterRequest
+	public record RegisterRequest
 	{
-		public string FullName { get; set; } = string.Empty;
-		public string PhoneNumber { get; set; } = string.Empty;
-		public string Email { get; set; } = string.Empty;
-		public string Password { get; set; } = string.Empty;
-		public string ClientUri { get; set; } = string.Empty; //https://localhost:7011/api/auths/verify-email
+		public required string FullName { get; init; }
+		public required string PhoneNumber { get; init; }
+		public required string Email { get; init; }
+		public required string Password { get; init; }
+		public required string ClientUri { get; init; } //https://localhost:7011/api/auths/verify-email
 	}
 }

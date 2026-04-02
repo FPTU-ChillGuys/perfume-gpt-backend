@@ -1,4 +1,4 @@
-﻿using Mapster;
+﻿using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Concentrations;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Metadatas.Concentrations;
@@ -11,14 +11,14 @@ namespace PerfumeGPT.Application.Services
 {
 	public class ConcentrationService : IConcentrationService
 	{
-		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IMapper _mapper;
 
-		public ConcentrationService(IUnitOfWork unitOfWork)
+		public ConcentrationService(IUnitOfWork unitOfWork, IMapper mapper)
 		{
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
-		#endregion Dependencies
 
 		public async Task<BaseResponse<List<ConcentrationLookupDto>>> GetConcentrationLookup()
 		{
@@ -52,7 +52,7 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to create concentration");
 
-			return BaseResponse<ConcentrationResponse>.Ok(entity.Adapt<ConcentrationResponse>());
+			return BaseResponse<ConcentrationResponse>.Ok(_mapper.Map<ConcentrationResponse>(entity));
 		}
 
 		public async Task<BaseResponse<ConcentrationResponse>> UpdateConcentrationAsync(int id, UpdateConcentrationRequest request)
@@ -71,7 +71,7 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update concentration");
 
-			return BaseResponse<ConcentrationResponse>.Ok(entity.Adapt<ConcentrationResponse>());
+			return BaseResponse<ConcentrationResponse>.Ok(_mapper.Map<ConcentrationResponse>(entity));
 		}
 
 		public async Task<BaseResponse<bool>> DeleteConcentrationAsync(int id)

@@ -1,15 +1,15 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.VNPays
+namespace PerfumeGPT.Application.DTOs.Responses.VNPays
 {
-	public class VnPaymentResponse
+	public record VnPaymentResponse
 	{
-		public bool IsSuccess { get; set; }
-		public string Message { get; set; } = null!;
+		public bool IsSuccess { get; init; }
+		public required string Message { get; init; }
 
 		// main response fields
-		public Guid PaymentId { get; set; }
-		public string ResponseCode { get; set; } = null!;
-		public string PaymentInfo { get; set; } = null!;
-		public string TransactionNo { get; set; } = null!;
-		public decimal Amount { get; set; }
+		public Guid PaymentId { get; init; }
+		public string? ResponseCode { get; init; }
+		public string? PaymentInfo { get; init; }
+		public string? TransactionNo { get; init; }
+		public decimal Amount { get; init; }
 	}
 }

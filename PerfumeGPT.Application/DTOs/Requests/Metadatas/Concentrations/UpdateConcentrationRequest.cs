@@ -1,7 +1,7 @@
 namespace PerfumeGPT.Application.DTOs.Requests.Metadatas.Concentrations
 {
-	public class UpdateConcentrationRequest
+	public record UpdateConcentrationRequest
 	{
-		public string Name { get; set; } = null!;
+		public required string Name { get; init; }
 	}
 }

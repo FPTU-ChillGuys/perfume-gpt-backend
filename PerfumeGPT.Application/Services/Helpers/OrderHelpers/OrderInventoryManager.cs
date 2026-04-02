@@ -46,7 +46,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			return true;
 		}
 
-		public async Task<bool> DeductInventoryAsync(List<(Guid VariantId, int Quantity)> items)
+		public async Task DeductInventoryAsync(List<(Guid VariantId, int Quantity)> items)
 		{
 			var aggregatedItems = items
 				   .GroupBy(i => i.VariantId)
@@ -61,8 +61,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					throw AppException.Internal($"Failed to deduct batch quantity for variant {VariantId}.");
 				}
 			}
-
-			return true;
 		}
 	}
 }

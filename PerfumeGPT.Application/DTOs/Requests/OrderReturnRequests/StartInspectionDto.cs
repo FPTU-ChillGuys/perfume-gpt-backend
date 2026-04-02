@@ -1,7 +1,7 @@
 namespace PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests
 {
-	public class StartInspectionDto
+	public record StartInspectionDto
 	{
-		public string? InspectionNote { get; set; }
+		public string? InspectionNote { get; init; }
 	}
 }

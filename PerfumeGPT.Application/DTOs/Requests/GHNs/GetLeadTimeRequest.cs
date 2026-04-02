@@ -1,9 +1,9 @@
 namespace PerfumeGPT.Application.DTOs.Requests.GHNs
 {
-	public class GetLeadTimeRequest
+	public record GetLeadTimeRequest
 	{
-		public int ToDistrictId { get; set; }
-		public string ToWardCode { get; set; } = null!;
-		public int ServiceId { get; set; }
+		public int ToDistrictId { get; init; }
+		public required string ToWardCode { get; init; }
+		public int ServiceId { get; init; }
 	}
 }

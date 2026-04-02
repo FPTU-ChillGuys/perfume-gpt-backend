@@ -1,20 +1,20 @@
-﻿using PerfumeGPT.Application.DTOs.Responses.Media;
+using PerfumeGPT.Application.DTOs.Responses.Media;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Products
 {
-	public class ProductListItem
+	public record ProductListItem
 	{
-		public Guid Id { get; set; }
-		public string? Name { get; set; }
-		public int BrandId { get; set; }
-		public string BrandName { get; set; } = null!;
-		public int CategoryId { get; set; }
-		public string CategoryName { get; set; } = null!;
-		public string? Description { get; set; }
-		public int NumberOfVariants { get; set; }
-		public List<decimal> VariantPrices { get; set; } = [];
-		public List<string> Tags { get; set; } = [];
-		public MediaResponse? PrimaryImage { get; set; }
+		public Guid Id { get; init; }
+		public string? Name { get; init; }
+		public int BrandId { get; init; }
+		public required string BrandName { get; init; }
+		public int CategoryId { get; init; }
+		public required string CategoryName { get; init; }
+		public string? Description { get; init; }
+		public int NumberOfVariants { get; init; }
+		public required List<decimal> VariantPrices { get; init; }
+		public List<string>? Tags { get; init; }
+		public MediaResponse? PrimaryImage { get; init; }
 	}
 }
 

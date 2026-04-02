@@ -58,7 +58,7 @@ namespace PerfumeGPT.Application.Services
 
 				   return request.IsSuccess
 					   ? await CompleteSuccessfulPayment(payment, order)
-					   : await HandleFailedPayment(payment, order, request.failureReason);
+					   : await HandleFailedPayment(payment, order, request.FailureReason);
 			   });
 		}
 
@@ -87,8 +87,7 @@ namespace PerfumeGPT.Application.Services
 
 				   if (!payment.IsPending())
 				   {
-					   payload.IsSuccess = payment.TransactionStatus == TransactionStatus.Success;
-					   return payload;
+					   return payload with { IsSuccess = payment.TransactionStatus == TransactionStatus.Success };
 				   }
 
 				   if (payment.Amount != vnPayResponse.Amount)

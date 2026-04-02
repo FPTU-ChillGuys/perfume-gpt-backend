@@ -2,9 +2,9 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Metadatas.OlfactoryFamilies
 {
-	public class OlfactoryFamilyResponse
+	public record OlfactoryFamilyResponse
 	{
-		public int Id { get; set; }
-		public string Name { get; set; } = null!;
+		public int Id { get; init; }
+		public required string Name { get; init; }
 	}
 }

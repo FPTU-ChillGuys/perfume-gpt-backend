@@ -2,13 +2,13 @@
 
 namespace PerfumeGPT.Application.DTOs.Requests.Campaigns.Vouchers
 {
-	public class UpdateCampaignVoucherRequest
+	public record UpdateCampaignVoucherRequest
 	{
-		public Guid? Id { get; set; }
-		public string Code { get; set; } = null!;
-		public decimal DiscountValue { get; set; }
-		public PromotionType TargetItemType { get; set; }
-		public DiscountType DiscountType { get; set; }
-		public VoucherType ApplyType { get; set; }
+		public Guid? Id { get; init; }
+		public required string Code { get; init; }
+		public decimal DiscountValue { get; init; }
+		public PromotionType TargetItemType { get; init; }
+		public DiscountType DiscountType { get; init; }
+		public VoucherType ApplyType { get; init; }
 	}
 }

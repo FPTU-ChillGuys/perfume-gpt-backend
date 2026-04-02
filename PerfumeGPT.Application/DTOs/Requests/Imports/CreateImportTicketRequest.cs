@@ -2,10 +2,10 @@ using PerfumeGPT.Application.DTOs.Requests.Imports.ImportDetails;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Imports
 {
-	public class CreateImportTicketRequest
+	public record CreateImportTicketRequest
 	{
-		public int SupplierId { get; set; }
-		public DateTime ExpectedArrivalDate { get; set; }
-		public List<CreateImportDetailRequest> ImportDetails { get; set; } = [];
+		public required List<CreateImportDetailRequest> ImportDetails { get; init; }
+		public int SupplierId { get; init; }
+		public DateTime ExpectedArrivalDate { get; init; }
 	}
 }

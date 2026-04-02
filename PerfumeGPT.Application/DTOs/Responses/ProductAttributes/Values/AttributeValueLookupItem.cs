@@ -1,8 +1,8 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.ProductAttributes.Values
+namespace PerfumeGPT.Application.DTOs.Responses.ProductAttributes.Values
 {
-	public class AttributeValueLookupItem
+	public record AttributeValueLookupItem
 	{
-		public int Id { get; set; }
-		public string Value { get; set; } = string.Empty;
+		public int Id { get; init; }
+		public required string Value { get; init; }
 	}
 }

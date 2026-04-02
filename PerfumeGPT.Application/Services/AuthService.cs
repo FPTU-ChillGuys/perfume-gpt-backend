@@ -1,6 +1,7 @@
 ﻿using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.DTOs.Requests.Auths;
 using PerfumeGPT.Application.DTOs.Responses.Auths;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -11,6 +12,8 @@ using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using System.Security.Cryptography;
+using static PerfumeGPT.Domain.Entities.User;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -23,13 +26,18 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IEmailService _emailService;
 		private readonly IEmailTemplateService _templateService;
+		private readonly IMediaService _mediaService;
+		private readonly ILogger<AuthService> _logger;
 
-		public AuthService(IEmailTemplateService templateService,
+		public AuthService(
+			IEmailTemplateService templateService,
 			UserManager<User> userManager,
 			IEmailService emailService,
 			IAuthRepository authRepository,
 			IUserRepository userRepository,
-			IUnitOfWork unitOfWork)
+			IUnitOfWork unitOfWork,
+			IMediaService mediaService,
+			ILogger<AuthService> logger)
 		{
 			_templateService = templateService;
 			_userManager = userManager;
@@ -37,6 +45,8 @@ namespace PerfumeGPT.Application.Services
 			_authRepository = authRepository;
 			_userRepository = userRepository;
 			_unitOfWork = unitOfWork;
+			_mediaService = mediaService;
+			_logger = logger;
 		}
 		#endregion
 
@@ -73,7 +83,12 @@ namespace PerfumeGPT.Application.Services
 			if (existingUser != null)
 				throw AppException.Conflict("Email/PhoneNumber already exists");
 
-			var user = User.Create(request.FullName, request.Email, request.PhoneNumber);
+			var creationDetails = new UserCreationDetails(
+				request.FullName ?? request.Email,
+				request.Email,
+				request.PhoneNumber
+			);
+			var user = User.Create(creationDetails);
 
 			var identityResult = await _userManager.CreateAsync(user, request.Password!);
 			if (!identityResult.Succeeded)
@@ -107,20 +122,20 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> VerifyEmailAsync(VerifyEmailRequest request)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			   {
-				   var user = await _userManager.FindByEmailAsync(request.Email) ?? throw AppException.NotFound("User not found");
+			{
+				var user = await _userManager.FindByEmailAsync(request.Email) ?? throw AppException.NotFound("User not found");
 
-				   var result = await _userManager.ConfirmEmailAsync(user, request.Token);
-				   if (!result.Succeeded)
-					   throw AppException.BadRequest("Failed to verify email", [.. result.Errors.Select(e => e.Description)]);
+				var result = await _userManager.ConfirmEmailAsync(user, request.Token);
+				if (!result.Succeeded)
+					throw AppException.BadRequest("Failed to verify email", [.. result.Errors.Select(e => e.Description)]);
 
-				   await _unitOfWork.UserVouchers.MigrateGuestVouchersAsync(
-					   user.Id,
-					   user.Email ?? string.Empty,
-					   user.PhoneNumber ?? string.Empty);
+				await _unitOfWork.UserVouchers.MigrateGuestVouchersAsync(
+					user.Id,
+					user.Email ?? string.Empty,
+					user.PhoneNumber ?? string.Empty);
 
-				   return BaseResponse<string>.Ok("Success");
-			   });
+				return BaseResponse<string>.Ok("Success");
+			});
 		}
 
 		public async Task<BaseResponse<TokenResponse>> LoginWithGoogleAsync(GoogleLoginRequest request)
@@ -146,14 +161,17 @@ namespace PerfumeGPT.Application.Services
 
 				if (user is null)
 				{
-					user = await _authRepository.RegisterViaGoogleAsync(payload);
+					user = await CreateGoogleUserAsync(payload);
 					isNewRegistration = true;
 				}
 
 				user.EnsureActive();
 
 				if (!user.EmailConfirmed)
-					await _authRepository.ConfirmEmailAsync(user);
+				{
+					user.EmailConfirmed = true;
+					await _userManager.UpdateAsync(user);
+				}
 
 				await _unitOfWork.UserVouchers.MigrateGuestVouchersAsync(
 					user.Id,
@@ -172,10 +190,10 @@ namespace PerfumeGPT.Application.Services
 			var user = await _userManager.FindByEmailAsync(request.Email!) ?? throw AppException.NotFound("User not found");
 			var token = await _userManager.GeneratePasswordResetTokenAsync(user);
 			var param = new Dictionary<string, string?>
-			{
-				{"token", token },
-				{"email", request.Email}
-			};
+		{
+			{"token", token },
+			{"email", request.Email}
+		};
 
 			var callback = QueryHelpers.AddQueryString(request.ClientUri, param);
 			var emailContent = _templateService.GetForgotPasswordTemplate(user.UserName ?? "User", callback);
@@ -207,6 +225,80 @@ namespace PerfumeGPT.Application.Services
 				AccessToken = _authRepository.GenerateJwtToken(user, role)
 			};
 		}
-		#endregion Private Helpers
+
+		private async Task<User> CreateGoogleUserAsync(GoogleJsonWebSignature.Payload payload)
+		{
+			var creationDetails = new UserCreationDetails(
+				FullName: payload.Name ?? payload.Email,
+				Email: payload.Email,
+				PhoneNumber: null
+			);
+			var newUser = User.Create(creationDetails);
+			var tempPassword = GenerateTemporaryPassword(12);
+
+			var createResult = await _userManager.CreateAsync(newUser, tempPassword);
+			if (!createResult.Succeeded)
+			{
+				throw AppException.Internal(
+					$"Failed to create user via Google. Errors: {string.Join(" | ", createResult.Errors.Select(e => e.Description))}");
+			}
+
+			string defaultRole = UserRole.user.ToString();
+			var roleResult = await _userManager.AddToRoleAsync(newUser, defaultRole);
+			if (!roleResult.Succeeded)
+			{
+				_logger.LogWarning("Failed to add role '{Role}' to user {Email}. Errors: {Errors}",
+					defaultRole, payload.Email, string.Join(" | ", roleResult.Errors.Select(e => e.Description)));
+			}
+
+			if (!string.IsNullOrWhiteSpace(payload.Picture))
+			{
+				var avatarCreated = await _mediaService.CreateProfileAvatarFromUrlAsync(
+					newUser.Id,
+					payload.Picture,
+					$"{newUser.FullName}'s profile picture");
+
+				if (!avatarCreated)
+				{
+					_logger.LogWarning("Failed to create profile picture for user {Email}", payload.Email);
+				}
+			}
+
+			return newUser;
+		}
+
+		private static string GenerateTemporaryPassword(int length = 12)
+		{
+			if (length < 8) length = 8;
+
+			const string upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+			const string lower = "abcdefghijklmnopqrstuvwxyz";
+			const string digits = "0123456789";
+			const string special = "!@#$%^&*()-_=+[]{};:,.<>?";
+
+			var all = upper + lower + digits + special;
+			var chars = new List<char>
+		{
+			upper[RandomNumberGenerator.GetInt32(upper.Length)],
+			lower[RandomNumberGenerator.GetInt32(lower.Length)],
+			digits[RandomNumberGenerator.GetInt32(digits.Length)],
+			special[RandomNumberGenerator.GetInt32(special.Length)]
+		};
+
+			for (int i = chars.Count; i < length; i++)
+			{
+				chars.Add(all[RandomNumberGenerator.GetInt32(all.Length)]);
+			}
+
+			var arr = chars.ToArray();
+			for (int i = arr.Length - 1; i > 0; i--)
+			{
+				int j = RandomNumberGenerator.GetInt32(i + 1);
+				(arr[j], arr[i]) = (arr[i], arr[j]);
+			}
+
+			return new string(arr);
+		}
+		#endregion
 	}
 }

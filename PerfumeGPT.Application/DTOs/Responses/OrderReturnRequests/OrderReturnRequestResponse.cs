@@ -3,32 +3,32 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 {
-	public class OrderReturnRequestResponse
+	public record OrderReturnRequestResponse
 	{
-		public Guid Id { get; set; }
-		public Guid OrderId { get; set; }
-		public Guid CustomerId { get; set; }
-		public string? CustomerEmail { get; set; }
-		public Guid? ProcessedById { get; set; }
-		public string? ProcessedByName { get; set; }
-		public Guid? InspectedById { get; set; }
-		public string? InspectedByName { get; set; }
+		public Guid Id { get; init; }
+		public Guid OrderId { get; init; }
+		public Guid CustomerId { get; init; }
+		public string? CustomerEmail { get; init; }
+		public Guid? ProcessedById { get; init; }
+		public string? ProcessedByName { get; init; }
+		public Guid? InspectedById { get; init; }
+		public string? InspectedByName { get; init; }
 
-		public string Reason { get; set; } = null!;
-		public string? CustomerNote { get; set; }
-		public string? StaffNote { get; set; }
-		public string? InspectionNote { get; set; }
-		public ReturnRequestStatus Status { get; set; }
+		public required string Reason { get; init; }
+		public string? CustomerNote { get; init; }
+		public string? StaffNote { get; init; }
+		public string? InspectionNote { get; init; }
+		public ReturnRequestStatus Status { get; init; }
 
-		public decimal RequestedRefundAmount { get; set; }
-		public decimal? ApprovedRefundAmount { get; set; }
-		public bool IsRefunded { get; set; }
-		public string? VnpTransactionNo { get; set; }
-		public bool IsRestocked { get; set; }
+		public decimal RequestedRefundAmount { get; init; }
+		public decimal? ApprovedRefundAmount { get; init; }
+		public bool IsRefunded { get; init; }
+		public string? VnpTransactionNo { get; init; }
+		public bool IsRestocked { get; init; }
 
-		public List<MediaResponse> ProofImages { get; set; } = [];
+		public List<MediaResponse>? ProofImages { get; init; }
 
-		public DateTime CreatedAt { get; set; }
-		public DateTime? UpdatedAt { get; set; }
+		public DateTime CreatedAt { get; init; }
+		public DateTime? UpdatedAt { get; init; }
 	}
 }

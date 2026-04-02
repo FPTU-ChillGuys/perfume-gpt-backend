@@ -2,22 +2,22 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Orders
 {
-	public class OrderListItem
+	public record OrderListItem
 	{
-		public Guid Id { get; set; }
-		public string Code { get; set; } = null!;
-		public Guid? CustomerId { get; set; }
-		public string? CustomerName { get; set; }
-		public Guid? StaffId { get; set; }
-		public string? StaffName { get; set; }
-		public OrderType Type { get; set; }
-		public OrderStatus Status { get; set; }
-		public PaymentStatus PaymentStatus { get; set; }
-		public decimal TotalAmount { get; set; }
-		public int ItemCount { get; set; }
-		public bool IsReturnalbe { get; set; }
-		public ShippingStatus? ShippingStatus { get; set; }
-		public DateTime CreatedAt { get; set; }
-		public DateTime? UpdatedAt { get; set; }
+		public Guid Id { get; init; }
+		public required string Code { get; init; }
+		public Guid? CustomerId { get; init; }
+		public string? CustomerName { get; init; }
+		public Guid? StaffId { get; init; }
+		public string? StaffName { get; init; }
+		public OrderType Type { get; init; }
+		public OrderStatus Status { get; init; }
+		public PaymentStatus PaymentStatus { get; init; }
+		public decimal TotalAmount { get; init; }
+		public int ItemCount { get; init; }
+		public bool IsReturnalbe { get; init; }
+		public ShippingStatus? ShippingStatus { get; init; }
+		public DateTime CreatedAt { get; init; }
+		public DateTime? UpdatedAt { get; init; }
 	}
 }

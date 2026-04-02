@@ -11,6 +11,6 @@ namespace PerfumeGPT.Persistence.Repositories
 		public RecipientInfoRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<RecipientInfo?> GetByOrderIdAsync(Guid orderId)
-			=> await _context.RecipientInfos.FirstOrDefaultAsync(ri => ri.OrderId == orderId);
+		=> await _context.RecipientInfos.FirstOrDefaultAsync(ri => ri.OrderId == orderId);
 	}
 }

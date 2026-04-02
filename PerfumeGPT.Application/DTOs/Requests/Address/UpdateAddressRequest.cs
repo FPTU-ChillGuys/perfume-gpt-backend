@@ -1,18 +1,15 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.Address
 {
-	public class UpdateAddressRequest
+	public record UpdateAddressRequest
 	{
-		public string RecipientName { get; set; } = string.Empty;
-		public string RecipientPhoneNumber { get; set; } = string.Empty;
-
-		public string Street { get; set; } = string.Empty;
-		public string Ward { get; set; } = string.Empty;
-		public string District { get; set; } = string.Empty;
-		public string City { get; set; } = string.Empty;
-
-		// GHN specific fields
-		public string WardCode { get; set; } = null!;
-		public int DistrictId { get; set; }
-		public int ProvinceId { get; set; }
+		public required string RecipientName { get; init; }
+		public required string RecipientPhoneNumber { get; init; }
+		public required string Street { get; init; }
+		public required string Ward { get; init; }
+		public required string District { get; init; }
+		public required string City { get; init; }
+		public required string WardCode { get; init; }
+		public int DistrictId { get; init; }
+		public int ProvinceId { get; init; }
 	}
 }

@@ -1,8 +1,8 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.Orders.OrderDetails
 {
-	public class CreateOrderDetailRequest
+	public record CreateOrderDetailRequest
 	{
-		public Guid VariantId { get; set; }
-		public int Quantity { get; set; }
+		public Guid VariantId { get; init; }
+		public int Quantity { get; init; }
 	}
 }

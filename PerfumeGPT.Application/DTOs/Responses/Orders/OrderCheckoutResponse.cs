@@ -1,8 +1,8 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Orders
+namespace PerfumeGPT.Application.DTOs.Responses.Orders
 {
-	public class OrderCheckoutResponse
+	public record OrderCheckoutResponse
 	{
-		public string PaymentUrl { get; set; } = string.Empty;
-		public Guid OrderId { get; set; }
+		public required string PaymentUrl { get; init; }
+		public Guid OrderId { get; init; }
 	}
 }

@@ -1,7 +1,7 @@
 namespace PerfumeGPT.Application.DTOs.Requests.Metadatas.Categories
 {
-	public class UpdateCategoryRequest
+	public record UpdateCategoryRequest
 	{
-		public string Name { get; set; } = null!;
+		public required string Name { get; init; }
 	}
 }

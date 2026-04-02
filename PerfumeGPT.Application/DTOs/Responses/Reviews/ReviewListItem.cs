@@ -1,16 +1,16 @@
 namespace PerfumeGPT.Application.DTOs.Responses.Reviews
 {
-	public class ReviewListItem
+	public record ReviewListItem
 	{
-		public Guid Id { get; set; }
-		public Guid UserId { get; set; }
-		public string UserFullName { get; set; } = null!;
-		public string? UserProfilePictureUrl { get; set; }
-		public Guid VariantId { get; set; }
-		public string VariantName { get; set; } = null!;
-		public int Rating { get; set; }
-		public string CommentPreview { get; set; } = string.Empty;
-		public int ImageCount { get; set; }
-		public DateTime CreatedAt { get; set; }
+		public Guid Id { get; init; }
+		public Guid UserId { get; init; }
+		public required string UserFullName { get; init; }
+		public string? UserProfilePictureUrl { get; init; }
+		public Guid VariantId { get; init; }
+		public required string VariantName { get; init; }
+		public int Rating { get; init; }
+		public required string CommentPreview { get; init; }
+		public int ImageCount { get; init; }
+		public DateTime CreatedAt { get; init; }
 	}
 }

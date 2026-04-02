@@ -3,25 +3,25 @@ using PerfumeGPT.Application.DTOs.Requests.ProductAttributes;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Variants
 {
-	public class UpdateVariantRequest
+	public record UpdateVariantRequest
 	{
-		public string Sku { get; set; } = null!;
-		public string Barcode { get; set; } = null!;
-		public int VolumeMl { get; set; }
-		public int ConcentrationId { get; set; }
-		public VariantType Type { get; set; }
-		public decimal BasePrice { get; set; }
-		public decimal? RetailPrice { get; set; }
-		public VariantStatus Status { get; set; }
-		public int Sillage { get; set; }
-		public int Longevity { get; set; }
+		public required string Sku { get; init; }
+		public required string Barcode { get; init; }
+		public int VolumeMl { get; init; }
+		public int ConcentrationId { get; init; }
+		public VariantType Type { get; init; }
+		public decimal BasePrice { get; init; }
+		public decimal? RetailPrice { get; init; }
+		public VariantStatus Status { get; init; }
+		public int Sillage { get; init; }
+		public int Longevity { get; init; }
 
 		// Upload First Pattern: Multiple images management
-		public List<Guid>? MediaIdsToDelete { get; set; }
-		public List<Guid>? TemporaryMediaIdsToAdd { get; set; }
+		public List<Guid>? MediaIdsToDelete { get; init; }
+		public List<Guid>? TemporaryMediaIdsToAdd { get; init; }
 
 		// Attribute management for variants
-		public List<ProductAttributeDto>? Attributes { get; set; }
+		public List<ProductAttributeDto>? Attributes { get; init; }
 	}
 }
 

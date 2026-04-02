@@ -1,17 +1,17 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Base
 {
-	public class BaseResponse
+	public record BaseResponse
 	{
-		public bool Success { get; set; } = true;
-		public string Message { get; set; } = "OK";
+		public bool Success { get; init; } = true;
+		public string Message { get; init; } = "OK";
 
 		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-		public List<string>? Errors { get; set; }
+		public List<string>? Errors { get; init; }
 
 		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-		public ResponseErrorType? ErrorType { get; set; }
+		public ResponseErrorType? ErrorType { get; init; }
 
 		public static BaseResponse Ok(string message = "Success")
 			=> new() { Success = true, Message = message };
@@ -20,9 +20,9 @@ namespace PerfumeGPT.Application.DTOs.Responses.Base
 			=> new() { Success = false, Message = message, Errors = errors, ErrorType = errorType };
 	}
 
-	public class BaseResponse<T> : BaseResponse
+	public record BaseResponse<T> : BaseResponse
 	{
-		public T? Payload { get; set; }
+		public T? Payload { get; init; }
 
 		public static BaseResponse<T> Ok(T data, string message = "Success")
 			=> new() { Success = true, Message = message, Payload = data };

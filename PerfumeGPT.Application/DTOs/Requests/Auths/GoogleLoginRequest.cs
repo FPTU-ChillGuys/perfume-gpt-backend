@@ -1,7 +1,7 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.Auths
 {
-    public class GoogleLoginRequest
-    {
-        public string IdToken { get; set; } = null!;
-    }
+	public record GoogleLoginRequest
+	{
+		public required string IdToken { get; init; }
+	}
 }

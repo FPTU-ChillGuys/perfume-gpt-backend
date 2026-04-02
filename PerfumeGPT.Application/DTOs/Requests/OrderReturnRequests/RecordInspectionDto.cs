@@ -1,9 +1,9 @@
 namespace PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests
 {
-	public class RecordInspectionDto
+	public record RecordInspectionDto
 	{
-		public decimal ApprovedRefundAmount { get; set; }
-		public bool IsRestocked { get; set; }
-		public string? InspectionNote { get; set; }
+		public decimal ApprovedRefundAmount { get; init; }
+		public bool IsRestocked { get; init; }
+		public string? InspectionNote { get; init; }
 	}
 }

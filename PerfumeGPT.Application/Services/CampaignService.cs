@@ -1,4 +1,3 @@
-using FluentValidation;
 using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Campaigns;
 using PerfumeGPT.Application.DTOs.Requests.Campaigns.Promotions;
@@ -16,37 +15,31 @@ namespace PerfumeGPT.Application.Services
 {
 	public class CampaignService : ICampaignService
 	{
-
-		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IMapper _mapper;
 
-		public CampaignService(IMapper mapper, IUnitOfWork unitOfWork)
+		public CampaignService(IUnitOfWork unitOfWork, IMapper mapper)
 		{
-			_mapper = mapper;
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
-		#endregion Dependencies
-
 
 		#region Campaign Management
 		public async Task<BaseResponse<PagedResult<CampaignResponse>>> GetPagedCampaignsAsync(GetPagedCampaignsRequest request)
 		{
 			var (items, totalCount) = await _unitOfWork.Campaigns.GetPagedCampaignsAsync(request);
 
-			var responses = _mapper.Map<List<CampaignResponse>>(items);
-			var pagedResult = new PagedResult<CampaignResponse>(responses, request.PageNumber, request.PageSize, totalCount);
+			var pagedResult = new PagedResult<CampaignResponse>(items, request.PageNumber, request.PageSize, totalCount);
 
 			return BaseResponse<PagedResult<CampaignResponse>>.Ok(pagedResult, "Campaign list retrieved successfully.");
 		}
 
 		public async Task<BaseResponse<CampaignResponse>> GetCampaignByIdAsync(Guid campaignId)
 		{
-			var campaign = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
-				?? throw AppException.NotFound("Campaign not found.");
+			var campaign = await _unitOfWork.Campaigns.GetCampaignByIdDtoAsync(campaignId)
+				   ?? throw AppException.NotFound("Campaign not found.");
 
-			var response = _mapper.Map<CampaignResponse>(campaign);
-			return BaseResponse<CampaignResponse>.Ok(response, "Campaign retrieved successfully.");
+			return BaseResponse<CampaignResponse>.Ok(campaign, "Campaign retrieved successfully.");
 		}
 
 		public async Task<BaseResponse<List<CampaignPromotionItemResponse>>> GetCampaignItemsByCampaignIdAsync(Guid campaignId)
@@ -56,8 +49,7 @@ namespace PerfumeGPT.Application.Services
 
 			var items = await _unitOfWork.Campaigns.GetCampaignItemsAsync(campaignId, asNoTracking: true);
 
-			var responses = _mapper.Map<List<CampaignPromotionItemResponse>>(items);
-			return BaseResponse<List<CampaignPromotionItemResponse>>.Ok(responses, "Campaign items retrieved successfully.");
+			return BaseResponse<List<CampaignPromotionItemResponse>>.Ok(items, "Campaign items retrieved successfully.");
 		}
 
 		public async Task<BaseResponse<string>> CreateCampaignAsync(CreateCampaignRequest request)
@@ -74,30 +66,23 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			  {
-				  var campaignStatus = DateTime.UtcNow < request.StartDate ? CampaignStatus.Upcoming : CampaignStatus.Active;
-				  var campaign = Campaign.Create(
-					  request.Name, request.Description, request.StartDate,
-					  request.EndDate, request.Type, campaignStatus);
+			{
+				var campaign = Campaign.Create(_mapper.Map<Campaign.CampaignCreationFactor>(request));
 
-				  foreach (var requestItem in request.Items)
-				  {
-					  campaign.AddPromotionItem(
-						  requestItem.ProductVariantId, requestItem.BatchId,
-						  requestItem.PromotionType, requestItem.MaxUsage);
-				  }
+				foreach (var requestItem in request.Items)
+				{
+					campaign.AddPromotionItem(_mapper.Map<Campaign.PromotionItemConfigFactor>(requestItem));
+				}
 
-				  foreach (var voucherRequest in request.Vouchers)
-				  {
-					  campaign.AddVoucher(
-						  voucherRequest.Code, voucherRequest.DiscountValue,
-						  voucherRequest.DiscountType, voucherRequest.ApplyType, voucherRequest.TargetItemType);
-				  }
+				foreach (var voucherRequest in request.Vouchers)
+				{
+					campaign.AddVoucher(_mapper.Map<Campaign.VoucherConfigFactor>(voucherRequest));
+				}
 
-				  await _unitOfWork.Campaigns.AddAsync(campaign);
+				await _unitOfWork.Campaigns.AddAsync(campaign);
 
-				  return BaseResponse<string>.Ok(campaign.Id.ToString(), "Campaign created successfully.");
-			  });
+				return BaseResponse<string>.Ok(campaign.Id.ToString(), "Campaign created successfully.");
+			});
 		}
 
 		public async Task<BaseResponse<string>> UpdateCampaignStatusAsync(Guid campaignId, UpdateCampaignStatusRequest request)
@@ -159,29 +144,19 @@ namespace PerfumeGPT.Application.Services
 					throw AppException.BadRequest($"Cannot remove voucher '{voucher.Code}' because it has already been redeemed.");
 			}
 
-			// 3. Execute in transaction — let EF Core Change Tracker do all the heavy lifting
+			// 3. Execute in transaction
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var itemFactors = request.Items
-					 .Select(x => new Campaign.PromotionItemSyncFactor(
-						 x.Id,
-						 x.ProductVariantId,
-						 x.BatchId,
-						 x.PromotionType,
-						 x.MaxUsage))
-					 .ToList();
-
-				var voucherFactors = request.Vouchers
-					.Select(x => new Campaign.VoucherSyncFactor(
-						x.Id,
-						x.Code,
-						x.DiscountValue,
-						x.DiscountType,
-						x.ApplyType,
-						x.TargetItemType))
+				   .Select(x => _mapper.Map<Campaign.PromotionItemSyncFactor>(x))
 					.ToList();
 
-				campaign.UpdateInfo(request.Name, request.Description, request.StartDate, request.EndDate, request.Type);
+				var voucherFactors = request.Vouchers
+				 .Select(x => _mapper.Map<Campaign.VoucherSyncFactor>(x))
+					.ToList();
+
+				campaign.UpdateInfo(_mapper.Map<Campaign.CampaignUpdateInfoFactor>(request));
+
 				campaign.SyncPromotionItems(itemFactors, campaign.Status == CampaignStatus.Active);
 				campaign.SyncVouchers(voucherFactors);
 
@@ -212,11 +187,7 @@ namespace PerfumeGPT.Application.Services
 
 			await ValidateCampaignItemAsync(request);
 
-			var item = campaign.AddPromotionItem(
-				request.ProductVariantId,
-				request.BatchId,
-				request.PromotionType,
-				request.MaxUsage);
+			var item = campaign.AddPromotionItem(_mapper.Map<Campaign.PromotionItemConfigFactor>(request));
 
 			await _unitOfWork.SaveChangesAsync();
 
@@ -240,12 +211,7 @@ namespace PerfumeGPT.Application.Services
 
 			await ValidateCampaignItemAsync(request);
 
-			campaign.UpdatePromotionItem(
-				 itemId,
-				 request.ProductVariantId,
-				 request.BatchId,
-				 request.PromotionType,
-				 request.MaxUsage);
+			campaign.UpdatePromotionItem(itemId, _mapper.Map<Campaign.PromotionItemConfigFactor>(request));
 
 			await _unitOfWork.SaveChangesAsync();
 
@@ -285,12 +251,7 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.Conflict("Voucher code already exists");
 			}
 
-			var voucher = campaign.AddVoucher(
-				 request.Code,
-				 request.DiscountValue,
-				 request.DiscountType,
-				 request.ApplyType,
-				 request.TargetItemType);
+			var voucher = campaign.AddVoucher(_mapper.Map<Campaign.VoucherConfigFactor>(request));
 
 			await _unitOfWork.SaveChangesAsync();
 
@@ -326,13 +287,7 @@ namespace PerfumeGPT.Application.Services
 				}
 			}
 
-			campaign.UpdateVoucher(
-				   voucherId,
-				   request.Code,
-				   request.DiscountValue,
-				   request.DiscountType,
-				   request.ApplyType,
-				   request.TargetItemType);
+			campaign.UpdateVoucher(voucherId, _mapper.Map<Campaign.VoucherConfigFactor>(request));
 
 			await _unitOfWork.SaveChangesAsync();
 
@@ -357,7 +312,6 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<string>.Ok(voucherId.ToString(), "Campaign voucher deleted successfully.");
 		}
 		#endregion Campaign Voucher Management
-
 
 		#region Private Helpers
 		private async Task ValidateCampaignItemsAsync(

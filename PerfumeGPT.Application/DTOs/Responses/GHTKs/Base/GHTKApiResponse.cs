@@ -1,13 +1,13 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace PerfumeGPT.Application.DTOs.Responses.GHTKs.Base
 {
-	public class GHTKApiResponse<T>
+	public record GHTKApiResponse<T>
 	{
-		public bool Success { get; set; }
-		public string Message { get; set; } = string.Empty;
-		public T Data { get; set; } = default!;
+		public bool Success { get; init; }
+		public string? Message { get; init; }
+		public T? Data { get; init; }
 		[JsonPropertyName("log_id")]
-		public string LogId { get; set; } = string.Empty;
+		public required string LogId { get; init; }
 	}
 }

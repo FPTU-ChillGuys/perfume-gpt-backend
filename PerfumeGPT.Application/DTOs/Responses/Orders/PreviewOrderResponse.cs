@@ -1,13 +1,13 @@
-﻿using PerfumeGPT.Application.DTOs.Responses.Orders.OrderDetails;
+using PerfumeGPT.Application.DTOs.Responses.Orders.OrderDetails;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Orders
 {
-	public class PreviewOrderResponse
+	public record PreviewOrderResponse
 	{
-		public List<OrderDetailListItems> Items { get; set; } = null!;
-		public decimal SubTotal { get; set; }
-		public decimal ShippingFee { get; set; }
-		public decimal Discount { get; set; }
-		public decimal Total { get; set; }
+		public required List<OrderDetailListItems> Items { get; init; }
+		public decimal SubTotal { get; init; }
+		public decimal ShippingFee { get; init; }
+		public decimal Discount { get; init; }
+		public decimal Total { get; init; }
 	}
 }

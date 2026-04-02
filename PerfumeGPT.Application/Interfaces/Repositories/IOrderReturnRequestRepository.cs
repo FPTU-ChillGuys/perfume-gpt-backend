@@ -8,6 +8,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	public interface IOrderReturnRequestRepository : IGenericRepository<OrderReturnRequest>
 	{
 		Task<(List<OrderReturnRequestResponse> Items, int TotalCount)> GetPagedResponsesAsync(GetPagedReturnRequestsRequest request);
+		Task<(List<OrderReturnRequestResponse> Items, int TotalCount)> GetPagedUserResponsesAsync(Guid userId, GetPagedUserReturnRequestsRequest request);
 		Task<OrderReturnRequestResponse?> GetResponseByIdAsync(Guid requestId);
 		Task<OrderReturnRequest?> GetByIdWithOrderAsync(Guid requestId);
 		Task<OrderReturnRequest?> GetByIdWithOrderDetailsAsync(Guid requestId);

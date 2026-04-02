@@ -1,11 +1,11 @@
-using PerfumeGPT.Application.DTOs.Requests.Base;
+﻿using PerfumeGPT.Application.DTOs.Requests.Base;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests
 {
-	public record GetPagedReturnRequestsRequest : PagingAndSortingQuery
+	public record GetPagedUserReturnRequestsRequest : PagingAndSortingQuery
 	{
-		public Guid? CustomerId { get; init; }
+
 		public ReturnRequestStatus? Status { get; init; }
 		public bool? IsRefunded { get; init; }
 	}

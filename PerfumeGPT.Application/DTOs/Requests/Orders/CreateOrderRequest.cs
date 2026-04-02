@@ -2,32 +2,32 @@
 
 namespace PerfumeGPT.Application.DTOs.Requests.Orders
 {
-	public class CreateOrderRequest
+	public record CreateOrderRequest
 	{
-		public string? VoucherCode { get; set; }
-		public List<Guid> ItemIds { get; set; } = [];
-		public decimal? ExpectedTotalPrice { get; set; }
-		public DeliveryMethod DeliveryMethod { get; set; }
-		public Guid? SavedAddressId { get; set; }
-		public RecipientInformation? Recipient { get; set; }
-		public PaymentInformation Payment { get; set; } = new PaymentInformation();
+		public string? VoucherCode { get; init; }
+		public List<Guid> ItemIds { get; init; } = [];
+		public decimal? ExpectedTotalPrice { get; init; }
+		public DeliveryMethod DeliveryMethod { get; init; }
+		public Guid? SavedAddressId { get; init; }
+		public RecipientInformation? Recipient { get; init; }
+		public PaymentInformation Payment { get; init; } = new();
 	}
 
-	public class RecipientInformation
+	public record RecipientInformation
 	{
-		public string RecipientName { get; set; } = null!;
-		public string RecipientPhoneNumber { get; set; } = null!;
-		public int DistrictId { get; set; }
-		public string DistrictName { get; set; } = null!;
-		public string WardCode { get; set; } = null!;
-		public string WardName { get; set; } = null!;
-		public int ProvinceId { get; set; }
-		public string ProvinceName { get; set; } = null!;
-		public string FullAddress { get; set; } = null!;
+		public required string RecipientName { get; init; }
+		public required string RecipientPhoneNumber { get; init; }
+		public int DistrictId { get; init; }
+		public required string DistrictName { get; init; }
+		public required string WardCode { get; init; }
+		public required string WardName { get; init; }
+		public int ProvinceId { get; init; }
+		public required string ProvinceName { get; init; }
+		public required string FullAddress { get; init; }
 	}
 
-	public class PaymentInformation
+	public record PaymentInformation
 	{
-		public PaymentMethod Method { get; set; }
+		public PaymentMethod Method { get; init; }
 	}
 }

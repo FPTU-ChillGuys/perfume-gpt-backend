@@ -1,12 +1,12 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Users
+namespace PerfumeGPT.Application.DTOs.Responses.Users
 {
-	public class UserCredentialsResponse
+	public record UserCredentialsResponse
 	{
-		public Guid Id { get; set; }
-		public int LoyaltyPoint { get; set; }
-		public string FullName { get; set; } = string.Empty;
-		public string PhoneNumber { get; set; } = string.Empty;
-		public string Email { get; set; } = string.Empty;
-		public string? ProfilePictureUrl { get; set; }
+		public Guid Id { get; init; }
+		public int LoyaltyPoint { get; init; }
+		public required string FullName { get; init; }
+		public required string PhoneNumber { get; init; }
+		public required string Email { get; init; }
+		public string? ProfilePictureUrl { get; init; }
 	}
 }

@@ -3,9 +3,9 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.OrderCancelRequests
 {
-	public class GetPagedCancelRequestsRequest : PagingAndSortingQuery
+	public record GetPagedCancelRequestsRequest : PagingAndSortingQuery
 	{
-		public CancelRequestStatus? Status { get; set; }
-       public bool? IsRefundRequired { get; set; }
+		public CancelRequestStatus? Status { get; init; }
+		public bool? IsRefundRequired { get; init; }
 	}
 }

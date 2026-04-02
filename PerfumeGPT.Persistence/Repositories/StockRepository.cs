@@ -1,4 +1,3 @@
-using Mapster;
 using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Inventory;
 using PerfumeGPT.Application.DTOs.Responses.Inventory;
@@ -20,16 +19,16 @@ namespace PerfumeGPT.Persistence.Repositories
 		public StockRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<bool> IsLowStockAsync(Guid variantId)
-			=> await _context.Stocks
-				.Where(s => s.VariantId == variantId)
-				.Select(s => s.TotalQuantity <= s.LowStockThreshold)
-				.FirstOrDefaultAsync();
+		=> await _context.Stocks
+			.Where(s => s.VariantId == variantId)
+			.Select(s => s.TotalQuantity <= s.LowStockThreshold)
+			.FirstOrDefaultAsync();
 
 		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
-			=> await _context.Stocks
-				.Where(s => s.VariantId == variantId)
-				.Select(s => (s.TotalQuantity - s.ReservedQuantity) >= requiredQuantity)
-				.FirstOrDefaultAsync();
+		=> await _context.Stocks
+			.Where(s => s.VariantId == variantId)
+			.Select(s => (s.TotalQuantity - s.ReservedQuantity) >= requiredQuantity)
+			.FirstOrDefaultAsync();
 
 		public async Task UpdateStockAsync(Guid variantId)
 		{
@@ -91,19 +90,50 @@ namespace PerfumeGPT.Persistence.Repositories
 			var stocks = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
-				.ProjectToType<StockResponse>()
+             .Select(s => new StockResponse
+				{
+					Id = s.Id,
+					VariantId = s.VariantId,
+					VariantSku = s.ProductVariant.Sku,
+					ProductName = s.ProductVariant.Product.Name,
+					VariantImageUrl = s.ProductVariant.Media
+						.Where(m => m.IsPrimary && !m.IsDeleted)
+						.Select(m => m.Url)
+						.FirstOrDefault() ?? string.Empty,
+					VolumeMl = s.ProductVariant.VolumeMl,
+					ConcentrationName = s.ProductVariant.Concentration.Name,
+					TotalQuantity = s.TotalQuantity,
+					AvailableQuantity = s.AvailableQuantity,
+					LowStockThreshold = s.LowStockThreshold,
+					Status = s.Status
+				})
 				.ToListAsync();
 
 			return (stocks, totalCount);
 		}
 
 		public async Task<StockResponse?> GetStockWithDetailsByVariantIdAsync(Guid variantId)
-		{
-			return await _context.Stocks
-				.AsNoTracking()
-				.ProjectToType<StockResponse>()
-				.FirstOrDefaultAsync(s => s.VariantId == variantId);
-		}
+		=> await _context.Stocks
+			.AsNoTracking()
+         .Where(s => s.VariantId == variantId)
+			.Select(s => new StockResponse
+			{
+				Id = s.Id,
+				VariantId = s.VariantId,
+				VariantSku = s.ProductVariant.Sku,
+				ProductName = s.ProductVariant.Product.Name,
+				VariantImageUrl = s.ProductVariant.Media
+					.Where(m => m.IsPrimary && !m.IsDeleted)
+					.Select(m => m.Url)
+					.FirstOrDefault() ?? string.Empty,
+				VolumeMl = s.ProductVariant.VolumeMl,
+				ConcentrationName = s.ProductVariant.Concentration.Name,
+				TotalQuantity = s.TotalQuantity,
+				AvailableQuantity = s.AvailableQuantity,
+				LowStockThreshold = s.LowStockThreshold,
+				Status = s.Status
+			})
+			.FirstOrDefaultAsync();
 
 		public async Task<(int TotalVariants, int TotalStockQuantity, int LowStockVariantsCount)> GetInventorySummaryDataAsync()
 		{

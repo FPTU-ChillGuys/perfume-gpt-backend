@@ -39,21 +39,21 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime? DeletedAt { get; set; }
 
 		// Factory method
-		public static User Create(string fullName, string email, string? phoneNumber)
+		public static User Create(UserCreationDetails details)
 		{
-			if (string.IsNullOrWhiteSpace(fullName))
+			if (string.IsNullOrWhiteSpace(details.FullName))
 				throw DomainException.BadRequest("Full name is required.");
 
-			if (string.IsNullOrWhiteSpace(email))
+			if (string.IsNullOrWhiteSpace(details.Email))
 				throw DomainException.BadRequest("Email is required.");
 
 			return new User
 			{
-				FullName = fullName.Trim(),
-				UserName = email.Trim(),
-				Email = email.Trim(),
-				PhoneNumber = phoneNumber?.Trim(),
-				PhoneNumberConfirmed = !string.IsNullOrWhiteSpace(phoneNumber),
+				FullName = details.FullName.Trim(),
+				UserName = details.Email.Trim(),
+				Email = details.Email.Trim(),
+				PhoneNumber = details.PhoneNumber?.Trim(),
+				PhoneNumberConfirmed = !string.IsNullOrWhiteSpace(details.PhoneNumber),
 				IsActive = true
 			};
 		}
@@ -91,5 +91,12 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("Full name cannot be empty.");
 			FullName = fullName.Trim();
 		}
+
+		// Record
+		public record UserCreationDetails(
+			string FullName,
+			string Email,
+			string? PhoneNumber
+		);
 	}
 }

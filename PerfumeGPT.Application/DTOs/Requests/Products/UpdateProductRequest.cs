@@ -4,22 +4,22 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Products
 {
-	public class UpdateProductRequest
+	public record UpdateProductRequest
 	{
-		public string Name { get; set; } = null!;
-		public int BrandId { get; set; }
-		public int CategoryId { get; set; }
-		public string? Description { get; set; }
-		public Gender Gender { get; set; }
-		public string Origin { get; set; } = null!;
-		public int ReleaseYear { get; set; }
+		public required string Name { get; init; }
+		public int BrandId { get; init; }
+		public int CategoryId { get; init; }
+		public string? Description { get; init; }
+		public Gender Gender { get; init; }
+		public required string Origin { get; init; }
+		public int ReleaseYear { get; init; }
 
-		public List<int> OlfactoryFamilyIds { get; set; } = [];
-		public List<ScentNoteDto> ScentNotes { get; set; } = [];
-		public List<ProductAttributeDto>? Attributes { get; set; }
+		public required List<int> OlfactoryFamilyIds { get; init; }
+		public required List<ScentNoteDto> ScentNotes { get; init; }
+		public List<ProductAttributeDto>? Attributes { get; init; }
 
 		// Image management for updates
-		public List<Guid>? TemporaryMediaIdsToAdd { get; set; }
-		public List<Guid>? MediaIdsToDelete { get; set; }
+		public List<Guid>? TemporaryMediaIdsToAdd { get; init; }
+		public List<Guid>? MediaIdsToDelete { get; init; }
 	}
 }

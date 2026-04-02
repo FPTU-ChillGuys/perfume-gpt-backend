@@ -1,7 +1,7 @@
-using Mapster;
 using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Reviews;
 using PerfumeGPT.Application.DTOs.Responses.Reviews;
+using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
@@ -15,11 +15,45 @@ namespace PerfumeGPT.Persistence.Repositories
 		public ReviewRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<ReviewDetailResponse?> GetReviewWithDetailsAsync(Guid reviewId)
-			=> await _context.Reviews
-				.Where(r => r.Id == reviewId && !r.IsDeleted)
-				.ProjectToType<ReviewDetailResponse>()
-				.AsNoTracking()
-				.FirstOrDefaultAsync();
+		=> await _context.Reviews
+			.Where(r => r.Id == reviewId && !r.IsDeleted)
+          .Select(r => new ReviewDetailResponse
+			{
+				Id = r.Id,
+				UserId = r.UserId,
+				UserFullName = r.User.FullName,
+				UserProfilePictureUrl = r.User.ProfilePicture != null ? r.User.ProfilePicture.Url : null,
+				OrderDetailId = r.OrderDetailId,
+				OrderId = r.OrderDetail.OrderId,
+				Quantity = r.OrderDetail.Quantity,
+				UnitPrice = r.OrderDetail.UnitPrice,
+				VariantId = r.OrderDetail.VariantId,
+				VariantName = r.OrderDetail.ProductVariant.Product.Name + " " + r.OrderDetail.ProductVariant.VolumeMl + "ml " + r.OrderDetail.ProductVariant.Concentration.Name,
+				ProductName = r.OrderDetail.ProductVariant.Product.Name,
+				VolumeMl = r.OrderDetail.ProductVariant.VolumeMl,
+				ConcentrationName = r.OrderDetail.ProductVariant.Concentration.Name,
+				Rating = r.Rating,
+				Comment = r.Comment ?? string.Empty,
+				Images = r.ReviewImages
+					.Where(ri => !ri.IsDeleted)
+					.Select(ri => new MediaResponse
+					{
+						Id = ri.Id,
+						Url = ri.Url,
+						AltText = ri.AltText,
+						DisplayOrder = ri.DisplayOrder,
+						IsPrimary = ri.IsPrimary,
+						FileSize = ri.FileSize,
+						MimeType = ri.MimeType
+					}).ToList(),
+				StaffFeedbackComment = r.StaffFeedbackComment,
+				StaffFeedbackByStaffId = r.StaffFeedbackByStaffId,
+				StaffFeedbackAt = r.StaffFeedbackAt,
+				CreatedAt = r.CreatedAt,
+				UpdatedAt = r.UpdatedAt
+			})
+			.AsNoTracking()
+			.FirstOrDefaultAsync();
 
 		public async Task<(List<ReviewListItem> Items, int TotalCount)> GetPagedReviewsAsync(GetPagedReviewsRequest request)
 		{
@@ -75,7 +109,21 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
-				.ProjectToType<ReviewListItem>()
+                .Select(r => new ReviewListItem
+				{
+					Id = r.Id,
+					UserId = r.UserId,
+					UserFullName = r.User.FullName,
+					UserProfilePictureUrl = r.User.ProfilePicture != null ? r.User.ProfilePicture.Url : null,
+					VariantId = r.OrderDetail.VariantId,
+					VariantName = r.OrderDetail.ProductVariant.Product.Name + " " + r.OrderDetail.ProductVariant.VolumeMl + "ml " + r.OrderDetail.ProductVariant.Concentration.Name,
+					Rating = r.Rating,
+					CommentPreview = r.Comment != null
+						? (r.Comment.Length > 100 ? r.Comment.Substring(0, 100) + "..." : r.Comment)
+						: string.Empty,
+					ImageCount = r.ReviewImages.Count(ri => !ri.IsDeleted),
+					CreatedAt = r.CreatedAt
+				})
 				.AsNoTracking()
 				.ToListAsync();
 
@@ -83,20 +131,74 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		public async Task<List<ReviewResponse>> GetReviewsByVariantIdAsync(Guid variantId)
-			=> await _context.Reviews
-				.Where(r => r.OrderDetail.VariantId == variantId && !r.IsDeleted)
-				.ProjectToType<ReviewResponse>()
-				.OrderByDescending(r => r.CreatedAt)
-				.AsNoTracking()
-				.ToListAsync();
+		=> await _context.Reviews
+			.Where(r => r.OrderDetail.VariantId == variantId && !r.IsDeleted)
+            .Select(r => new ReviewResponse
+			{
+				Id = r.Id,
+				UserId = r.UserId,
+				UserFullName = r.User.FullName,
+				UserProfilePictureUrl = r.User.ProfilePicture != null ? r.User.ProfilePicture.Url : null,
+				OrderDetailId = r.OrderDetailId,
+				VariantId = r.OrderDetail.VariantId,
+				VariantName = r.OrderDetail.ProductVariant.Product.Name + " " + r.OrderDetail.ProductVariant.VolumeMl + "ml " + r.OrderDetail.ProductVariant.Concentration.Name,
+				Rating = r.Rating,
+				Comment = r.Comment ?? string.Empty,
+				StaffFeedbackComment = r.StaffFeedbackComment,
+				StaffFeedbackAt = r.StaffFeedbackAt,
+				Images = r.ReviewImages
+					.Where(ri => !ri.IsDeleted)
+					.Select(ri => new MediaResponse
+					{
+						Id = ri.Id,
+						Url = ri.Url,
+						AltText = ri.AltText,
+						DisplayOrder = ri.DisplayOrder,
+						IsPrimary = ri.IsPrimary,
+						FileSize = ri.FileSize,
+						MimeType = ri.MimeType
+					}).ToList(),
+				CreatedAt = r.CreatedAt,
+				UpdatedAt = r.UpdatedAt
+			})
+			.OrderByDescending(r => r.CreatedAt)
+			.AsNoTracking()
+			.ToListAsync();
 
 		public async Task<List<ReviewResponse>> GetReviewsByUserIdAsync(Guid userId)
-			=> await _context.Reviews
-				.Where(r => r.UserId == userId && !r.IsDeleted)
-				.ProjectToType<ReviewResponse>()
-				.OrderByDescending(r => r.CreatedAt)
-				.AsNoTracking()
-				.ToListAsync();
+		=> await _context.Reviews
+			.Where(r => r.UserId == userId && !r.IsDeleted)
+            .Select(r => new ReviewResponse
+			{
+				Id = r.Id,
+				UserId = r.UserId,
+				UserFullName = r.User.FullName,
+				UserProfilePictureUrl = r.User.ProfilePicture != null ? r.User.ProfilePicture.Url : null,
+				OrderDetailId = r.OrderDetailId,
+				VariantId = r.OrderDetail.VariantId,
+				VariantName = r.OrderDetail.ProductVariant.Product.Name + " " + r.OrderDetail.ProductVariant.VolumeMl + "ml " + r.OrderDetail.ProductVariant.Concentration.Name,
+				Rating = r.Rating,
+				Comment = r.Comment ?? string.Empty,
+				StaffFeedbackComment = r.StaffFeedbackComment,
+				StaffFeedbackAt = r.StaffFeedbackAt,
+				Images = r.ReviewImages
+					.Where(ri => !ri.IsDeleted)
+					.Select(ri => new MediaResponse
+					{
+						Id = ri.Id,
+						Url = ri.Url,
+						AltText = ri.AltText,
+						DisplayOrder = ri.DisplayOrder,
+						IsPrimary = ri.IsPrimary,
+						FileSize = ri.FileSize,
+						MimeType = ri.MimeType
+					}).ToList(),
+				CreatedAt = r.CreatedAt,
+				UpdatedAt = r.UpdatedAt
+			})
+			.OrderByDescending(r => r.CreatedAt)
+			.AsNoTracking()
+			.ToListAsync();
 
 		public async Task<(int TotalReviews, double AverageRating, int[] StarCounts)> GetVariantReviewStatisticsAsync(Guid variantId)
 		{
@@ -144,6 +246,6 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		public async Task<bool> HasUserReviewedOrderDetailAsync(Guid userId, Guid orderDetailId)
-			=> await _context.Reviews.AnyAsync(r => r.UserId == userId && r.OrderDetailId == orderDetailId && !r.IsDeleted);
+		=> await _context.Reviews.AnyAsync(r => r.UserId == userId && r.OrderDetailId == orderDetailId && !r.IsDeleted);
 	}
 }

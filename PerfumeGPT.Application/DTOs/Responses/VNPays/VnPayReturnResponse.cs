@@ -1,9 +1,9 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.VNPays
+namespace PerfumeGPT.Application.DTOs.Responses.VNPays
 {
-	public class VnPayReturnResponse
+	public record VnPayReturnResponse
 	{
-		public Guid OrderId { get; set; }
-		public Guid PaymentId { get; set; }
-		public bool IsSuccess { get; set; }
+		public Guid OrderId { get; init; }
+		public Guid PaymentId { get; init; }
+		public bool IsSuccess { get; init; }
 	}
 }

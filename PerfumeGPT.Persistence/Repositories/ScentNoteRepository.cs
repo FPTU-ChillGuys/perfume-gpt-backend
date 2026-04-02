@@ -1,5 +1,4 @@
-﻿using Mapster;
-using PerfumeGPT.Application.Interfaces.Repositories;
+﻿using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
@@ -13,25 +12,35 @@ namespace PerfumeGPT.Persistence.Repositories
 		public ScentNoteRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<bool> HasAssociationsAsync(int scentNoteId)
-		{
-			return await _context.ProductNoteMaps.AnyAsync(x => x.ScentNoteId == scentNoteId)
+		=> await _context.ProductNoteMaps.AnyAsync(x => x.ScentNoteId == scentNoteId)
 				|| await _context.CustomerNotePreferences.AnyAsync(x => x.NoteId == scentNoteId);
-		}
 
 		public async Task<List<ScentNoteLookupResponse>> GetScentNoteLookupListAsync()
-		{
-			var scentNotes = await _context.ScentNotes.ProjectToType<ScentNoteLookupResponse>().ToListAsync();
-			return scentNotes;
-		}
+		=> await _context.ScentNotes
+			.Select(x => new ScentNoteLookupResponse
+			{
+				Id = x.Id,
+				Name = x.Name
+			})
+			.ToListAsync();
 
 		public async Task<List<ScentNoteResponse>> GetAllScentNotesAsync()
-		{
-			return await _context.ScentNotes.ProjectToType<ScentNoteResponse>().ToListAsync();
-		}
+	  => await _context.ScentNotes
+			.Select(x => new ScentNoteResponse
+			{
+				Id = x.Id,
+				Name = x.Name
+			})
+			.ToListAsync();
 
 		public async Task<ScentNoteResponse?> GetScentNoteByIdAsync(int id)
-		{
-			return await _context.ScentNotes.Where(x => x.Id == id).ProjectToType<ScentNoteResponse>().FirstOrDefaultAsync();
-		}
+	   => await _context.ScentNotes
+			.Where(x => x.Id == id)
+			.Select(x => new ScentNoteResponse
+			{
+				Id = x.Id,
+				Name = x.Name
+			})
+			.FirstOrDefaultAsync();
 	}
 }

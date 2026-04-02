@@ -1,13 +1,13 @@
 namespace PerfumeGPT.Application.DTOs.Requests.VNPays
 {
-	public class VnPayRefundRequest
+	public record VnPayRefundRequest
 	{
-		public Guid OrderId { get; set; }
-		public decimal Amount { get; set; }
-		public Guid PaymentId { get; set; }
-		public string TransactionType { get; set; } = "02"; // 02 for full refund, 03 for partial
-		public string CreateBy { get; set; } = string.Empty;
-		public string OrderInfo { get; set; } = string.Empty;
-		public string TransactionDate { get; set; } = string.Empty;
+		public Guid OrderId { get; init; }
+		public decimal Amount { get; init; }
+		public Guid PaymentId { get; init; }
+		public string TransactionType { get; init; } = "02"; // 02 for full refund, 03 for partial
+		public string CreateBy { get; init; } = string.Empty;
+		public string OrderInfo { get; init; } = string.Empty;
+		public string TransactionDate { get; init; } = string.Empty;
 	}
 }

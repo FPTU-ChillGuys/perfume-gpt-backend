@@ -2,12 +2,12 @@ using PerfumeGPT.Application.DTOs.Requests.Base;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Reviews
 {
-	public class GetPagedReviewsRequest : PagingAndSortingQuery
+	public record GetPagedReviewsRequest : PagingAndSortingQuery
 	{
-		public Guid? VariantId { get; set; }
-		public Guid? UserId { get; set; }
-		public int? MinRating { get; set; }
-		public int? MaxRating { get; set; }
-		public bool? HasImages { get; set; }
+		public Guid? VariantId { get; init; }
+		public Guid? UserId { get; init; }
+		public int? MinRating { get; init; }
+		public int? MaxRating { get; init; }
+		public bool? HasImages { get; init; }
 	}
 }

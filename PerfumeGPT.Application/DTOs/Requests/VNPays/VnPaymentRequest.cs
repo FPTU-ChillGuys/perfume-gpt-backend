@@ -1,9 +1,9 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.VNPays
 {
-	public class VnPaymentRequest
+	public record VnPaymentRequest
 	{
-		public Guid OrderId { get; set; }
-		public Guid PaymentId { get; set; }
-		public int Amount { get; set; } = 0;
+		public Guid OrderId { get; init; }
+		public Guid PaymentId { get; init; }
+		public int Amount { get; init; } = 0;
 	}
 }

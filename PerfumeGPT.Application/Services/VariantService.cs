@@ -1,3 +1,4 @@
+using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Variants;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
@@ -19,19 +20,22 @@ namespace PerfumeGPT.Application.Services
 		private readonly IMediaService _mediaService;
 		private readonly MediaBulkActionHelper _helper;
 		private readonly IProductAttributeService _productAttributeService;
+		private readonly IMapper _mapper;
 
 		public VariantService(
 			IMediaService mediaService,
 			MediaBulkActionHelper helper,
 			IProductAttributeService productAttributeService,
 			IStockService stockServcie,
-			IUnitOfWork unitOfWork)
+			IUnitOfWork unitOfWork,
+			IMapper mapper)
 		{
 			_mediaService = mediaService;
 			_helper = helper;
 			_productAttributeService = productAttributeService;
 			_stockService = stockServcie;
 			_unitOfWork = unitOfWork;
+			_mapper = mapper;
 		}
 		#endregion Dependencies
 
@@ -44,18 +48,8 @@ namespace PerfumeGPT.Application.Services
 
 			var variantId = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			  {
-				  var variant = ProductVariant.Create(
-					  request.ProductId,
-					  request.Barcode,
-					  request.Sku,
-					  request.VolumeMl,
-					  request.ConcentrationId,
-					  request.Type,
-					  request.Sillage,
-					  request.Longevity,
-					  request.BasePrice,
-					  request.RetailPrice,
-					  request.Status);
+				  var payload = _mapper.Map<ProductVariant.VariantPayload>(request);
+				  var variant = ProductVariant.Create(request.ProductId, payload);
 
 				  variant.SyncAttributes(request.Attributes?.Select(a => (a.AttributeId, a.ValueId)) ?? []);
 
@@ -66,7 +60,7 @@ namespace PerfumeGPT.Application.Services
 				  return variant.Id;
 			  });
 
-			var metadata = new BulkActionMetadata();
+			var metadata = new BulkActionMetadata { Operations = [] };
 			if (request.TemporaryMediaIds?.Count > 0)
 			{
 				var uploadResult = await ConvertTemporaryMediaToPermanentAsync(
@@ -99,17 +93,8 @@ namespace PerfumeGPT.Application.Services
 			if (attributeErrors.Count != 0)
 				throw AppException.BadRequest("Validation failed", attributeErrors);
 
-			variant.Update(
-				request.Barcode,
-				request.Sku,
-				request.VolumeMl,
-				request.ConcentrationId,
-				request.Type,
-				request.Sillage,
-				request.Longevity,
-				request.BasePrice,
-				request.RetailPrice,
-				request.Status);
+			var payload = _mapper.Map<ProductVariant.UpdateVariantPayload>(request);
+			variant.Update(payload);
 
 			if (request.Attributes != null)
 				await _productAttributeService.ReplaceAttributesAsync(
@@ -119,7 +104,7 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update variant");
 
-			var metadata = new BulkActionMetadata();
+			var metadata = new BulkActionMetadata { Operations = [] };
 
 			if (request.MediaIdsToDelete?.Count > 0)
 			{

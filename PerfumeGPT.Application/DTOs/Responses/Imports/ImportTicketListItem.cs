@@ -2,17 +2,17 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.Imports
 {
-	public class ImportTicketListItem
+	public record ImportTicketListItem
 	{
-		public Guid Id { get; set; }
-		public string CreatedByName { get; set; } = null!;
-		public string? VerifiedByName { get; set; }
-		public string SupplierName { get; set; } = null!;
-		public DateTime ExpectedArrivalDate { get; set; }
-		public DateTime ActualImportDate { get; set; }
-		public decimal TotalCost { get; set; }
-		public ImportStatus Status { get; set; }
-		public int TotalItems { get; set; }
-		public DateTime CreatedAt { get; set; }
+		public Guid Id { get; init; }
+		public required string CreatedByName { get; init; }
+		public string? VerifiedByName { get; init; }
+		public required string SupplierName { get; init; }
+		public DateTime ExpectedArrivalDate { get; init; }
+		public DateTime ActualImportDate { get; init; }
+		public decimal TotalCost { get; init; }
+		public ImportStatus Status { get; init; }
+		public int TotalItems { get; init; }
+		public DateTime CreatedAt { get; init; }
 	}
 }

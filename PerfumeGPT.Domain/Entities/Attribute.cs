@@ -18,37 +18,48 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<AttributeValue> AttributeValues { get; set; } = [];
 
 		// Factory method
-		public static Attribute Create(string? internalCode, string name, string? description, bool isVariantLevel)
+		public static Attribute Create(AttributeCreationDetails details)
 		{
-			if (string.IsNullOrWhiteSpace(name))
+			if (string.IsNullOrWhiteSpace(details.Name))
 				throw DomainException.BadRequest("Attribute name is required.");
 
-			string finalCode = string.IsNullOrWhiteSpace(internalCode)
-			? GenerateInternalCode(name)
-			: internalCode.Trim().ToUpperInvariant();
+			string finalCode = string.IsNullOrWhiteSpace(details.InternalCode)
+				? GenerateInternalCode(details.Name)
+				: details.InternalCode.Trim().ToUpperInvariant();
 
 			return new Attribute
 			{
 				InternalCode = finalCode,
-				Name = name.Trim(),
-				Description = description?.Trim(),
-				IsVariantLevel = isVariantLevel
+				Name = details.Name.Trim(),
+				Description = details.Description?.Trim(),
+				IsVariantLevel = details.IsVariantLevel
 			};
 		}
 
-		public void Update(string? name, string? description, bool? isVariantLevel)
+		public void Update(AttributeUpdateDetails details)
 		{
-			if (name != null)
-			{
-				if (string.IsNullOrWhiteSpace(name))
-					throw DomainException.BadRequest("Attribute name cannot be empty.");
-				Name = name.Trim();
-			}
+			if (string.IsNullOrWhiteSpace(details.Name))
+				throw DomainException.BadRequest("Attribute name cannot be empty.");
 
-			if (description != null) Description = description.Trim();
-			if (isVariantLevel.HasValue) IsVariantLevel = isVariantLevel.Value;
+			Name = details.Name.Trim();
+			Description = details.Description?.Trim();
+			IsVariantLevel = details.IsVariantLevel;
 		}
 
 		private static string GenerateInternalCode(string name) => name.ToUrlsFriendly().ToUpperInvariant();
+
+		// Records
+		public record AttributeCreationDetails(
+			string? InternalCode,
+			string Name,
+			string? Description,
+			bool IsVariantLevel
+		);
+
+		public record AttributeUpdateDetails(
+			string Name,
+			string? Description,
+			bool IsVariantLevel
+		);
 	}
 }

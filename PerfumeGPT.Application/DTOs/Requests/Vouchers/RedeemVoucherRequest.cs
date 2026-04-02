@@ -1,8 +1,8 @@
 namespace PerfumeGPT.Application.DTOs.Requests.Vouchers
 {
-	public class RedeemVoucherRequest
+	public record RedeemVoucherRequest
 	{
-		public Guid VoucherId { get; set; }
-		public string? ReceiverEmailOrPhone { get; set; }
+		public Guid VoucherId { get; init; }
+		public string? ReceiverEmailOrPhone { get; init; }
 	}
 }

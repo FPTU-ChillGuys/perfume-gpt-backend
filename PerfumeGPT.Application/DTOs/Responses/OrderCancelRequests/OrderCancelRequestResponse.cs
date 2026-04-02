@@ -2,24 +2,24 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Responses.OrderCancelRequests
 {
-	public class OrderCancelRequestResponse
+	public record OrderCancelRequestResponse
 	{
-		public Guid Id { get; set; }
-		public Guid OrderId { get; set; }
-		public Guid RequestedById { get; set; }
-		public string? RequestedByEmail { get; set; }
-		public Guid? ProcessedById { get; set; }
+		public Guid Id { get; init; }
+		public Guid OrderId { get; init; }
+		public Guid RequestedById { get; init; }
+		public string? RequestedByEmail { get; init; }
+		public Guid? ProcessedById { get; init; }
 		
-		public string Reason { get; set; } = null!;
-		public string? StaffNote { get; set; }
-		public CancelRequestStatus Status { get; set; }
+		public required string Reason { get; init; }
+		public string? StaffNote { get; init; }
+		public CancelRequestStatus Status { get; init; }
 
-		public bool IsRefundRequired { get; set; }
-		public decimal? RefundAmount { get; set; }
-		public bool IsRefunded { get; set; }
-		public string? VnpTransactionNo { get; set; }
+		public bool IsRefundRequired { get; init; }
+		public decimal? RefundAmount { get; init; }
+		public bool IsRefunded { get; init; }
+		public string? VnpTransactionNo { get; init; }
 
-		public DateTime CreatedAt { get; set; }
-		public DateTime? UpdatedAt { get; set; }
+		public DateTime CreatedAt { get; init; }
+		public DateTime? UpdatedAt { get; init; }
 	}
 }

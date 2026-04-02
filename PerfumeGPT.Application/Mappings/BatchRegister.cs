@@ -8,15 +8,6 @@ namespace PerfumeGPT.Application.Mappings
 	{
 		public void Register(TypeAdapterConfig config)
 		{
-			config.NewConfig<Batch, BatchResponse>()
-				.Map(dest => dest.Id, src => src.Id)
-				.Map(dest => dest.BatchCode, src => src.BatchCode)
-				.Map(dest => dest.ManufactureDate, src => src.ManufactureDate)
-				.Map(dest => dest.ExpiryDate, src => src.ExpiryDate)
-				.Map(dest => dest.ImportQuantity, src => src.ImportQuantity)
-				.Map(dest => dest.RemainingQuantity, src => src.RemainingQuantity)
-				.Map(dest => dest.CreatedAt, src => src.CreatedAt);
-
 			config.NewConfig<Batch, BatchDetailResponse>()
 				.Inherits<Batch, BatchResponse>()
 				.Map(dest => dest.VariantId, src => src.VariantId)
@@ -26,9 +17,6 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ConcentrationName, src => src.ProductVariant.Concentration.Name);
 
 			config.NewConfig<Batch, BatchLookupResponse>()
-				.Map(dest => dest.Id, src => src.Id)
-				.Map(dest => dest.BatchCode, src => src.BatchCode)
-				.Map(dest => dest.VariantId, src => src.VariantId)
 				.Map(dest => dest.Sku, src => src.ProductVariant.Sku ?? "");
 		}
 	}

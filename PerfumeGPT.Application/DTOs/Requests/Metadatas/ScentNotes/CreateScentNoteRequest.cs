@@ -1,7 +1,7 @@
 namespace PerfumeGPT.Application.DTOs.Requests.Metadatas.ScentNotes
 {
-	public class CreateScentNoteRequest
+	public record CreateScentNoteRequest
 	{
-		public string Name { get; set; } = null!;
+		public required string Name { get; init; }
 	}
 }

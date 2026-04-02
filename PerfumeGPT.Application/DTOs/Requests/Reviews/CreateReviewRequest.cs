@@ -1,10 +1,10 @@
 namespace PerfumeGPT.Application.DTOs.Requests.Reviews
 {
-	public class CreateReviewRequest
+	public record CreateReviewRequest
 	{
-		public Guid OrderDetailId { get; set; }
-		public int Rating { get; set; }
-		public string Comment { get; set; } = string.Empty;
-		public List<Guid>? TemporaryMediaIds { get; set; }
+		public Guid OrderDetailId { get; init; }
+		public int Rating { get; init; }
+		public required string Comment { get; init; }
+		public List<Guid>? TemporaryMediaIds { get; init; }
 	}
 }

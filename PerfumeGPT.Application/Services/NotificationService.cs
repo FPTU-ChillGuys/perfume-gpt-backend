@@ -1,25 +1,20 @@
-﻿using Microsoft.AspNetCore.Identity;
-using PerfumeGPT.Application.DTOs.Responses.Base;
+﻿using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
-using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class NotificationService : INotificationService
 	{
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly UserManager<User> _userManager;
 		private readonly ISignalRService _signalRService;
 
 		public NotificationService(
-			UserManager<User> userManager,
 			ISignalRService signalRService,
 			IUnitOfWork unitOfWork)
 		{
-			_userManager = userManager;
 			_signalRService = signalRService;
 			_unitOfWork = unitOfWork;
 		}

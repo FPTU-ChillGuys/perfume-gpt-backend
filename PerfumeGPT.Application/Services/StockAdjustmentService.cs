@@ -7,6 +7,7 @@ using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using static PerfumeGPT.Domain.Entities.StockAdjustmentDetail;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -60,14 +61,17 @@ namespace PerfumeGPT.Application.Services
 
 				foreach (var detailRequest in request.AdjustmentDetails)
 				{
+					var detailPayload = new StockAdjustmentDetailPayload
+					{
+						ProductVariantId = detailRequest.VariantId,
+						BatchId = detailRequest.BatchId,
+						AdjustmentQuantity = detailRequest.AdjustmentQuantity,
+						Note = detailRequest.Note
+					};
+
 					if (isAutoApprove)
 					{
-						stockAdjustment.AddApprovedDetail(
-							detailRequest.VariantId,
-							detailRequest.BatchId,
-							detailRequest.AdjustmentQuantity,
-							detailRequest.AdjustmentQuantity,
-							detailRequest.Note);
+						stockAdjustment.AddApprovedDetail(detailPayload, detailRequest.AdjustmentQuantity);
 
 						if (detailRequest.AdjustmentQuantity > 0)
 						{
@@ -80,11 +84,7 @@ namespace PerfumeGPT.Application.Services
 					}
 					else
 					{
-						stockAdjustment.AddDetail(
-							detailRequest.VariantId,
-							detailRequest.BatchId,
-							detailRequest.AdjustmentQuantity,
-							detailRequest.Note);
+						stockAdjustment.AddDetail(detailPayload);
 					}
 				}
 

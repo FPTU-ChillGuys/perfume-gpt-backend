@@ -13,6 +13,7 @@ using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using static PerfumeGPT.Domain.Entities.OrderCancelRequest;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -342,9 +343,7 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				// Deduct inventory immediately for offline orders
-				var deductionResult = await _inventoryManager.DeductInventoryAsync(itemsToValidate);
-				if (!deductionResult)
-					throw AppException.BadRequest("Inventory deduction failed.");
+				await _inventoryManager.DeductInventoryAsync(itemsToValidate);
 
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(
 					order.Id,
@@ -384,7 +383,7 @@ namespace PerfumeGPT.Application.Services
 
 		#region Order Status Management
 
-		public async Task<BaseResponse<PickListResponse>> UpdateOrderStatusAsync(Guid orderId, Guid staffId, UpdateOrderStatusRequest request)
+		public async Task<BaseResponse<PickListResponse?>> UpdateOrderStatusAsync(Guid orderId, Guid staffId, UpdateOrderStatusRequest request)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			   {
@@ -394,8 +393,6 @@ namespace PerfumeGPT.Application.Services
 				   // Validate offline order restrictions
 				   if (order.Type == OrderType.Offline && request.Status != OrderStatus.Cancelled)
 					   throw AppException.BadRequest("Offline orders can only be cancelled. Other status updates are not allowed.");
-
-				   var pickListResponse = new PickListResponse();
 
 				   // Handle cancellation first to align refund/no-refund flows
 				   if (request.Status == OrderStatus.Cancelled)
@@ -411,18 +408,20 @@ namespace PerfumeGPT.Application.Services
 						   if (hasPendingCancelRequest)
 							   throw AppException.BadRequest("A pending cancel request already exists for this order.");
 
-						   var cancelRequest = OrderCancelRequest.Create(
-								order.Id,
-								staffId,
-								CancelOrderReason.InsufficientStock,
-								true,
-								order.TotalAmount,
-								null,
-								request.Note);
+						   var payload = new CancelRequestPayload
+						   {
+							   Reason = CancelOrderReason.InsufficientStock,
+							   IsRefundRequired = true,
+							   RefundAmount = order.TotalAmount,
+							   StaffNote = request.Note
+						   };
+
+						   var cancelRequest = OrderCancelRequest.Create(order.Id, staffId, payload);
 						   cancelRequest.Order = order;
+
 						   await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
 
-						   return BaseResponse<PickListResponse>.Ok(pickListResponse, "Cancel request submitted successfully.");
+						   return BaseResponse<PickListResponse?>.Ok(null, "Cancel request submitted successfully.");
 					   }
 
 					   // staff cancels without refund => direct cancel
@@ -431,7 +430,7 @@ namespace PerfumeGPT.Application.Services
 					   _unitOfWork.Orders.Update(order);
 
 					   var orderType = order.Type == OrderType.Online ? "online" : "in-store";
-					   return BaseResponse<PickListResponse>.Ok(pickListResponse, $"Order status updated to {request.Status} for {orderType} order.");
+					   return BaseResponse<PickListResponse?>.Ok(null, $"Order status updated to {request.Status} for {orderType} order.");
 				   }
 
 				   // return order handle
@@ -447,6 +446,7 @@ namespace PerfumeGPT.Application.Services
 				   // Update shipping status
 				   UpdateShippingStatus(order, request.Status);
 
+				   PickListResponse? pickListResponse = null;
 				   // Handle Processing status - return pick list
 				   if (request.Status == OrderStatus.Processing && order.Type == OrderType.Online)
 				   {
@@ -454,7 +454,7 @@ namespace PerfumeGPT.Application.Services
 				   }
 
 				   var orderTypeText = order.Type == OrderType.Online ? "online" : "in-store";
-				   return BaseResponse<PickListResponse>.Ok(pickListResponse, $"Order status updated to {request.Status} for {orderTypeText} order.");
+				   return BaseResponse<PickListResponse?>.Ok(pickListResponse, $"Order status updated to {request.Status} for {orderTypeText} order.");
 			   });
 		}
 
@@ -491,14 +491,16 @@ namespace PerfumeGPT.Application.Services
 				   if (hasPendingCancelRequest)
 					   throw AppException.BadRequest("A pending cancel request already exists for this order.");
 
-				   var cancelRequest = OrderCancelRequest.Create(
-						order.Id,
-						userId,
-					  ParseCancelReason(request.Reason),
-						isRefundRequired,
-						isRefundRequired ? order.TotalAmount : null
-						);
+				   var payload = new CancelRequestPayload
+				   {
+					   Reason = request.Reason,
+					   IsRefundRequired = isRefundRequired,
+					   RefundAmount = isRefundRequired ? order.TotalAmount : null
+				   };
+
+				   var cancelRequest = OrderCancelRequest.Create(order.Id, userId, payload);
 				   cancelRequest.Order = order;
+
 				   await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
 
 				   return BaseResponse<string>.Ok("Cancel request submitted successfully.");
@@ -628,20 +630,6 @@ namespace PerfumeGPT.Application.Services
 			UpdateShippingStatus(order, OrderStatus.Cancelled);
 			await _stockReservationService.ReleaseReservationAsync(order.Id);
 			await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
-		}
-
-		private static CancelOrderReason ParseCancelReason(string? reason)
-		{
-			if (string.IsNullOrWhiteSpace(reason))
-				return CancelOrderReason.ChangedMind;
-
-			if (Enum.TryParse<CancelOrderReason>(reason, true, out var parsedReason)
-				&& Enum.IsDefined(parsedReason))
-			{
-				return parsedReason;
-			}
-
-			throw AppException.BadRequest($"Invalid cancel reason. Allowed values: {string.Join(", ", Enum.GetNames<CancelOrderReason>())}.");
 		}
 
 		private async Task<VoucherResponse> ValidateAndGetVoucherAsync(

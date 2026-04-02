@@ -2,8 +2,8 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Imports
 {
-	public class UpdateImportStatusRequest
+	public record UpdateImportStatusRequest
 	{
-		public ImportStatus Status { get; set; }
+		public ImportStatus Status { get; init; }
 	}
 }

@@ -1,10 +1,10 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Batches
+namespace PerfumeGPT.Application.DTOs.Responses.Batches
 {
-	public class BatchLookupResponse
+	public record BatchLookupResponse
 	{
-		public Guid Id { get; set; }
-		public string BatchCode { get; set; } = string.Empty;
-		public Guid VariantId { get; set; }
-		public string Sku { get; set; } = string.Empty;
+		public Guid Id { get; init; }
+		public required string BatchCode { get; init; }
+		public Guid VariantId { get; init; }
+		public required string Sku { get; init; }
 	}
 }

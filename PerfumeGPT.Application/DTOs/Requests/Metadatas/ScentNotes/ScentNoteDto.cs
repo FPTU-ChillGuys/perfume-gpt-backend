@@ -2,9 +2,9 @@
 
 namespace PerfumeGPT.Application.DTOs.Requests.Metadatas.ScentNotes
 {
-	public class ScentNoteDto
+	public record ScentNoteDto
 	{
-		public int NoteId { get; set; }
-		public NoteType Type { get; set; }
+		public int NoteId { get; init; }
+		public NoteType Type { get; init; }
 	}
 }

@@ -1,11 +1,11 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.ProductAttributes.Attributes
+namespace PerfumeGPT.Application.DTOs.Responses.ProductAttributes.Attributes
 {
-	public class AttributeLookupItem
+	public record AttributeLookupItem
 	{
-		public int Id { get; set; }
-		public string InternalCode { get; set; } = string.Empty;
-		public string Name { get; set; } = string.Empty;
-		public string Description { get; set; } = string.Empty;
-		public bool IsVariantLevel { get; set; }
+		public int Id { get; init; }
+		public required string InternalCode { get; init; }
+		public required string Name { get; init; }
+		public string? Description { get; init; }
+		public bool IsVariantLevel { get; init; }
 	}
 }

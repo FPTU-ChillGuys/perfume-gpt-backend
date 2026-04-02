@@ -1,8 +1,8 @@
 namespace PerfumeGPT.Application.DTOs.Requests.Orders
 {
-	public class SwapDamagedStockRequest
+	public record SwapDamagedStockRequest
 	{
-		public Guid DamagedReservationId { get; set; }
-		public string? DamageNote { get; set; }
+		public Guid DamagedReservationId { get; init; }
+		public string? DamageNote { get; init; }
 	}
 }

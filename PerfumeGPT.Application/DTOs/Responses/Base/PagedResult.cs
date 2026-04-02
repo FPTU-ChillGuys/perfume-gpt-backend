@@ -1,14 +1,14 @@
-﻿namespace PerfumeGPT.Application.DTOs.Responses.Base
+namespace PerfumeGPT.Application.DTOs.Responses.Base
 {
-    public class PagedResult<T>
+    public record PagedResult<T>
     {
-        public IEnumerable<T> Items { get; set; }
+        public IEnumerable<T> Items { get; init; }
 
         // Pagination metadata
-        public int PageNumber { get; set; }
-        public int PageSize { get; set; }
-        public int TotalCount { get; set; }
-        public int TotalPages { get; set; }
+        public int PageNumber { get; init; }
+        public int PageSize { get; init; }
+        public int TotalCount { get; init; }
+        public int TotalPages { get; init; }
 
         // Optional: Flags for client-side convenience
         public bool HasPreviousPage => PageNumber > 1;

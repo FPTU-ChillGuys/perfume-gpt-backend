@@ -1,7 +1,7 @@
 ﻿namespace PerfumeGPT.Application.DTOs.Requests.Carts
 {
-	public class UpdateCartItemRequest
+	public record UpdateCartItemRequest
 	{
-		public int Quantity { get; set; }
+		public int Quantity { get; init; }
 	}
 }

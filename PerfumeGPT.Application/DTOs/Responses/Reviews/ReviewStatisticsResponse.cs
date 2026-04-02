@@ -1,14 +1,14 @@
 namespace PerfumeGPT.Application.DTOs.Responses.Reviews
 {
-	public class ReviewStatisticsResponse
+	public record ReviewStatisticsResponse
 	{
-		public Guid VariantId { get; set; }
-		public int TotalReviews { get; set; }
-		public double AverageRating { get; set; }
-		public int FiveStarCount { get; set; }
-		public int FourStarCount { get; set; }
-		public int ThreeStarCount { get; set; }
-		public int TwoStarCount { get; set; }
-		public int OneStarCount { get; set; }
+		public Guid VariantId { get; init; }
+		public int TotalReviews { get; init; }
+		public double AverageRating { get; init; }
+		public int FiveStarCount { get; init; }
+		public int FourStarCount { get; init; }
+		public int ThreeStarCount { get; init; }
+		public int TwoStarCount { get; init; }
+		public int OneStarCount { get; init; }
 	}
 }

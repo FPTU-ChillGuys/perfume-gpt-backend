@@ -41,64 +41,48 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime CreatedAt { get; set; }
 
 		// Factory methods
-		public static Voucher CreateRegular(
-			string code,
-			decimal discountValue,
-			DiscountType discountType,
-			VoucherType applyType,
-			int requiredPoints,
-			decimal minOrderValue,
-			DateTime expiryDate,
-			int totalQuantity,
-			bool isPublic)
+		public static Voucher CreateRegular(VoucherRegularCreationFactor details)
 		{
-			ValidateCore(code, discountValue, requiredPoints, minOrderValue, expiryDate, totalQuantity);
+			ValidateCore(details.Code, details.DiscountValue, details.RequiredPoints, details.MinOrderValue, details.ExpiryDate, details.TotalQuantity);
 
 			return new Voucher
 			{
-				Code = code.Trim().ToUpperInvariant(),
-				DiscountValue = discountValue,
-				DiscountType = discountType,
-				ApplyType = applyType,
-				RequiredPoints = requiredPoints,
-				MinOrderValue = minOrderValue,
-				ExpiryDate = expiryDate,
-				TotalQuantity = totalQuantity,
-				RemainingQuantity = totalQuantity,
-				IsPublic = isPublic
+				Code = details.Code.Trim().ToUpperInvariant(),
+				DiscountValue = details.DiscountValue,
+				DiscountType = details.DiscountType,
+				ApplyType = details.ApplyType,
+				RequiredPoints = details.RequiredPoints,
+				MinOrderValue = details.MinOrderValue,
+				ExpiryDate = details.ExpiryDate,
+				TotalQuantity = details.TotalQuantity,
+				RemainingQuantity = details.TotalQuantity,
+				IsPublic = details.IsPublic
 			};
 		}
 
-		public static Voucher CreateCampaign(
-			string code,
-			decimal discountValue,
-			DiscountType discountType,
-			VoucherType applyType,
-			PromotionType targetItemType,
-			Guid campaignId,
-			DateTime expiryDate)
+		public static Voucher CreateCampaign(VoucherCampaignConfigFactor details)
 		{
-			if (campaignId == Guid.Empty)
+			if (details.CampaignId == Guid.Empty)
 				throw DomainException.BadRequest("Campaign ID is required.");
 
-			if (string.IsNullOrWhiteSpace(code))
+			if (string.IsNullOrWhiteSpace(details.Code))
 				throw DomainException.BadRequest("Voucher code is required.");
 
-			if (discountValue <= 0)
+			if (details.DiscountValue <= 0)
 				throw DomainException.BadRequest("Discount value must be greater than 0.");
 
-			if (expiryDate <= DateTime.UtcNow)
+			if (details.ExpiryDate <= DateTime.UtcNow)
 				throw DomainException.BadRequest("Expiry date must be in the future.");
 
 			return new Voucher
 			{
-				Code = code.Trim().ToUpperInvariant(),
-				DiscountValue = discountValue,
-				DiscountType = discountType,
-				ApplyType = applyType,
-				TargetItemType = targetItemType,
-				CampaignId = campaignId,
-				ExpiryDate = expiryDate,
+				Code = details.Code.Trim().ToUpperInvariant(),
+				DiscountValue = details.DiscountValue,
+				DiscountType = details.DiscountType,
+				ApplyType = details.ApplyType,
+				TargetItemType = details.TargetItemType,
+				CampaignId = details.CampaignId,
+				ExpiryDate = details.ExpiryDate,
 				IsPublic = true,
 				RequiredPoints = 0,
 				MinOrderValue = 0,
@@ -107,66 +91,49 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		public void UpdateRegular(
-			string code,
-			decimal discountValue,
-			DiscountType discountType,
-			VoucherType applyType,
-			int requiredPoints,
-			decimal minOrderValue,
-			DateTime expiryDate,
-			int totalQuantity,
-			int remainingQuantity,
-			bool isPublic)
+		public void UpdateRegular(VoucherRegularUpdateFactor details)
 		{
-			ValidateCore(code, discountValue, requiredPoints, minOrderValue, expiryDate, totalQuantity);
+			ValidateCore(details.Code, details.DiscountValue, details.RequiredPoints, details.MinOrderValue, details.ExpiryDate, details.TotalQuantity);
 
-			if (remainingQuantity < 0)
+			if (details.RemainingQuantity < 0)
 				throw DomainException.BadRequest("Remaining quantity must be greater than or equal to 0.");
 
-			if (remainingQuantity > totalQuantity)
+			if (details.RemainingQuantity > details.TotalQuantity)
 				throw DomainException.BadRequest("Remaining quantity cannot exceed total quantity.");
 
-			Code = code.Trim().ToUpperInvariant();
-			DiscountValue = discountValue;
-			DiscountType = discountType;
-			ApplyType = applyType;
-			RequiredPoints = requiredPoints;
-			MinOrderValue = minOrderValue;
-			ExpiryDate = expiryDate;
-			TotalQuantity = totalQuantity;
-			RemainingQuantity = remainingQuantity;
-			IsPublic = isPublic;
+			Code = details.Code.Trim().ToUpperInvariant();
+			DiscountValue = details.DiscountValue;
+			DiscountType = details.DiscountType;
+			ApplyType = details.ApplyType;
+			RequiredPoints = details.RequiredPoints;
+			MinOrderValue = details.MinOrderValue;
+			ExpiryDate = details.ExpiryDate;
+			TotalQuantity = details.TotalQuantity;
+			RemainingQuantity = details.RemainingQuantity;
+			IsPublic = details.IsPublic;
 		}
 
-		public void UpdateCampaign(
-			string code,
-			decimal discountValue,
-			DiscountType discountType,
-			VoucherType applyType,
-			PromotionType targetItemType,
-			Guid campaignId,
-			DateTime expiryDate)
+		public void UpdateCampaign(VoucherCampaignConfigFactor details)
 		{
-			if (campaignId == Guid.Empty)
+			if (details.CampaignId == Guid.Empty)
 				throw DomainException.BadRequest("Campaign ID is required.");
 
-			if (string.IsNullOrWhiteSpace(code))
+			if (string.IsNullOrWhiteSpace(details.Code))
 				throw DomainException.BadRequest("Voucher code is required.");
 
-			if (discountValue <= 0)
+			if (details.DiscountValue <= 0)
 				throw DomainException.BadRequest("Discount value must be greater than 0.");
 
-			if (expiryDate <= DateTime.UtcNow)
+			if (details.ExpiryDate <= DateTime.UtcNow)
 				throw DomainException.BadRequest("Expiry date must be in the future.");
 
-			Code = code.Trim().ToUpperInvariant();
-			DiscountValue = discountValue;
-			DiscountType = discountType;
-			ApplyType = applyType;
-			TargetItemType = targetItemType;
-			CampaignId = campaignId;
-			ExpiryDate = expiryDate;
+			Code = details.Code.Trim().ToUpperInvariant();
+			DiscountValue = details.DiscountValue;
+			DiscountType = details.DiscountType;
+			ApplyType = details.ApplyType;
+			TargetItemType = details.TargetItemType;
+			CampaignId = details.CampaignId;
+			ExpiryDate = details.ExpiryDate;
 			IsPublic = true;
 			RequiredPoints = 0;
 			MinOrderValue = 0;
@@ -241,6 +208,45 @@ namespace PerfumeGPT.Domain.Entities
 
 			if (totalQuantity <= 0)
 				throw DomainException.BadRequest("Total quantity must be greater than 0.");
+		}
+
+		// Records
+		public sealed record VoucherRegularCreationFactor
+		{
+			public required string Code { get; init; }
+			public required decimal DiscountValue { get; init; }
+			public required DiscountType DiscountType { get; init; }
+			public required VoucherType ApplyType { get; init; }
+			public required int RequiredPoints { get; init; }
+			public required decimal MinOrderValue { get; init; }
+			public required DateTime ExpiryDate { get; init; }
+			public required int TotalQuantity { get; init; }
+			public required bool IsPublic { get; init; }
+		}
+
+		public sealed record VoucherRegularUpdateFactor
+		{
+			public required string Code { get; init; }
+			public required decimal DiscountValue { get; init; }
+			public required DiscountType DiscountType { get; init; }
+			public required VoucherType ApplyType { get; init; }
+			public required int RequiredPoints { get; init; }
+			public required decimal MinOrderValue { get; init; }
+			public required DateTime ExpiryDate { get; init; }
+			public required int TotalQuantity { get; init; }
+			public required int RemainingQuantity { get; init; }
+			public required bool IsPublic { get; init; }
+		}
+
+		public sealed record VoucherCampaignConfigFactor
+		{
+			public required string Code { get; init; }
+			public required decimal DiscountValue { get; init; }
+			public required DiscountType DiscountType { get; init; }
+			public required VoucherType ApplyType { get; init; }
+			public required PromotionType TargetItemType { get; init; }
+			public required Guid CampaignId { get; init; }
+			public required DateTime ExpiryDate { get; init; }
 		}
 	}
 }

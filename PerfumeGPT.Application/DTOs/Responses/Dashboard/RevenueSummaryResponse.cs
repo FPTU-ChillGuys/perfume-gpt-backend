@@ -1,13 +1,13 @@
 namespace PerfumeGPT.Application.DTOs.Responses.Dashboard
 {
-	public class RevenueSummaryResponse
+	public record RevenueSummaryResponse
 	{
-		public DateTime FromDate { get; set; }
-		public DateTime ToDate { get; set; }
-		public decimal GrossRevenue { get; set; }
-		public decimal RefundedAmount { get; set; }
-		public decimal NetRevenue { get; set; }
-		public int SuccessfulTransactionsCount { get; set; }
-		public int PaidOrdersCount { get; set; }
+		public DateTime FromDate { get; init; }
+		public DateTime ToDate { get; init; }
+		public decimal GrossRevenue { get; init; }
+		public decimal RefundedAmount { get; init; }
+		public decimal NetRevenue { get; init; }
+		public int SuccessfulTransactionsCount { get; init; }
+		public int PaidOrdersCount { get; init; }
 	}
 }
