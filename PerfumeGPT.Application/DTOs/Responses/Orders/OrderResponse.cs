@@ -38,6 +38,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 	public record PaymentInfoResponse
 	{
 		public Guid Id { get; init; }
+		public TransactionType TransactionType { get; init; }
 		public TransactionStatus Status { get; init; }
 		public PaymentMethod PaymentMethod { get; init; }
 		public string? FailureReason { get; init; }

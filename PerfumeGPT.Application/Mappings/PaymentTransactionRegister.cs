@@ -13,7 +13,8 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.TotalAmount, src => src.Amount)
 				.Map(dest => dest.PaymentMethod, src => src.Method)
 				.Map(dest => dest.FailureReason, src => src.FailureReason)
-				.Map(dest => dest.Status, src => src.TransactionStatus);
+				.Map(dest => dest.Status, src => src.TransactionStatus)
+				.Map(dest => dest.TransactionType, src => src.TransactionType);
 		}
 	}
 }

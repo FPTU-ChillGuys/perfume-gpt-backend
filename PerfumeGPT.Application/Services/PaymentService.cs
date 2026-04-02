@@ -57,8 +57,8 @@ namespace PerfumeGPT.Application.Services
 					   ?? throw AppException.NotFound("Order not found.");
 
 				   return request.IsSuccess
-					   ? await CompleteSuccessfulPayment(payment, order)
-					   : await HandleFailedPayment(payment, order, request.FailureReason);
+						  ? await CompleteSuccessfulPayment(payment, order)
+						  : await HandleFailedPayment(payment, order, request.FailureReason);
 			   });
 		}
 
@@ -83,7 +83,12 @@ namespace PerfumeGPT.Application.Services
 				   var payment = await _unitOfWork.Payments.GetByIdAsync(vnPayResponse.PaymentId)
 					   ?? throw AppException.NotFound("Payment record not found.");
 
-				   var payload = CreateVnPayReturnResponse(payment, vnPayResponse.IsSuccess);
+				   var payload = new VnPayReturnResponse
+				   {
+					   PaymentId = payment.Id,
+					   OrderId = payment.OrderId,
+					   IsSuccess = vnPayResponse.IsSuccess
+				   };
 
 				   if (!payment.IsPending())
 				   {
@@ -100,11 +105,11 @@ namespace PerfumeGPT.Application.Services
 
 				   if (vnPayResponse.IsSuccess)
 				   {
-					   await CompleteSuccessfulPayment(payment, order);
+					   await CompleteSuccessfulPayment(payment, order, vnPayResponse.TransactionNo);
 					   return payload;
 				   }
 
-				   await HandleFailedPayment(payment, order, vnPayResponse.Message);
+				   await HandleFailedPayment(payment, order, vnPayResponse.Message, vnPayResponse.TransactionNo);
 				   return payload;
 			   });
 		}
@@ -118,16 +123,6 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			return vnPayResponse;
-		}
-
-		private static VnPayReturnResponse CreateVnPayReturnResponse(PaymentTransaction payment, bool isSuccess)
-		{
-			return new VnPayReturnResponse
-			{
-				PaymentId = payment.Id,
-				OrderId = payment.OrderId,
-				IsSuccess = isSuccess
-			};
 		}
 
 		// private methods
@@ -167,6 +162,7 @@ namespace PerfumeGPT.Application.Services
 
 				   var existingPendingPayments = await _unitOfWork.Payments
 					   .GetAllAsync(p => p.OrderId == order.Id &&
+										 p.TransactionType == currentPayment.TransactionType &&
 										 p.TransactionStatus == TransactionStatus.Pending &&
 										 p.Id != paymentId);
 
@@ -199,9 +195,9 @@ namespace PerfumeGPT.Application.Services
 			   });
 		}
 
-		private async Task<BaseResponse<bool>> CompleteSuccessfulPayment(PaymentTransaction payment, Order order)
+		private async Task<BaseResponse<bool>> CompleteSuccessfulPayment(PaymentTransaction payment, Order order, string? transactionNo = null)
 		{
-			payment.MarkSuccess();
+			payment.MarkSuccess(transactionNo);
 			order.MarkPaid(DateTime.UtcNow);
 
 			if (order.UserVoucher != null)
@@ -241,9 +237,9 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<bool>.Ok(true, "Payment processed successfully.");
 		}
 
-		private async Task<BaseResponse<bool>> HandleFailedPayment(PaymentTransaction payment, Order order, string? reason = null)
+		private async Task<BaseResponse<bool>> HandleFailedPayment(PaymentTransaction payment, Order order, string? reason = null, string? transactionNo = null)
 		{
-			payment.MarkFailed(reason);
+			payment.MarkFailed(reason, transactionNo);
 			order.MarkUnpaid();
 
 			_unitOfWork.Payments.Update(payment);

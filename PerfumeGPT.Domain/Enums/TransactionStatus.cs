@@ -5,7 +5,6 @@
 		Pending = 1,
 		Success,
 		Failed,
-		Cancelled,
-		Refunded
+		Cancelled
 	}
 }

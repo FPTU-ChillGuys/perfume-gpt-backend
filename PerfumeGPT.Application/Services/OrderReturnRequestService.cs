@@ -290,7 +290,21 @@ namespace PerfumeGPT.Application.Services
 			});
 
 			if (!refundResponse.IsSuccess)
+			{
+				var failedRefund = PaymentTransaction.CreateRefund(
+					orderId: returnRequest.OrderId,
+					originalPaymentId: payment.Id,
+					method: PaymentMethod.VnPay,
+					refundAmount: returnRequest.ApprovedRefundAmount.Value
+				);
+
+				failedRefund.MarkFailed(refundResponse.Message, refundResponse.TransactionNo);
+
+				await _unitOfWork.Payments.AddAsync(failedRefund);
+				await _unitOfWork.SaveChangesAsync();
+
 				throw AppException.BadRequest($"Refund failed via VNPay: {refundResponse.Message}");
+			}
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
@@ -305,8 +319,18 @@ namespace PerfumeGPT.Application.Services
 				freshReturnRequest.MarkRefunded(refundResponse.TransactionNo);
 				order.MarkRefunded();
 
+				var successRefund = PaymentTransaction.CreateRefund(
+					orderId: order.Id,
+					originalPaymentId: payment.Id,
+					method: PaymentMethod.VnPay,
+					refundAmount: freshReturnRequest.ApprovedRefundAmount!.Value
+				);
+
+				successRefund.MarkSuccess(refundResponse.TransactionNo);
+
 				_unitOfWork.OrderReturnRequests.Update(freshReturnRequest);
 				_unitOfWork.Orders.Update(order);
+				await _unitOfWork.Payments.AddAsync(successRefund);
 
 				return BaseResponse<string>.Ok("Refund processed and return request completed.");
 			});

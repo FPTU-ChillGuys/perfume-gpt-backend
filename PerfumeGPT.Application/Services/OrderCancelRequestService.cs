@@ -9,6 +9,7 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
+using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Services
@@ -63,30 +64,70 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			VnPayRefundResponse? vnPayResponse = null;
+			PaymentTransaction? originalPayment = null;
+
 			var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
 				?? throw AppException.NotFound("Associated order not found.");
 
-			if (request.IsApproved && cancelRequest.IsRefundRequired)
+			if (request.IsApproved)
 			{
-				var payment = (await _unitOfWork.Payments.GetAllAsync(
-							p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Success && p.Method == PaymentMethod.VnPay))
-							.OrderByDescending(p => p.CreatedAt)
-							.FirstOrDefault()
-							?? throw AppException.NotFound("No successful VNPay payment found for this order.");
-
-				var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext not available.");
-				var refundReq = new VnPayRefundRequest
+				if (cancelRequest.IsRefundRequired)
 				{
-					OrderId = order.Id,
-					Amount = cancelRequest.RefundAmount ?? payment.Amount,
-					PaymentId = payment.Id,
-					TransactionType = "02",
-					CreateBy = processedBy.ToString(),
-					OrderInfo = $"Refund for Order {order.Id}",
-					TransactionDate = payment.CreatedAt.ToString("yyyyMMddHHmmss")
-				};
+					originalPayment = (await _unitOfWork.Payments.GetAllAsync(
+								p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Success && p.Method == PaymentMethod.VnPay))
+								.OrderByDescending(p => p.CreatedAt)
+								.FirstOrDefault()
+								?? throw AppException.NotFound("No successful VNPay payment found for this order.");
 
-				vnPayResponse = await _vnPayService.RefundAsync(context, refundReq);
+					var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext not available.");
+					var refundReq = new VnPayRefundRequest
+					{
+						OrderId = order.Id,
+						Amount = cancelRequest.RefundAmount ?? originalPayment.Amount,
+						PaymentId = originalPayment.Id,
+						TransactionType = "02",
+						CreateBy = processedBy.ToString(),
+						OrderInfo = $"Refund for Order {order.Id}",
+						TransactionDate = originalPayment.CreatedAt.ToString("yyyyMMddHHmmss")
+					};
+
+					vnPayResponse = await _vnPayService.RefundAsync(context, refundReq);
+
+					if (vnPayResponse == null || !vnPayResponse.IsSuccess)
+					{
+						var failedRefund = PaymentTransaction.CreateRefund(
+							orderId: order.Id,
+							originalPaymentId: originalPayment.Id,
+							method: PaymentMethod.VnPay,
+							refundAmount: cancelRequest.RefundAmount ?? 0
+						);
+
+						failedRefund.MarkFailed(
+							reason: vnPayResponse?.Message ?? "No response from VNPay",
+							gatewayTransactionNo: vnPayResponse?.TransactionNo
+						);
+
+						await _unitOfWork.Payments.AddAsync(failedRefund);
+						await _unitOfWork.SaveChangesAsync();
+
+						throw AppException.BadRequest($"Refund failed via VNPay. Cancellation aborted. Reason: {vnPayResponse?.Message}");
+					}
+				}
+
+				if (!string.IsNullOrWhiteSpace(order.ShippingInfo?.TrackingNumber))
+				{
+					try
+					{
+						await _ghnService.CancelOrderAsync(new CancelOrderRequest
+						{
+							TrackingNumbers = [order.ShippingInfo.TrackingNumber]
+						});
+					}
+					catch (Exception ex)
+					{
+						throw AppException.BadRequest($"Failed to cancel shipping order on GHN: {ex.Message}");
+					}
+				}
 			}
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
@@ -101,18 +142,21 @@ namespace PerfumeGPT.Application.Services
 
 				if (request.IsApproved)
 				{
-					if (!string.IsNullOrWhiteSpace(freshOrder.ShippingInfo?.TrackingNumber))
-					{
-						await _ghnService.CancelOrderAsync(new CancelOrderRequest
-						{
-							TrackingNumbers = [freshOrder.ShippingInfo.TrackingNumber]
-						});
-					}
-
-					if (freshCancelReq.IsRefundRequired)
+					if (freshCancelReq.IsRefundRequired && originalPayment != null)
 					{
 						freshCancelReq.MarkRefunded(vnPayResponse?.TransactionNo);
 						freshOrder.MarkRefunded();
+
+						var refundPayment = PaymentTransaction.CreateRefund(
+							orderId: freshOrder.Id,
+							originalPaymentId: originalPayment.Id,
+							method: PaymentMethod.VnPay,
+							refundAmount: cancelRequest.RefundAmount ?? 0
+						);
+
+						refundPayment.MarkSuccess(vnPayResponse!.TransactionNo);
+
+						await _unitOfWork.Payments.AddAsync(refundPayment);
 					}
 
 					freshOrder.SetStatus(OrderStatus.Cancelled);

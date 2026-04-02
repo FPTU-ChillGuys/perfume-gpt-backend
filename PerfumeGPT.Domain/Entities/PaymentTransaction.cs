@@ -12,10 +12,12 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid OrderId { get; private set; }
 		public PaymentMethod Method { get; private set; }
 		public TransactionStatus TransactionStatus { get; private set; }
+		public TransactionType TransactionType { get; private set; }
+		public string? GatewayTransactionNo { get; private set; }
 		public string? FailureReason { get; private set; }
 		public decimal Amount { get; private set; }
 
-		// Retry tracking
+		// Retry & Refund tracking
 		public Guid? OriginalPaymentId { get; private set; }
 		public int RetryAttempt { get; private set; } = 0;
 
@@ -43,6 +45,30 @@ namespace PerfumeGPT.Domain.Entities
 				OrderId = orderId,
 				Method = method,
 				Amount = amount,
+				TransactionType = TransactionType.Payment,
+				TransactionStatus = TransactionStatus.Pending,
+				RetryAttempt = 0
+			};
+		}
+
+		public static PaymentTransaction CreateRefund(Guid orderId, Guid originalPaymentId, PaymentMethod method, decimal refundAmount)
+		{
+			if (orderId == Guid.Empty)
+				throw DomainException.BadRequest("Order ID is required.");
+
+			if (originalPaymentId == Guid.Empty)
+				throw DomainException.BadRequest("Original Payment ID is required for a refund.");
+
+			if (refundAmount <= 0)
+				throw DomainException.BadRequest("Refund amount must be greater than 0.");
+
+			return new PaymentTransaction
+			{
+				OrderId = orderId,
+				OriginalPaymentId = originalPaymentId,
+				Method = method,
+				Amount = -refundAmount,
+				TransactionType = TransactionType.Refund,
 				TransactionStatus = TransactionStatus.Pending,
 				RetryAttempt = 0
 			};
@@ -57,18 +83,27 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("Payment is not pending.");
 		}
 
-		public void MarkSuccess()
+		public void MarkSuccess(string? gatewayTransactionNo = null)
 		{
 			EnsurePending();
 			TransactionStatus = TransactionStatus.Success;
 			FailureReason = null;
+			if (gatewayTransactionNo != null)
+			{
+				GatewayTransactionNo = gatewayTransactionNo;
+			}
 		}
 
-		public void MarkFailed(string? reason = null)
+		public void MarkFailed(string? reason = null, string? gatewayTransactionNo = null)
 		{
 			EnsurePending();
 			TransactionStatus = TransactionStatus.Failed;
-			FailureReason = reason;
+			FailureReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+
+			if (!string.IsNullOrWhiteSpace(gatewayTransactionNo))
+			{
+				GatewayTransactionNo = gatewayTransactionNo.Trim();
+			}
 		}
 
 		public void MarkCancelled(string reason)
@@ -90,6 +125,7 @@ namespace PerfumeGPT.Domain.Entities
 				OrderId = OrderId,
 				Method = method,
 				Amount = Amount,
+				TransactionType = TransactionType,
 				TransactionStatus = TransactionStatus.Pending,
 				OriginalPaymentId = OriginalPaymentId ?? Id,
 				RetryAttempt = RetryAttempt + 1

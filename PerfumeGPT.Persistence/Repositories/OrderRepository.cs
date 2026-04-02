@@ -78,27 +78,27 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
 				.AsSplitQuery()
-             .Select(o => new OrderListItem
-				{
-					Id = o.Id,
-					Code = o.Code,
-					CustomerId = o.CustomerId,
-					CustomerName = o.Customer != null ? o.Customer.FullName : null,
-					StaffId = o.StaffId,
-					StaffName = o.Staff != null ? o.Staff.FullName : null,
-					Type = o.Type,
-					Status = o.Status,
-					PaymentStatus = o.PaymentStatus,
-					TotalAmount = o.TotalAmount,
-					ItemCount = o.OrderDetails.Count,
-					IsReturnalbe = o.Status == OrderStatus.Delivered
+			 .Select(o => new OrderListItem
+			 {
+				 Id = o.Id,
+				 Code = o.Code,
+				 CustomerId = o.CustomerId,
+				 CustomerName = o.Customer != null ? o.Customer.FullName : null,
+				 StaffId = o.StaffId,
+				 StaffName = o.Staff != null ? o.Staff.FullName : null,
+				 Type = o.Type,
+				 Status = o.Status,
+				 PaymentStatus = o.PaymentStatus,
+				 TotalAmount = o.TotalAmount,
+				 ItemCount = o.OrderDetails.Count,
+				 IsReturnalbe = o.Status == OrderStatus.Delivered
 						&& o.ShippingInfo != null
 						&& o.ShippingInfo.ShippedDate.HasValue
 						&& o.ShippingInfo.ShippedDate.Value >= DateTime.UtcNow.AddDays(-7),
-					ShippingStatus = o.ShippingInfo != null ? o.ShippingInfo.Status : null,
-					CreatedAt = o.CreatedAt,
-					UpdatedAt = o.UpdatedAt
-				})
+				 ShippingStatus = o.ShippingInfo != null ? o.ShippingInfo.Status : null,
+				 CreatedAt = o.CreatedAt,
+				 UpdatedAt = o.UpdatedAt
+			 })
 				.ToListAsync();
 
 			return (orders, totalCount);
@@ -107,151 +107,153 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<OrderResponse?> GetOrderWithFullDetailsAsync(Guid orderId)
 		=> await _context.Orders
 			.Where(o => o.Id == orderId)
-         .Select(o => new OrderResponse
-			{
-				Id = o.Id,
-				Code = o.Code,
-				CustomerId = o.CustomerId,
-				CustomerName = o.Customer != null ? o.Customer.FullName : null,
-				CustomerEmail = o.Customer != null ? o.Customer.Email : null,
-				StaffId = o.StaffId,
-				StaffName = o.Staff != null ? o.Staff.FullName : null,
-				Type = o.Type,
-				Status = o.Status,
-				PaymentStatus = o.PaymentStatus,
-				TotalAmount = o.TotalAmount,
-				VoucherId = o.UserVoucherId,
-				VoucherCode = o.UserVoucher != null ? o.UserVoucher.Voucher.Code : null,
-				PaymentExpiresAt = o.PaymentExpiresAt,
-				PaidAt = o.PaidAt,
-				CreatedAt = o.CreatedAt,
-				UpdatedAt = o.UpdatedAt,
-				PaymentTransactions = o.PaymentTransactions
-					.Select(pt => new PaymentInfoResponse
-					{
-						Id = pt.Id,
-						Status = pt.TransactionStatus,
-						PaymentMethod = pt.Method,
-						FailureReason = pt.FailureReason,
-						TotalAmount = pt.Amount
-					}).ToList(),
-				ShippingInfo = o.ShippingInfo == null ? null : new ShippingInfoResponse
+		 .Select(o => new OrderResponse
+		 {
+			 Id = o.Id,
+			 Code = o.Code,
+			 CustomerId = o.CustomerId,
+			 CustomerName = o.Customer != null ? o.Customer.FullName : null,
+			 CustomerEmail = o.Customer != null ? o.Customer.Email : null,
+			 StaffId = o.StaffId,
+			 StaffName = o.Staff != null ? o.Staff.FullName : null,
+			 Type = o.Type,
+			 Status = o.Status,
+			 PaymentStatus = o.PaymentStatus,
+			 TotalAmount = o.TotalAmount,
+			 VoucherId = o.UserVoucherId,
+			 VoucherCode = o.UserVoucher != null ? o.UserVoucher.Voucher.Code : null,
+			 PaymentExpiresAt = o.PaymentExpiresAt,
+			 PaidAt = o.PaidAt,
+			 CreatedAt = o.CreatedAt,
+			 UpdatedAt = o.UpdatedAt,
+			 PaymentTransactions = o.PaymentTransactions
+				.Select(pt => new PaymentInfoResponse
 				{
-					Id = o.ShippingInfo.Id,
-					CarrierName = o.ShippingInfo.CarrierName,
-					TrackingNumber = o.ShippingInfo.TrackingNumber,
-					ShippingFee = o.ShippingInfo.ShippingFee,
-					Status = o.ShippingInfo.Status,
-					LeadTime = o.ShippingInfo.LeadTime,
-					ShippedDate = o.ShippingInfo.ShippedDate
-				},
-				RecipientInfo = o.RecipientInfo == null ? null : new RecipientInfoResponse
-				{
-					Id = o.RecipientInfo.Id,
-					RecipientName = o.RecipientInfo.RecipientName,
-					RecipientPhoneNumber = o.RecipientInfo.RecipientPhoneNumber,
-					DistrictName = o.RecipientInfo.DistrictName,
-					WardName = o.RecipientInfo.WardName,
-					ProvinceName = o.RecipientInfo.ProvinceName,
-					FullAddress = o.RecipientInfo.FullAddress
-				},
-				OrderDetails = o.OrderDetails.Select(od => new OrderDetailResponse
-				{
-					Id = od.Id,
-					VariantId = od.VariantId,
-					VariantName = od.ProductVariant != null ? $"{od.ProductVariant.Sku} - {od.ProductVariant.VolumeMl}ml" : string.Empty,
-					ImageUrl = od.ProductVariant != null && od.ProductVariant.Media.Count > 0
-						? (od.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
-							?? od.ProductVariant.Media.Select(m => m.Url).FirstOrDefault())
-						: null,
-					Quantity = od.Quantity,
-					UnitPrice = od.UnitPrice,
-					Total = od.UnitPrice * od.Quantity,
-					ReservedBatches = o.StockReservations
-						.Where(sr => sr.VariantId == od.VariantId)
-						.Select(sr => new ReservedBatchResponse
-						{
-							BatchId = sr.BatchId,
-							BatchCode = sr.Batch.BatchCode,
-							ReservedQuantity = sr.ReservedQuantity,
-							ExpiryDate = sr.Batch.ExpiryDate
-						}).ToList()
-				}).ToList()
-			})
+					Id = pt.Id,
+					TransactionType = pt.TransactionType,
+					Status = pt.TransactionStatus,
+					PaymentMethod = pt.Method,
+					FailureReason = pt.FailureReason,
+					TotalAmount = pt.Amount
+				}).ToList(),
+			 ShippingInfo = o.ShippingInfo == null ? null : new ShippingInfoResponse
+			 {
+				 Id = o.ShippingInfo.Id,
+				 CarrierName = o.ShippingInfo.CarrierName,
+				 TrackingNumber = o.ShippingInfo.TrackingNumber,
+				 ShippingFee = o.ShippingInfo.ShippingFee,
+				 Status = o.ShippingInfo.Status,
+				 LeadTime = o.ShippingInfo.LeadTime,
+				 ShippedDate = o.ShippingInfo.ShippedDate
+			 },
+			 RecipientInfo = o.RecipientInfo == null ? null : new RecipientInfoResponse
+			 {
+				 Id = o.RecipientInfo.Id,
+				 RecipientName = o.RecipientInfo.RecipientName,
+				 RecipientPhoneNumber = o.RecipientInfo.RecipientPhoneNumber,
+				 DistrictName = o.RecipientInfo.DistrictName,
+				 WardName = o.RecipientInfo.WardName,
+				 ProvinceName = o.RecipientInfo.ProvinceName,
+				 FullAddress = o.RecipientInfo.FullAddress
+			 },
+			 OrderDetails = o.OrderDetails.Select(od => new OrderDetailResponse
+			 {
+				 Id = od.Id,
+				 VariantId = od.VariantId,
+				 VariantName = od.ProductVariant != null ? $"{od.ProductVariant.Sku} - {od.ProductVariant.VolumeMl}ml" : string.Empty,
+				 ImageUrl = od.ProductVariant != null && od.ProductVariant.Media.Count > 0
+					 ? (od.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
+						 ?? od.ProductVariant.Media.Select(m => m.Url).FirstOrDefault())
+					 : null,
+				 Quantity = od.Quantity,
+				 UnitPrice = od.UnitPrice,
+				 Total = od.UnitPrice * od.Quantity,
+				 ReservedBatches = o.StockReservations
+					 .Where(sr => sr.VariantId == od.VariantId)
+					 .Select(sr => new ReservedBatchResponse
+					 {
+						 BatchId = sr.BatchId,
+						 BatchCode = sr.Batch.BatchCode,
+						 ReservedQuantity = sr.ReservedQuantity,
+						 ExpiryDate = sr.Batch.ExpiryDate
+					 }).ToList()
+			 }).ToList()
+		 })
 			.AsSplitQuery()
 			.FirstOrDefaultAsync();
 
 		public async Task<UserOrderResponse?> GetUserOrderWithFullDetailsAsync(Guid orderId, Guid userId)
 		=> await _context.Orders
 			.Where(o => o.Id == orderId && o.CustomerId == userId)
-         .Select(o => new UserOrderResponse
-			{
-				Id = o.Id,
-				Type = o.Type,
-				Status = o.Status,
-				IsReturnable = o.Status == OrderStatus.Delivered
+		 .Select(o => new UserOrderResponse
+		 {
+			 Id = o.Id,
+			 Type = o.Type,
+			 Status = o.Status,
+			 IsReturnable = o.Status == OrderStatus.Delivered
 					&& o.ShippingInfo != null
 					&& o.ShippingInfo.ShippedDate.HasValue
 					&& o.ShippingInfo.ShippedDate.Value >= DateTime.UtcNow.AddDays(-7),
-				PaymentStatus = o.PaymentStatus,
-				TotalAmount = o.TotalAmount,
-				VoucherCode = o.UserVoucher != null ? o.UserVoucher.Voucher.Code : null,
-				PaymentExpiresAt = o.PaymentExpiresAt,
-				PaidAt = o.PaidAt,
-				CreatedAt = o.CreatedAt,
-				UpdatedAt = o.UpdatedAt,
-				PaymentTransactions = o.PaymentTransactions
+			 PaymentStatus = o.PaymentStatus,
+			 TotalAmount = o.TotalAmount,
+			 VoucherCode = o.UserVoucher != null ? o.UserVoucher.Voucher.Code : null,
+			 PaymentExpiresAt = o.PaymentExpiresAt,
+			 PaidAt = o.PaidAt,
+			 CreatedAt = o.CreatedAt,
+			 UpdatedAt = o.UpdatedAt,
+			 PaymentTransactions = o.PaymentTransactions
 					.Select(pt => new PaymentInfoResponse
 					{
 						Id = pt.Id,
+						TransactionType = pt.TransactionType,
 						Status = pt.TransactionStatus,
 						PaymentMethod = pt.Method,
 						FailureReason = pt.FailureReason,
 						TotalAmount = pt.Amount
 					}).ToList(),
-				ShippingInfo = o.ShippingInfo == null ? null : new ShippingInfoResponse
-				{
-					Id = o.ShippingInfo.Id,
-					CarrierName = o.ShippingInfo.CarrierName,
-					TrackingNumber = o.ShippingInfo.TrackingNumber,
-					ShippingFee = o.ShippingInfo.ShippingFee,
-					Status = o.ShippingInfo.Status,
-					LeadTime = o.ShippingInfo.LeadTime,
-					ShippedDate = o.ShippingInfo.ShippedDate
-				},
-				RecipientInfo = o.RecipientInfo == null ? null : new RecipientInfoResponse
-				{
-					Id = o.RecipientInfo.Id,
-					RecipientName = o.RecipientInfo.RecipientName,
-					RecipientPhoneNumber = o.RecipientInfo.RecipientPhoneNumber,
-					DistrictName = o.RecipientInfo.DistrictName,
-					WardName = o.RecipientInfo.WardName,
-					ProvinceName = o.RecipientInfo.ProvinceName,
-					FullAddress = o.RecipientInfo.FullAddress
-				},
-				OrderDetails = o.OrderDetails.Select(od => new OrderDetailResponse
-				{
-					Id = od.Id,
-					VariantId = od.VariantId,
-					VariantName = od.ProductVariant != null ? $"{od.ProductVariant.Sku} - {od.ProductVariant.VolumeMl}ml" : string.Empty,
-					ImageUrl = od.ProductVariant != null && od.ProductVariant.Media.Count > 0
-						? (od.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
-							?? od.ProductVariant.Media.Select(m => m.Url).FirstOrDefault())
-						: null,
-					Quantity = od.Quantity,
-					UnitPrice = od.UnitPrice,
-					Total = od.UnitPrice * od.Quantity,
-					ReservedBatches = o.StockReservations
-						.Where(sr => sr.VariantId == od.VariantId)
-						.Select(sr => new ReservedBatchResponse
-						{
-							BatchId = sr.BatchId,
-							BatchCode = sr.Batch.BatchCode,
-							ReservedQuantity = sr.ReservedQuantity,
-							ExpiryDate = sr.Batch.ExpiryDate
-						}).ToList()
-				}).ToList()
-			})
+			 ShippingInfo = o.ShippingInfo == null ? null : new ShippingInfoResponse
+			 {
+				 Id = o.ShippingInfo.Id,
+				 CarrierName = o.ShippingInfo.CarrierName,
+				 TrackingNumber = o.ShippingInfo.TrackingNumber,
+				 ShippingFee = o.ShippingInfo.ShippingFee,
+				 Status = o.ShippingInfo.Status,
+				 LeadTime = o.ShippingInfo.LeadTime,
+				 ShippedDate = o.ShippingInfo.ShippedDate
+			 },
+			 RecipientInfo = o.RecipientInfo == null ? null : new RecipientInfoResponse
+			 {
+				 Id = o.RecipientInfo.Id,
+				 RecipientName = o.RecipientInfo.RecipientName,
+				 RecipientPhoneNumber = o.RecipientInfo.RecipientPhoneNumber,
+				 DistrictName = o.RecipientInfo.DistrictName,
+				 WardName = o.RecipientInfo.WardName,
+				 ProvinceName = o.RecipientInfo.ProvinceName,
+				 FullAddress = o.RecipientInfo.FullAddress
+			 },
+			 OrderDetails = o.OrderDetails.Select(od => new OrderDetailResponse
+			 {
+				 Id = od.Id,
+				 VariantId = od.VariantId,
+				 VariantName = od.ProductVariant != null ? $"{od.ProductVariant.Sku} - {od.ProductVariant.VolumeMl}ml" : string.Empty,
+				 ImageUrl = od.ProductVariant != null && od.ProductVariant.Media.Count > 0
+					 ? (od.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
+						 ?? od.ProductVariant.Media.Select(m => m.Url).FirstOrDefault())
+					 : null,
+				 Quantity = od.Quantity,
+				 UnitPrice = od.UnitPrice,
+				 Total = od.UnitPrice * od.Quantity,
+				 ReservedBatches = o.StockReservations
+					 .Where(sr => sr.VariantId == od.VariantId)
+					 .Select(sr => new ReservedBatchResponse
+					 {
+						 BatchId = sr.BatchId,
+						 BatchCode = sr.Batch.BatchCode,
+						 ReservedQuantity = sr.ReservedQuantity,
+						 ExpiryDate = sr.Batch.ExpiryDate
+					 }).ToList()
+			 }).ToList()
+		 })
 			.FirstOrDefaultAsync();
 
 		public async Task<ReceiptResponse?> GetInvoiceAsync(Guid orderId)

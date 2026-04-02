@@ -20,12 +20,14 @@ namespace PerfumeGPT.Persistence.Repositories
 			var successfulTransactionsQuery = _context.PaymentTransactions
 				.AsNoTracking()
 				.Where(pt => pt.TransactionStatus == TransactionStatus.Success
+					&& pt.TransactionType == TransactionType.Payment
 					&& pt.CreatedAt >= fromDateUtc
 					&& pt.CreatedAt <= toDateUtc);
 
 			var refundedTransactionsQuery = _context.PaymentTransactions
 				.AsNoTracking()
-				.Where(pt => pt.TransactionStatus == TransactionStatus.Refunded
+				.Where(pt => pt.TransactionType == TransactionType.Refund
+					&& pt.TransactionStatus == TransactionStatus.Success
 					&& pt.CreatedAt >= fromDateUtc
 					&& pt.CreatedAt <= toDateUtc);
 

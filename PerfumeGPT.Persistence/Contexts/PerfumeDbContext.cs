@@ -554,6 +554,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey<Receipt>(r => r.TransactionId)
 				.OnDelete(DeleteBehavior.Cascade);
 
+			// PaymentTransaction self-reference (1:M) Retry & Refund
+			builder.Entity<PaymentTransaction>()
+				.HasOne(pt => pt.OriginalPayment)
+				.WithMany(pt => pt.RetryPayments)
+				.HasForeignKey(pt => pt.OriginalPaymentId)
+				.OnDelete(DeleteBehavior.Restrict);
+
 			// Order -> ShippingInfo, RecipientInfo (1:1)
 			builder.Entity<Order>()
 				.HasOne(o => o.ShippingInfo)
@@ -844,6 +851,7 @@ namespace PerfumeGPT.Persistence.Contexts
 
 			// Configure enum to string conversions
 			builder.Entity<PaymentTransaction>().Property(pt => pt.TransactionStatus).HasConversion<string>();
+			builder.Entity<PaymentTransaction>().Property(pt => pt.TransactionType).HasConversion<string>();
 			builder.Entity<PaymentTransaction>().Property(pt => pt.Method).HasConversion<string>();
 			builder.Entity<ShippingInfo>().Property(s => s.Status).HasConversion<string>();
 			builder.Entity<Order>().Property(o => o.Status).HasConversion<string>();
