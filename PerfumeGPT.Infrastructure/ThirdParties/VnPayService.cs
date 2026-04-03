@@ -134,7 +134,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			var vnp_TxnRef = request.PaymentId.ToString();
 			var vnp_Amount = ((int)(request.Amount * 100)).ToString();
 			var vnp_OrderInfo = string.IsNullOrEmpty(request.OrderInfo) ? $"Hoan tien GD: {vnp_TxnRef}" : request.OrderInfo;
-			var vnp_TransactionNo = ""; // Empty string if not used
+			var vnp_TransactionNo = request.TransactionNo;
 			var vnp_TransactionDate = string.IsNullOrEmpty(request.TransactionDate) ? DateTime.UtcNow.ToString("yyyyMMddHHmmss") : request.TransactionDate;
 			var vnp_CreateBy = string.IsNullOrEmpty(request.CreateBy) ? "admin" : request.CreateBy;
 			var vnp_CreateDate = DateTime.UtcNow.ToString("yyyyMMddHHmmss");

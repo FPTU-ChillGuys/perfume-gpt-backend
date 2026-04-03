@@ -9,14 +9,14 @@ namespace PerfumeGPT.Application.DTOs.Requests.Orders
 		public decimal? ExpectedTotalPrice { get; init; }
 		public DeliveryMethod DeliveryMethod { get; init; }
 		public Guid? SavedAddressId { get; init; }
-		public RecipientInformation? Recipient { get; init; }
+		public ContactAddressInformation? Recipient { get; init; }
 		public PaymentInformation Payment { get; init; } = new();
 	}
 
-	public record RecipientInformation
+	public record ContactAddressInformation
 	{
-		public required string RecipientName { get; init; }
-		public required string RecipientPhoneNumber { get; init; }
+		public required string ContactName { get; init; }
+		public required string ContactPhoneNumber { get; init; }
 		public int DistrictId { get; init; }
 		public required string DistrictName { get; init; }
 		public required string WardCode { get; init; }

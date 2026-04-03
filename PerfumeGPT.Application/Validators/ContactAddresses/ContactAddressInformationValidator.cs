@@ -1,17 +1,17 @@
 ﻿using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 
-namespace PerfumeGPT.Application.Validators.RecipientInfos
+namespace PerfumeGPT.Application.Validators.ContactAddresses
 {
-	public class RecipientInformationValidator : AbstractValidator<RecipientInformation>
+	public class ContactAddressInformationValidator : AbstractValidator<ContactAddressInformation>
 	{
-		public RecipientInformationValidator()
+		public ContactAddressInformationValidator()
 		{
-			RuleFor(r => r.RecipientName)
+			RuleFor(r => r.ContactName)
 				.NotEmpty()
 				.WithMessage("FullName is required");
 
-			RuleFor(r => r.RecipientPhoneNumber)
+			RuleFor(r => r.ContactPhoneNumber)
 				.NotEmpty()
 				.WithMessage("Phone is required");
 

@@ -98,7 +98,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		public async Task<string> FulfillOrderAsync(Guid orderId, Guid staffId, FulfillOrderRequest request)
 		{
 			Order? orderForGhn = null;
-			RecipientInfo? recipientForGhn = null;
+			ContactAddress? contactAddressForGhn = null;
 
 			await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
@@ -108,25 +108,23 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				if (!batchValidation.Success)
 					throw AppException.BadRequest(batchValidation.Message ?? "Batch validation failed.");
 
-				var recipientInfo = await _unitOfWork.RecipientInfos.GetByOrderIdAsync(order.Id);
-
 				await _stockReservationService.CommitReservationAsync(order.Id);
 
 				order.SetStaff(staffId);
 				_unitOfWork.Orders.Update(order);
 
 				orderForGhn = order;
-				recipientForGhn = recipientInfo;
+				contactAddressForGhn = order.ContactAddress;
 
 				return true;
 			});
 
-			if (orderForGhn?.ShippingInfo != null && recipientForGhn != null)
+			if (orderForGhn?.ForwardShipping != null && contactAddressForGhn != null)
 			{
-				var ghnOrderResult = await _shippingHelper.CreateGHNShippingOrderAsync(orderForGhn, recipientForGhn);
+				var ghnOrderResult = await _shippingHelper.CreateGHNShippingOrderAsync(orderForGhn, contactAddressForGhn);
 				if (!ghnOrderResult)
 				{
-					return $"Order stock committed locally, BUT failed to create GHN order. Please check recipient info and retry GHN sync manually.";
+					return $"Order stock committed locally, BUT failed to create GHN order. Please check contact address and retry GHN sync manually.";
 				}
 
 				return "Order fulfilled successfully. Stock committed and GHN shipping order created.";

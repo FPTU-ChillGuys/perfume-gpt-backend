@@ -86,6 +86,7 @@ namespace PerfumeGPT.Application.Services
 						Amount = cancelRequest.RefundAmount ?? originalPayment.Amount,
 						PaymentId = originalPayment.Id,
 						TransactionType = "02",
+						TransactionNo = originalPayment.GatewayTransactionNo,
 						CreateBy = processedBy.ToString(),
 						OrderInfo = $"Refund for Order {order.Id}",
 						TransactionDate = originalPayment.CreatedAt.ToString("yyyyMMddHHmmss")
@@ -114,13 +115,13 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 
-				if (!string.IsNullOrWhiteSpace(order.ShippingInfo?.TrackingNumber))
+				if (!string.IsNullOrWhiteSpace(order.ForwardShipping?.TrackingNumber))
 				{
 					try
 					{
 						await _ghnService.CancelOrderAsync(new CancelOrderRequest
 						{
-							TrackingNumbers = [order.ShippingInfo.TrackingNumber]
+							TrackingNumbers = [order.ForwardShipping.TrackingNumber]
 						});
 					}
 					catch (Exception ex)
@@ -162,10 +163,10 @@ namespace PerfumeGPT.Application.Services
 					freshOrder.SetStatus(OrderStatus.Cancelled);
 					_unitOfWork.Orders.Update(freshOrder);
 
-					if (freshOrder.ShippingInfo != null)
+					if (freshOrder.ForwardShipping != null)
 					{
-						freshOrder.ShippingInfo.Cancel();
-						_unitOfWork.ShippingInfos.Update(freshOrder.ShippingInfo);
+						freshOrder.ForwardShipping.Cancel();
+						_unitOfWork.ShippingInfos.Update(freshOrder.ForwardShipping);
 					}
 
 					if (freshOrder.Type == OrderType.Online)

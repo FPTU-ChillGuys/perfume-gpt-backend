@@ -20,6 +20,8 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid? UserVoucherId { get; private set; }
 		public DateTime? PaymentExpiresAt { get; private set; }
 		public DateTime? PaidAt { get; private set; }
+		public Guid? ForwardShippingId { get; private set; }
+		public Guid ContactAddressId { get; private set; }
 
 		// Navigation properties
 		public virtual User? Customer { get; set; }
@@ -32,8 +34,8 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<OrderCancelRequest> CancelRequests { get; set; } = null!;
 		public virtual ICollection<OrderReturnRequest> ReturnRequests { get; set; } = null!;
 		public virtual UserVoucher? UserVoucher { get; set; }
-		public virtual ShippingInfo? ShippingInfo { get; set; }
-		public virtual RecipientInfo RecipientInfo { get; set; } = null!;
+		public virtual ShippingInfo? ForwardShipping { get; set; }
+		public virtual ContactAddress ContactAddress { get; set; } = null!;
 
 		// IHasTimestamps implementation
 		public DateTime? UpdatedAt { get; set; }
@@ -144,6 +146,24 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest($"Cannot change status from {Status} to {newStatus}.");
 
 			Status = newStatus;
+		}
+
+		public void AttachForwardShipping(Guid shippingInfoId)
+		{
+			if (shippingInfoId == Guid.Empty)
+				throw DomainException.BadRequest("Shipping Info ID is required.");
+
+			ForwardShippingId = shippingInfoId;
+		}
+
+		public void AttachContactAddress(Guid contactAddressId)
+		{
+			if (contactAddressId == Guid.Empty)
+				throw DomainException.BadRequest("Contact address ID is required.");
+
+			EnsureAddressUpdatable();
+
+			ContactAddressId = contactAddressId;
 		}
 
 		public void MarkPaid(DateTime paidAtUtc)

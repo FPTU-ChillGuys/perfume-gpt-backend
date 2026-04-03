@@ -260,11 +260,7 @@ namespace PerfumeGPT.Application.Services
 			var hasItems = await _unitOfWork.CartItems.HasItemsAsync(userId);
 			if (hasItems)
 			{
-				var result = await _unitOfWork.CartItems.ClearCartByUserIdAsync(userId, itemIds);
-				if (!result)
-				{
-					throw AppException.Internal("Could not clear cart");
-				}
+				await _unitOfWork.CartItems.ClearCartByUserIdAsync(userId, itemIds);
 			}
 			return BaseResponse<string>.Ok("Cart cleared successfully");
 		}

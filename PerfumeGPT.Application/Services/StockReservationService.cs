@@ -192,10 +192,28 @@ namespace PerfumeGPT.Application.Services
 					var ordersToUpdate = await _unitOfWork.Orders
 						 .GetAllAsync(o => affectedOrders.Contains(o.Id) && o.Status == OrderStatus.Pending);
 
+					var cancelledOrderIds = new List<Guid>();
+
 					foreach (var order in ordersToUpdate)
 					{
 						order.SetStatus(OrderStatus.Cancelled);
 						_unitOfWork.Orders.Update(order);
+						cancelledOrderIds.Add(order.Id);
+					}
+
+					if (cancelledOrderIds.Count != 0)
+					{
+						var pendingPayments = await _unitOfWork.Payments
+							.GetAllAsync(p =>
+								cancelledOrderIds.Contains(p.OrderId)
+								&& p.TransactionType == TransactionType.Payment
+								&& p.TransactionStatus == TransactionStatus.Pending);
+
+						foreach (var payment in pendingPayments)
+						{
+							payment.MarkCancelled("Order was cancelled due to expired stock reservation.");
+							_unitOfWork.Payments.Update(payment);
+						}
 					}
 				}
 

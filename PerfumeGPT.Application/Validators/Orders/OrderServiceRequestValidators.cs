@@ -1,7 +1,7 @@
 using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Requests.Orders.OrderDetails;
-using PerfumeGPT.Application.Validators.RecipientInfos;
+using PerfumeGPT.Application.Validators.ContactAddresses;
 
 namespace PerfumeGPT.Application.Validators.Orders
 {
@@ -16,7 +16,7 @@ namespace PerfumeGPT.Application.Validators.Orders
 			When(x => x.RecipientInformation != null, () =>
 			{
 				RuleFor(x => x.RecipientInformation!)
-					.SetValidator(new RecipientInformationValidator());
+					.SetValidator(new ContactAddressInformationValidator());
 			});
 		}
 	}
@@ -80,7 +80,7 @@ namespace PerfumeGPT.Application.Validators.Orders
 			When(x => x.Recipient != null, () =>
 			{
 				RuleFor(x => x.Recipient!)
-					.SetValidator(new RecipientInformationValidator());
+					.SetValidator(new ContactAddressInformationValidator());
 			});
 		}
 	}
@@ -112,7 +112,7 @@ namespace PerfumeGPT.Application.Validators.Orders
 			When(x => x.Recipient != null, () =>
 			{
 				RuleFor(x => x.Recipient!)
-					.SetValidator(new RecipientInformationValidator());
+					.SetValidator(new ContactAddressInformationValidator());
 			});
 		}
 	}

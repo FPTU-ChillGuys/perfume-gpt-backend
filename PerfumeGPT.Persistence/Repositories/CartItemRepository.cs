@@ -19,22 +19,22 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(ci => itemIds.Contains(ci.Id) && ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0);
 
 			return await query
-               .Select(ci => new GetCartItemResponse
-				{
-					CartItemId = ci.Id,
-					VariantId = ci.VariantId,
-					VariantName = $"{ci.ProductVariant.Product.Name} - {ci.ProductVariant.Concentration.Name} - {ci.ProductVariant.VolumeMl}ml",
-					ImageUrl = ci.ProductVariant.Media != null
+			   .Select(ci => new GetCartItemResponse
+			   {
+				   CartItemId = ci.Id,
+				   VariantId = ci.VariantId,
+				   VariantName = $"{ci.ProductVariant.Product.Name} - {ci.ProductVariant.Concentration.Name} - {ci.ProductVariant.VolumeMl}ml",
+				   ImageUrl = ci.ProductVariant.Media != null
 						? (ci.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
 							?? ci.ProductVariant.Media.Select(m => m.Url).FirstOrDefault()
 							?? string.Empty)
 						: string.Empty,
-					VolumeMl = ci.ProductVariant.VolumeMl,
-					Type = ci.ProductVariant.Type,
-					VariantPrice = ci.ProductVariant.BasePrice,
-					Quantity = ci.Quantity,
-					IsAvailable = ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0
-				})
+				   VolumeMl = ci.ProductVariant.VolumeMl,
+				   Type = ci.ProductVariant.Type,
+				   VariantPrice = ci.ProductVariant.BasePrice,
+				   Quantity = ci.Quantity,
+				   IsAvailable = ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0
+			   })
 				.ToListAsync();
 		}
 
@@ -46,11 +46,11 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(ci => itemIds.Contains(ci.Id) && ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0);
 
 			return await query
-               .Select(ci => new CartCheckoutItemDto
-				{
-					VariantId = ci.VariantId,
-					Quantity = ci.Quantity
-				})
+			   .Select(ci => new CartCheckoutItemDto
+			   {
+				   VariantId = ci.VariantId,
+				   Quantity = ci.Quantity
+			   })
 				.ToListAsync();
 		}
 
@@ -62,13 +62,13 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(ci => itemIds.Contains(ci.Id) && ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0);
 
 			return await query
-              .Select(ci => new CartItemPriceDto
-				{
-					VariantId = ci.VariantId,
-					VariantName = $"{ci.ProductVariant.Product.Name} - {ci.ProductVariant.Concentration.Name} - {ci.ProductVariant.VolumeMl}ml",
-					VariantPrice = ci.ProductVariant.BasePrice,
-					Quantity = ci.Quantity
-				})
+			  .Select(ci => new CartItemPriceDto
+			  {
+				  VariantId = ci.VariantId,
+				  VariantName = $"{ci.ProductVariant.Product.Name} - {ci.ProductVariant.Concentration.Name} - {ci.ProductVariant.VolumeMl}ml",
+				  VariantPrice = ci.ProductVariant.BasePrice,
+				  Quantity = ci.Quantity
+			  })
 				.ToListAsync();
 		}
 
@@ -78,7 +78,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AnyAsync(ci => ci.UserId == userId);
 		}
 
-		public async Task<bool> ClearCartByUserIdAsync(Guid userId, List<Guid>? itemIds)
+		public async Task ClearCartByUserIdAsync(Guid userId, List<Guid>? itemIds)
 		{
 			var query = _context.CartItems.Where(ci => ci.UserId == userId);
 
@@ -86,7 +86,6 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(ci => itemIds.Contains(ci.Id) && ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0);
 
 			_context.CartItems.RemoveRange(query);
-			return await _context.SaveChangesAsync() > 0;
 		}
 	}
 }

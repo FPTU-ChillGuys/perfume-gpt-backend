@@ -159,7 +159,13 @@ namespace PerfumeGPT.Persistence.Repositories
 		=> await _context.OrderReturnRequests
 			.Include(r => r.Order)
 			.Include(r => r.ProofImages)
+			.Include(r => r.ReturnShipping)
 			.AsSplitQuery()
+			.FirstOrDefaultAsync(r => r.Id == requestId);
+
+		public async Task<OrderReturnRequest?> GetByIdWithPickAddressAsync(Guid requestId)
+			=> await _context.OrderReturnRequests
+			.Include(r => r.PickupAddress)
 			.FirstOrDefaultAsync(r => r.Id == requestId);
 
 		public async Task<OrderReturnRequest?> GetByIdWithOrderDetailsAsync(Guid requestId)

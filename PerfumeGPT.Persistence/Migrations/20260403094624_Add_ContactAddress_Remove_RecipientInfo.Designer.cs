@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260403094624_Add_ContactAddress_Remove_RecipientInfo")]
+    partial class Add_ContactAddress_Remove_RecipientInfo
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -498,6 +501,9 @@ namespace PerfumeGPT.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ProvinceName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -511,6 +517,9 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique();
 
                     b.ToTable("ContactAddresses");
                 });
@@ -949,8 +958,6 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ContactAddressId");
 
                     b.HasIndex("CustomerId");
 
@@ -1537,8 +1544,8 @@ namespace PerfumeGPT.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("EstimatedDeliveryDate")
-                        .HasColumnType("datetime2");
+                    b.Property<int?>("LeadTime")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("ShippedDate")
                         .HasColumnType("datetime2");
@@ -1554,9 +1561,8 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<string>("TrackingNumber")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -2187,6 +2193,17 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PerfumeGPT.Domain.Entities.ContactAddress", b =>
+                {
+                    b.HasOne("PerfumeGPT.Domain.Entities.Order", "Order")
+                        .WithOne("ContactAddress")
+                        .HasForeignKey("PerfumeGPT.Domain.Entities.ContactAddress", "OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.CustomerAttributePreference", b =>
                 {
                     b.HasOne("PerfumeGPT.Domain.Entities.AttributeValue", "AttributeValue")
@@ -2404,12 +2421,6 @@ namespace PerfumeGPT.Persistence.Migrations
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Order", b =>
                 {
-                    b.HasOne("PerfumeGPT.Domain.Entities.ContactAddress", "ContactAddress")
-                        .WithMany()
-                        .HasForeignKey("ContactAddressId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("PerfumeGPT.Domain.Entities.User", "Customer")
                         .WithMany("Orders")
                         .HasForeignKey("CustomerId")
@@ -2424,8 +2435,6 @@ namespace PerfumeGPT.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("StaffId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("ContactAddress");
 
                     b.Navigation("Customer");
 
@@ -2920,6 +2929,9 @@ namespace PerfumeGPT.Persistence.Migrations
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Order", b =>
                 {
                     b.Navigation("CancelRequests");
+
+                    b.Navigation("ContactAddress")
+                        .IsRequired();
 
                     b.Navigation("LoyaltyTransactions");
 

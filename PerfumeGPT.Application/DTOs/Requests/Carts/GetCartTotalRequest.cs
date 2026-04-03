@@ -7,6 +7,6 @@ namespace PerfumeGPT.Application.DTOs.Requests.Carts
 		public string? VoucherCode { get; init; }
 		public List<Guid> ItemIds { get; init; } = [];
 		public Guid? SavedAddressId { get; init; }
-		public RecipientInformation? Recipient { get; init; }
+		public ContactAddressInformation? Recipient { get; init; }
 	}
 }

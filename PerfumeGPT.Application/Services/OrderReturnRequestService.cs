@@ -6,6 +6,7 @@ using PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
@@ -20,17 +21,23 @@ namespace PerfumeGPT.Application.Services
 		private readonly IVnPayService _vnPayService; // Refund via VNPay API not working, just assume it works and return success response, then update refund status in database
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly MediaBulkActionHelper _mediaBulkActionHelper;
+		private readonly IOrderShippingHelper _orderShippingHelper;
+		private readonly IContactAddressService _recipientService;
 
 		public OrderReturnRequestService(
 			IUnitOfWork unitOfWork,
 			IVnPayService vnPayService,
 			IHttpContextAccessor httpContextAccessor,
-			MediaBulkActionHelper mediaBulkActionHelper)
+			MediaBulkActionHelper mediaBulkActionHelper,
+			IOrderShippingHelper orderShippingHelper,
+			IContactAddressService recipientService)
 		{
 			_unitOfWork = unitOfWork;
 			_vnPayService = vnPayService;
 			_httpContextAccessor = httpContextAccessor;
 			_mediaBulkActionHelper = mediaBulkActionHelper;
+			_orderShippingHelper = orderShippingHelper;
+			_recipientService = recipientService;
 		}
 
 		public async Task<BaseResponse<PagedResult<OrderReturnRequestResponse>>> GetPagedReturnRequestsAsync(GetPagedReturnRequestsRequest request)
@@ -84,17 +91,20 @@ namespace PerfumeGPT.Application.Services
 					throw AppException.Conflict("This order already has an active return request.");
 
 				var maxRequestableRefund = order.OrderDetails.Sum(x => x.UnitPrice * x.Quantity);
-
-				if (request.RequestedRefundAmount > maxRequestableRefund)
-					throw AppException.BadRequest("Requested refund amount exceeds maximum refundable amount for the order.");
+				var amount = order.TotalAmount;
 
 				var requestPayload = new OrderReturnRequest.ReturnRequestPayload
 				{
 					Reason = request.Reason,
-					RequestedRefundAmount = request.RequestedRefundAmount,
+					RequestedRefundAmount = amount,
 					CustomerNote = request.CustomerNote
 				};
+
+				var pickupAddress = await _recipientService.CreateContactAddressAsync(request.Recipient, request.SavedAddressId, customerId);
+
 				var returnRequest = OrderReturnRequest.Create(request.OrderId, customerId, requestPayload);
+				returnRequest.AttachPickupAddress(pickupAddress.Id);
+				returnRequest.PickupAddress = pickupAddress;
 
 				await _unitOfWork.OrderReturnRequests.AddAsync(returnRequest);
 
@@ -124,17 +134,55 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> ProcessInitialRequestAsync(Guid processedById, Guid requestId, ProcessInitialReturnDto request)
 		{
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			OrderReturnRequest? requestForGhn = null;
+			ContactAddress? contactInfoForGhn = null;
+
+			await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdAsync(requestId)
-					?? throw AppException.NotFound("Return request not found.");
+				var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithPickAddressAsync(requestId)
+					 ?? throw AppException.NotFound("Return request not found.");
 
 				returnRequest.Process(processedById, request.IsApproved, request.StaffNote);
+
+				if (request.IsApproved)
+				{
+					var contactInfo = returnRequest.PickupAddress ?? throw AppException.Internal("Pickup address not found for approved return request.");
+
+					var returnShipping = ShippingInfo.Create(CarrierName.GHN, ShippingType.Return);
+					await _unitOfWork.ShippingInfos.AddAsync(returnShipping);
+
+					returnRequest.AttachReturnShipping(returnShipping.Id);
+					returnRequest.ReturnShipping = returnShipping;
+
+					requestForGhn = returnRequest;
+					contactInfoForGhn = contactInfo;
+				}
+
 				_unitOfWork.OrderReturnRequests.Update(returnRequest);
 
-				return BaseResponse<string>.Ok(
-					request.IsApproved ? "Return request approved for shipment." : "Return request rejected.");
+				return true;
 			});
+
+			if (request.IsApproved && requestForGhn != null && contactInfoForGhn != null)
+			{
+				try
+				{
+					var shippingCreated = await _orderShippingHelper.CreateGHNShippingOrderAsync(requestForGhn, contactInfoForGhn);
+
+					if (!shippingCreated)
+					{
+						return BaseResponse<string>.Ok(
+							"Return request approved locally, BUT failed to create GHN return shipping order. Please check GHN configuration and retry manually.");
+					}
+				}
+				catch (Exception ex)
+				{
+					return BaseResponse<string>.Ok(
+						$"Return request approved locally, BUT GHN API threw an error: {ex.Message}. Please retry sync manually.");
+				}
+				return BaseResponse<string>.Ok("Return request approved for shipment and GHN order created successfully.");
+			}
+			return BaseResponse<string>.Ok("Return request rejected.");
 		}
 
 		public async Task<BaseResponse<string>> StartInspectionAsync(Guid inspectedById, Guid requestId, StartInspectionDto request)
@@ -143,6 +191,18 @@ namespace PerfumeGPT.Application.Services
 			{
 				var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithOrderAsync(requestId)
 					?? throw AppException.NotFound("Return request not found.");
+
+				bool isArrived = true;
+
+				if (returnRequest.ReturnShipping != null)
+				{
+					isArrived = returnRequest.ReturnShipping.Status == ShippingStatus.Delivered;
+				}
+
+				if (!isArrived)
+				{
+					throw AppException.BadRequest("Return package has not been delivered to the store yet. Cannot start inspection.");
+				}
 
 				returnRequest.StartInspection(inspectedById, request.InspectionNote);
 				_unitOfWork.OrderReturnRequests.Update(returnRequest);
@@ -283,6 +343,7 @@ namespace PerfumeGPT.Application.Services
 				OrderId = returnRequest.OrderId,
 				Amount = returnRequest.ApprovedRefundAmount.Value,
 				PaymentId = payment.Id,
+				TransactionNo = payment.GatewayTransactionNo,
 				TransactionType = returnRequest.ApprovedRefundAmount.Value == payment.Amount ? "02" : "03",
 				CreateBy = financeAdminId.ToString(),
 				OrderInfo = $"Refund for return request {requestId}",

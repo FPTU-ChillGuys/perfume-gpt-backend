@@ -10,9 +10,6 @@ namespace PerfumeGPT.Application.Validators.OrderReturnRequests
 			RuleFor(x => x.OrderId)
 				.NotEmpty().WithMessage("Order ID is required.");
 
-			RuleFor(x => x.RequestedRefundAmount)
-				.GreaterThan(0).WithMessage("Requested refund amount must be greater than 0.");
-
 			RuleFor(x => x.CustomerNote)
 				.MaximumLength(1000).WithMessage("Customer note must not exceed 1000 characters.")
 				.When(x => !string.IsNullOrWhiteSpace(x.CustomerNote));
@@ -20,6 +17,10 @@ namespace PerfumeGPT.Application.Validators.OrderReturnRequests
 			RuleFor(x => x.TemporaryMediaIds)
 				.Must(mediaIds => mediaIds == null || mediaIds.Distinct().Count() == mediaIds.Count)
 				.WithMessage("Temporary media IDs must be unique.");
+
+			RuleFor(x => x)
+				.Must(x => x.SavedAddressId.HasValue || x.Recipient != null)
+				.WithMessage("Either saved address ID or recipient information is required for pickup address.");
 		}
 	}
 

@@ -13,6 +13,9 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid CustomerId { get; private set; }
 		public Guid? ProcessedById { get; private set; }
 		public Guid? InspectedById { get; private set; }
+		public Guid? ReturnShippingId { get; private set; }
+		public Guid PickupAddressId { get; private set; }
+
 		public ReturnOrderReason Reason { get; private set; }
 		public string? CustomerNote { get; private set; }
 		public string? StaffNote { get; private set; }
@@ -30,6 +33,8 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual User Customer { get; set; } = null!;
 		public virtual User? ProcessedBy { get; set; }
 		public virtual User? InspectedBy { get; set; }
+		public virtual ShippingInfo? ReturnShipping { get; set; }
+		public virtual ContactAddress PickupAddress { get; set; } = null!;
 		public virtual ICollection<Media> ProofImages { get; set; } = [];
 
 		// IHasTimestamps implementation
@@ -73,6 +78,25 @@ namespace PerfumeGPT.Domain.Entities
 			ProcessedById = processedById;
 			StaffNote = string.IsNullOrWhiteSpace(staffNote) ? null : staffNote.Trim();
 			Status = isApproved ? ReturnRequestStatus.ApprovedForReturn : ReturnRequestStatus.Rejected;
+		}
+
+		public void AttachReturnShipping(Guid shippingInfoId)
+		{
+			if (Status != ReturnRequestStatus.ApprovedForReturn)
+				throw DomainException.BadRequest("Can only attach return shipping to an approved return request.");
+
+			if (shippingInfoId == Guid.Empty)
+				throw DomainException.BadRequest("Shipping Info ID is required.");
+
+			ReturnShippingId = shippingInfoId;
+		}
+
+		public void AttachPickupAddress(Guid pickupAddressId)
+		{
+			if (pickupAddressId == Guid.Empty)
+				throw DomainException.BadRequest("Pickup address ID is required.");
+
+			PickupAddressId = pickupAddressId;
 		}
 
 		public void StartInspection(Guid inspectedById, string? inspectionNote = null)

@@ -179,7 +179,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<Voucher> Vouchers { get; set; }
 		public DbSet<UserVoucher> UserVouchers { get; set; }
 		public DbSet<ShippingInfo> ShippingInfos { get; set; }
-		public DbSet<RecipientInfo> RecipientInfos { get; set; }
+		public DbSet<ContactAddress> ContactAddresses { get; set; }
 		public DbSet<Media> Media { get; set; }
 		public DbSet<StockAdjustment> StockAdjustments { get; set; }
 		public DbSet<StockAdjustmentDetail> StockAdjustmentDetails { get; set; }
@@ -561,18 +561,12 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(pt => pt.OriginalPaymentId)
 				.OnDelete(DeleteBehavior.Restrict);
 
-			// Order -> ShippingInfo, RecipientInfo (1:1)
+			// Order -> ShippingInfo, ContactAddress (1:1)
 			builder.Entity<Order>()
-				.HasOne(o => o.ShippingInfo)
-				.WithOne(s => s.Order)
-				.HasForeignKey<ShippingInfo>(s => s.OrderId)
-				.OnDelete(DeleteBehavior.Cascade);
-
-			builder.Entity<Order>()
-				.HasOne(o => o.RecipientInfo)
-				.WithOne(r => r.Order)
-				.HasForeignKey<RecipientInfo>(r => r.OrderId)
-				.OnDelete(DeleteBehavior.Cascade);
+				.HasOne(o => o.ForwardShipping)
+				.WithMany()
+				.HasForeignKey(o => o.ForwardShippingId)
+				.OnDelete(DeleteBehavior.Restrict);
 
 			// Voucher -> UserVoucher (1:M)
 			builder.Entity<Voucher>()
@@ -747,6 +741,12 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(orr => orr.OrderId)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			builder.Entity<OrderReturnRequest>()
+				.HasOne(orr => orr.ReturnShipping)
+				.WithMany()
+				.HasForeignKey(orr => orr.ReturnShippingId)
+				.OnDelete(DeleteBehavior.Restrict);
+
 			// OrderReturnRequest -> Customer (M:1)
 			builder.Entity<OrderReturnRequest>()
 			 .HasOne(orr => orr.Customer)
@@ -882,6 +882,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.Reason).HasConversion<string>();
 			builder.Entity<OrderReturnRequest>().Property(orr => orr.Status).HasConversion<string>();
 			builder.Entity<OrderReturnRequest>().Property(orr => orr.Reason).HasConversion<string>();
+			builder.Entity<ShippingInfo>().Property(s => s.Type).HasConversion<string>();
 
 			// Configure NVarchar for string properties to avoid default max length issues
 			builder.Entity<Product>().Property(p => p.Description)

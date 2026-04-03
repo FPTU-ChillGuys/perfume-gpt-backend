@@ -9,8 +9,9 @@ namespace PerfumeGPT.Application.DTOs.Responses.Shippings
 		public CarrierName CarrierName { get; init; }
 		public string? TrackingNumber { get; init; }
 		public decimal ShippingFee { get; init; }
+		public ShippingType Type { get; init; }
 		public ShippingStatus Status { get; init; }
-		public int? LeadTime { get; init; }
+		public DateTime? LeadTime { get; init; }
 		public DateTime? ShippedDate { get; init; }
 	}
 }

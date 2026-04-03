@@ -326,6 +326,34 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			return result?.Data;
 		}
 
+		public async Task<GhnStoreDto?> GetPrimaryStoreAsync()
+		{
+			var token = _configuration["GHN:Token"];
+			var getStoreUrl = _configuration["GHN:GetStoreUrl"];
+
+			var requestBody = new
+			{
+				offset = 0,
+				limit = 1,
+				client_phone = ""
+			};
+
+			using var requestMessage = new HttpRequestMessage(HttpMethod.Post, getStoreUrl);
+			requestMessage.Headers.Add("Token", token);
+			requestMessage.Content = JsonContent.Create(requestBody);
+
+			var response = await _httpClient.SendAsync(requestMessage);
+			if (!response.IsSuccessStatusCode)
+			{
+				var errorContent = await response.Content.ReadAsStringAsync();
+				Console.WriteLine($"Error Detail: {errorContent}");
+				return null;
+			}
+
+			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<GetStoresResponse>>();
+			return result?.Data?.Shops?.FirstOrDefault();
+		}
+
 		public async Task<BaseResponse<string>> GetOrderInfoUrlAsync(GetOrderInfoRequest request)
 		{
 			if (request.TrackingNumbers.Count == 0)

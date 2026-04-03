@@ -7,6 +7,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Shippings
 	{
 		public ShippingStatus? Status { get; init; }
 		public CarrierName? CarrierName { get; init; }
+		public ShippingType? ShippingType { get; init; }
 		public Guid? OrderId { get; init; }
 		public string? TrackingNumber { get; init; }
 	}

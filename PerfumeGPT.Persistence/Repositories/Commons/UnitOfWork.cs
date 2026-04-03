@@ -34,7 +34,7 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 		public IImportDetailRepository ImportDetails => GetRepo(ctx => new ImportDetailRepository(ctx));
 		public ISupplierRepository Suppliers => GetRepo(ctx => new SupplierRepository(ctx));
 		public IBatchRepository Batches => GetRepo(ctx => new BatchRepository(ctx));
-		public IRecipientInfoRepository RecipientInfos => GetRepo(ctx => new RecipientInfoRepository(ctx));
+		public IContactAddressRepository ContactAddresses => GetRepo(ctx => new ContactAddressRepository(ctx));
 		public IShippingInfoRepository ShippingInfos => GetRepo(ctx => new ShippingInfoRepository(ctx));
 		public IReceiptRepository Receipts => GetRepo(ctx => new ReceiptRepository(ctx));
 		public IVoucherRepository Vouchers => GetRepo(ctx => new VoucherRepository(ctx));

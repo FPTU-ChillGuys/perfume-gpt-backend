@@ -25,7 +25,7 @@
 		IImportDetailRepository ImportDetails { get; }
 		ISupplierRepository Suppliers { get; }
 		IBatchRepository Batches { get; }
-		IRecipientInfoRepository RecipientInfos { get; }
+		IContactAddressRepository ContactAddresses { get; }
 		IShippingInfoRepository ShippingInfos { get; }
 		IReceiptRepository Receipts { get; }
 		IVoucherRepository Vouchers { get; }

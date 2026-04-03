@@ -52,7 +52,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public string? TrackingNumber { get; init; }
 		public decimal ShippingFee { get; init; }
 		public ShippingStatus Status { get; init; }
-		public int? LeadTime { get; init; }
+		public DateTime? EstimatedDeliveryDate { get; init; }
 		public DateTime? ShippedDate { get; init; }
 	}
 

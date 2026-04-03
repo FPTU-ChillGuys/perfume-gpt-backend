@@ -3,8 +3,7 @@ using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Interfaces.Repositories
 {
-	public interface IRecipientInfoRepository : IGenericRepository<RecipientInfo>
+	public interface IContactAddressRepository : IGenericRepository<ContactAddress>
 	{
-		Task<RecipientInfo?> GetByOrderIdAsync(Guid orderId);
 	}
 }

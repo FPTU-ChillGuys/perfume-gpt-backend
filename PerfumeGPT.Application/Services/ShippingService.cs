@@ -74,6 +74,9 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<bool> SyncSingleShippingInfoAsync(ShippingInfo shippingInfo)
 		{
+			Guid? orderId = null;
+			Guid? returnRequestId = null;
+
 			try
 			{
 				var latestDetail = await _ghnService.GetOrderDetailAsync(shippingInfo.TrackingNumber!);
@@ -86,7 +89,22 @@ namespace PerfumeGPT.Application.Services
 
 				if (TryApplyShippingStatus(shippingInfo, targetStatus.Value))
 				{
-					await _orderWorkflowService.ProcessShippingStatusChangeAsync(shippingInfo.Order, targetStatus.Value);
+					var order = await _unitOfWork.Orders.FirstOrDefaultAsync(o => o.ForwardShippingId == shippingInfo.Id);
+					if (order != null)
+					{
+						orderId = order.Id;
+						await _orderWorkflowService.ProcessShippingStatusChangeAsync(order, targetStatus.Value);
+					}
+					else
+					{
+						var returnRequest = await _unitOfWork.OrderReturnRequests.FirstOrDefaultAsync(r => r.ReturnShippingId == shippingInfo.Id);
+						if (returnRequest == null)
+						{
+							return false;
+						}
+
+						returnRequestId = returnRequest.Id;
+					}
 
 					_unitOfWork.ShippingInfos.Update(shippingInfo);
 
@@ -95,7 +113,7 @@ namespace PerfumeGPT.Application.Services
 			}
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, "Failed to sync GHN tracking {TrackingNumber} for Order {OrderId}", shippingInfo.TrackingNumber, shippingInfo.OrderId);
+				_logger.LogError(ex, "Failed to sync GHN tracking {TrackingNumber} for Order {OrderId} or ReturnRequest {ReturnRequestId}", shippingInfo.TrackingNumber, orderId, returnRequestId);
 			}
 
 			return false;

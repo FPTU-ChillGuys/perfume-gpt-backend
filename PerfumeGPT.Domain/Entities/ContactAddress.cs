@@ -3,13 +3,12 @@ using PerfumeGPT.Domain.Exceptions;
 
 namespace PerfumeGPT.Domain.Entities
 {
-	public class RecipientInfo : BaseEntity<Guid>
+	public class ContactAddress : BaseEntity<Guid>
 	{
-		protected RecipientInfo() { }
+		protected ContactAddress() { }
 
-		public Guid OrderId { get; private set; }
-		public string RecipientName { get; private set; } = null!;
-		public string RecipientPhoneNumber { get; private set; } = null!;
+		public string ContactName { get; private set; } = null!;
+		public string ContactPhoneNumber { get; private set; } = null!;
 
 		// Calculate Shipping fee based on Address
 		public int DistrictId { get; private set; }
@@ -18,35 +17,24 @@ namespace PerfumeGPT.Domain.Entities
 		public string WardName { get; private set; } = null!;
 		public string ProvinceName { get; private set; } = null!;
 
-		// Recipient Full Address
+		// Full Address
 		public string FullAddress { get; private set; } = null!;
 
-		// Navigation property
-		public virtual Order Order { get; set; } = null!;
-
 		// Factory methods
-		public static RecipientInfo Create(Guid orderId, RecipientPayload payload)
+		public static ContactAddress Create(ContactAddressPayload payload)
 		{
-			if (orderId == Guid.Empty)
-				throw DomainException.BadRequest("Order ID is required.");
-
-			var recipientInfo = new RecipientInfo
-			{
-				OrderId = orderId
-			};
-
-			recipientInfo.UpdateRecipient(payload);
-
-			return recipientInfo;
+			var address = new ContactAddress();
+			address.UpdateAddress(payload);
+			return address;
 		}
 
-		public void UpdateRecipient(RecipientPayload payload)
+		public void UpdateAddress(ContactAddressPayload payload)
 		{
-			if (string.IsNullOrWhiteSpace(payload.RecipientName))
-				throw DomainException.BadRequest("Recipient name is required.");
+			if (string.IsNullOrWhiteSpace(payload.ContactName))
+				throw DomainException.BadRequest("Contact name is required.");
 
-			if (string.IsNullOrWhiteSpace(payload.RecipientPhoneNumber))
-				throw DomainException.BadRequest("Recipient phone number is required.");
+			if (string.IsNullOrWhiteSpace(payload.ContactPhoneNumber))
+				throw DomainException.BadRequest("Contact phone number is required.");
 
 			if (payload.DistrictId <= 0)
 				throw DomainException.BadRequest("District ID must be greater than 0.");
@@ -66,8 +54,8 @@ namespace PerfumeGPT.Domain.Entities
 			if (string.IsNullOrWhiteSpace(payload.FullAddress))
 				throw DomainException.BadRequest("Full address is required.");
 
-			RecipientName = payload.RecipientName.Trim();
-			RecipientPhoneNumber = payload.RecipientPhoneNumber.Trim();
+			ContactName = payload.ContactName.Trim();
+			ContactPhoneNumber = payload.ContactPhoneNumber.Trim();
 			DistrictId = payload.DistrictId;
 			DistrictName = payload.DistrictName.Trim();
 			WardCode = payload.WardCode.Trim();
@@ -76,11 +64,16 @@ namespace PerfumeGPT.Domain.Entities
 			FullAddress = payload.FullAddress.Trim();
 		}
 
-		// Records
-		public record RecipientPayload
+		public void UpdateContactAddress(ContactAddressPayload payload)
 		{
-			public required string RecipientName { get; init; }
-			public required string RecipientPhoneNumber { get; init; }
+			UpdateAddress(payload);
+		}
+
+		// Records
+		public record ContactAddressPayload
+		{
+			public required string ContactName { get; init; }
+			public required string ContactPhoneNumber { get; init; }
 			public required int DistrictId { get; init; }
 			public required string DistrictName { get; init; }
 			public required string WardCode { get; init; }

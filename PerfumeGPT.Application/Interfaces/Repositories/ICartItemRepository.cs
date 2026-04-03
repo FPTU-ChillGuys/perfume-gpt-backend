@@ -10,6 +10,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<List<CartCheckoutItemDto>> GetCartCheckoutItemsAsync(Guid userId, List<Guid>? itemIds = null);
 		Task<List<CartItemPriceDto>> GetCartItemPricesAsync(Guid userId, List<Guid>? cartItemIds);
 		Task<bool> HasItemsAsync(Guid userId);
-		Task<bool> ClearCartByUserIdAsync(Guid userId, List<Guid>? itemIds);
+		Task ClearCartByUserIdAsync(Guid userId, List<Guid>? itemIds);
 	}
 }

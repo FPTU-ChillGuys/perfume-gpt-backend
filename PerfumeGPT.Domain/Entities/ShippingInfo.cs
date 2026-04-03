@@ -8,36 +8,27 @@ namespace PerfumeGPT.Domain.Entities
 	{
 		protected ShippingInfo() { }
 
-		public Guid OrderId { get; private set; }
 		public CarrierName CarrierName { get; private set; }
 		public string? TrackingNumber { get; private set; }
+		public ShippingType Type { get; private set; }
 		public decimal ShippingFee { get; private set; }
 		public ShippingStatus Status { get; private set; }
-		public int? LeadTime { get; private set; }
+		public DateTime? EstimatedDeliveryDate { get; private set; }
 		public DateTime? ShippedDate { get; private set; }
 
-		// Navigation properties
-		public virtual Order Order { get; set; } = null!;
-
 		// Factory method
-		public static ShippingInfo Create(Guid orderId, CarrierName carrierName, decimal shippingFee = 0, int? leadTime = null)
+		public static ShippingInfo Create(CarrierName carrierName, ShippingType type, decimal shippingFee = 0, DateTime? EstimatedDeliveryDate = null)
 		{
-			if (orderId == Guid.Empty)
-				throw DomainException.BadRequest("Order ID is required.");
-
 			if (shippingFee < 0)
 				throw DomainException.BadRequest("Shipping fee cannot be negative.");
 
-			if (leadTime.HasValue && leadTime <= 0)
-				throw DomainException.BadRequest("Lead time must be positive.");
-
 			return new ShippingInfo
 			{
-				OrderId = orderId,
+				Type = type,
 				CarrierName = carrierName,
 				ShippingFee = shippingFee,
 				Status = ShippingStatus.Pending,
-				LeadTime = leadTime
+				EstimatedDeliveryDate = EstimatedDeliveryDate
 			};
 		}
 

@@ -31,7 +31,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IOrderFulfillmentService _fulfillmentService;
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
-		private readonly IRecipientService _recipientService;
+		private readonly IContactAddressService _recipientService;
 		private readonly INotificationService _notificationService;
 		private readonly IAuditScope _auditScope;
 		private readonly IGHNService _ghnService;
@@ -48,7 +48,7 @@ namespace PerfumeGPT.Application.Services
 			IStockReservationService stockReservationService,
 			IOrderFulfillmentService fulfillmentService,
 			INotificationService notificationService,
-			IRecipientService recipientService,
+			IContactAddressService recipientService,
 			IAuditScope auditScope,
 		   ILoyaltyTransactionService loyaltyTransactionService,
 			IGHNService ghnService)
@@ -82,16 +82,14 @@ namespace PerfumeGPT.Application.Services
 				   order.EnsureAddressUpdatable();
 
 				   // 2. Get existing recipient or create new one
-				   var existingRecipient = await _unitOfWork.RecipientInfos.GetByOrderIdAsync(order.Id);
-
-				   if (existingRecipient == null)
+				   if (order.ContactAddress == null)
 				   {
-					   await _shippingHelper.SetupShippingInfoAsync(order.Id, request.RecipientInformation, userId, request.SavedAddressId);
+					   await _shippingHelper.SetupShippingInfoAsync(order, request.RecipientInformation, userId, request.SavedAddressId);
 					   return BaseResponse<string>.Ok("Order address updated successfully.");
 				   }
 
 				   // 3. Update existing recipient
-				   var updateResult = await _recipientService.UpdateRecipientInfoAsync(existingRecipient, request.RecipientInformation, request.SavedAddressId, userId);
+				   var updateResult = await _recipientService.UpdateContactAddressAsync(order.ContactAddress, request.RecipientInformation, request.SavedAddressId, userId);
 
 				   return BaseResponse<string>.Ok("Order address updated successfully.");
 			   });
@@ -243,7 +241,7 @@ namespace PerfumeGPT.Application.Services
 				// Setup shipping if not pickup
 				if (request.DeliveryMethod == DeliveryMethod.Delivery)
 				{
-					await _shippingHelper.SetupShippingInfoAsync(order.Id, request.Recipient, userId, request.SavedAddressId);
+					await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, userId, request.SavedAddressId);
 				}
 
 				// Reserve stock
@@ -315,7 +313,7 @@ namespace PerfumeGPT.Application.Services
 				{
 					var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(
 						null,
-						request.Recipient?.RecipientPhoneNumber,
+						request.Recipient?.ContactPhoneNumber,
 						voucher.Id,
 						order.Id);
 
@@ -337,7 +335,7 @@ namespace PerfumeGPT.Application.Services
 				// Setup shipping if needed
 				if (!request.IsPickupInStore && request.Recipient != null)
 				{
-					await _shippingHelper.SetupShippingInfoAsync(order.Id, request.Recipient, customerId: null, savedAddressId: null);
+					await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, customerId: null, savedAddressId: null);
 
 					totalAmount = order.TotalAmount;
 				}
@@ -587,7 +585,9 @@ namespace PerfumeGPT.Application.Services
 
 		private void UpdateShippingStatus(Order order, OrderStatus newStatus)
 		{
-			if (order.ShippingInfo == null) return;
+			if (order.ForwardShipping == null) return;
+
+			var shippingInfo = order.ForwardShipping;
 
 			var mappedStatus = _shippingHelper.MapOrderStatusToShippingStatus(newStatus);
 			if (!mappedStatus.HasValue)
@@ -598,31 +598,31 @@ namespace PerfumeGPT.Application.Services
 				case ShippingStatus.Pending:
 					break;
 				case ShippingStatus.Delivering:
-					order.ShippingInfo.MarkAsDelivering();
+					shippingInfo.MarkAsDelivering();
 					break;
 				case ShippingStatus.Delivered:
-					if (order.ShippingInfo.Status != ShippingStatus.Delivering)
-						order.ShippingInfo.MarkAsDelivering();
-					order.ShippingInfo.MarkAsDelivered();
+					if (shippingInfo.Status != ShippingStatus.Delivering)
+						shippingInfo.MarkAsDelivering();
+					shippingInfo.MarkAsDelivered();
 					break;
 				case ShippingStatus.Cancelled:
-					order.ShippingInfo.Cancel();
+					shippingInfo.Cancel();
 					break;
 				case ShippingStatus.Returned:
-					order.ShippingInfo.MarkAsReturned();
+					shippingInfo.MarkAsReturned();
 					break;
 			}
 
-			_unitOfWork.ShippingInfos.Update(order.ShippingInfo);
+			_unitOfWork.ShippingInfos.Update(shippingInfo);
 		}
 
 		private async Task HandleOrderCancellationAsync(Order order)
 		{
-			if (!string.IsNullOrWhiteSpace(order.ShippingInfo?.TrackingNumber))
+			if (!string.IsNullOrWhiteSpace(order.ForwardShipping?.TrackingNumber))
 			{
 				await _ghnService.CancelOrderAsync(new CancelOrderRequest
 				{
-					TrackingNumbers = [order.ShippingInfo.TrackingNumber]
+					TrackingNumbers = [order.ForwardShipping.TrackingNumber]
 				});
 			}
 

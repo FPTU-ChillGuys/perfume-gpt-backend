@@ -92,10 +92,10 @@ namespace PerfumeGPT.Persistence.Repositories
 				 TotalAmount = o.TotalAmount,
 				 ItemCount = o.OrderDetails.Count,
 				 IsReturnalbe = o.Status == OrderStatus.Delivered
-						&& o.ShippingInfo != null
-						&& o.ShippingInfo.ShippedDate.HasValue
-						&& o.ShippingInfo.ShippedDate.Value >= DateTime.UtcNow.AddDays(-7),
-				 ShippingStatus = o.ShippingInfo != null ? o.ShippingInfo.Status : null,
+					   && o.ForwardShipping != null
+						&& o.ForwardShipping.ShippedDate.HasValue
+						&& o.ForwardShipping.ShippedDate.Value >= DateTime.UtcNow.AddDays(-7),
+				 ShippingStatus = o.ForwardShipping != null ? o.ForwardShipping.Status : null,
 				 CreatedAt = o.CreatedAt,
 				 UpdatedAt = o.UpdatedAt
 			 })
@@ -136,25 +136,25 @@ namespace PerfumeGPT.Persistence.Repositories
 					FailureReason = pt.FailureReason,
 					TotalAmount = pt.Amount
 				}).ToList(),
-			 ShippingInfo = o.ShippingInfo == null ? null : new ShippingInfoResponse
+			 ShippingInfo = o.ForwardShipping == null ? null : new ShippingInfoResponse
 			 {
-				 Id = o.ShippingInfo.Id,
-				 CarrierName = o.ShippingInfo.CarrierName,
-				 TrackingNumber = o.ShippingInfo.TrackingNumber,
-				 ShippingFee = o.ShippingInfo.ShippingFee,
-				 Status = o.ShippingInfo.Status,
-				 LeadTime = o.ShippingInfo.LeadTime,
-				 ShippedDate = o.ShippingInfo.ShippedDate
+				 Id = o.ForwardShipping.Id,
+				 CarrierName = o.ForwardShipping.CarrierName,
+				 TrackingNumber = o.ForwardShipping.TrackingNumber,
+				 ShippingFee = o.ForwardShipping.ShippingFee,
+				 Status = o.ForwardShipping.Status,
+				 EstimatedDeliveryDate = o.ForwardShipping.EstimatedDeliveryDate,
+				 ShippedDate = o.ForwardShipping.ShippedDate
 			 },
-			 RecipientInfo = o.RecipientInfo == null ? null : new RecipientInfoResponse
+			 RecipientInfo = o.ContactAddress == null ? null : new RecipientInfoResponse
 			 {
-				 Id = o.RecipientInfo.Id,
-				 RecipientName = o.RecipientInfo.RecipientName,
-				 RecipientPhoneNumber = o.RecipientInfo.RecipientPhoneNumber,
-				 DistrictName = o.RecipientInfo.DistrictName,
-				 WardName = o.RecipientInfo.WardName,
-				 ProvinceName = o.RecipientInfo.ProvinceName,
-				 FullAddress = o.RecipientInfo.FullAddress
+				 Id = o.ContactAddress.Id,
+				 RecipientName = o.ContactAddress.ContactName,
+				 RecipientPhoneNumber = o.ContactAddress.ContactPhoneNumber,
+				 DistrictName = o.ContactAddress.DistrictName,
+				 WardName = o.ContactAddress.WardName,
+				 ProvinceName = o.ContactAddress.ProvinceName,
+				 FullAddress = o.ContactAddress.FullAddress
 			 },
 			 OrderDetails = o.OrderDetails.Select(od => new OrderDetailResponse
 			 {
@@ -191,9 +191,9 @@ namespace PerfumeGPT.Persistence.Repositories
 			 Type = o.Type,
 			 Status = o.Status,
 			 IsReturnable = o.Status == OrderStatus.Delivered
-					&& o.ShippingInfo != null
-					&& o.ShippingInfo.ShippedDate.HasValue
-					&& o.ShippingInfo.ShippedDate.Value >= DateTime.UtcNow.AddDays(-7),
+				   && o.ForwardShipping != null
+					&& o.ForwardShipping.ShippedDate.HasValue
+					&& o.ForwardShipping.ShippedDate.Value >= DateTime.UtcNow.AddDays(-7),
 			 PaymentStatus = o.PaymentStatus,
 			 TotalAmount = o.TotalAmount,
 			 VoucherCode = o.UserVoucher != null ? o.UserVoucher.Voucher.Code : null,
@@ -211,25 +211,25 @@ namespace PerfumeGPT.Persistence.Repositories
 						FailureReason = pt.FailureReason,
 						TotalAmount = pt.Amount
 					}).ToList(),
-			 ShippingInfo = o.ShippingInfo == null ? null : new ShippingInfoResponse
+			 ShippingInfo = o.ForwardShipping == null ? null : new ShippingInfoResponse
 			 {
-				 Id = o.ShippingInfo.Id,
-				 CarrierName = o.ShippingInfo.CarrierName,
-				 TrackingNumber = o.ShippingInfo.TrackingNumber,
-				 ShippingFee = o.ShippingInfo.ShippingFee,
-				 Status = o.ShippingInfo.Status,
-				 LeadTime = o.ShippingInfo.LeadTime,
-				 ShippedDate = o.ShippingInfo.ShippedDate
+				 Id = o.ForwardShipping.Id,
+				 CarrierName = o.ForwardShipping.CarrierName,
+				 TrackingNumber = o.ForwardShipping.TrackingNumber,
+				 ShippingFee = o.ForwardShipping.ShippingFee,
+				 Status = o.ForwardShipping.Status,
+				 EstimatedDeliveryDate = o.ForwardShipping.EstimatedDeliveryDate,
+				 ShippedDate = o.ForwardShipping.ShippedDate
 			 },
-			 RecipientInfo = o.RecipientInfo == null ? null : new RecipientInfoResponse
+			 RecipientInfo = o.ContactAddress == null ? null : new RecipientInfoResponse
 			 {
-				 Id = o.RecipientInfo.Id,
-				 RecipientName = o.RecipientInfo.RecipientName,
-				 RecipientPhoneNumber = o.RecipientInfo.RecipientPhoneNumber,
-				 DistrictName = o.RecipientInfo.DistrictName,
-				 WardName = o.RecipientInfo.WardName,
-				 ProvinceName = o.RecipientInfo.ProvinceName,
-				 FullAddress = o.RecipientInfo.FullAddress
+				 Id = o.ContactAddress.Id,
+				 RecipientName = o.ContactAddress.ContactName,
+				 RecipientPhoneNumber = o.ContactAddress.ContactPhoneNumber,
+				 DistrictName = o.ContactAddress.DistrictName,
+				 WardName = o.ContactAddress.WardName,
+				 ProvinceName = o.ContactAddress.ProvinceName,
+				 FullAddress = o.ContactAddress.FullAddress
 			 },
 			 OrderDetails = o.OrderDetails.Select(od => new OrderDetailResponse
 			 {
@@ -287,13 +287,15 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<Order?> GetOrderForStatusUpdateAsync(Guid orderId)
 			=> await _context.Orders
-				.Include(o => o.ShippingInfo)
+				.Include(o => o.ForwardShipping)
+				.Include(o => o.ContactAddress)
 				.Include(o => o.OrderDetails)
+				.AsSplitQuery()
 				.FirstOrDefaultAsync(o => o.Id == orderId);
 
 		public async Task<Order?> GetOrderForCancellationAsync(Guid orderId)
 			=> await _context.Orders
-				.Include(o => o.ShippingInfo)
+			   .Include(o => o.ForwardShipping)
 				.FirstOrDefaultAsync(o => o.Id == orderId);
 
 		public async Task<Order?> GetOrderForMarkUsedVoucherAsync(Guid orderId)
@@ -308,7 +310,8 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<Order?> GetOrderForFulfillmentAsync(Guid orderId)
 		=> await _context.Orders
-			.Include(o => o.ShippingInfo)
+			.Include(o => o.ContactAddress)
+			.Include(o => o.ForwardShipping)
 			.Include(o => o.OrderDetails)
 			.FirstOrDefaultAsync(o => o.Id == orderId);
 
@@ -320,6 +323,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<Order?> GetOrderWithDetailsForShippingAsync(Guid orderId)
 		=> await _context.Orders
 			.Include(o => o.OrderDetails)
+			.ThenInclude(od => od.ProductVariant)
 			.FirstOrDefaultAsync(o => o.Id == orderId);
 
 		private Task<Order?> GetOrderForInvoiceAsync(Guid orderId, Guid? userId = null)
@@ -327,8 +331,8 @@ namespace PerfumeGPT.Persistence.Repositories
 			var query = _context.Orders
 				.Include(o => o.Customer)
 				.Include(o => o.Staff)
-				.Include(o => o.RecipientInfo)
-				.Include(o => o.ShippingInfo)
+			  .Include(o => o.ContactAddress)
+			   .Include(o => o.ForwardShipping)
 				.Include(o => o.PaymentTransactions)
 				.Include(o => o.OrderDetails)
 					.ThenInclude(od => od.ProductVariant)
@@ -349,7 +353,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		private static ReceiptResponse MapToReceiptResponse(Order order)
 		{
 			var subtotal = order.OrderDetails.Sum(od => od.UnitPrice * od.Quantity);
-			var shippingFee = order.ShippingInfo?.ShippingFee ?? 0m;
+			var shippingFee = order.ForwardShipping?.ShippingFee ?? 0m;
 			var discount = subtotal + shippingFee > order.TotalAmount
 				? subtotal + shippingFee - order.TotalAmount
 				: 0m;
@@ -363,16 +367,16 @@ namespace PerfumeGPT.Persistence.Repositories
 				.OrderByDescending(pt => pt.UpdatedAt ?? pt.CreatedAt)
 				.FirstOrDefault();
 
-			var recipientAddress = order.RecipientInfo == null
-				? "N/A"
-				: string.Join(", ",
-					new[]
-					{
-						order.RecipientInfo.FullAddress,
-						order.RecipientInfo.WardName,
-						order.RecipientInfo.DistrictName,
-						order.RecipientInfo.ProvinceName
-					}.Where(x => !string.IsNullOrWhiteSpace(x)));
+			var recipientAddress = order.ContactAddress == null
+				  ? "N/A"
+				  : string.Join(", ",
+					  new[]
+					  {
+						order.ContactAddress.FullAddress,
+						order.ContactAddress.WardName,
+						order.ContactAddress.DistrictName,
+						order.ContactAddress.ProvinceName
+					  }.Where(x => !string.IsNullOrWhiteSpace(x)));
 
 			return new ReceiptResponse
 			{
@@ -381,8 +385,8 @@ namespace PerfumeGPT.Persistence.Repositories
 				OrderDate = order.PaidAt ?? order.CreatedAt,
 				OrderStatus = order.Status.ToString(),
 				StaffName = order.Staff?.FullName ?? "N/A",
-				CustomerName = order.Customer?.FullName ?? order.RecipientInfo?.RecipientName ?? "Guest customer",
-				RecipientPhone = order.RecipientInfo?.RecipientPhoneNumber ?? order.Customer?.PhoneNumber ?? "N/A",
+				CustomerName = order.Customer?.FullName ?? order.ContactAddress?.ContactName ?? "Guest customer",
+				RecipientPhone = order.ContactAddress?.ContactPhoneNumber ?? order.Customer?.PhoneNumber ?? "N/A",
 				RecipientAddress = recipientAddress,
 				Items = order.OrderDetails.Select(MapToReceiptItem).ToList(),
 				Subtotal = subtotal,
