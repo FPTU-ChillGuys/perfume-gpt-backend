@@ -27,8 +27,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<CartCheckoutResponse> GetCartForCheckoutAsync(Guid userId, GetCartTotalRequest request)
 		{
-			var items = await _unitOfWork.CartItems.GetCartCheckoutItemsAsync(userId, request.ItemIds);
-			if (items == null || items.Count == 0)
+			var (items, subtotal, finalAmount, _) = await BuildCheckoutPricingAsync(userId, request);
+			if (items.Count == 0)
 			{
 				return new CartCheckoutResponse
 				{
@@ -38,17 +38,11 @@ namespace PerfumeGPT.Application.Services
 				};
 			}
 
-			var totalResult = await GetCartTotalAsync(userId, request);
-			if (!totalResult.Success || totalResult.Payload == null)
-			{
-				throw AppException.BadRequest(totalResult.Message);
-			}
-
 			var response = new CartCheckoutResponse
 			{
 				Items = items,
-				ShippingFee = totalResult.Payload.ShippingFee,
-				TotalPrice = totalResult.Payload.TotalPrice
+				ShippingFee = 0m,
+				TotalPrice = finalAmount
 			};
 
 			return response;
@@ -71,9 +65,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, GetCartTotalRequest request)
 		{
-			// 1. Get cart items
-			var items = await _unitOfWork.CartItems.GetCartItemPricesAsync(userId, request.ItemIds);
-			if (items == null || items.Count == 0)
+			var (items, subtotal, finalAmount, voucherMessage) = await BuildCheckoutPricingAsync(userId, request);
+			if (items.Count == 0)
 			{
 				return BaseResponse<GetCartTotalResponse>.Ok(
 					new GetCartTotalResponse
@@ -83,41 +76,6 @@ namespace PerfumeGPT.Application.Services
 						TotalPrice = 0m
 					},
 					"Cart is empty");
-			}
-
-			// 2. Calculate subtotal
-			var subtotal = items.Sum(item => item.SubTotal);
-
-			// 3. Apply voucher discount if provided
-			decimal finalAmount = subtotal;
-			string? voucherMessage = null;
-			if (!string.IsNullOrWhiteSpace(request.VoucherCode))
-			{
-
-				var voucher = await _voucherService.GetVoucherByCodeAsync(request.VoucherCode) ?? throw AppException.NotFound("Voucher not found");
-
-				var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(
-					request.VoucherCode,
-					userId,
-					subtotal,
-					null,  // Cart for signed-in users, not guests
-					items.Select(x => x.VariantId));
-
-				if (!voucherValidation)
-					throw AppException.BadRequest("Voucher validation failed");
-
-				if (voucher.ApplyType == VoucherType.Product && voucher.CampaignId.HasValue)
-				{
-					var (CalculatedfinalAmount, message) = await CalculateProductLevelVoucherAmountAsync(voucher, items);
-					finalAmount = CalculatedfinalAmount;
-					voucherMessage = message;
-				}
-				else
-				{
-					finalAmount = await _voucherService.CalculateVoucherDiscountAsync(
-						request.VoucherCode,
-						subtotal);
-				}
 			}
 
 			// 4. Build response
@@ -136,14 +94,67 @@ namespace PerfumeGPT.Application.Services
 					 : voucherMessage);
 		}
 
-		private async Task<(decimal FinalAmount, string? Message)> CalculateProductLevelVoucherAmountAsync(
-			VoucherResponse voucher,
-			List<CartItemPriceDto> items)
+		private async Task<(List<CartCheckoutItemDto> Items, decimal Subtotal, decimal FinalAmount, string? Message)> BuildCheckoutPricingAsync(Guid userId, GetCartTotalRequest request)
+		{
+			var items = await _unitOfWork.CartItems.GetCartItemPricesAsync(userId, request.ItemIds);
+			if (items == null || items.Count == 0)
+				return ([], 0m, 0m, null);
+
+			var checkoutItems = items
+				.Select(item => new CartCheckoutItemDto
+				{
+					VariantId = item.VariantId,
+					VariantName = item.VariantName,
+					Quantity = item.Quantity,
+					UnitPrice = item.VariantPrice,
+					SubTotal = item.SubTotal,
+					Discount = 0m,
+					FinalTotal = item.SubTotal
+				})
+				.ToList();
+
+			var subtotal = checkoutItems.Sum(x => x.SubTotal);
+			if (string.IsNullOrWhiteSpace(request.VoucherCode))
+				return (checkoutItems, subtotal, subtotal, null);
+
+			var voucher = await _voucherService.GetVoucherByCodeAsync(request.VoucherCode)
+				?? throw AppException.NotFound("Voucher not found");
+
+			var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(
+				request.VoucherCode,
+				userId,
+				subtotal,
+				null,
+				items.Select(x => x.VariantId));
+
+			if (!voucherValidation)
+				throw AppException.BadRequest("Voucher validation failed");
+
+			if (voucher.ApplyType == VoucherType.Product && voucher.CampaignId.HasValue)
+			{
+				var (pricedItems, message) = await ApplyProductLevelVoucherDiscountAsync(voucher, checkoutItems);
+				var finalAmount = pricedItems.Sum(x => x.FinalTotal);
+				return (pricedItems, subtotal, finalAmount, message);
+			}
+
+			var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(request.VoucherCode, subtotal);
+			var totalDiscount = subtotal - discountedTotal;
+			var adjustedItems = ApplyProportionalDiscount(checkoutItems, totalDiscount, x => x.SubTotal);
+			var finalTotal = adjustedItems.Sum(x => x.FinalTotal);
+
+			return (adjustedItems, subtotal, finalTotal, null);
+		}
+
+		private async Task<(List<CartCheckoutItemDto> Items, string? Message)> ApplyProductLevelVoucherDiscountAsync(
+			   VoucherResponse voucher,
+			  List<CartCheckoutItemDto> items)
 		{
 			if (!voucher.CampaignId.HasValue)
 			{
-				var fallback = await _voucherService.CalculateVoucherDiscountAsync(voucher.Code, items.Sum(x => x.SubTotal));
-				return (fallback, null);
+				var subtotal = items.Sum(x => x.SubTotal);
+				var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(voucher.Code, subtotal);
+				var totalDiscount = subtotal - discountedTotal;
+				return (ApplyProportionalDiscount(items, totalDiscount, x => x.SubTotal), null);
 			}
 
 			var now = DateTime.UtcNow;
@@ -159,7 +170,7 @@ namespace PerfumeGPT.Application.Services
 
 			if (promotionItems.Count == 0)
 			{
-				return (items.Sum(x => x.SubTotal), "No eligible product is in active promotion for this voucher");
+				return (items, "No eligible product is in active promotion for this voucher");
 			}
 
 			var promoItemsByVariant = promotionItems
@@ -180,17 +191,14 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			var eligibleQty = 0;
-			var nonEligibleQty = 0;
 			decimal eligibleSubtotal = 0m;
-			decimal nonEligibleSubtotal = 0m;
+			var eligibleLineSubtotals = new Dictionary<Guid, decimal>();
 			var messageLines = new List<string>();
 
 			foreach (var line in items)
 			{
 				if (!promoItemsByVariant.TryGetValue(line.VariantId, out var variantPromotions) || variantPromotions.Count == 0)
 				{
-					nonEligibleQty += line.Quantity;
-					nonEligibleSubtotal += line.SubTotal;
 					messageLines.Add($"'{line.VariantName}': {line.Quantity} not in promotion.");
 					continue;
 				}
@@ -222,9 +230,11 @@ namespace PerfumeGPT.Application.Services
 
 				var excludedQty = line.Quantity - allowedQty;
 				eligibleQty += allowedQty;
-				nonEligibleQty += excludedQty;
-				eligibleSubtotal += line.VariantPrice * allowedQty;
-				nonEligibleSubtotal += line.VariantPrice * excludedQty;
+				var eligibleLineSubtotal = line.UnitPrice * allowedQty;
+				eligibleSubtotal += eligibleLineSubtotal;
+
+				if (eligibleLineSubtotal > 0)
+					eligibleLineSubtotals[line.VariantId] = eligibleLineSubtotal;
 
 				if (excludedQty > 0)
 				{
@@ -234,7 +244,7 @@ namespace PerfumeGPT.Application.Services
 
 			if (eligibleQty <= 0)
 			{
-				return (eligibleSubtotal + nonEligibleSubtotal, "No quantity is available in promotion batch for voucher discount");
+				return (items, "No quantity is available in promotion batch for voucher discount");
 			}
 
 			var discountAmount = voucher.DiscountType switch
@@ -249,10 +259,63 @@ namespace PerfumeGPT.Application.Services
 				discountAmount = eligibleSubtotal;
 			}
 
-			var finalAmount = (eligibleSubtotal - discountAmount) + nonEligibleSubtotal;
+			var discountedItems = ApplyProportionalDiscount(
+				items,
+				discountAmount,
+				x => eligibleLineSubtotals.TryGetValue(x.VariantId, out var value) ? value : 0m);
+
 			var message = messageLines.Count > 0 ? string.Join(" | ", messageLines) : null;
 
-			return (finalAmount, message);
+			return (discountedItems, message);
+		}
+
+		private static List<CartCheckoutItemDto> ApplyProportionalDiscount(
+			List<CartCheckoutItemDto> items,
+			decimal totalDiscount,
+			Func<CartCheckoutItemDto, decimal> weightSelector)
+		{
+			if (totalDiscount <= 0)
+				return items;
+
+			var weightedItems = items
+				.Select((item, index) => new
+				{
+					Item = item,
+					Index = index,
+					Weight = weightSelector(item)
+				})
+				.Where(x => x.Weight > 0)
+				.ToList();
+
+			if (weightedItems.Count == 0)
+				return items;
+
+			var weightTotal = weightedItems.Sum(x => x.Weight);
+			if (weightTotal <= 0)
+				return items;
+
+			var result = items.ToList();
+			decimal allocated = 0m;
+
+			for (var i = 0; i < weightedItems.Count; i++)
+			{
+				var target = weightedItems[i];
+				var isLast = i == weightedItems.Count - 1;
+				var rawDiscount = isLast
+					? totalDiscount - allocated
+					: Math.Round((target.Weight / weightTotal) * totalDiscount, 2, MidpointRounding.AwayFromZero);
+
+				var safeDiscount = Math.Max(0m, Math.Min(rawDiscount, target.Item.SubTotal));
+				allocated += safeDiscount;
+
+				result[target.Index] = target.Item with
+				{
+					Discount = safeDiscount,
+					FinalTotal = target.Item.SubTotal - safeDiscount
+				};
+			}
+
+			return result;
 		}
 
 		public async Task<BaseResponse<string>> ClearCartAsync(Guid userId, List<Guid>? itemIds)

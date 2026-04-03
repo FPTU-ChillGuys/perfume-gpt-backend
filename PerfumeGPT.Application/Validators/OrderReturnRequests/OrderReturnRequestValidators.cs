@@ -14,6 +14,23 @@ namespace PerfumeGPT.Application.Validators.OrderReturnRequests
 				.MaximumLength(1000).WithMessage("Customer note must not exceed 1000 characters.")
 				.When(x => !string.IsNullOrWhiteSpace(x.CustomerNote));
 
+			RuleFor(x => x.ReturnItems)
+				.NotEmpty().WithMessage("At least one return item is required.");
+
+			RuleForEach(x => x.ReturnItems)
+				.ChildRules(item =>
+				{
+					item.RuleFor(i => i.OrderDetailId)
+						.NotEmpty().WithMessage("Order detail ID is required.");
+
+					item.RuleFor(i => i.Quantity)
+						.GreaterThan(0).WithMessage("Return quantity must be greater than 0.");
+				});
+
+			RuleFor(x => x.ReturnItems)
+				.Must(items => items == null || items.GroupBy(i => i.OrderDetailId).All(g => g.Count() == 1))
+				.WithMessage("Return items must not contain duplicate order detail IDs.");
+
 			RuleFor(x => x.TemporaryMediaIds)
 				.Must(mediaIds => mediaIds == null || mediaIds.Distinct().Count() == mediaIds.Count)
 				.WithMessage("Temporary media IDs must be unique.");

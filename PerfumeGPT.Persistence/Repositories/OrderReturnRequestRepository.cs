@@ -56,6 +56,16 @@ namespace PerfumeGPT.Persistence.Repositories
 					IsRefunded = r.IsRefunded,
 					VnpTransactionNo = r.VnpTransactionNo,
 					IsRestocked = r.IsRestocked,
+					ReturnDetails = r.ReturnDetails
+						.Select(d => new OrderReturnRequestDetailResponse
+						{
+							Id = d.Id,
+							OrderDetailId = d.OrderDetailId,
+							VariantId = d.OrderDetail.VariantId,
+							RequestedQuantity = d.RequestedQuantity,
+							UnitPrice = d.OrderDetail.UnitPrice
+						})
+						.ToList(),
 					CreatedAt = r.CreatedAt,
 					UpdatedAt = r.UpdatedAt
 				})
@@ -105,6 +115,16 @@ namespace PerfumeGPT.Persistence.Repositories
 					IsRefunded = r.IsRefunded,
 					VnpTransactionNo = r.VnpTransactionNo,
 					IsRestocked = r.IsRestocked,
+					ReturnDetails = r.ReturnDetails
+						.Select(d => new OrderReturnRequestDetailResponse
+						{
+							Id = d.Id,
+							OrderDetailId = d.OrderDetailId,
+							VariantId = d.OrderDetail.VariantId,
+							RequestedQuantity = d.RequestedQuantity,
+							UnitPrice = d.OrderDetail.UnitPrice
+						})
+						.ToList(),
 					CreatedAt = r.CreatedAt,
 					UpdatedAt = r.UpdatedAt
 				})
@@ -137,6 +157,16 @@ namespace PerfumeGPT.Persistence.Repositories
 					IsRefunded = r.IsRefunded,
 					VnpTransactionNo = r.VnpTransactionNo,
 					IsRestocked = r.IsRestocked,
+					ReturnDetails = r.ReturnDetails
+						.Select(d => new OrderReturnRequestDetailResponse
+						{
+							Id = d.Id,
+							OrderDetailId = d.OrderDetailId,
+							VariantId = d.OrderDetail.VariantId,
+							RequestedQuantity = d.RequestedQuantity,
+							UnitPrice = d.OrderDetail.UnitPrice
+						})
+						.ToList(),
 					ProofImages = r.ProofImages
 						.OrderBy(m => m.DisplayOrder)
 						.Select(m => new MediaResponse
@@ -172,6 +202,8 @@ namespace PerfumeGPT.Persistence.Repositories
 		=> await _context.OrderReturnRequests
 			.Include(r => r.Order)
 				.ThenInclude(o => o.OrderDetails)
+			.Include(r => r.ReturnDetails)
+				.ThenInclude(d => d.OrderDetail)
 			.Include(r => r.ProofImages)
 			.AsSplitQuery()
 			.FirstOrDefaultAsync(r => r.Id == requestId);

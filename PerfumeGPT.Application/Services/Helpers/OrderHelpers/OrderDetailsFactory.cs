@@ -19,12 +19,16 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			_unitOfWork = unitOfWork;
 		}
 
-		public async Task CreateOrderDetailsAsync(Order order, List<(Guid VariantId, int Quantity)> items)
+		public async Task CreateOrderDetailsAsync(
+			Order order,
+			List<(Guid VariantId, int Quantity, decimal LineDiscount)> items,
+			decimal? finalTotalAmount = null)
 		{
 			if (order == null) throw AppException.BadRequest("Order is required.");
 			if (items == null || items.Count == 0) throw AppException.BadRequest("Order items are required.");
 
-			var stockValidation = await _inventoryManager.ValidateStockAvailabilityAsync(items);
+			var stockItems = items.Select(i => (i.VariantId, i.Quantity)).ToList();
+			var stockValidation = await _inventoryManager.ValidateStockAvailabilityAsync(stockItems);
 			if (!stockValidation)
 			{
 				throw AppException.BadRequest("Stock validation failed. Some items might be out of stock.");
@@ -35,7 +39,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 			var variantDictionary = variants.ToDictionary(v => v.Id);
 
-			foreach (var (VariantId, Quantity) in items)
+			foreach (var (VariantId, Quantity, LineDiscount) in items)
 			{
 				if (!variantDictionary.TryGetValue(VariantId, out var variant))
 					throw AppException.NotFound($"Product variant {VariantId} not found.");
@@ -59,6 +63,65 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					 Quantity,
 					 unitPrice,
 					 snapshotJson);
+
+				if (LineDiscount > 0)
+				{
+					var createdOrderDetail = order.OrderDetails.Last();
+					var lineTotal = createdOrderDetail.UnitPrice * createdOrderDetail.Quantity;
+					var safeDiscount = Math.Min(LineDiscount, lineTotal);
+					createdOrderDetail.ApplyDiscount(safeDiscount);
+				}
+			}
+
+			var subtotal = order.OrderDetails.Sum(od => od.UnitPrice * od.Quantity);
+			if (subtotal <= 0)
+				return;
+
+			var explicitDiscountTotal = items.Sum(x => Math.Max(0m, x.LineDiscount));
+			if (explicitDiscountTotal > 0)
+			{
+				if (finalTotalAmount.HasValue)
+				{
+					var expectedDiscountTotal = subtotal - finalTotalAmount.Value;
+					if (expectedDiscountTotal < 0)
+						throw AppException.BadRequest("Final total amount cannot exceed subtotal.");
+
+					var delta = expectedDiscountTotal - explicitDiscountTotal;
+					if (Math.Abs(delta) > 0.0001m)
+					{
+						var lastDetail = order.OrderDetails.Last();
+						var currentDiscount = lastDetail.ApportionedDiscount;
+						var lineTotal = lastDetail.UnitPrice * lastDetail.Quantity;
+						var adjustedDiscount = Math.Max(0m, Math.Min(currentDiscount + delta, lineTotal));
+						lastDetail.ApplyDiscount(adjustedDiscount);
+					}
+				}
+
+				return;
+			}
+
+			var effectiveFinalTotal = finalTotalAmount ?? order.TotalAmount;
+			var totalDiscount = subtotal - effectiveFinalTotal;
+
+			if (totalDiscount <= 0)
+				return;
+
+			if (totalDiscount > subtotal)
+				throw AppException.BadRequest("Total discount cannot exceed subtotal.");
+
+			decimal apportionedTotal = 0m;
+			for (var i = 0; i < order.OrderDetails.Count; i++)
+			{
+				var orderDetail = order.OrderDetails.ElementAt(i);
+				var lineTotal = orderDetail.UnitPrice * orderDetail.Quantity;
+
+				var apportionedDiscount = i == order.OrderDetails.Count - 1
+					? totalDiscount - apportionedTotal
+					: Math.Round((lineTotal / subtotal) * totalDiscount, 2, MidpointRounding.AwayFromZero);
+
+				apportionedDiscount = Math.Min(apportionedDiscount, lineTotal);
+				orderDetail.ApplyDiscount(apportionedDiscount);
+				apportionedTotal += apportionedDiscount;
 			}
 		}
 	}

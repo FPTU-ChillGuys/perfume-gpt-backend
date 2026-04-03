@@ -49,7 +49,12 @@ namespace PerfumeGPT.Persistence.Repositories
 			   .Select(ci => new CartCheckoutItemDto
 			   {
 				   VariantId = ci.VariantId,
-				   Quantity = ci.Quantity
+				   VariantName = $"{ci.ProductVariant.Product.Name} - {ci.ProductVariant.Concentration.Name} - {ci.ProductVariant.VolumeMl}ml",
+				   Quantity = ci.Quantity,
+				   UnitPrice = ci.ProductVariant.BasePrice,
+				   SubTotal = ci.ProductVariant.BasePrice * ci.Quantity,
+				   Discount = 0m,
+				   FinalTotal = ci.ProductVariant.BasePrice * ci.Quantity
 			   })
 				.ToListAsync();
 		}

@@ -36,6 +36,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ShippingInfo? ReturnShipping { get; set; }
 		public virtual ContactAddress PickupAddress { get; set; } = null!;
 		public virtual ICollection<Media> ProofImages { get; set; } = [];
+		public virtual ICollection<OrderReturnRequestDetail> ReturnDetails { get; set; } = [];
 
 		// IHasTimestamps implementation
 		public DateTime CreatedAt { get; set; }
@@ -50,6 +51,21 @@ namespace PerfumeGPT.Domain.Entities
 			if (customerId == Guid.Empty)
 				throw DomainException.BadRequest("Customer ID is required.");
 
+			if (payload.ReturnDetails == null || payload.ReturnDetails.Count == 0)
+				throw DomainException.BadRequest("At least one return detail is required.");
+
+			if (payload.ReturnDetails.GroupBy(x => x.OrderDetailId).Any(x => x.Count() > 1))
+				throw DomainException.BadRequest("Duplicate order details are not allowed in a return request.");
+
+			var returnDetails = payload.ReturnDetails
+				 .Select(x => OrderReturnRequestDetail.Create(new OrderReturnRequestDetail.ReturnRequestDetailPayload
+				 {
+					 OrderDetailId = x.OrderDetailId,
+					 RequestedQuantity = x.RequestedQuantity,
+					 OrderedQuantity = x.OrderedQuantity
+				 }))
+				 .ToList();
+
 			if (payload.RequestedRefundAmount < 0)
 				throw DomainException.BadRequest("Requested refund amount cannot be negative.");
 
@@ -62,7 +78,8 @@ namespace PerfumeGPT.Domain.Entities
 				Status = ReturnRequestStatus.Pending,
 				RequestedRefundAmount = payload.RequestedRefundAmount,
 				ApprovedRefundAmount = null,
-				IsRefunded = false
+				IsRefunded = false,
+				ReturnDetails = returnDetails
 			};
 		}
 
@@ -162,6 +179,14 @@ namespace PerfumeGPT.Domain.Entities
 			public required ReturnOrderReason Reason { get; init; }
 			public required decimal RequestedRefundAmount { get; init; }
 			public string? CustomerNote { get; init; }
+			public required List<ReturnRequestDetailPayload> ReturnDetails { get; init; }
+		}
+
+		public record ReturnRequestDetailPayload
+		{
+			public required Guid OrderDetailId { get; init; }
+			public required int RequestedQuantity { get; init; }
+			public required int OrderedQuantity { get; init; }
 		}
 	}
 }

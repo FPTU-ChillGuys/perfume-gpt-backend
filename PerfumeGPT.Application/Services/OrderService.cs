@@ -206,12 +206,16 @@ namespace PerfumeGPT.Application.Services
 				.Select(item => (item.VariantId, item.Quantity))
 				.ToList();
 
+				var pricedItems = cartResponse.Items
+					.Select(item => (item.VariantId, item.Quantity, item.Discount))
+					.ToList();
+
 				// Set payment expiration
 				var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
 
 				// Create order and populate details through aggregate methods
 				var order = Order.CreateOnline(userId, cartResponse.TotalPrice, paymentExpiresAt);
-				await _orderDetailsFactory.CreateOrderDetailsAsync(order, itemsToValidate);
+				await _orderDetailsFactory.CreateOrderDetailsAsync(order, pricedItems, cartResponse.TotalPrice);
 
 				// Validate voucher if provided (with subtotal + cart variant context)
 				VoucherResponse? voucher = null;
@@ -287,11 +291,15 @@ namespace PerfumeGPT.Application.Services
 
 				// Create order details
 				var itemsToValidate = request.OrderDetails
-					.Select(od => (od.VariantId, od.Quantity))
+				  .Select(od => (od.VariantId, od.Quantity))
+					.ToList();
+
+				var pricedItems = request.OrderDetails
+					.Select(od => (od.VariantId, od.Quantity, 0m))
 					.ToList();
 
 				var order = Order.CreateOffline(staffId, 0);
-				await _orderDetailsFactory.CreateOrderDetailsAsync(order, itemsToValidate);
+				await _orderDetailsFactory.CreateOrderDetailsAsync(order, pricedItems);
 
 				// Calculate totals
 				decimal subtotal = order.OrderDetails.Sum(od => od.UnitPrice * od.Quantity);

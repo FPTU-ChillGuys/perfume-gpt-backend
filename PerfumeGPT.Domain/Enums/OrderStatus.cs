@@ -8,6 +8,7 @@
 		Delivered,
 		Returning,
 		Cancelled,
+		Partial_Returned,
 		Returned
 	}
 }

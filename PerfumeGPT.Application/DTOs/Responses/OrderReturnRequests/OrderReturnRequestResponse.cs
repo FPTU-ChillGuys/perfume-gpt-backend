@@ -25,10 +25,20 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 		public bool IsRefunded { get; init; }
 		public string? VnpTransactionNo { get; init; }
 		public bool IsRestocked { get; init; }
+		public List<OrderReturnRequestDetailResponse>? ReturnDetails { get; init; }
 
 		public List<MediaResponse>? ProofImages { get; init; }
 
 		public DateTime CreatedAt { get; init; }
 		public DateTime? UpdatedAt { get; init; }
+	}
+
+	public record OrderReturnRequestDetailResponse
+	{
+		public Guid Id { get; init; }
+		public Guid OrderDetailId { get; init; }
+		public Guid VariantId { get; init; }
+		public int RequestedQuantity { get; init; }
+		public decimal UnitPrice { get; init; }
 	}
 }

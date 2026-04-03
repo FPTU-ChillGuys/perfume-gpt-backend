@@ -90,13 +90,39 @@ namespace PerfumeGPT.Application.Services
 				if (hasOpenRequest)
 					throw AppException.Conflict("This order already has an active return request.");
 
-				var maxRequestableRefund = order.OrderDetails.Sum(x => x.UnitPrice * x.Quantity);
-				var amount = order.TotalAmount;
+
+				var orderDetailsById = order.OrderDetails.ToDictionary(x => x.Id);
+
+				var payloadDetails = request.ReturnItems
+					.Select(item =>
+					{
+						if (!orderDetailsById.TryGetValue(item.OrderDetailId, out var orderDetail))
+							throw AppException.BadRequest($"Order detail {item.OrderDetailId} does not belong to this order.");
+
+						if (item.Quantity > orderDetail.Quantity)
+							throw AppException.BadRequest($"Returned quantity for order detail {item.OrderDetailId} cannot exceed ordered quantity.");
+
+						return new OrderReturnRequest.ReturnRequestDetailPayload
+						{
+							OrderDetailId = item.OrderDetailId,
+							RequestedQuantity = item.Quantity,
+							OrderedQuantity = orderDetail.Quantity
+						};
+					})
+					.ToList();
+
+				var requestedRefundAmount = request.ReturnItems
+					.Sum(item =>
+					{
+						var orderDetail = orderDetailsById[item.OrderDetailId];
+						return orderDetail.RefundableUnitPrice * item.Quantity;
+					});
 
 				var requestPayload = new OrderReturnRequest.ReturnRequestPayload
 				{
 					Reason = request.Reason,
-					RequestedRefundAmount = amount,
+					RequestedRefundAmount = requestedRefundAmount,
+					ReturnDetails = payloadDetails,
 					CustomerNote = request.CustomerNote
 				};
 
@@ -246,9 +272,27 @@ namespace PerfumeGPT.Application.Services
 						StockAdjustmentReason.Return,
 						$"Auto restock from return request {returnRequest.Id}");
 
-					var restockedByVariant = returnRequest.Order.OrderDetails
-						.GroupBy(d => d.VariantId)
-						.ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+					var orderDetailsById = returnRequest.Order.OrderDetails
+						  .ToDictionary(d => d.Id);
+
+					var restockedByVariant = returnRequest.ReturnDetails.Count > 0
+						? returnRequest.ReturnDetails
+							.Select(d =>
+							{
+								if (!orderDetailsById.TryGetValue(d.OrderDetailId, out var orderDetail))
+									throw AppException.BadRequest($"Order detail {d.OrderDetailId} not found in the order for restocking.");
+
+								return new
+								{
+									orderDetail.VariantId,
+									d.RequestedQuantity
+								};
+							})
+							.GroupBy(x => x.VariantId)
+							.ToDictionary(g => g.Key, g => g.Sum(x => x.RequestedQuantity))
+						: returnRequest.Order.OrderDetails
+							.GroupBy(d => d.VariantId)
+							.ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
 
 					foreach (var item in restockedByVariant)
 					{

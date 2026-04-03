@@ -156,7 +156,7 @@ namespace PerfumeGPT.Domain.Entities
 
 		public void EnsureInStock()
 		{
-			if (!RemainingQuantity.HasValue || RemainingQuantity.Value <= 0)
+			if (RemainingQuantity.HasValue && RemainingQuantity.Value <= 0)
 				throw DomainException.BadRequest("Voucher is out of stock");
 		}
 
@@ -166,7 +166,11 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("Quantity must be greater than 0.");
 
 			EnsureInStock();
-			RemainingQuantity = Math.Max(0, RemainingQuantity!.Value - quantity);
+
+			if (!RemainingQuantity.HasValue)
+				return;
+
+			RemainingQuantity = Math.Max(0, RemainingQuantity.Value - quantity);
 		}
 
 		public void IncreaseRemainingQuantity(int quantity = 1)
@@ -174,13 +178,13 @@ namespace PerfumeGPT.Domain.Entities
 			if (quantity <= 0)
 				throw DomainException.BadRequest("Quantity must be greater than 0.");
 
-			if (!RemainingQuantity.HasValue)
-				RemainingQuantity = 0;
+			if (!RemainingQuantity.HasValue || !TotalQuantity.HasValue)
+				return;
 
 			RemainingQuantity += quantity;
 
-			if (TotalQuantity.HasValue && RemainingQuantity > TotalQuantity)
-				RemainingQuantity = TotalQuantity;
+			if (RemainingQuantity > TotalQuantity.Value)
+				RemainingQuantity = TotalQuantity.Value;
 		}
 
 		private static void ValidateCore(
