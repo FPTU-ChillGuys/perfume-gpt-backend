@@ -34,7 +34,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<BatchDetailResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<BatchDetailResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<BatchDetailResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<BatchDetailResponse>>> GetBatchById(Guid id)
+		public async Task<ActionResult<BaseResponse<BatchDetailResponse>>> GetBatchById([FromRoute] Guid id)
 		{
 			var response = await _batchService.GetBatchByIdAsync(id);
 			return HandleResponse(response);

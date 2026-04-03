@@ -19,7 +19,10 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IMediaService _mediaService;
 		private readonly IValidator<ProfileAvtarUploadRequest> _profileAvtarUploadValidator;
 
-		public UsersController(IUserService userService, IMediaService mediaService, IValidator<ProfileAvtarUploadRequest> profileAvtarUploadValidator)
+		public UsersController(
+			IUserService userService,
+			IMediaService mediaService,
+			IValidator<ProfileAvtarUploadRequest> profileAvtarUploadValidator)
 		{
 			_userService = userService;
 			_mediaService = mediaService;
@@ -90,7 +93,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> GetEmailById(Guid id)
+		public async Task<ActionResult<BaseResponse<string>>> GetEmailById([FromRoute] Guid id)
 		{
 			var email = await _userService.GetEmailByIdAsync(id);
 			return HandleResponse(email);

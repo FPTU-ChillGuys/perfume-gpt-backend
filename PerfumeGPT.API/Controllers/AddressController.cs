@@ -23,7 +23,11 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<CreateAddressRequest> _createValidator;
 		private readonly IValidator<UpdateAddressRequest> _updateValidator;
 
-		public AddressController(IGHNService ghnService, IAddressService addressService, IGHTKService ghtkService, IValidator<CreateAddressRequest> createValidator, IValidator<UpdateAddressRequest> updateValidator)
+		public AddressController(IGHNService ghnService,
+			IAddressService addressService,
+			IGHTKService ghtkService,
+			IValidator<CreateAddressRequest> createValidator,
+			IValidator<UpdateAddressRequest> updateValidator)
 		{
 			_ghnService = ghnService;
 			_addressService = addressService;

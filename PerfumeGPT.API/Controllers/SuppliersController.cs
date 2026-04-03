@@ -16,7 +16,10 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<CreateSupplierRequest> _createValidator;
 		private readonly IValidator<UpdateSupplierRequest> _updateValidator;
 
-		public SuppliersController(ISupplierService supplierService, IValidator<CreateSupplierRequest> createValidator, IValidator<UpdateSupplierRequest> updateValidator)
+		public SuppliersController(
+			[FromRoute] ISupplierService supplierService,
+			IValidator<CreateSupplierRequest> createValidator,
+			IValidator<UpdateSupplierRequest> updateValidator)
 		{
 			_supplierService = supplierService;
 			_createValidator = createValidator;
@@ -42,7 +45,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<SupplierResponse>>> GetSupplierByIdAsync(int id)
+		public async Task<ActionResult<BaseResponse<SupplierResponse>>> GetSupplierByIdAsync([FromRoute] int id)
 		{
 			var result = await _supplierService.GetSupplierByIdAsync(id);
 			return HandleResponse(result);
@@ -62,7 +65,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<SupplierResponse>>> UpdateSupplierAsync(int id, [FromBody] UpdateSupplierRequest request)
+		public async Task<ActionResult<BaseResponse<SupplierResponse>>> UpdateSupplierAsync([FromRoute] int id, [FromBody] UpdateSupplierRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
@@ -74,7 +77,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpDelete("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<bool>>> DeleteSupplierAsync(int id)
+		public async Task<ActionResult<BaseResponse<bool>>> DeleteSupplierAsync([FromRoute] int id)
 		{
 			var result = await _supplierService.DeleteSupplierAsync(id);
 			return HandleResponse(result);

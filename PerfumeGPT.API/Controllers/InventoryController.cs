@@ -34,7 +34,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<StockResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<StockResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<StockResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<StockResponse>>> GetStockByVariantId(Guid variantId)
+		public async Task<ActionResult<BaseResponse<StockResponse>>> GetStockByVariantId([FromRoute] Guid variantId)
 		{
 			var response = await _stockService.GetStockByVariantIdAsync(variantId);
 			return HandleResponse(response);

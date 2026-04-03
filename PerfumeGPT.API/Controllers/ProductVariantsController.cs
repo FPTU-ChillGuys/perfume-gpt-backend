@@ -22,7 +22,12 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<UpdateVariantRequest> _updateVariantValidator;
 		private readonly IValidator<VariantUploadMediaRequest> _variantUploadValidator;
 
-		public ProductVariantsController(IVariantService variantService, IMediaService mediaService, IValidator<CreateVariantRequest> createVariantValidator, IValidator<UpdateVariantRequest> updateVariantValidator, IValidator<VariantUploadMediaRequest> variantUploadValidator)
+		public ProductVariantsController(
+			[FromRoute] IVariantService variantService,
+			IMediaService mediaService,
+			IValidator<CreateVariantRequest> createVariantValidator,
+			IValidator<UpdateVariantRequest> updateVariantValidator,
+			IValidator<VariantUploadMediaRequest> variantUploadValidator)
 		{
 			_variantService = variantService;
 			_mediaService = mediaService;
@@ -55,7 +60,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<ProductVariantResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<ProductVariantResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<ProductVariantResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<ProductVariantResponse>>> GetVariantById(Guid variantId)
+		public async Task<ActionResult<BaseResponse<ProductVariantResponse>>> GetVariantById([FromRoute] Guid variantId)
 		{
 			var result = await _variantService.GetVariantByIdAsync(variantId);
 			return HandleResponse(result);
@@ -79,7 +84,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> UpdateVariant(Guid variantId, [FromBody] UpdateVariantRequest request)
+		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> UpdateVariant([FromRoute] Guid variantId, [FromBody] UpdateVariantRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateVariantValidator, request);
 			if (validation != null) return validation;
@@ -93,21 +98,22 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> DeleteVariant(Guid variantId)
+		public async Task<ActionResult<BaseResponse<string>>> DeleteVariant([FromRoute] Guid variantId)
 		{
 			var result = await _variantService.DeleteVariantAsync(variantId);
 			return HandleResponse(result);
 		}
+		#endregion CRUD Endpoints
 
-		#endregion
+
+
 
 		#region Media Endpoints
-
 		[HttpGet("{variantId:guid}/images")]
 		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<List<MediaResponse>>>> GetVariantImages(Guid variantId)
+		public async Task<ActionResult<BaseResponse<List<MediaResponse>>>> GetVariantImages([FromRoute] Guid variantId)
 		{
 			var response = await _variantService.GetVariantImagesAsync(variantId);
 			return HandleResponse(response);
@@ -117,7 +123,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<MediaResponse?>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<MediaResponse?>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<MediaResponse?>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<MediaResponse?>>> GetVariantPrimaryImage(Guid variantId)
+		public async Task<ActionResult<BaseResponse<MediaResponse?>>> GetVariantPrimaryImage([FromRoute] Guid variantId)
 		{
 			var response = await _mediaService.GetPrimaryMediaAsync(EntityType.ProductVariant, variantId);
 			return HandleResponse(response);
@@ -127,7 +133,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> SetVariantPrimaryImage(Guid mediaId)
+		public async Task<ActionResult<BaseResponse<string>>> SetVariantPrimaryImage([FromRoute] Guid mediaId)
 		{
 			var response = await _mediaService.SetPrimaryMediaAsync(mediaId);
 			return HandleResponse(response);
@@ -138,8 +144,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages(
-			[FromForm] VariantUploadMediaRequest request)
+		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages([FromForm] VariantUploadMediaRequest request)
 		{
 			var validation = await ValidateRequestAsync(_variantUploadValidator, request);
 			if (validation != null) return validation;
@@ -148,7 +153,6 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _mediaService.UploadVariantTemporaryMediaAsync(userId, request);
 			return HandleResponse(response);
 		}
-
-		#endregion
+		#endregion Media Endpoints
 	}
 }

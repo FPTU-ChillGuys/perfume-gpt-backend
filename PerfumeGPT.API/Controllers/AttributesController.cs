@@ -20,7 +20,13 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<CreateAttributeValueRequest> _createAttributeValueValidator;
 		private readonly IValidator<UpdateAttributeValueRequest> _updateAttributeValueValidator;
 
-		public AttributesController(IAttributeService attributeService, IAttributeValueService attributeValueService, IValidator<CreateAttributeRequest> createAttributeValidator, IValidator<UpdateAttributeRequest> updateAttributeValidator, IValidator<CreateAttributeValueRequest> createAttributeValueValidator, IValidator<UpdateAttributeValueRequest> updateAttributeValueValidator)
+		public AttributesController(
+			IAttributeService attributeService,
+			IAttributeValueService attributeValueService,
+			IValidator<CreateAttributeRequest> createAttributeValidator,
+			IValidator<UpdateAttributeRequest> updateAttributeValidator,
+			IValidator<CreateAttributeValueRequest> createAttributeValueValidator,
+			IValidator<UpdateAttributeValueRequest> updateAttributeValueValidator)
 		{
 			_attributeService = attributeService;
 			_attributeValueService = attributeValueService;

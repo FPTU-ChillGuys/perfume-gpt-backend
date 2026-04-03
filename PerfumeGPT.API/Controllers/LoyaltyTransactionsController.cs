@@ -16,7 +16,9 @@ namespace PerfumeGPT.API.Controllers
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IValidator<ManualChangeRequest> _manualChangeValidator;
 
-		public LoyaltyTransactionsController(ILoyaltyTransactionService loyaltyTransactionService, IValidator<ManualChangeRequest> manualChangeValidator)
+		public LoyaltyTransactionsController(
+			ILoyaltyTransactionService loyaltyTransactionService,
+			IValidator<ManualChangeRequest> manualChangeValidator)
 		{
 			_loyaltyTransactionService = loyaltyTransactionService;
 			_manualChangeValidator = manualChangeValidator;
@@ -59,7 +61,7 @@ namespace PerfumeGPT.API.Controllers
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		public async Task<ActionResult<BaseResponse<string>>> ManualChangePoints(Guid userId, [FromBody] ManualChangeRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> ManualChangePoints([FromRoute] Guid userId, [FromBody] ManualChangeRequest request)
 		{
 			var validation = await ValidateRequestAsync(_manualChangeValidator, request);
 			if (validation != null) return validation;

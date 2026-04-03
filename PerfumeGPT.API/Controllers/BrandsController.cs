@@ -16,7 +16,10 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<CreateBrandRequest> _createValidator;
 		private readonly IValidator<UpdateBrandRequest> _updateValidator;
 
-		public BrandsController(IBrandService brandService, IValidator<UpdateBrandRequest> updateValidator, IValidator<CreateBrandRequest> createValidator)
+		public BrandsController(
+			IBrandService brandService,
+			IValidator<UpdateBrandRequest> updateValidator,
+			IValidator<CreateBrandRequest> createValidator)
 		{
 			_brandService = brandService;
 			_updateValidator = updateValidator;
@@ -42,7 +45,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<BrandResponse>>> GetBrandByIdAsync(int id)
+		public async Task<ActionResult<BaseResponse<BrandResponse>>> GetBrandByIdAsync([FromRoute] int id)
 		{
 			var result = await _brandService.GetBrandByIdAsync(id);
 			return HandleResponse(result);
@@ -62,7 +65,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<BrandResponse>>> UpdateBrandAsync(int id, [FromBody] UpdateBrandRequest request)
+		public async Task<ActionResult<BaseResponse<BrandResponse>>> UpdateBrandAsync([FromRoute] int id, [FromBody] UpdateBrandRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
@@ -74,7 +77,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpDelete("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<bool>>> DeleteBrandAsync(int id)
+		public async Task<ActionResult<BaseResponse<bool>>> DeleteBrandAsync([FromRoute] int id)
 		{
 			var result = await _brandService.DeleteBrandAsync(id);
 			return HandleResponse(result);

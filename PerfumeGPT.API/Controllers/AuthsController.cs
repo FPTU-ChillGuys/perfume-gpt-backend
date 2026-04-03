@@ -15,7 +15,6 @@ namespace PerfumeGPT.API.Controllers
 	public class AuthsController : BaseApiController
 	{
 		private readonly IAuthService _authService;
-
 		private readonly IValidator<RegisterRequest> _registerValidator;
 		private readonly IValidator<LoginRequest> _loginValidator;
 		private readonly IValidator<ResetPasswordRequest> _resetPasswordValidator;
@@ -23,7 +22,14 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<ForgotPasswordRequest> _forgotPasswordValidator;
 		private readonly IValidator<VerifyEmailRequest> _verifyEmailValidator;
 
-		public AuthsController(IAuthService authService, IValidator<RegisterRequest> registerValidator, IValidator<LoginRequest> loginValidator, IValidator<ResetPasswordRequest> resetPasswordValidator, IValidator<GoogleLoginRequest> googleLoginValidator, IValidator<ForgotPasswordRequest> forgotPasswordValidator, IValidator<VerifyEmailRequest> verifyEmailValidator)
+		public AuthsController(
+			IAuthService authService,
+			IValidator<RegisterRequest> registerValidator,
+			IValidator<LoginRequest> loginValidator,
+			IValidator<ResetPasswordRequest> resetPasswordValidator,
+			IValidator<GoogleLoginRequest> googleLoginValidator,
+			IValidator<ForgotPasswordRequest> forgotPasswordValidator,
+			IValidator<VerifyEmailRequest> verifyEmailValidator)
 		{
 			_authService = authService;
 			_registerValidator = registerValidator;

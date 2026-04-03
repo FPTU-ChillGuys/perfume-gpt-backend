@@ -16,7 +16,10 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<CreateScentNoteRequest> _createValidator;
 		private readonly IValidator<UpdateScentNoteRequest> _updateValidator;
 
-		public ScentNotesController(IScentNoteService scentNoteService, IValidator<CreateScentNoteRequest> createValidator, IValidator<UpdateScentNoteRequest> updateValidator)
+		public ScentNotesController(
+			[FromRoute] IScentNoteService scentNoteService,
+			IValidator<CreateScentNoteRequest> createValidator,
+			IValidator<UpdateScentNoteRequest> updateValidator)
 		{
 			_scentNoteService = scentNoteService;
 			_createValidator = createValidator;
@@ -43,7 +46,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> GetScentNoteByIdAsync(int id)
+		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> GetScentNoteByIdAsync([FromRoute] int id)
 		{
 			var result = await _scentNoteService.GetScentNoteByIdAsync(id);
 			return HandleResponse(result);
@@ -63,7 +66,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> UpdateScentNoteAsync(int id, [FromBody] UpdateScentNoteRequest request)
+		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> UpdateScentNoteAsync([FromRoute] int id, [FromBody] UpdateScentNoteRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
@@ -75,7 +78,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpDelete("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<bool>>> DeleteScentNoteAsync(int id)
+		public async Task<ActionResult<BaseResponse<bool>>> DeleteScentNoteAsync([FromRoute] int id)
 		{
 			var result = await _scentNoteService.DeleteScentNoteAsync(id);
 			return HandleResponse(result);

@@ -20,7 +20,11 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<CreateReviewRequest> _createValidator;
 		private readonly IValidator<AnswerReviewRequest> _answerValidator;
 
-		public ReviewsController(IReviewService reviewService, IMediaService mediaService, IValidator<CreateReviewRequest> createValidator, IValidator<AnswerReviewRequest> answerValidator)
+		public ReviewsController(
+			[FromRoute] IReviewService reviewService,
+			IMediaService mediaService,
+			IValidator<CreateReviewRequest> createValidator,
+			IValidator<AnswerReviewRequest> answerValidator)
 		{
 			_reviewService = reviewService;
 			_mediaService = mediaService;
@@ -55,7 +59,9 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _reviewService.CreateReviewAsync(userId, request);
 			return HandleResponse(response);
 		}
-		#endregion
+		#endregion USER ENDPOINTS
+
+
 
 		#region STAFF ENDPOINTS
 		[HttpPost("{reviewId:guid}/answer")]
@@ -73,7 +79,9 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _reviewService.AnswerReviewAsync(reviewId, staffId, request);
 			return HandleResponse(response);
 		}
-		#endregion
+		#endregion STAFF ENDPOINTS
+
+
 
 		#region PUBLIC ENDPOINTS
 		[HttpGet]
@@ -90,7 +98,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<ReviewDetailResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<ReviewDetailResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<ReviewDetailResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<ReviewDetailResponse>>> GetReviewById(Guid reviewId)
+		public async Task<ActionResult<BaseResponse<ReviewDetailResponse>>> GetReviewById([FromRoute] Guid reviewId)
 		{
 			var response = await _reviewService.GetReviewByIdAsync(reviewId);
 			return HandleResponse(response);
@@ -99,7 +107,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("variant/{variantId:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<List<ReviewResponse>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<List<ReviewResponse>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<List<ReviewResponse>>>> GetVariantReviews(Guid variantId)
+		public async Task<ActionResult<BaseResponse<List<ReviewResponse>>>> GetVariantReviews([FromRoute] Guid variantId)
 		{
 			var response = await _reviewService.GetVariantReviewsAsync(variantId);
 			return HandleResponse(response);
@@ -108,7 +116,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("variant/{variantId:guid}/statistics")]
 		[ProducesResponseType(typeof(BaseResponse<ReviewStatisticsResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<ReviewStatisticsResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<ReviewStatisticsResponse>>> GetVariantStatistics(Guid variantId)
+		public async Task<ActionResult<BaseResponse<ReviewStatisticsResponse>>> GetVariantStatistics([FromRoute] Guid variantId)
 		{
 			var response = await _reviewService.GetVariantReviewStatisticsAsync(variantId);
 			return HandleResponse(response);
@@ -120,14 +128,16 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> DeleteReview(Guid reviewId)
+		public async Task<ActionResult<BaseResponse<string>>> DeleteReview([FromRoute] Guid reviewId)
 		{
 			var userId = GetCurrentUserId();
 			var canDeleteAny = User.IsInRole("staff") || User.IsInRole("admin");
 			var response = await _reviewService.DeleteReviewAsync(userId, reviewId, canDeleteAny);
 			return HandleResponse(response);
 		}
-		#endregion
+		#endregion PUBLIC ENDPOINTS
+
+
 
 		#region MEDIA ENDPOINTS
 		[HttpPost("images/temporary")]
@@ -135,8 +145,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages(
-			[FromForm] ReviewUploadMediaRequest request)
+		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages([FromForm] ReviewUploadMediaRequest request)
 		{
 			var userId = GetCurrentUserId();
 			var response = await _mediaService.UploadReviewTemporaryMediaAsync(userId, request);
@@ -147,11 +156,11 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<List<MediaResponse>>>> GetReviewImages(Guid reviewId)
+		public async Task<ActionResult<BaseResponse<List<MediaResponse>>>> GetReviewImages([FromRoute] Guid reviewId)
 		{
 			var response = await _reviewService.GetReviewImagesAsync(reviewId);
 			return HandleResponse(response);
 		}
-		#endregion
+		#endregion MEDIA ENDPOINTS
 	}
 }

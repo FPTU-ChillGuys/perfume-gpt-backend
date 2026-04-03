@@ -16,7 +16,10 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<CreateCategoryRequest> _createValidator;
 		private readonly IValidator<UpdateCategoryRequest> _updateValidator;
 
-		public CategoriesController(ICategoryService categoryService, IValidator<CreateCategoryRequest> createValidator, IValidator<UpdateCategoryRequest> updateValidator)
+		public CategoriesController(
+			ICategoryService categoryService,
+			IValidator<CreateCategoryRequest> createValidator,
+			IValidator<UpdateCategoryRequest> updateValidator)
 		{
 			_categoryService = categoryService;
 			_createValidator = createValidator;
@@ -42,7 +45,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<CategoryResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<CategoryResponse>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<CategoryResponse>>> GetCategoryByIdAsync(int id)
+		public async Task<ActionResult<BaseResponse<CategoryResponse>>> GetCategoryByIdAsync([FromRoute] int id)
 		{
 			var result = await _categoryService.GetCategoryByIdAsync(id);
 			return HandleResponse(result);
@@ -62,7 +65,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<CategoryResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<CategoryResponse>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<CategoryResponse>>> UpdateCategoryAsync(int id, [FromBody] UpdateCategoryRequest request)
+		public async Task<ActionResult<BaseResponse<CategoryResponse>>> UpdateCategoryAsync([FromRoute] int id, [FromBody] UpdateCategoryRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
@@ -74,7 +77,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpDelete("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<bool>>> DeleteCategoryAsync(int id)
+		public async Task<ActionResult<BaseResponse<bool>>> DeleteCategoryAsync([FromRoute] int id)
 		{
 			var result = await _categoryService.DeleteCategoryAsync(id);
 			return HandleResponse(result);

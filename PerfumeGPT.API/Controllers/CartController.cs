@@ -15,11 +15,14 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly ICartService _cartService;
 		private readonly ICartItemService _cartItemService;
-
 		private readonly IValidator<CreateCartItemRequest> _createCartItemValidator;
 		private readonly IValidator<UpdateCartItemRequest> _updateCartItemValidator;
 
-		public CartController(ICartService cartService, ICartItemService cartItemService, IValidator<CreateCartItemRequest> createCartItemValidator, IValidator<UpdateCartItemRequest> updateCartItemValidator)
+		public CartController(
+			ICartService cartService,
+			ICartItemService cartItemService,
+			IValidator<CreateCartItemRequest> createCartItemValidator,
+			IValidator<UpdateCartItemRequest> updateCartItemValidator)
 		{
 			_cartService = cartService;
 			_cartItemService = cartItemService;

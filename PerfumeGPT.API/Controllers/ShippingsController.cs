@@ -18,7 +18,10 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IGHNService _ghnService;
 		private readonly IValidator<GetOrderInfoRequest> _getOrderInfoRequestValidator;
 
-		public ShippingsController(IShippingService shippingService, IGHNService ghnService, IValidator<GetOrderInfoRequest> getOrderInfoRequestValidator)
+		public ShippingsController(
+			IShippingService shippingService,
+			IGHNService ghnService,
+			IValidator<GetOrderInfoRequest> getOrderInfoRequestValidator)
 		{
 			_shippingService = shippingService;
 			_ghnService = ghnService;
@@ -29,9 +32,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ShippingInfoListItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ShippingInfoListItem>>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ShippingInfoListItem>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PagedResult<ShippingInfoListItem>>>> GetPagedShippingsByUserId(
-			[FromRoute] Guid userId,
-			[FromQuery] GetPagedShippingsRequest request)
+		public async Task<ActionResult<BaseResponse<PagedResult<ShippingInfoListItem>>>> GetPagedShippingsByUserId([FromRoute] Guid userId, [FromQuery] GetPagedShippingsRequest request)
 		{
 			var response = await _shippingService.GetPagedShippingInfosByUserIdAsync(userId, request);
 			return HandleResponse(response);
@@ -41,8 +42,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ShippingInfoListItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ShippingInfoListItem>>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ShippingInfoListItem>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PagedResult<ShippingInfoListItem>>>> GetPagedShippingsForCurrentUser(
-			[FromQuery] GetPagedShippingsRequest request)
+		public async Task<ActionResult<BaseResponse<PagedResult<ShippingInfoListItem>>>> GetPagedShippingsForCurrentUser([FromQuery] GetPagedShippingsRequest request)
 		{
 			var userId = GetCurrentUserId();
 

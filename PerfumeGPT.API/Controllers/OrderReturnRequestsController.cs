@@ -23,7 +23,14 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<RecordInspectionDto> _recordInspectionValidator;
 		private readonly IValidator<RejectInspectionDto> _rejectInspectionValidator;
 
-		public OrderReturnRequestsController(IOrderReturnRequestService returnRequestService, IMediaService mediaService, IValidator<CreateReturnRequestDto> createReturnRequestValidator, IValidator<ProcessInitialReturnDto> processInitialReturnValidator, IValidator<StartInspectionDto> startInspectionValidator, IValidator<RecordInspectionDto> recordInspectionValidator, IValidator<RejectInspectionDto> rejectInspectionValidator)
+		public OrderReturnRequestsController(
+			IOrderReturnRequestService returnRequestService,
+			IMediaService mediaService,
+			IValidator<CreateReturnRequestDto> createReturnRequestValidator,
+			IValidator<ProcessInitialReturnDto> processInitialReturnValidator,
+			IValidator<StartInspectionDto> startInspectionValidator,
+			IValidator<RecordInspectionDto> recordInspectionValidator,
+			IValidator<RejectInspectionDto> rejectInspectionValidator)
 		{
 			_returnRequestService = returnRequestService;
 			_mediaService = mediaService;

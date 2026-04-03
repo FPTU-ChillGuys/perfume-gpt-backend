@@ -18,7 +18,11 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<VerifyStockAdjustmentRequest> _verifyValidator;
 		private readonly IValidator<UpdateStockAdjustmentStatusRequest> _updateStatusValidator;
 
-		public StockAdjustmentsController(IStockAdjustmentService stockAdjustmentService, IValidator<CreateStockAdjustmentRequest> createValidator, IValidator<VerifyStockAdjustmentRequest> verifyValidator, IValidator<UpdateStockAdjustmentStatusRequest> updateStatusValidator)
+		public StockAdjustmentsController(
+			IStockAdjustmentService stockAdjustmentService,
+			IValidator<CreateStockAdjustmentRequest> createValidator,
+			IValidator<VerifyStockAdjustmentRequest> verifyValidator,
+			IValidator<UpdateStockAdjustmentStatusRequest> updateStatusValidator)
 		{
 			_stockAdjustmentService = stockAdjustmentService;
 			_createValidator = createValidator;
@@ -62,7 +66,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<StockAdjustmentResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<StockAdjustmentResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<StockAdjustmentResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<StockAdjustmentResponse>>> GetStockAdjustmentById(Guid id)
+		public async Task<ActionResult<BaseResponse<StockAdjustmentResponse>>> GetStockAdjustmentById([FromRoute] Guid id)
 		{
 			var response = await _stockAdjustmentService.GetStockAdjustmentByIdAsync(id);
 			return HandleResponse(response);
@@ -98,7 +102,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<bool>>> DeleteStockAdjustment(Guid id)
+		public async Task<ActionResult<BaseResponse<bool>>> DeleteStockAdjustment([FromRoute] Guid id)
 		{
 			var response = await _stockAdjustmentService.DeleteStockAdjustmentAsync(id);
 			return HandleResponse(response);

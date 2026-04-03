@@ -16,7 +16,10 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<CreateOlfactoryFamilyRequest> _createValidator;
 		private readonly IValidator<UpdateOlfactoryFamilyRequest> _updateValidator;
 
-		public OlfactoryFamiliesController(IOlfactoryFamilyService olfactoryFamilyService, IValidator<CreateOlfactoryFamilyRequest> createValidator, IValidator<UpdateOlfactoryFamilyRequest> updateValidator)
+		public OlfactoryFamiliesController(
+			[FromRoute] IOlfactoryFamilyService olfactoryFamilyService,
+			IValidator<CreateOlfactoryFamilyRequest> createValidator,
+			IValidator<UpdateOlfactoryFamilyRequest> updateValidator)
 		{
 			_olfactoryFamilyService = olfactoryFamilyService;
 			_createValidator = createValidator;
@@ -43,7 +46,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<OlfactoryFamilyResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<OlfactoryFamilyResponse>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<OlfactoryFamilyResponse>>> GetOlfactoryFamilyByIdAsync(int id)
+		public async Task<ActionResult<BaseResponse<OlfactoryFamilyResponse>>> GetOlfactoryFamilyByIdAsync([FromRoute] int id)
 		{
 			var result = await _olfactoryFamilyService.GetOlfactoryFamilyByIdAsync(id);
 			return HandleResponse(result);
@@ -63,7 +66,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<OlfactoryFamilyResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<OlfactoryFamilyResponse>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<OlfactoryFamilyResponse>>> UpdateOlfactoryFamilyAsync(int id, [FromBody] UpdateOlfactoryFamilyRequest request)
+		public async Task<ActionResult<BaseResponse<OlfactoryFamilyResponse>>> UpdateOlfactoryFamilyAsync([FromRoute] int id, [FromBody] UpdateOlfactoryFamilyRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
@@ -75,7 +78,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpDelete("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<bool>>> DeleteOlfactoryFamilyAsync(int id)
+		public async Task<ActionResult<BaseResponse<bool>>> DeleteOlfactoryFamilyAsync([FromRoute] int id)
 		{
 			var result = await _olfactoryFamilyService.DeleteOlfactoryFamilyAsync(id);
 			return HandleResponse(result);

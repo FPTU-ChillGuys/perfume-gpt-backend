@@ -14,14 +14,19 @@ namespace PerfumeGPT.API.Controllers
 	public class ImportTicketsController : BaseApiController
 	{
 		private readonly IImportTicketService _importTicketService;
-
 		private readonly IValidator<CreateImportTicketRequest> _createImportTicketValidator;
 		private readonly IValidator<VerifyImportTicketRequest> _verifyImportTicketValidator;
 		private readonly IValidator<UpdateImportStatusRequest> _updateImportStatusValidator;
 		private readonly IValidator<UpdateImportRequest> _updateImportValidator;
 		private readonly IValidator<UploadImportTicketFromExcelRequest> _createImportTicketFromExcelValidator;
 
-		public ImportTicketsController(IImportTicketService importTicketService, IValidator<CreateImportTicketRequest> createImportTicketValidator, IValidator<VerifyImportTicketRequest> verifyImportTicketValidator, IValidator<UpdateImportStatusRequest> updateImportStatusValidator, IValidator<UpdateImportRequest> updateImportValidator, IValidator<UploadImportTicketFromExcelRequest> createImportTicketFromExcelValidator)
+		public ImportTicketsController(
+			IImportTicketService importTicketService,
+			IValidator<CreateImportTicketRequest> createImportTicketValidator,
+			IValidator<VerifyImportTicketRequest> verifyImportTicketValidator,
+			IValidator<UpdateImportStatusRequest> updateImportStatusValidator,
+			IValidator<UpdateImportRequest> updateImportValidator,
+			IValidator<UploadImportTicketFromExcelRequest> createImportTicketFromExcelValidator)
 		{
 			_importTicketService = importTicketService;
 			_createImportTicketValidator = createImportTicketValidator;
@@ -149,7 +154,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<bool>>> DeleteImportTicket(Guid id)
+		public async Task<ActionResult<BaseResponse<bool>>> DeleteImportTicket([FromRoute] Guid id)
 		{
 			var response = await _importTicketService.DeleteImportTicketAsync(id);
 			return HandleResponse(response);

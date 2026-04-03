@@ -17,7 +17,11 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<ConfirmPaymentRequest> _confirmPaymentValidator;
 		private readonly ILogger<PaymentsController> _logger;
 
-		public PaymentsController(IPaymentService paymentService, IConfiguration configuration, ILogger<PaymentsController> logger, IValidator<ConfirmPaymentRequest> confirmPaymentValidator)
+		public PaymentsController(
+			[FromRoute] IPaymentService paymentService,
+			IConfiguration configuration,
+			ILogger<PaymentsController> logger,
+			IValidator<ConfirmPaymentRequest> confirmPaymentValidator)
 		{
 			_paymentService = paymentService;
 			_configuration = configuration;
@@ -76,7 +80,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> RetryPayment(Guid paymentId, [FromBody] PaymentInformation? newMethod = null)
+		public async Task<ActionResult<BaseResponse<string>>> RetryPayment([FromRoute] Guid paymentId, [FromBody] PaymentInformation? newMethod = null)
 		{
 			var response = await _paymentService.RetryPaymentWithMethodAsync(paymentId, newMethod);
 			return HandleResponse(response);
@@ -87,7 +91,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> ChangePaymentMethod(Guid paymentId, [FromBody] PaymentInformation newMethod)
+		public async Task<ActionResult<BaseResponse<string>>> ChangePaymentMethod([FromRoute] Guid paymentId, [FromBody] PaymentInformation newMethod)
 		{
 			var response = await _paymentService.ChangePaymentMethodAsync(paymentId, newMethod);
 			return HandleResponse(response);
@@ -97,7 +101,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<bool>>> ConfirmPayment(Guid paymentId, [FromBody] ConfirmPaymentRequest request)
+		public async Task<ActionResult<BaseResponse<bool>>> ConfirmPayment([FromRoute] Guid paymentId, [FromBody] ConfirmPaymentRequest request)
 		{
 			var validation = await ValidateRequestAsync(_confirmPaymentValidator, request);
 			if (validation != null) return validation;
@@ -106,13 +110,7 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		private static string BuildVnPayRedirectUrl(
-			string baseUrl,
-			string status,
-			IQueryCollection vnpayQuery,
-			Guid? orderId = null,
-			Guid? paymentId = null,
-			string? errorMessage = null)
+		private static string BuildVnPayRedirectUrl(string baseUrl, string status, IQueryCollection vnpayQuery, Guid? orderId = null, Guid? paymentId = null, string? errorMessage = null)
 		{
 			// Parameters to forward to frontend
 			var paramsToForward = new[]

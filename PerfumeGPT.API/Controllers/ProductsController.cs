@@ -22,7 +22,12 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<UpdateProductRequest> _updateValidator;
 		private readonly IValidator<ProductUploadMediaRequest> _productUploadValidator;
 
-		public ProductsController(IProductService productService, IMediaService mediaService, IValidator<UpdateProductRequest> updateValidator, IValidator<CreateProductRequest> createValidator, IValidator<ProductUploadMediaRequest> productUploadValidator)
+		public ProductsController(
+			IProductService productService,
+			IMediaService mediaService,
+			IValidator<UpdateProductRequest> updateValidator,
+			IValidator<CreateProductRequest> createValidator,
+			IValidator<ProductUploadMediaRequest> productUploadValidator)
 		{
 			_productService = productService;
 			_mediaService = mediaService;
@@ -72,7 +77,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<ProductResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<ProductResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<ProductResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<ProductResponse>>> GetProduct(Guid productId)
+		public async Task<ActionResult<BaseResponse<ProductResponse>>> GetProduct([FromRoute] Guid productId)
 		{
 			var response = await _productService.GetProductAsync(productId);
 			return HandleResponse(response);
@@ -96,7 +101,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> UpdateProduct(Guid productId, [FromBody] UpdateProductRequest request)
+		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> UpdateProduct([FromRoute] Guid productId, [FromBody] UpdateProductRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
@@ -110,12 +115,14 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> DeleteProduct(Guid productId)
+		public async Task<ActionResult<BaseResponse<string>>> DeleteProduct([FromRoute] Guid productId)
 		{
 			var response = await _productService.DeleteProductAsync(productId);
 			return HandleResponse(response);
 		}
-		#endregion
+		#endregion CRUD Endpoints
+
+
 
 		#region Media Endpoints
 		[HttpPost("images/temporary")]
@@ -123,8 +130,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages(
-			[FromForm] ProductUploadMediaRequest request)
+		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages([FromForm] ProductUploadMediaRequest request)
 		{
 			var validation = await ValidateRequestAsync(_productUploadValidator, request);
 			if (validation != null) return validation;
@@ -138,7 +144,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<List<MediaResponse>>>> GetProductImages(Guid productId)
+		public async Task<ActionResult<BaseResponse<List<MediaResponse>>>> GetProductImages([FromRoute] Guid productId)
 		{
 			var response = await _productService.GetProductImagesAsync(productId);
 			return HandleResponse(response);
@@ -148,7 +154,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<MediaResponse?>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<MediaResponse?>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<MediaResponse?>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<MediaResponse?>>> GetProductPrimaryImage(Guid productId)
+		public async Task<ActionResult<BaseResponse<MediaResponse?>>> GetProductPrimaryImage([FromRoute] Guid productId)
 		{
 			var response = await _mediaService.GetPrimaryMediaAsync(EntityType.Product, productId);
 			return HandleResponse(response);
@@ -158,12 +164,13 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> SetProductPrimaryImage(Guid mediaId)
+		public async Task<ActionResult<BaseResponse<string>>> SetProductPrimaryImage([FromRoute] Guid mediaId)
 		{
 			var response = await _mediaService.SetPrimaryMediaAsync(mediaId);
 			return HandleResponse(response);
 		}
-		#endregion
+		#endregion Media Endpoints
+
 
 		#region Product Recommendations
 		[HttpPost("embeddings/update/alls")]
@@ -174,7 +181,7 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpPost("embeddings/update/{productId:guid}")]
-		public async Task<ActionResult<BaseResponse>> UpdateProductEmbeddings(Guid productId)
+		public async Task<ActionResult<BaseResponse>> UpdateProductEmbeddings([FromRoute] Guid productId)
 		{
 			var response = await _productService.UpdateProductEmbeddingAsync(productId);
 			return HandleResponse(response);
@@ -193,7 +200,9 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _productService.GetProductDailySaleFiguresAsync(date);
 			return HandleResponse(response);
 		}
-		#endregion
+		#endregion Product Recommendations
+
+
 
 		#region Best Seller & New Arrival Endpoints
 		[HttpGet("best-sellers")]
@@ -217,14 +226,12 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("campaigns/{campaignId:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ProductListItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ProductListItem>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PagedResult<ProductListItem>>>> GetCampaignProducts(
-			[FromRoute] Guid campaignId,
-			[FromQuery] GetPagedProductRequest request)
+		public async Task<ActionResult<BaseResponse<PagedResult<ProductListItem>>>> GetCampaignProducts([FromRoute] Guid campaignId, [FromQuery] GetPagedProductRequest request)
 		{
 			var response = await _productService.GetCampaignProductsAsync(campaignId, request);
 			return HandleResponse(response);
 		}
-		#endregion
+		#endregion Best Seller & New Arrival Endpoints
 	}
 }
 

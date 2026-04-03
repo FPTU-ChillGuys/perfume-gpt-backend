@@ -24,7 +24,17 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<FulfillOrderRequest> _fulfillOrderValidator;
 		private readonly IValidator<SwapDamagedStockRequest> _swapDamagedStockValidator;
 
-		public OrdersController(IOrderService orderService, IValidator<UpdateOrderAddressRequest> updateOrderAddressValidator, IValidator<GetPagedOrdersRequest> pagedOrdersValidator, IValidator<CreateOrderRequest> checkoutValidator, IValidator<CreateInStoreOrderRequest> checkoutInStoreValidator, IValidator<PreviewOrderRequest> previewOrderValidator, IValidator<UpdateOrderStatusRequest> updateOrderStatusValidator, IValidator<UserCancelOrderRequest> cancelOrderValidator, IValidator<FulfillOrderRequest> fulfillOrderValidator, IValidator<SwapDamagedStockRequest> swapDamagedStockValidator)
+		public OrdersController(
+			IOrderService orderService,
+			IValidator<UpdateOrderAddressRequest> updateOrderAddressValidator,
+			IValidator<GetPagedOrdersRequest> pagedOrdersValidator,
+			IValidator<CreateOrderRequest> checkoutValidator,
+			IValidator<CreateInStoreOrderRequest> checkoutInStoreValidator,
+			IValidator<PreviewOrderRequest> previewOrderValidator,
+			IValidator<UpdateOrderStatusRequest> updateOrderStatusValidator,
+			IValidator<UserCancelOrderRequest> cancelOrderValidator,
+			IValidator<FulfillOrderRequest> fulfillOrderValidator,
+			IValidator<SwapDamagedStockRequest> swapDamagedStockValidator)
 		{
 			_orderService = orderService;
 			_updateOrderAddressValidator = updateOrderAddressValidator;
@@ -39,7 +49,6 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		#region User Query Operations
-
 		[HttpGet("my-orders")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]
@@ -82,15 +91,14 @@ namespace PerfumeGPT.API.Controllers
 		[Authorize(Roles = "staff,admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PagedResult<OrderListItem>>>> GetOrdersByUserId(
-			[FromRoute] Guid userId,
-			[FromQuery] GetPagedOrdersRequest request)
+		public async Task<ActionResult<BaseResponse<PagedResult<OrderListItem>>>> GetOrdersByUserId([FromRoute] Guid userId, [FromQuery] GetPagedOrdersRequest request)
 		{
 			var response = await _orderService.GetOrdersByUserIdAsync(userId, request);
 			return HandleResponse(response);
 		}
+		#endregion User Query Operations
 
-		#endregion
+
 
 		#region Staff/Admin Query Operations
 		[HttpGet]
@@ -129,17 +137,16 @@ namespace PerfumeGPT.API.Controllers
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PagedResult<OrderListItem>>>> GetOrdersByStaffId(
-			[FromRoute] Guid staffId,
-			[FromQuery] GetPagedOrdersRequest request)
+		public async Task<ActionResult<BaseResponse<PagedResult<OrderListItem>>>> GetOrdersByStaffId([FromRoute] Guid staffId, [FromQuery] GetPagedOrdersRequest request)
 		{
 			var response = await _orderService.GetOrdersByStaffIdAsync(staffId, request);
 			return HandleResponse(response);
 		}
 		#endregion Staff/Admin Query Operations
 
-		#region Checkout Operations
 
+
+		#region Checkout Operations
 		[HttpPost("checkout")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
@@ -185,20 +192,18 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _orderService.PreviewOrder(request);
 			return HandleResponse(response);
 		}
-
 		#endregion Checkout Operations
 
-		#region Order Status Management
 
+
+		#region Order Status Management
 		[HttpPut("{orderId:guid}/status")]
 		[Authorize(Roles = "staff")]
 		[ProducesResponseType(typeof(BaseResponse<PickListResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PickListResponse>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<PickListResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<PickListResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PickListResponse>>> UpdateOrderStatus(
-			[FromRoute] Guid orderId,
-			[FromBody] UpdateOrderStatusRequest request)
+		public async Task<ActionResult<BaseResponse<PickListResponse>>> UpdateOrderStatus([FromRoute] Guid orderId, [FromBody] UpdateOrderStatusRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateOrderStatusValidator, request);
 			if (validation != null) return validation;
@@ -241,11 +246,11 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _orderService.UpdateOrderAddressAsync(orderId, userId, request);
 			return HandleResponse(response);
 		}
+		#endregion Order Status Management
 
-		#endregion
+
 
 		#region Order Fulfillment (Warehouse Operations)
-
 		[HttpGet("{orderId:guid}/picklist")]
 		[Authorize(Roles = "staff")]
 		[ProducesResponseType(typeof(BaseResponse<PickListResponse>), StatusCodes.Status200OK)]
@@ -264,9 +269,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> FulfillOrder(
-			[FromRoute] Guid orderId,
-			[FromBody] FulfillOrderRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> FulfillOrder([FromRoute] Guid orderId, [FromBody] FulfillOrderRequest request)
 		{
 			var validation = await ValidateRequestAsync(_fulfillOrderValidator, request);
 			if (validation != null) return validation;
@@ -282,9 +285,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<SwapDamagedStockResponse>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<SwapDamagedStockResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<SwapDamagedStockResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<SwapDamagedStockResponse>>> SwapDamagedStock(
-			[FromRoute] Guid orderId,
-			[FromBody] SwapDamagedStockRequest request)
+		public async Task<ActionResult<BaseResponse<SwapDamagedStockResponse>>> SwapDamagedStock([FromRoute] Guid orderId, [FromBody] SwapDamagedStockRequest request)
 		{
 			var validation = await ValidateRequestAsync(_swapDamagedStockValidator, request);
 			if (validation != null) return validation;
@@ -293,7 +294,6 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _orderService.SwapDamagedStockAsync(orderId, staffId, request);
 			return HandleResponse(response);
 		}
-
-		#endregion
+		#endregion Order Fulfillment (Warehouse Operations)
 	}
 }
