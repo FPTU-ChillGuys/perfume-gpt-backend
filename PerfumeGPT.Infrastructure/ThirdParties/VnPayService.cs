@@ -35,7 +35,6 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			vnpay.AddRequestData("vnp_Command", _config["VnPay:Command"] ?? string.Empty);
 			vnpay.AddRequestData("vnp_TmnCode", _config["VnPay:TmnCode"] ?? string.Empty);
 
-			// ensure null-coalesce happens BEFORE multiplying by 100 (VNPay expects amount in smallest unit)
 			vnpay.AddRequestData("vnp_Amount", ((request.Amount) * 100).ToString());
 
 			// Use utc now for create date
@@ -47,17 +46,14 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			vnpay.AddRequestData("vnp_ExpireDate", timeNow.AddMinutes(15).ToString("yyyyMMddHHmmss"));
 
 			vnpay.AddRequestData("vnp_CurrCode", _config["VnPay:CurrCode"] ?? string.Empty);
-			//var ipAddress = await Utils.GetIpAddressAsync(context);
-			//vnpay.AddRequestData("vnp_IpAddr", ipAddress ?? string.Empty);
-			vnpay.AddRequestData("vnp_IpAddr", "127.0.0.1");
+			var ipAddress = await Utils.GetIpAddressAsync(context);
+			vnpay.AddRequestData("vnp_IpAddr", ipAddress ?? string.Empty);
 			vnpay.AddRequestData("vnp_Locale", _config["VnPay:Locale"] ?? string.Empty);
 
 			// include subscription id and txn id in order info for later reconciliation
-			//var orderInfo = $"Thanh toan don hang: {request.OrderCode}. So tien {request.Amount} {_config["VnPay:CurrCode"]}";
-			var orderInfo = $"Thanh-toan-don-hang-{request.OrderCode}";
+			var orderInfo = $"Thanh toan don hang: {request.OrderCode}. So tien {request.Amount} {_config["VnPay:CurrCode"]}";
 			vnpay.AddRequestData("vnp_OrderInfo", orderInfo);
-			//vnpay.AddRequestData("vnp_OrderType", "210000"); // healh and beauty
-			vnpay.AddRequestData("vnp_OrderType", "other");
+			vnpay.AddRequestData("vnp_OrderType", "210000"); // healh and beauty
 			vnpay.AddRequestData("vnp_ReturnUrl", returnUrl ?? string.Empty);
 
 			// Use GUID string for txn reference (matches PaymentTransaction.Id)

@@ -1,10 +1,10 @@
-﻿namespace PerfumeGPT.Application.DTOs.Requests.VNPays
+namespace PerfumeGPT.Application.DTOs.Requests.Momos
 {
-	public record VnPaymentRequest
+	public record MomoPaymentRequest
 	{
 		public Guid OrderId { get; init; }
 		public required string OrderCode { get; init; }
 		public Guid PaymentId { get; init; }
-		public int Amount { get; init; } = 0;
+		public int Amount { get; init; }
 	}
 }

@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Http;
+using PerfumeGPT.Application.DTOs.Requests.Momos;
+using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
@@ -12,15 +14,18 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 	{
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IVnPayService _vnPayService;
+		private readonly IMomoService _momoService;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 
 		public OrderPaymentService(
 			IUnitOfWork unitOfWork,
 			IVnPayService vnPayService,
+		   IMomoService momoService,
 			IHttpContextAccessor httpContextAccessor)
 		{
 			_unitOfWork = unitOfWork;
 			_vnPayService = vnPayService;
+			_momoService = momoService;
 			_httpContextAccessor = httpContextAccessor;
 		}
 
@@ -32,48 +37,33 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 			if (paymentMethod == PaymentMethod.VnPay)
 			{
-				payment.MarkSuccess($"MANUAL-{payment.Id:N}");
-				order.MarkPaid(DateTime.UtcNow);
-				order.SetStatus(OrderStatus.Pending);
+				var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("Unable to access HTTP context for VnPay integration.");
 
-				if (order.UserVoucher != null)
+				var vnPayRequest = new VnPaymentRequest
 				{
-					var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(uv => uv.OrderId == order.Id && !uv.IsUsed);
-					if (userVoucher != null)
-					{
-						userVoucher.MarkUsed(order.Id);
-						_unitOfWork.UserVouchers.Update(userVoucher);
-					}
-				}
-
-				var existingReceipt = await _unitOfWork.Receipts.FirstOrDefaultAsync(r => r.TransactionId == payment.Id);
-				if (existingReceipt == null)
-				{
-					await _unitOfWork.Receipts.AddAsync(Receipt.Create(payment.Id));
-				}
-
-				var frontendUrl = _httpContextAccessor.HttpContext?.Request.Headers["Origin"].FirstOrDefault();
-				if (string.IsNullOrWhiteSpace(frontendUrl))
-				{
-					frontendUrl = "http://localhost:3000";
-				}
-
-				var queryParams = new List<string>
-				{
-					$"orderId={order.Id}",
-					$"paymentId={payment.Id}",
-					$"vnp_ResponseCode=00",
-					$"vnp_TxnRef={payment.Id}",
-					$"vnp_Amount={Uri.EscapeDataString(((long)(amount * 100)).ToString())}",
-					$"vnp_OrderInfo={Uri.EscapeDataString(order.Code)}",
-					$"vnp_TransactionNo={payment.Id:N}"
+					OrderId = order.Id,
+					OrderCode = order.Code,
+					PaymentId = payment.Id,
+					Amount = (int)amount
 				};
 
-				return $"{frontendUrl}/payment/success?{string.Join("&", queryParams)}";
+				var checkoutResponse = await _vnPayService.CreatePaymentUrlAsync(httpContext, vnPayRequest);
+				return checkoutResponse.PaymentUrl;
 			}
 			else if (paymentMethod == PaymentMethod.Momo)
 			{
-				throw AppException.BadRequest("Momo payment method is currently not supported.");
+				var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("Unable to access HTTP context for Momo integration.");
+
+				var momoRequest = new MomoPaymentRequest
+				{
+					OrderId = order.Id,
+					OrderCode = order.Code,
+					PaymentId = payment.Id,
+					Amount = (int)amount
+				};
+
+				var checkoutResponse = await _momoService.CreatePaymentUrlAsync(httpContext, momoRequest);
+				return checkoutResponse.PaymentUrl;
 			}
 
 			return order.Id.ToString();

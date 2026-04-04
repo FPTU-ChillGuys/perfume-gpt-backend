@@ -1,9 +1,11 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using PerfumeGPT.Application.DTOs.Requests.Momos;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Requests.Payments;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Momos;
 using PerfumeGPT.Application.DTOs.Responses.VNPays;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
@@ -18,6 +20,7 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IVnPayService _vnPayService;
+		private readonly IMomoService _momoService;
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IVoucherService _voucherService;
@@ -26,6 +29,7 @@ namespace PerfumeGPT.Application.Services
 
 		public PaymentService(
 			IVnPayService vnPayService,
+			IMomoService momoService,
 			IUnitOfWork unitOfWork,
 			IHttpContextAccessor httpContextAccessor,
 			IVoucherService voucherService,
@@ -33,6 +37,7 @@ namespace PerfumeGPT.Application.Services
 			ILogger<PaymentService> logger)
 		{
 			_vnPayService = vnPayService;
+			_momoService = momoService;
 			_unitOfWork = unitOfWork;
 			_httpContextAccessor = httpContextAccessor;
 			_voucherService = voucherService;
@@ -71,6 +76,51 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> RetryPaymentWithMethodAsync(Guid paymentId, PaymentInformation? newMethod = null)
 		{
 			return await ProcessPaymentRetryAsync(paymentId, newMethod, requirePending: false);
+		}
+
+		// MoMo methods
+		public async Task<MomoReturnResponse> ProcessMomoReturnAsync(IQueryCollection queryParameters)
+		{
+			var momoResponse = _momoService.GetPaymentResponseAsync(queryParameters);
+			if (momoResponse.PaymentId == Guid.Empty)
+			{
+				throw AppException.BadRequest("MoMo payment failed");
+			}
+
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				var payment = await _unitOfWork.Payments.GetByIdAsync(momoResponse.PaymentId)
+					?? throw AppException.NotFound("Payment record not found.");
+
+				var payload = new MomoReturnResponse
+				{
+					PaymentId = payment.Id,
+					OrderId = payment.OrderId,
+					IsSuccess = momoResponse.IsSuccess
+				};
+
+				if (!payment.IsPending())
+				{
+					return payload with { IsSuccess = payment.TransactionStatus == TransactionStatus.Success };
+				}
+
+				if (payment.Amount != momoResponse.Amount)
+				{
+					throw AppException.BadRequest("Payment amount mismatch.");
+				}
+
+				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
+					?? throw AppException.NotFound("Order not found.");
+
+				if (momoResponse.IsSuccess)
+				{
+					await CompleteSuccessfulPayment(payment, order, momoResponse.TransactionNo);
+					return payload;
+				}
+
+				await HandleFailedPayment(payment, order, momoResponse.Message, momoResponse.TransactionNo);
+				return payload;
+			});
 		}
 
 		// VnPay methods
@@ -213,6 +263,10 @@ namespace PerfumeGPT.Application.Services
 			{
 				order.SetStatus(OrderStatus.Pending);
 			}
+			if (payment.Method == PaymentMethod.Momo)
+			{
+				order.SetStatus(OrderStatus.Pending);
+			}
 
 			_unitOfWork.Payments.Update(payment);
 			_unitOfWork.Orders.Update(order);
@@ -267,7 +321,17 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Ok(paymentUrlResponse.PaymentUrl, $"Payment transaction #{retryAttempt} created{methodMessage}. Redirecting to VnPay.");
 
 				case PaymentMethod.Momo:
-					throw AppException.Internal("Momo payment not yet implemented.");
+					var momoHttpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext is not available.");
+					var momoRequest = new MomoPaymentRequest
+					{
+						OrderId = order.Id,
+						OrderCode = order.Code,
+						PaymentId = payment.Id,
+						Amount = (int)payment.Amount
+					};
+
+					var momoUrlResponse = await _momoService.CreatePaymentUrlAsync(momoHttpContext, momoRequest);
+					return BaseResponse<string>.Ok(momoUrlResponse.PaymentUrl, $"Payment transaction #{retryAttempt} created{methodMessage}. Redirecting to Momo.");
 
 				case PaymentMethod.CashOnDelivery:
 				case PaymentMethod.CashInStore:

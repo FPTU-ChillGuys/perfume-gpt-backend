@@ -39,6 +39,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			services.AddHttpClient<IGHTKService, GHTKService>();
 			services.AddSingleton<ISupabaseService, SupabaseService>();
 			services.AddScoped<IVnPayService, VnPayService>();
+			services.AddScoped<IMomoService, MomoService>();
 			services.AddScoped<ISignalRService, SignalRService>();
 
 			// Convention-based registration for repository implementations in the Persistence assembly.

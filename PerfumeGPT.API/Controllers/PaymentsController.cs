@@ -29,6 +29,46 @@ namespace PerfumeGPT.API.Controllers
 			_confirmPaymentValidator = confirmPaymentValidator;
 		}
 
+		[HttpGet("momo-return")]
+		[ProducesResponseType(StatusCodes.Status302Found)]
+		[ProducesResponseType(StatusCodes.Status400BadRequest)]
+		public async Task<IActionResult> HandleMomoCallback()
+		{
+			try
+			{
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+
+				if (!Request.Query.ContainsKey("resultCode") ||
+					!Request.Query.ContainsKey("orderId"))
+				{
+					_logger.LogWarning("MoMo callback missing required parameters");
+					return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Invalid payment callback")}");
+				}
+
+				var result = await _paymentService.ProcessMomoReturnAsync(Request.Query);
+
+				var resultCode = Request.Query["resultCode"].ToString();
+				bool isSuccess = result.IsSuccess && resultCode == "0";
+				var failureMessage = isSuccess ? null : "MoMo payment failed.";
+
+				var redirectUrl = BuildMomoRedirectUrl(
+					frontendUrl,
+					isSuccess ? "success" : "failure",
+					Request.Query,
+					result.OrderId,
+					result.PaymentId,
+					failureMessage);
+
+				return Redirect(redirectUrl);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error processing MoMo callback");
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
+			}
+		}
+
 		[HttpGet("vnpay-return")]
 		[ProducesResponseType(StatusCodes.Status302Found)]
 		[ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -36,8 +76,6 @@ namespace PerfumeGPT.API.Controllers
 		{
 			try
 			{
-				// Get frontend URL
-				//string frontendUrl = _configuration["Front-end:webUrlHttps"] ?? "https://localhost:3000";
 				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
 
 				// Validate required parameters exist
@@ -148,6 +186,48 @@ namespace PerfumeGPT.API.Controllers
 			}
 
 			// Add error message for failure
+			if (!string.IsNullOrWhiteSpace(errorMessage))
+			{
+				queryParams.Add($"error={Uri.EscapeDataString(errorMessage)}");
+			}
+
+			var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
+			return $"{baseUrl}/payment/{status}{queryString}";
+		}
+
+		private static string BuildMomoRedirectUrl(string baseUrl, string status, IQueryCollection momoQuery, Guid? orderId = null, Guid? paymentId = null, string? errorMessage = null)
+		{
+			var paramsToForward = new[]
+			{
+				"orderId",
+				"requestId",
+				"amount",
+				"transId",
+				"orderInfo",
+				"resultCode",
+				"message"
+			};
+
+			var queryParams = new List<string>();
+
+			foreach (var paramName in paramsToForward)
+			{
+				if (momoQuery.TryGetValue(paramName, out var value) && !string.IsNullOrWhiteSpace(value))
+				{
+					queryParams.Add($"{paramName}={Uri.EscapeDataString(value.ToString())}");
+				}
+			}
+
+			if (orderId.HasValue && orderId.Value != Guid.Empty)
+			{
+				queryParams.Add($"orderIdInternal={orderId.Value}");
+			}
+
+			if (paymentId.HasValue && paymentId.Value != Guid.Empty)
+			{
+				queryParams.Add($"paymentId={paymentId.Value}");
+			}
+
 			if (!string.IsNullOrWhiteSpace(errorMessage))
 			{
 				queryParams.Add($"error={Uri.EscapeDataString(errorMessage)}");
