@@ -1,9 +1,10 @@
+using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Interfaces.Services.OrderHelpers
 {
 	public interface IOrderPaymentService
 	{
-		Task<string> CreatePaymentAndGenerateResponseAsync(Guid orderId, decimal amount, PaymentMethod paymentMethod);
+		Task<string> CreatePaymentAndGenerateResponseAsync(Order order, decimal amount, PaymentMethod paymentMethod);
 	}
 }

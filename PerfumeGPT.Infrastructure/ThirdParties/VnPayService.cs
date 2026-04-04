@@ -7,6 +7,7 @@ using PerfumeGPT.Application.DTOs.Responses.Orders;
 using PerfumeGPT.Application.DTOs.Responses.VNPays;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Infrastructure.Extensions;
+using System.Runtime.InteropServices;
 
 namespace PerfumeGPT.Infrastructure.ThirdParties
 {
@@ -26,6 +27,8 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			var returnUrl = _webHostEnvironment.EnvironmentName == Environments.Development
 				? _config["VnPay:ReturnUrl"]
 				: _config["VnPay:ReturnUrlProduct"];
+			var paymentBaseUrl = _config["VnPay:PaymentUrl"] ?? throw new InvalidOperationException("VnPay:PaymentUrl must be configured");
+			var hashSecret = _config["VnPay:HashSecret"] ?? throw new InvalidOperationException("VnPay:HashSecret must be configured");
 
 			var vnpay = new VnPayLibrary();
 			vnpay.AddRequestData("vnp_Version", _config["VnPay:Version"] ?? string.Empty);
@@ -36,22 +39,31 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			vnpay.AddRequestData("vnp_Amount", ((request.Amount) * 100).ToString());
 
 			// Use utc now for create date
-			vnpay.AddRequestData("vnp_CreateDate", DateTime.UtcNow.ToString("yyyyMMddHHmmss"));
+			var timeZoneId = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "SE Asia Standard Time" : "Asia/Ho_Chi_Minh";
+			var vnTimeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+			var timeNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, vnTimeZone);
+
+			vnpay.AddRequestData("vnp_CreateDate", timeNow.ToString("yyyyMMddHHmmss"));
+			vnpay.AddRequestData("vnp_ExpireDate", timeNow.AddMinutes(15).ToString("yyyyMMddHHmmss"));
+
 			vnpay.AddRequestData("vnp_CurrCode", _config["VnPay:CurrCode"] ?? string.Empty);
-			var ipAddress = await Utils.GetIpAddressAsync(context);
-			vnpay.AddRequestData("vnp_IpAddr", ipAddress ?? string.Empty);
+			//var ipAddress = await Utils.GetIpAddressAsync(context);
+			//vnpay.AddRequestData("vnp_IpAddr", ipAddress ?? string.Empty);
+			vnpay.AddRequestData("vnp_IpAddr", "127.0.0.1");
 			vnpay.AddRequestData("vnp_Locale", _config["VnPay:Locale"] ?? string.Empty);
 
 			// include subscription id and txn id in order info for later reconciliation
-			var orderInfo = $"Thanh toan don hang: {request.OrderId}. So tien {request.Amount} {_config["VnPay:CurrCode"]}";
+			//var orderInfo = $"Thanh toan don hang: {request.OrderCode}. So tien {request.Amount} {_config["VnPay:CurrCode"]}";
+			var orderInfo = $"Thanh-toan-don-hang-{request.OrderCode}";
 			vnpay.AddRequestData("vnp_OrderInfo", orderInfo);
-			vnpay.AddRequestData("vnp_OrderType", "210000"); // healh and beauty
+			//vnpay.AddRequestData("vnp_OrderType", "210000"); // healh and beauty
+			vnpay.AddRequestData("vnp_OrderType", "other");
 			vnpay.AddRequestData("vnp_ReturnUrl", returnUrl ?? string.Empty);
 
 			// Use GUID string for txn reference (matches PaymentTransaction.Id)
 			vnpay.AddRequestData("vnp_TxnRef", request.PaymentId.ToString());
 
-			string paymentUrl = vnpay.CreateRequestUrl(_config["VnPay:PaymentUrl"] ?? string.Empty, _config["VnPay:HashSecret"] ?? string.Empty);
+			string paymentUrl = vnpay.CreateRequestUrl(paymentBaseUrl, hashSecret);
 			return new OrderCheckoutResponse { PaymentUrl = paymentUrl, OrderId = request.OrderId };
 		}
 

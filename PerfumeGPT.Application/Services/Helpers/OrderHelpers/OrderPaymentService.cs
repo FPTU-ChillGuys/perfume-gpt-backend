@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Http;
-using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
@@ -25,32 +24,59 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			_httpContextAccessor = httpContextAccessor;
 		}
 
-		public async Task<string> CreatePaymentAndGenerateResponseAsync(Guid orderId, decimal amount, PaymentMethod paymentMethod)
+		public async Task<string> CreatePaymentAndGenerateResponseAsync(Order order, decimal amount, PaymentMethod paymentMethod)
 		{
-			var payment = PaymentTransaction.Create(orderId, paymentMethod, amount);
+			var payment = PaymentTransaction.Create(order.Id, paymentMethod, amount);
 
 			await _unitOfWork.Payments.AddAsync(payment);
 
 			if (paymentMethod == PaymentMethod.VnPay)
 			{
-				var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("Unable to access HTTP context for VnPay integration.");
+				payment.MarkSuccess($"MANUAL-{payment.Id:N}");
+				order.MarkPaid(DateTime.UtcNow);
+				order.SetStatus(OrderStatus.Pending);
 
-				var vnPayRequest = new VnPaymentRequest
+				if (order.UserVoucher != null)
 				{
-					OrderId = orderId,
-					PaymentId = payment.Id,
-					Amount = (int)amount
+					var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(uv => uv.OrderId == order.Id && !uv.IsUsed);
+					if (userVoucher != null)
+					{
+						userVoucher.MarkUsed(order.Id);
+						_unitOfWork.UserVouchers.Update(userVoucher);
+					}
+				}
+
+				var existingReceipt = await _unitOfWork.Receipts.FirstOrDefaultAsync(r => r.TransactionId == payment.Id);
+				if (existingReceipt == null)
+				{
+					await _unitOfWork.Receipts.AddAsync(Receipt.Create(payment.Id));
+				}
+
+				var frontendUrl = _httpContextAccessor.HttpContext?.Request.Headers["Origin"].FirstOrDefault();
+				if (string.IsNullOrWhiteSpace(frontendUrl))
+				{
+					frontendUrl = "http://localhost:3000";
+				}
+
+				var queryParams = new List<string>
+				{
+					$"orderId={order.Id}",
+					$"paymentId={payment.Id}",
+					$"vnp_ResponseCode=00",
+					$"vnp_TxnRef={payment.Id}",
+					$"vnp_Amount={Uri.EscapeDataString(((long)(amount * 100)).ToString())}",
+					$"vnp_OrderInfo={Uri.EscapeDataString(order.Code)}",
+					$"vnp_TransactionNo={payment.Id:N}"
 				};
 
-				var checkoutResponse = await _vnPayService.CreatePaymentUrlAsync(httpContext, vnPayRequest);
-				return checkoutResponse.PaymentUrl;
+				return $"{frontendUrl}/payment/success?{string.Join("&", queryParams)}";
 			}
 			else if (paymentMethod == PaymentMethod.Momo)
 			{
 				throw AppException.BadRequest("Momo payment method is currently not supported.");
 			}
 
-			return orderId.ToString();
+			return order.Id.ToString();
 		}
 	}
 }

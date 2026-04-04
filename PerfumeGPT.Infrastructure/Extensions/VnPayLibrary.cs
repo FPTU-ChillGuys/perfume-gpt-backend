@@ -41,7 +41,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 
 			foreach (var (key, value) in _requestData.Where(kv => !string.IsNullOrEmpty(kv.Value)))
 			{
-				data.Append(WebUtility.UrlEncode(key) + "=" + WebUtility.UrlEncode(value) + "&");
+				data.Append(WebUtility.UrlEncode(key) + "=" + Uri.EscapeDataString(value) + "&");
 			}
 
 			var querystring = data.ToString();
@@ -83,7 +83,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 
 			foreach (var (key, value) in _responseData.Where(kv => !string.IsNullOrEmpty(kv.Value)))
 			{
-				data.Append(WebUtility.UrlEncode(key) + "=" + WebUtility.UrlEncode(value) + "&");
+				data.Append(WebUtility.UrlEncode(key) + "=" + Uri.EscapeDataString(value) + "&");
 			}
 
 			//remove last '&'
