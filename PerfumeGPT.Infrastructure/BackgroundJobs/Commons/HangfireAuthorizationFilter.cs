@@ -1,6 +1,6 @@
 using Hangfire.Dashboard;
 
-namespace PerfumeGPT.Infrastructure.BackgroundJobs
+namespace PerfumeGPT.Infrastructure.BackgroundJobs.Commons
 {
 	public class HangfireAuthorizationFilter : IDashboardAuthorizationFilter
 	{

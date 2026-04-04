@@ -6,10 +6,13 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Campaigns;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using Microsoft.Extensions.Logging;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -17,11 +20,19 @@ namespace PerfumeGPT.Application.Services
 	{
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IMapper _mapper;
+		private readonly IBackgroundJobService _backgroundJobService;
+		private readonly ILogger<CampaignService> _logger;
 
-		public CampaignService(IUnitOfWork unitOfWork, IMapper mapper)
+		public CampaignService(
+			  IUnitOfWork unitOfWork,
+			  IMapper mapper,
+			  IBackgroundJobService backgroundJobService,
+			  ILogger<CampaignService> logger)
 		{
 			_unitOfWork = unitOfWork;
 			_mapper = mapper;
+			_backgroundJobService = backgroundJobService;
+			_logger = logger;
 		}
 
 		#region Campaign Management
@@ -80,6 +91,8 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				await _unitOfWork.Campaigns.AddAsync(campaign);
+
+				_backgroundJobService.ScheduleCampaignEnd(_logger, campaign.Id, campaign.EndDate);
 
 				return BaseResponse<string>.Ok(campaign.Id.ToString(), "Campaign created successfully.");
 			});

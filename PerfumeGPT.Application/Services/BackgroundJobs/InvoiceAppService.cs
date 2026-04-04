@@ -1,16 +1,15 @@
-using PerfumeGPT.Application.Interfaces.Repositories.Commons;
+﻿using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
-using PerfumeGPT.Application.Interfaces.ThirdParties.BackgroundJobs;
 
-namespace PerfumeGPT.Infrastructure.BackgroundJobs
+namespace PerfumeGPT.Application.Services.BackgroundJobs
 {
-    public class InvoiceEmailJob : IInvoiceAppService
+	internal class InvoiceAppService
 	{
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IEmailService _emailService;
 		private readonly IEmailTemplateService _emailTemplateService;
 
-		public InvoiceEmailJob(
+		public InvoiceAppService(
 			IUnitOfWork unitOfWork,
 			IEmailService emailService,
 			IEmailTemplateService emailTemplateService)

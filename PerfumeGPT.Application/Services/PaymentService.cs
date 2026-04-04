@@ -7,6 +7,7 @@ using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Momos;
 using PerfumeGPT.Application.DTOs.Responses.VNPays;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -24,7 +25,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IVoucherService _voucherService;
-		private readonly IInvoiceEmailJobScheduler _invoiceEmailJobScheduler;
+		private readonly IBackgroundJobService _backgroundJobService;
 		private readonly ILogger<PaymentService> _logger;
 
 		public PaymentService(
@@ -33,16 +34,16 @@ namespace PerfumeGPT.Application.Services
 			IUnitOfWork unitOfWork,
 			IHttpContextAccessor httpContextAccessor,
 			IVoucherService voucherService,
-			IInvoiceEmailJobScheduler invoiceEmailJobScheduler,
-			ILogger<PaymentService> logger)
+			ILogger<PaymentService> logger,
+			IBackgroundJobService backgroundJobService)
 		{
 			_vnPayService = vnPayService;
 			_momoService = momoService;
 			_unitOfWork = unitOfWork;
 			_httpContextAccessor = httpContextAccessor;
 			_voucherService = voucherService;
-			_invoiceEmailJobScheduler = invoiceEmailJobScheduler;
 			_logger = logger;
+			_backgroundJobService = backgroundJobService;
 		}
 		#endregion Dependencies
 
@@ -279,14 +280,7 @@ namespace PerfumeGPT.Application.Services
 				await _unitOfWork.Receipts.AddAsync(receipt);
 			}
 
-			try
-			{
-				_invoiceEmailJobScheduler.EnqueueSendInvoiceEmail(order.Id);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogWarning(ex, "Unable to enqueue invoice email for order {OrderId}.", order.Id);
-			}
+			_backgroundJobService.EnqueueInvoiceEmail(_logger, order.Id);
 
 			return BaseResponse<bool>.Ok(true, "Payment processed successfully.");
 		}

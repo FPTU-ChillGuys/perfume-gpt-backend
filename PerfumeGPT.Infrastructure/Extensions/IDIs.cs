@@ -10,11 +10,12 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.SemanticKernel;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
-using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
+using PerfumeGPT.Application.Interfaces.ThirdParties.BackgroundJobs;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Infrastructure.BackgroundJobs;
+using PerfumeGPT.Infrastructure.BackgroundJobs.Commons;
 using PerfumeGPT.Infrastructure.BackgroundJobs.Schedulers;
 using PerfumeGPT.Infrastructure.ThirdParties;
 using PerfumeGPT.Persistence.Contexts;
@@ -87,11 +88,15 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			services.AddHangfireServer();
 
 			// Register background job classes
+			services.AddScoped<IBackgroundJobClient, BackgroundJobClient>();
 			services.AddScoped<StockReservationJob>();
 			services.AddScoped<TemporaryMediaCleanupJob>();
 			services.AddScoped<ShippingStatusSyncJob>();
 			services.AddScoped<InvoiceEmailJob>();
-			services.AddScoped<IInvoiceEmailJobScheduler, InvoiceEmailJobScheduler>();
+			services.AddScoped<CampaignEndJob>();
+			services.AddScoped<IBackgroundJobService, HangfireBackgroundJobService>();
+			services.AddScoped<IInvoiceAppService, InvoiceEmailJob>();
+			services.AddScoped<ICampaignEndAppService, CampaignEndJob>();
 			services.AddHostedService<StartupJobScheduler>();
 
 			// Configure ASP.NET Core Identity using the application's User entity and GUID roles
