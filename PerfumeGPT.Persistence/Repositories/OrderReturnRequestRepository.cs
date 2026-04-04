@@ -56,6 +56,19 @@ namespace PerfumeGPT.Persistence.Repositories
 					IsRefunded = r.IsRefunded,
 					VnpTransactionNo = r.VnpTransactionNo,
 					IsRestocked = r.IsRestocked,
+					ReturnShippingInfo = r.ReturnShipping == null
+						? null
+						: new ReturnShippingInfoResponse
+						{
+							Id = r.ReturnShipping.Id,
+							CarrierName = r.ReturnShipping.CarrierName,
+							TrackingNumber = r.ReturnShipping.TrackingNumber,
+							Type = r.ReturnShipping.Type,
+							ShippingFee = r.ReturnShipping.ShippingFee,
+							Status = r.ReturnShipping.Status,
+							EstimatedDeliveryDate = r.ReturnShipping.EstimatedDeliveryDate,
+							ShippedDate = r.ReturnShipping.ShippedDate
+						},
 					ReturnDetails = r.ReturnDetails
 						.Select(d => new OrderReturnRequestDetailResponse
 						{
@@ -63,12 +76,16 @@ namespace PerfumeGPT.Persistence.Repositories
 							OrderDetailId = d.OrderDetailId,
 							VariantId = d.OrderDetail.VariantId,
 							RequestedQuantity = d.RequestedQuantity,
-							UnitPrice = d.OrderDetail.UnitPrice
+							UnitPrice = d.OrderDetail.UnitPrice,
+							RefundableAmount = d.OrderDetail.Quantity > 0
+								? (d.OrderDetail.FinalTotal / d.OrderDetail.Quantity) * d.RequestedQuantity
+								: 0
 						})
 						.ToList(),
 					CreatedAt = r.CreatedAt,
 					UpdatedAt = r.UpdatedAt
 				})
+				.AsSingleQuery()
 				.ToListAsync();
 
 			return (pagedData, totalCount);
@@ -115,6 +132,19 @@ namespace PerfumeGPT.Persistence.Repositories
 					IsRefunded = r.IsRefunded,
 					VnpTransactionNo = r.VnpTransactionNo,
 					IsRestocked = r.IsRestocked,
+					ReturnShippingInfo = r.ReturnShipping == null
+						? null
+						: new ReturnShippingInfoResponse
+						{
+							Id = r.ReturnShipping.Id,
+							CarrierName = r.ReturnShipping.CarrierName,
+							TrackingNumber = r.ReturnShipping.TrackingNumber,
+							Type = r.ReturnShipping.Type,
+							ShippingFee = r.ReturnShipping.ShippingFee,
+							Status = r.ReturnShipping.Status,
+							EstimatedDeliveryDate = r.ReturnShipping.EstimatedDeliveryDate,
+							ShippedDate = r.ReturnShipping.ShippedDate
+						},
 					ReturnDetails = r.ReturnDetails
 						.Select(d => new OrderReturnRequestDetailResponse
 						{
@@ -122,7 +152,10 @@ namespace PerfumeGPT.Persistence.Repositories
 							OrderDetailId = d.OrderDetailId,
 							VariantId = d.OrderDetail.VariantId,
 							RequestedQuantity = d.RequestedQuantity,
-							UnitPrice = d.OrderDetail.UnitPrice
+							UnitPrice = d.OrderDetail.UnitPrice,
+							RefundableAmount = d.OrderDetail.Quantity > 0
+								? (d.OrderDetail.FinalTotal / d.OrderDetail.Quantity) * d.RequestedQuantity
+								: 0
 						})
 						.ToList(),
 					CreatedAt = r.CreatedAt,
@@ -157,6 +190,19 @@ namespace PerfumeGPT.Persistence.Repositories
 					IsRefunded = r.IsRefunded,
 					VnpTransactionNo = r.VnpTransactionNo,
 					IsRestocked = r.IsRestocked,
+					ReturnShippingInfo = r.ReturnShipping == null
+						? null
+						: new ReturnShippingInfoResponse
+						{
+							Id = r.ReturnShipping.Id,
+							CarrierName = r.ReturnShipping.CarrierName,
+							TrackingNumber = r.ReturnShipping.TrackingNumber,
+							Type = r.ReturnShipping.Type,
+							ShippingFee = r.ReturnShipping.ShippingFee,
+							Status = r.ReturnShipping.Status,
+							EstimatedDeliveryDate = r.ReturnShipping.EstimatedDeliveryDate,
+							ShippedDate = r.ReturnShipping.ShippedDate
+						},
 					ReturnDetails = r.ReturnDetails
 						.Select(d => new OrderReturnRequestDetailResponse
 						{

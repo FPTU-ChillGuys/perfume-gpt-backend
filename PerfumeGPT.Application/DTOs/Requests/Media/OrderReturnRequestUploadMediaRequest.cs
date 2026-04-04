@@ -4,6 +4,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Media
 {
 	public record OrderReturnRequestUploadMediaRequest
 	{
-		public required List<IFormFile> Videos { get; init; }
+		public List<IFormFile>? Videos { get; init; }
+		public List<IFormFile>? Images { get; init; }
 	}
 }

@@ -253,17 +253,34 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadOrderReturnRequestTemporaryMediaAsync(
 			Guid? userId, OrderReturnRequestUploadMediaRequest request)
 		{
-			var videoRequests = request.Videos
-				.Select((file, i) => new ImageUploadItem
+          var mediaRequests = new List<ImageUploadItem>();
+
+			if (request.Images != null)
+			{
+				mediaRequests.AddRange(request.Images.Select((file, i) => new ImageUploadItem
 				{
 					File = file,
 					EntityType = EntityType.OrderReturnRequest,
 					DisplayOrder = i,
 					IsPrimary = false,
 					AltText = null
-				}).ToList();
+				}));
+			}
 
-			return await UploadTemporaryMediaBulkAsync(userId, videoRequests, ValidateVideoFile, "video");
+			if (request.Videos != null)
+			{
+				var startIndex = mediaRequests.Count;
+				mediaRequests.AddRange(request.Videos.Select((file, i) => new ImageUploadItem
+				{
+					File = file,
+					EntityType = EntityType.OrderReturnRequest,
+					DisplayOrder = startIndex + i,
+					IsPrimary = false,
+					AltText = null
+				}));
+			}
+
+			return await UploadTemporaryMediaBulkAsync(userId, mediaRequests, ValidateOrderReturnMediaFile, "media");
 		}
 		#endregion Temporary Media
 
@@ -413,6 +430,22 @@ namespace PerfumeGPT.Application.Services
 				return $"Video size must be less than 100MB for {file.FileName}";
 
 			return null;
+		}
+
+		private static string? ValidateOrderReturnMediaFile(IFormFile? file)
+		{
+			if (file == null || file.Length == 0)
+				return "Empty or null media file";
+
+			var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+			if (AllowedImageExtensions.Contains(extension))
+				return ValidateImageFile(file);
+
+			if (AllowedVideoExtensions.Contains(extension))
+				return ValidateVideoFile(file);
+
+			return $"Invalid media format for {file.FileName}. Allowed images: jpg, jpeg, png, gif, webp. Allowed videos: mp4, mov, webm, m4v";
 		}
 
 		private static BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>> BuildTemporaryMediaResponse(

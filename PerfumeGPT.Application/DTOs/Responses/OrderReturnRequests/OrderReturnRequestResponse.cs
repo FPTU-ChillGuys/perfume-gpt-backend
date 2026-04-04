@@ -25,12 +25,25 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 		public bool IsRefunded { get; init; }
 		public string? VnpTransactionNo { get; init; }
 		public bool IsRestocked { get; init; }
+		public ReturnShippingInfoResponse? ReturnShippingInfo { get; init; }
 		public List<OrderReturnRequestDetailResponse>? ReturnDetails { get; init; }
 
 		public List<MediaResponse>? ProofImages { get; init; }
 
 		public DateTime CreatedAt { get; init; }
 		public DateTime? UpdatedAt { get; init; }
+	}
+
+	public record ReturnShippingInfoResponse
+	{
+		public Guid Id { get; init; }
+		public CarrierName CarrierName { get; init; }
+		public string? TrackingNumber { get; init; }
+		public ShippingType Type { get; init; }
+		public decimal ShippingFee { get; init; }
+		public ShippingStatus Status { get; init; }
+		public DateTime? EstimatedDeliveryDate { get; init; }
+		public DateTime? ShippedDate { get; init; }
 	}
 
 	public record OrderReturnRequestDetailResponse
@@ -40,5 +53,6 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 		public Guid VariantId { get; init; }
 		public int RequestedQuantity { get; init; }
 		public decimal UnitPrice { get; init; }
+		public decimal RefundableAmount { get; init; }
 	}
 }
