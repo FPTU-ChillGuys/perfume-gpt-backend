@@ -75,6 +75,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public string? ImageUrl { get; init; }
 		public int Quantity { get; init; }
 		public decimal UnitPrice { get; init; }
+		public decimal RefunablePrice { get; init; }
 		public decimal Total { get; init; }
 		public required List<ReservedBatchResponse> ReservedBatches { get; init; }
 	}

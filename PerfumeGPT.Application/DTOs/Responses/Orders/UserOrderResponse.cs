@@ -5,6 +5,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 	public record UserOrderResponse
 	{
 		public Guid Id { get; init; }
+		public required string Code { get; init; }
 		public OrderType Type { get; init; }
 		public OrderStatus Status { get; init; }
 		public bool IsReturnable { get; init; }

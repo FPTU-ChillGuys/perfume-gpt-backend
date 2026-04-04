@@ -188,6 +188,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		 .Select(o => new UserOrderResponse
 		 {
 			 Id = o.Id,
+			 Code = o.Code,
 			 Type = o.Type,
 			 Status = o.Status,
 			 IsReturnable = o.Status == OrderStatus.Delivered
@@ -242,6 +243,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					 : null,
 				 Quantity = od.Quantity,
 				 UnitPrice = od.UnitPrice,
+				 RefunablePrice = ((od.UnitPrice * od.Quantity) - od.ApportionedDiscount) / od.Quantity,
 				 Total = od.UnitPrice * od.Quantity,
 				 ReservedBatches = o.StockReservations
 					 .Where(sr => sr.VariantId == od.VariantId)
@@ -254,6 +256,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					 }).ToList()
 			 }).ToList()
 		 })
+			.AsSplitQuery()
 			.FirstOrDefaultAsync();
 
 		public async Task<ReceiptResponse?> GetInvoiceAsync(Guid orderId)
