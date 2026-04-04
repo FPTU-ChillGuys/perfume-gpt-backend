@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using PerfumeGPT.Application.DTOs.Requests.Momos;
 using PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -19,6 +20,7 @@ namespace PerfumeGPT.Application.Services
 	{
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IVnPayService _vnPayService; // Refund via VNPay API not working, just assume it works and return success response, then update refund status in database
+		private readonly IMomoService _momoService;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly MediaBulkActionHelper _mediaBulkActionHelper;
 		private readonly IOrderShippingHelper _orderShippingHelper;
@@ -27,6 +29,7 @@ namespace PerfumeGPT.Application.Services
 		public OrderReturnRequestService(
 			IUnitOfWork unitOfWork,
 			IVnPayService vnPayService,
+		   IMomoService momoService,
 			IHttpContextAccessor httpContextAccessor,
 			MediaBulkActionHelper mediaBulkActionHelper,
 			IOrderShippingHelper orderShippingHelper,
@@ -34,6 +37,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			_unitOfWork = unitOfWork;
 			_vnPayService = vnPayService;
+			_momoService = momoService;
 			_httpContextAccessor = httpContextAccessor;
 			_mediaBulkActionHelper = mediaBulkActionHelper;
 			_orderShippingHelper = orderShippingHelper;
@@ -360,7 +364,7 @@ namespace PerfumeGPT.Application.Services
 			});
 		}
 
-		public async Task<BaseResponse<string>> ProcessRefundAsync(Guid financeAdminId, Guid requestId)
+		public async Task<BaseResponse<string>> ProcessRefundAsync(Guid financeAdminId, Guid requestId, ProcessRefundRequest request)
 		{
 			var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithOrderAsync(requestId)
 				?? throw AppException.NotFound("Return request not found.");
@@ -371,44 +375,83 @@ namespace PerfumeGPT.Application.Services
 			if (!returnRequest.ApprovedRefundAmount.HasValue || returnRequest.ApprovedRefundAmount.Value <= 0)
 				throw AppException.BadRequest("Approved refund amount must be greater than 0.");
 
-			var payment = (await _unitOfWork.Payments.GetAllAsync(
+			if (request.RefundMethod != PaymentMethod.VnPay
+				 && request.RefundMethod != PaymentMethod.Momo)
+			{
+				throw AppException.BadRequest("Only VNPay or Momo are supported for refund processing.");
+			}
+
+			var successfulOnlinePayments = (await _unitOfWork.Payments.GetAllAsync(
 				p => p.OrderId == returnRequest.OrderId
 					&& p.TransactionStatus == TransactionStatus.Success
-					&& p.Method == PaymentMethod.VnPay))
+					&& (p.Method == PaymentMethod.VnPay || p.Method == PaymentMethod.Momo)))
 				.OrderByDescending(p => p.CreatedAt)
-				.FirstOrDefault()
-				?? throw AppException.NotFound("No successful VNPay payment found for this order.");
+			   .ToList();
+
+			var payment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod)
+				?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
 
 			var httpContext = _httpContextAccessor.HttpContext
 				?? throw AppException.Internal("HttpContext not available.");
 
-			var refundResponse = await _vnPayService.RefundAsync(httpContext, new VnPayRefundRequest
-			{
-				OrderId = returnRequest.OrderId,
-				Amount = returnRequest.ApprovedRefundAmount.Value,
-				PaymentId = payment.Id,
-				TransactionNo = payment.GatewayTransactionNo,
-				TransactionType = returnRequest.ApprovedRefundAmount.Value == payment.Amount ? "02" : "03",
-				CreateBy = financeAdminId.ToString(),
-				OrderInfo = $"Refund for return request {requestId}",
-				TransactionDate = payment.CreatedAt.ToString("yyyyMMddHHmmss")
-			});
+			bool isRefundSuccess;
+			string refundMessage;
+			string? refundTransactionNo;
 
-			if (!refundResponse.IsSuccess)
+			switch (payment.Method)
+			{
+				case PaymentMethod.VnPay:
+					var vnPayRefundResponse = await _vnPayService.RefundAsync(httpContext, new VnPayRefundRequest
+					{
+						OrderId = returnRequest.OrderId,
+						Amount = returnRequest.ApprovedRefundAmount.Value,
+						PaymentId = payment.Id,
+						TransactionNo = payment.GatewayTransactionNo,
+						TransactionType = returnRequest.ApprovedRefundAmount.Value == payment.Amount ? "02" : "03",
+						CreateBy = financeAdminId.ToString(),
+						OrderInfo = $"Refund for return request {requestId}",
+						TransactionDate = payment.CreatedAt.ToString("yyyyMMddHHmmss")
+					});
+
+					isRefundSuccess = vnPayRefundResponse.IsSuccess;
+					refundMessage = vnPayRefundResponse.Message;
+					refundTransactionNo = vnPayRefundResponse.TransactionNo;
+					break;
+
+				case PaymentMethod.Momo:
+					var momoRefundResponse = await _momoService.RefundAsync(httpContext, new MomoRefundRequest
+					{
+						OrderId = returnRequest.OrderId,
+						OrderCode = returnRequest.Order.Code,
+						Amount = returnRequest.ApprovedRefundAmount.Value,
+						PaymentId = payment.Id,
+						TransactionNo = payment.GatewayTransactionNo,
+						Description = $"Refund for return request {requestId}"
+					});
+
+					isRefundSuccess = momoRefundResponse.IsSuccess;
+					refundMessage = momoRefundResponse.Message;
+					refundTransactionNo = momoRefundResponse.TransactionNo;
+					break;
+
+				default:
+					throw AppException.BadRequest($"Refund is not supported for payment method {payment.Method}.");
+			}
+
+			if (!isRefundSuccess)
 			{
 				var failedRefund = PaymentTransaction.CreateRefund(
 					orderId: returnRequest.OrderId,
 					originalPaymentId: payment.Id,
-					method: PaymentMethod.VnPay,
+					method: payment.Method,
 					refundAmount: returnRequest.ApprovedRefundAmount.Value
 				);
 
-				failedRefund.MarkFailed(refundResponse.Message, refundResponse.TransactionNo);
+				failedRefund.MarkFailed(refundMessage, refundTransactionNo);
 
 				await _unitOfWork.Payments.AddAsync(failedRefund);
-				await _unitOfWork.SaveChangesAsync();
 
-				throw AppException.BadRequest($"Refund failed via VNPay: {refundResponse.Message}");
+				throw AppException.BadRequest($"Refund failed via {payment.Method}: {refundMessage}");
 			}
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
@@ -420,20 +463,33 @@ namespace PerfumeGPT.Application.Services
 					throw AppException.BadRequest("Return request status changed and is no longer refundable.");
 
 				var order = freshReturnRequest.Order;
+				var approvedRefundAmount = freshReturnRequest.ApprovedRefundAmount!.Value;
+				var isPartialRefund = approvedRefundAmount < payment.Amount;
 
-				freshReturnRequest.MarkRefunded(refundResponse.TransactionNo);
-				order.MarkRefunded();
+				freshReturnRequest.MarkRefunded(refundTransactionNo);
+
+				if (isPartialRefund)
+				{
+					order.MarkPartiallyRefunded();
+					if (order.Status != OrderStatus.Partial_Returned)
+					{
+						order.SetStatus(OrderStatus.Partial_Returned);
+					}
+				}
+				else
+				{
+					order.MarkRefunded();
+				}
 
 				var successRefund = PaymentTransaction.CreateRefund(
 					orderId: order.Id,
 					originalPaymentId: payment.Id,
-					method: PaymentMethod.VnPay,
-					refundAmount: freshReturnRequest.ApprovedRefundAmount!.Value
+					method: payment.Method,
+					refundAmount: approvedRefundAmount
 				);
 
-				successRefund.MarkSuccess(refundResponse.TransactionNo);
+				successRefund.MarkSuccess(refundTransactionNo);
 
-				_unitOfWork.OrderReturnRequests.Update(freshReturnRequest);
 				_unitOfWork.Orders.Update(order);
 				await _unitOfWork.Payments.AddAsync(successRefund);
 

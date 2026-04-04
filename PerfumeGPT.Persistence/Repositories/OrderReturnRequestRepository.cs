@@ -42,6 +42,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				{
 					Id = r.Id,
 					OrderId = r.OrderId,
+					OrderCode = r.Order.Code,
 					CustomerId = r.CustomerId,
 					CustomerEmail = r.Customer != null ? r.Customer.Email : null,
 					ProcessedById = r.ProcessedById,
@@ -118,6 +119,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				{
 					Id = r.Id,
 					OrderId = r.OrderId,
+					OrderCode = r.Order.Code,
 					CustomerId = r.CustomerId,
 					CustomerEmail = r.Customer != null ? r.Customer.Email : null,
 					ProcessedById = r.ProcessedById,
@@ -174,6 +176,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				{
 					Id = r.Id,
 					OrderId = r.OrderId,
+					OrderCode = r.Order.Code,
 					CustomerId = r.CustomerId,
 					CustomerEmail = r.Customer != null ? r.Customer.Email : null,
 					ProcessedById = r.ProcessedById,

@@ -159,6 +159,86 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			};
 		}
 
+		public async Task<MomoRefundResponse> RefundAsync(HttpContext context, MomoRefundRequest request)
+		{
+			var endpoint = _configuration["Momo:RefundUrl"] ?? throw new InvalidOperationException("Momo RefundUrl configuration is missing.");
+			var partnerCode = _configuration["Momo:PartnerCode"] ?? throw new InvalidOperationException("Momo PartnerCode configuration is missing.");
+			var accessKey = _configuration["Momo:AccessKey"] ?? throw new InvalidOperationException("Momo AccessKey configuration is missing.");
+			var secretKey = _configuration["Momo:SecretKey"] ?? throw new InvalidOperationException("Momo SecretKey configuration is missing.");
+
+			if (!long.TryParse(request.TransactionNo, out var transId))
+			{
+				return new MomoRefundResponse
+				{
+					IsSuccess = false,
+					Message = "Invalid MoMo transaction number for refund.",
+					PaymentId = request.PaymentId,
+					Amount = request.Amount
+				};
+			}
+
+			var amountLong = (long)request.Amount;
+			var requestId = Guid.NewGuid().ToString("N");
+			var orderId = $"REF-{request.PaymentId:N}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+			var description = string.IsNullOrWhiteSpace(request.Description)
+				? $"Hoan tien don hang {request.OrderCode}"
+				: request.Description;
+
+			var rawHash = $"accessKey={accessKey}&amount={amountLong}&description={description}&orderId={orderId}&partnerCode={partnerCode}&requestId={requestId}&transId={transId}";
+			var signature = ComputeHmacSha256(rawHash, secretKey);
+
+			var requestBody = new
+			{
+				partnerCode,
+				requestId,
+				amount = amountLong,
+				orderId,
+				transId,
+				lang = "vi",
+				description,
+				signature
+			};
+
+			var client = _httpClientFactory.CreateClient();
+			var response = await client.PostAsync(
+				endpoint,
+				new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json"));
+
+			var responseContent = await response.Content.ReadAsStringAsync();
+			if (!response.IsSuccessStatusCode)
+			{
+				return new MomoRefundResponse
+				{
+					IsSuccess = false,
+					Message = $"Momo HTTP refund error: {response.StatusCode} - {responseContent}",
+					PaymentId = request.PaymentId,
+					Amount = request.Amount
+				};
+			}
+
+			using var json = JsonDocument.Parse(responseContent);
+			var root = json.RootElement;
+			var resultCode = root.TryGetProperty("resultCode", out var resultCodeElement)
+				? resultCodeElement.GetInt32().ToString()
+				: null;
+			var message = root.TryGetProperty("message", out var messageElement)
+				? messageElement.GetString() ?? "Unknown error"
+				: "Unknown error";
+			var transactionNo = root.TryGetProperty("transId", out var transIdElement)
+				? transIdElement.ToString()
+				: request.TransactionNo;
+
+			return new MomoRefundResponse
+			{
+				IsSuccess = string.Equals(resultCode, "0", StringComparison.Ordinal),
+				Message = message,
+				PaymentId = request.PaymentId,
+				ResultCode = resultCode,
+				TransactionNo = transactionNo,
+				Amount = request.Amount
+			};
+		}
+
 		private static string ComputeHmacSha256(string message, string secretKey)
 		{
 			var keyBytes = Encoding.UTF8.GetBytes(secretKey);

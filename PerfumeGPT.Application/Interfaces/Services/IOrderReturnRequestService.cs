@@ -14,6 +14,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<string>> StartInspectionAsync(Guid inspectedById, Guid requestId, StartInspectionDto request);
 		Task<BaseResponse<string>> RecordInspectionResultAsync(Guid inspectedById, Guid requestId, RecordInspectionDto request);
 		Task<BaseResponse<string>> RejectAfterInspectionAsync(Guid inspectedById, Guid requestId, RejectInspectionDto request);
-		Task<BaseResponse<string>> ProcessRefundAsync(Guid financeAdminId, Guid requestId);
+		Task<BaseResponse<string>> ProcessRefundAsync(Guid financeAdminId, Guid requestId, ProcessRefundRequest request);
 	}
 }

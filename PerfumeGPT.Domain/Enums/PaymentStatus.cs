@@ -4,6 +4,7 @@
 	{
 		Unpaid = 1,
 		Paid,
+		Partial_Refunded,
 		Refunded
 	}
 }

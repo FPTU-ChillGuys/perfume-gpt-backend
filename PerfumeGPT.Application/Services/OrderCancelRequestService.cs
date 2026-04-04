@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Http;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
+using PerfumeGPT.Application.DTOs.Requests.Momos;
 using PerfumeGPT.Application.DTOs.Requests.OrderCancelRequests;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.OrderCancelRequests;
-using PerfumeGPT.Application.DTOs.Responses.VNPays;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -19,6 +19,7 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IVnPayService _vnPayService;
+		private readonly IMomoService _momoService;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IVoucherService _voucherService;
@@ -27,6 +28,7 @@ namespace PerfumeGPT.Application.Services
 		public OrderCancelRequestService(
 			IUnitOfWork unitOfWork,
 			IVnPayService vnPayService,
+		   IMomoService momoService,
 			IHttpContextAccessor httpContextAccessor,
 			IStockReservationService stockReservationService,
 			IVoucherService voucherService,
@@ -34,6 +36,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			_unitOfWork = unitOfWork;
 			_vnPayService = vnPayService;
+			_momoService = momoService;
 			_httpContextAccessor = httpContextAccessor;
 			_stockReservationService = stockReservationService;
 			_voucherService = voucherService;
@@ -63,7 +66,8 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.Forbidden("Only Administrators can approve cancellation requests that require a refund.");
 			}
 
-			VnPayRefundResponse? vnPayResponse = null;
+			string? refundTransactionNo = null;
+			string? refundMessage = null;
 			PaymentTransaction? originalPayment = null;
 
 			var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
@@ -73,45 +77,88 @@ namespace PerfumeGPT.Application.Services
 			{
 				if (cancelRequest.IsRefundRequired)
 				{
-					originalPayment = (await _unitOfWork.Payments.GetAllAsync(
-								p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Success && p.Method == PaymentMethod.VnPay))
+					if (request.RefundMethod != PaymentMethod.VnPay
+						 && request.RefundMethod != PaymentMethod.Momo)
+					{
+						throw AppException.BadRequest("Only VNPay or Momo are supported for refund processing.");
+					}
+
+					var successfulOnlinePayments = (await _unitOfWork.Payments.GetAllAsync(
+								p => p.OrderId == order.Id
+								&& p.TransactionStatus == TransactionStatus.Success
+								&& (p.Method == PaymentMethod.VnPay || p.Method == PaymentMethod.Momo)))
 								.OrderByDescending(p => p.CreatedAt)
-								.FirstOrDefault()
-								?? throw AppException.NotFound("No successful VNPay payment found for this order.");
+								.ToList();
+
+					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod);
+
+					if (originalPayment == null)
+					{
+						throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
+					}
 
 					var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext not available.");
-					var refundReq = new VnPayRefundRequest
+					var refundAmount = cancelRequest.RefundAmount ?? originalPayment.Amount;
+					var isRefundSuccess = false;
+
+					switch (originalPayment.Method)
 					{
-						OrderId = order.Id,
-						Amount = cancelRequest.RefundAmount ?? originalPayment.Amount,
-						PaymentId = originalPayment.Id,
-						TransactionType = "02",
-						TransactionNo = originalPayment.GatewayTransactionNo,
-						CreateBy = processedBy.ToString(),
-						OrderInfo = $"Refund for Order {order.Id}",
-						TransactionDate = originalPayment.CreatedAt.ToString("yyyyMMddHHmmss")
-					};
+						case PaymentMethod.VnPay:
+							var vnPayResponse = await _vnPayService.RefundAsync(context, new VnPayRefundRequest
+							{
+								OrderId = order.Id,
+								Amount = refundAmount,
+								PaymentId = originalPayment.Id,
+								TransactionType = refundAmount == originalPayment.Amount ? "02" : "03",
+								TransactionNo = originalPayment.GatewayTransactionNo,
+								CreateBy = processedBy.ToString(),
+								OrderInfo = $"Refund for Order {order.Code}",
+								TransactionDate = originalPayment.CreatedAt.ToString("yyyyMMddHHmmss")
+							});
 
-					vnPayResponse = await _vnPayService.RefundAsync(context, refundReq);
+							isRefundSuccess = vnPayResponse.IsSuccess;
+							refundMessage = vnPayResponse.Message;
+							refundTransactionNo = vnPayResponse.TransactionNo;
+							break;
 
-					if (vnPayResponse == null || !vnPayResponse.IsSuccess)
+						case PaymentMethod.Momo:
+							var momoResponse = await _momoService.RefundAsync(context, new MomoRefundRequest
+							{
+								OrderId = order.Id,
+								OrderCode = order.Code,
+								Amount = refundAmount,
+								PaymentId = originalPayment.Id,
+								TransactionNo = originalPayment.GatewayTransactionNo,
+								Description = $"Refund for Order {order.Code}"
+							});
+
+							isRefundSuccess = momoResponse.IsSuccess;
+							refundMessage = momoResponse.Message;
+							refundTransactionNo = momoResponse.TransactionNo;
+							break;
+
+						default:
+							throw AppException.BadRequest($"Refund is not supported for payment method {originalPayment.Method}.");
+					}
+
+					if (!isRefundSuccess)
 					{
 						var failedRefund = PaymentTransaction.CreateRefund(
 							orderId: order.Id,
 							originalPaymentId: originalPayment.Id,
-							method: PaymentMethod.VnPay,
-							refundAmount: cancelRequest.RefundAmount ?? 0
+							method: originalPayment.Method,
+							refundAmount: refundAmount
 						);
 
 						failedRefund.MarkFailed(
-							reason: vnPayResponse?.Message ?? "No response from VNPay",
-							gatewayTransactionNo: vnPayResponse?.TransactionNo
+						 reason: refundMessage,
+							gatewayTransactionNo: refundTransactionNo
 						);
 
 						await _unitOfWork.Payments.AddAsync(failedRefund);
 						await _unitOfWork.SaveChangesAsync();
 
-						throw AppException.BadRequest($"Refund failed via VNPay. Cancellation aborted. Reason: {vnPayResponse?.Message}");
+						throw AppException.BadRequest($"Refund failed via {originalPayment.Method}. Cancellation aborted. Reason: {refundMessage}");
 					}
 				}
 
@@ -145,17 +192,17 @@ namespace PerfumeGPT.Application.Services
 				{
 					if (freshCancelReq.IsRefundRequired && originalPayment != null)
 					{
-						freshCancelReq.MarkRefunded(vnPayResponse?.TransactionNo);
+						freshCancelReq.MarkRefunded(refundTransactionNo);
 						freshOrder.MarkRefunded();
 
 						var refundPayment = PaymentTransaction.CreateRefund(
 							orderId: freshOrder.Id,
 							originalPaymentId: originalPayment.Id,
-							method: PaymentMethod.VnPay,
-							refundAmount: cancelRequest.RefundAmount ?? 0
+							method: originalPayment.Method,
+							refundAmount: cancelRequest.RefundAmount ?? originalPayment.Amount
 						);
 
-						refundPayment.MarkSuccess(vnPayResponse!.TransactionNo);
+						refundPayment.MarkSuccess(refundTransactionNo);
 
 						await _unitOfWork.Payments.AddAsync(refundPayment);
 					}

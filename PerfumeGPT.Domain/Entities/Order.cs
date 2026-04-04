@@ -140,7 +140,7 @@ namespace PerfumeGPT.Domain.Entities
 				{ OrderStatus.Returning, [OrderStatus.Returned, OrderStatus.Partial_Returned] },
 				{ OrderStatus.Cancelled, [] },
 				{ OrderStatus.Partial_Returned, [OrderStatus.Returned, OrderStatus.Returning] },
-				{ OrderStatus.Returned, [] }
+				{ OrderStatus.Returned, [OrderStatus.Partial_Returned] }
 			};
 
 			if (!(validTransitions.ContainsKey(Status) && validTransitions[Status].Contains(newStatus)))
@@ -181,6 +181,11 @@ namespace PerfumeGPT.Domain.Entities
 		public void MarkRefunded()
 		{
 			PaymentStatus = PaymentStatus.Refunded;
+		}
+
+		public void MarkPartiallyRefunded()
+		{
+			PaymentStatus = PaymentStatus.Partial_Refunded;
 		}
 
 		public void SetPaymentExpiration(DateTime? paymentExpiresAt)

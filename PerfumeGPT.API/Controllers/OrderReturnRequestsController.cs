@@ -145,10 +145,10 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{id:guid}/refund")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		public async Task<ActionResult<BaseResponse<string>>> ProcessRefund([FromRoute] Guid id)
+		public async Task<ActionResult<BaseResponse<string>>> ProcessRefund([FromRoute] Guid id, [FromBody] ProcessRefundRequest request)
 		{
 			var financeAdminId = GetCurrentUserId();
-			var response = await _returnRequestService.ProcessRefundAsync(financeAdminId, id);
+			var response = await _returnRequestService.ProcessRefundAsync(financeAdminId, id, request);
 			return HandleResponse(response);
 		}
 
