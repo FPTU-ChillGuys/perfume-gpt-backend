@@ -97,7 +97,21 @@ namespace PerfumeGPT.Persistence.Repositories
 						&& o.ForwardShipping.ShippedDate.Value >= DateTime.UtcNow.AddDays(-7),
 				 ShippingStatus = o.ForwardShipping != null ? o.ForwardShipping.Status : null,
 				 CreatedAt = o.CreatedAt,
-				 UpdatedAt = o.UpdatedAt
+				 UpdatedAt = o.UpdatedAt,
+				 OrderDetails = o.OrderDetails.Select(od => new OrderDetailListItem
+				 {
+					 Id = od.Id,
+					 VariantId = od.VariantId,
+					 VariantName = od.ProductVariant != null ? $"{od.ProductVariant.Sku} - {od.ProductVariant.VolumeMl}ml" : string.Empty,
+					 ImageUrl = od.ProductVariant != null && od.ProductVariant.Media.Count > 0
+						 ? (od.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
+							 ?? od.ProductVariant.Media.Select(m => m.Url).FirstOrDefault())
+						 : null,
+					 Quantity = od.Quantity,
+					 UnitPrice = od.UnitPrice,
+					 RefunablePrice = ((od.UnitPrice * od.Quantity) - od.ApportionedDiscount) / od.Quantity,
+					 Total = od.UnitPrice * od.Quantity
+				 }).ToList()
 			 })
 				.ToListAsync();
 

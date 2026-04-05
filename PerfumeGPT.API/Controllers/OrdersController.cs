@@ -87,6 +87,11 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		#endregion User Query Operations
+
+
+
+		#region Staff/Admin Query Operations
 		[HttpGet("user/{userId}")]
 		[Authorize(Roles = "staff,admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]
@@ -96,11 +101,7 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _orderService.GetOrdersByUserIdAsync(userId, request);
 			return HandleResponse(response);
 		}
-		#endregion User Query Operations
 
-
-
-		#region Staff/Admin Query Operations
 		[HttpGet]
 		[Authorize(Roles = "staff,admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]

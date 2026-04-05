@@ -19,5 +19,18 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public ShippingStatus? ShippingStatus { get; init; }
 		public DateTime CreatedAt { get; init; }
 		public DateTime? UpdatedAt { get; init; }
+		public required List<OrderDetailListItem> OrderDetails { get; init; }
+	}
+
+	public record OrderDetailListItem
+	{
+		public Guid Id { get; init; }
+		public Guid VariantId { get; init; }
+		public required string VariantName { get; init; }
+		public string? ImageUrl { get; init; }
+		public int Quantity { get; init; }
+		public decimal UnitPrice { get; init; }
+		public decimal RefunablePrice { get; init; }
+		public decimal Total { get; init; }
 	}
 }
