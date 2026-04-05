@@ -192,7 +192,7 @@ namespace PerfumeGPT.Application.Services
 				  returnRequest.UpdateByCustomer(customerId, request.CustomerNote);
 				  _unitOfWork.OrderReturnRequests.Update(returnRequest);
 
-				  return BaseResponse<string>.Ok("Return request updated and resubmitted for review.");
+				  return BaseResponse<string>.Ok(returnRequest.Id.ToString(), "Return request updated and resubmitted for review.");
 			  });
 
 			if (request.RemoveMediaIds != null && request.RemoveMediaIds.Count > 0)
