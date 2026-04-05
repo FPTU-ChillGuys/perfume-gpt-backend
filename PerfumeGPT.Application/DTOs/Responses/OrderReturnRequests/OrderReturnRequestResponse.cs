@@ -24,6 +24,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 		public decimal RequestedRefundAmount { get; init; }
 		public decimal? ApprovedRefundAmount { get; init; }
 		public bool IsRefunded { get; init; }
+		public bool IsRefundOnly { get; init; }
 		public string? VnpTransactionNo { get; init; }
 		public bool IsRestocked { get; init; }
 		public ReturnShippingInfoResponse? ReturnShippingInfo { get; init; }

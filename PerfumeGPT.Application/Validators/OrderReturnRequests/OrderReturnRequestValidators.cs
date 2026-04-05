@@ -34,10 +34,6 @@ namespace PerfumeGPT.Application.Validators.OrderReturnRequests
 			RuleFor(x => x.TemporaryMediaIds)
 				.Must(mediaIds => mediaIds == null || mediaIds.Distinct().Count() == mediaIds.Count)
 				.WithMessage("Temporary media IDs must be unique.");
-
-			RuleFor(x => x)
-				.Must(x => x.SavedAddressId.HasValue || x.Recipient != null)
-				.WithMessage("Either saved address ID or recipient information is required for pickup address.");
 		}
 	}
 

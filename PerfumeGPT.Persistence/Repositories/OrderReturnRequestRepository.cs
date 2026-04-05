@@ -55,6 +55,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					RequestedRefundAmount = r.RequestedRefundAmount,
 					ApprovedRefundAmount = r.ApprovedRefundAmount,
 					IsRefunded = r.IsRefunded,
+					IsRefundOnly = r.IsRefundOnly,
 					VnpTransactionNo = r.VnpTransactionNo,
 					IsRestocked = r.IsRestocked,
 					ReturnShippingInfo = r.ReturnShipping == null
@@ -132,6 +133,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					RequestedRefundAmount = r.RequestedRefundAmount,
 					ApprovedRefundAmount = r.ApprovedRefundAmount,
 					IsRefunded = r.IsRefunded,
+					IsRefundOnly = r.IsRefundOnly,
 					VnpTransactionNo = r.VnpTransactionNo,
 					IsRestocked = r.IsRestocked,
 					ReturnShippingInfo = r.ReturnShipping == null
@@ -191,6 +193,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					RequestedRefundAmount = r.RequestedRefundAmount,
 					ApprovedRefundAmount = r.ApprovedRefundAmount,
 					IsRefunded = r.IsRefunded,
+					IsRefundOnly = r.IsRefundOnly,
 					VnpTransactionNo = r.VnpTransactionNo,
 					IsRestocked = r.IsRestocked,
 					ReturnShippingInfo = r.ReturnShipping == null

@@ -25,6 +25,7 @@ namespace PerfumeGPT.Domain.Entities
 		public decimal RequestedRefundAmount { get; private set; }
 		public decimal? ApprovedRefundAmount { get; private set; }
 		public bool IsRefunded { get; private set; }
+		public bool IsRefundOnly { get; private set; }
 		public string? VnpTransactionNo { get; private set; }
 		public bool IsRestocked { get; private set; }
 
@@ -34,7 +35,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual User? ProcessedBy { get; set; }
 		public virtual User? InspectedBy { get; set; }
 		public virtual ShippingInfo? ReturnShipping { get; set; }
-		public virtual ContactAddress PickupAddress { get; set; } = null!;
+		public virtual ContactAddress? PickupAddress { get; set; } = null!;
 		public virtual ICollection<Media> ProofImages { get; set; } = [];
 		public virtual ICollection<OrderReturnRequestDetail> ReturnDetails { get; set; } = [];
 
@@ -79,6 +80,7 @@ namespace PerfumeGPT.Domain.Entities
 				RequestedRefundAmount = payload.RequestedRefundAmount,
 				ApprovedRefundAmount = null,
 				IsRefunded = false,
+				IsRefundOnly = payload.IsRefundOnly,
 				ReturnDetails = returnDetails
 			};
 		}
@@ -94,7 +96,21 @@ namespace PerfumeGPT.Domain.Entities
 
 			ProcessedById = processedById;
 			StaffNote = string.IsNullOrWhiteSpace(staffNote) ? null : staffNote.Trim();
-			Status = isApproved ? ReturnRequestStatus.ApprovedForReturn : ReturnRequestStatus.Rejected;
+
+			if (!isApproved)
+			{
+				Status = ReturnRequestStatus.Rejected;
+				return;
+			}
+
+			if (IsRefundOnly)
+			{
+				ApprovedRefundAmount = RequestedRefundAmount;
+				Status = ReturnRequestStatus.ReadyForRefund;
+				return;
+			}
+
+			Status = ReturnRequestStatus.ApprovedForReturn;
 		}
 
 		public void AttachReturnShipping(Guid shippingInfoId)
@@ -178,6 +194,7 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			public required ReturnOrderReason Reason { get; init; }
 			public required decimal RequestedRefundAmount { get; init; }
+			public required bool IsRefundOnly { get; init; }
 			public string? CustomerNote { get; init; }
 			public required List<ReturnRequestDetailPayload> ReturnDetails { get; init; }
 		}

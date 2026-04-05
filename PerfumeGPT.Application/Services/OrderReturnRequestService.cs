@@ -94,6 +94,13 @@ namespace PerfumeGPT.Application.Services
 				if (hasOpenRequest)
 					throw AppException.Conflict("This order already has an active return request.");
 
+				var hasAlreadyReturnedRequest = await _unitOfWork.OrderReturnRequests.AnyAsync(r =>
+					r.OrderId == order.Id
+					&& r.Status == ReturnRequestStatus.Completed);
+
+				if (hasAlreadyReturnedRequest)
+					throw AppException.Conflict("This order has already been returned before. Please contact support for further assistance.");
+
 
 				var orderDetailsById = order.OrderDetails.ToDictionary(x => x.Id);
 
@@ -126,6 +133,7 @@ namespace PerfumeGPT.Application.Services
 				{
 					Reason = request.Reason,
 					RequestedRefundAmount = requestedRefundAmount,
+					IsRefundOnly = request.IsRefundOnly,
 					ReturnDetails = payloadDetails,
 					CustomerNote = request.CustomerNote
 				};
@@ -174,7 +182,7 @@ namespace PerfumeGPT.Application.Services
 
 				returnRequest.Process(processedById, request.IsApproved, request.StaffNote);
 
-				if (request.IsApproved)
+				if (request.IsApproved && !returnRequest.IsRefundOnly)
 				{
 					var contactInfo = returnRequest.PickupAddress ?? throw AppException.Internal("Pickup address not found for approved return request.");
 					var estimatedDeliveryDate = await _orderShippingHelper.GetLeadTimeAsync(contactInfo.DistrictId, contactInfo.WardCode);
@@ -213,6 +221,12 @@ namespace PerfumeGPT.Application.Services
 				}
 				return BaseResponse<string>.Ok("Return request approved for shipment and GHN order created successfully.");
 			}
+
+			if (request.IsApproved)
+			{
+				return BaseResponse<string>.Ok("Return request approved and moved to refund processing.");
+			}
+
 			return BaseResponse<string>.Ok("Return request rejected.");
 		}
 
