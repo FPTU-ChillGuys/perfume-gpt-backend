@@ -29,7 +29,7 @@ namespace PerfumeGPT.Application.Services
 		public OrderReturnRequestService(
 			IUnitOfWork unitOfWork,
 			IVnPayService vnPayService,
-		   IMomoService momoService,
+			IMomoService momoService,
 			IHttpContextAccessor httpContextAccessor,
 			MediaBulkActionHelper mediaBulkActionHelper,
 			IOrderShippingHelper orderShippingHelper,
@@ -177,8 +177,9 @@ namespace PerfumeGPT.Application.Services
 				if (request.IsApproved)
 				{
 					var contactInfo = returnRequest.PickupAddress ?? throw AppException.Internal("Pickup address not found for approved return request.");
+					var estimatedDeliveryDate = await _orderShippingHelper.GetLeadTimeAsync(contactInfo.DistrictId, contactInfo.WardCode);
 
-					var returnShipping = ShippingInfo.Create(CarrierName.GHN, ShippingType.Return);
+					var returnShipping = ShippingInfo.Create(CarrierName.GHN, ShippingType.Return, 0, estimatedDeliveryDate);
 					await _unitOfWork.ShippingInfos.AddAsync(returnShipping);
 
 					returnRequest.AttachReturnShipping(returnShipping.Id);

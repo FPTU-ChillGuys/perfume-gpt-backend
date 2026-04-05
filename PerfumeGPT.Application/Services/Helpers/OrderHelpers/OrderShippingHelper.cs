@@ -43,7 +43,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			order.ForwardShipping = shippingInfo;
 		}
 
-		private async Task<DateTime?> GetLeadTimeAsync(int districtId, string wardCode)
+		public async Task<DateTime?> GetLeadTimeAsync(int districtId, string wardCode)
 		{
 			var leadTimeRequest = new GetLeadTimeRequest
 			{
