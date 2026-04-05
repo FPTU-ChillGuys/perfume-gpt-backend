@@ -1,9 +1,11 @@
 ﻿using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Requests.Payments;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Payments;
 using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.API.Controllers
@@ -18,7 +20,7 @@ namespace PerfumeGPT.API.Controllers
 		private readonly ILogger<PaymentsController> _logger;
 
 		public PaymentsController(
-			[FromRoute] IPaymentService paymentService,
+			IPaymentService paymentService,
 			IConfiguration configuration,
 			ILogger<PaymentsController> logger,
 			IValidator<ConfirmPaymentRequest> confirmPaymentValidator)
@@ -145,6 +147,16 @@ namespace PerfumeGPT.API.Controllers
 			if (validation != null) return validation;
 
 			var response = await _paymentService.UpdatePaymentStatusAsync(paymentId, request);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("management-transactions")]
+		[Authorize(Roles = "staff,admin")]
+		[ProducesResponseType(typeof(BaseResponse<PaymentTransactionOverviewResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PaymentTransactionOverviewResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PaymentTransactionOverviewResponse>>> GetTransactionsForManagement([FromQuery] GetPaymentTransactionsFilterRequest request)
+		{
+			var response = await _paymentService.GetTransactionsForManagementAsync(request);
 			return HandleResponse(response);
 		}
 

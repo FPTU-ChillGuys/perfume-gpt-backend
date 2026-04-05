@@ -6,6 +6,7 @@ using PerfumeGPT.Application.DTOs.Requests.Payments;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Momos;
+using PerfumeGPT.Application.DTOs.Responses.Payments;
 using PerfumeGPT.Application.DTOs.Responses.VNPays;
 using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Exceptions;
@@ -77,6 +78,12 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> RetryPaymentWithMethodAsync(Guid paymentId, PaymentInformation? newMethod = null)
 		{
 			return await ProcessPaymentRetryAsync(paymentId, newMethod, requirePending: false);
+		}
+
+		public async Task<BaseResponse<PaymentTransactionOverviewResponse>> GetTransactionsForManagementAsync(GetPaymentTransactionsFilterRequest request)
+		{
+			var response = await _unitOfWork.Payments.GetTransactionsForManagementAsync(request);
+			return BaseResponse<PaymentTransactionOverviewResponse>.Ok(response);
 		}
 
 		// MoMo methods
