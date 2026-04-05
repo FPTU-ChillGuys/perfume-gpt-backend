@@ -7,6 +7,7 @@ namespace PerfumeGPT.Domain.Enums
 		Inspecting,
 		ReadyForRefund,
 		Completed,
-		Rejected
+		Rejected,
+		RequestMoreInfo
 	}
 }

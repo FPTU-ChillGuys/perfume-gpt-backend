@@ -18,6 +18,7 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IOrderReturnRequestService _returnRequestService;
 		private readonly IMediaService _mediaService;
 		private readonly IValidator<CreateReturnRequestDto> _createReturnRequestValidator;
+		private readonly IValidator<UpdateReturnRequestDto> _updateReturnRequestValidator;
 		private readonly IValidator<ProcessInitialReturnDto> _processInitialReturnValidator;
 		private readonly IValidator<StartInspectionDto> _startInspectionValidator;
 		private readonly IValidator<RecordInspectionDto> _recordInspectionValidator;
@@ -27,6 +28,7 @@ namespace PerfumeGPT.API.Controllers
 			IOrderReturnRequestService returnRequestService,
 			IMediaService mediaService,
 			IValidator<CreateReturnRequestDto> createReturnRequestValidator,
+		  IValidator<UpdateReturnRequestDto> updateReturnRequestValidator,
 			IValidator<ProcessInitialReturnDto> processInitialReturnValidator,
 			IValidator<StartInspectionDto> startInspectionValidator,
 			IValidator<RecordInspectionDto> recordInspectionValidator,
@@ -35,6 +37,7 @@ namespace PerfumeGPT.API.Controllers
 			_returnRequestService = returnRequestService;
 			_mediaService = mediaService;
 			_createReturnRequestValidator = createReturnRequestValidator;
+			_updateReturnRequestValidator = updateReturnRequestValidator;
 			_processInitialReturnValidator = processInitialReturnValidator;
 			_startInspectionValidator = startInspectionValidator;
 			_recordInspectionValidator = recordInspectionValidator;
@@ -87,6 +90,29 @@ namespace PerfumeGPT.API.Controllers
 
 			var customerId = GetCurrentUserId();
 			var response = await _returnRequestService.CreateReturnRequestAsync(customerId, request);
+			return HandleResponse(response);
+		}
+
+		[HttpPut("{id:guid}")]
+		[Authorize(Roles = "user")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		public async Task<ActionResult<BaseResponse<string>>> UpdateReturnRequest([FromRoute] Guid id, [FromBody] UpdateReturnRequestDto request)
+		{
+			var validation = await ValidateRequestAsync(_updateReturnRequestValidator, request);
+			if (validation != null) return validation;
+
+			var customerId = GetCurrentUserId();
+			var response = await _returnRequestService.UpdateReturnRequestAsync(customerId, id, request);
+			return HandleResponse(response);
+		}
+
+		[HttpPost("{id:guid}/cancel")]
+		[Authorize(Roles = "user")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		public async Task<ActionResult<BaseResponse<string>>> CancelReturnRequest([FromRoute] Guid id)
+		{
+			var customerId = GetCurrentUserId();
+			var response = await _returnRequestService.CancelReturnRequestByCustomerAsync(customerId, id);
 			return HandleResponse(response);
 		}
 

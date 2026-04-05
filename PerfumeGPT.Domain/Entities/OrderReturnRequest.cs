@@ -52,20 +52,7 @@ namespace PerfumeGPT.Domain.Entities
 			if (customerId == Guid.Empty)
 				throw DomainException.BadRequest("Customer ID is required.");
 
-			if (payload.ReturnDetails == null || payload.ReturnDetails.Count == 0)
-				throw DomainException.BadRequest("At least one return detail is required.");
-
-			if (payload.ReturnDetails.GroupBy(x => x.OrderDetailId).Any(x => x.Count() > 1))
-				throw DomainException.BadRequest("Duplicate order details are not allowed in a return request.");
-
-			var returnDetails = payload.ReturnDetails
-				 .Select(x => OrderReturnRequestDetail.Create(new OrderReturnRequestDetail.ReturnRequestDetailPayload
-				 {
-					 OrderDetailId = x.OrderDetailId,
-					 RequestedQuantity = x.RequestedQuantity,
-					 OrderedQuantity = x.OrderedQuantity
-				 }))
-				 .ToList();
+			var returnDetails = BuildReturnDetails(payload.ReturnDetails);
 
 			if (payload.RequestedRefundAmount < 0)
 				throw DomainException.BadRequest("Requested refund amount cannot be negative.");
@@ -86,7 +73,7 @@ namespace PerfumeGPT.Domain.Entities
 		}
 
 		// Business logic methods
-		public void Process(Guid processedById, bool isApproved, string? staffNote)
+		public void Process(Guid processedById, bool isApproved, bool isRequestMoreInfo, string? staffNote)
 		{
 			if (Status != ReturnRequestStatus.Pending)
 				throw DomainException.BadRequest("Return request is not pending.");
@@ -94,8 +81,20 @@ namespace PerfumeGPT.Domain.Entities
 			if (processedById == Guid.Empty)
 				throw DomainException.BadRequest("Processed by user is required.");
 
+			if (isApproved && isRequestMoreInfo)
+				throw DomainException.BadRequest("Invalid review action.");
+
 			ProcessedById = processedById;
 			StaffNote = string.IsNullOrWhiteSpace(staffNote) ? null : staffNote.Trim();
+
+			if (isRequestMoreInfo)
+			{
+				if (string.IsNullOrWhiteSpace(staffNote))
+					throw DomainException.BadRequest("Staff note is required when requesting more information.");
+
+				Status = ReturnRequestStatus.RequestMoreInfo;
+				return;
+			}
 
 			if (!isApproved)
 			{
@@ -111,6 +110,53 @@ namespace PerfumeGPT.Domain.Entities
 			}
 
 			Status = ReturnRequestStatus.ApprovedForReturn;
+		}
+
+		public void UpdateByCustomer(Guid customerId, ReturnOrderReason reason, string? customerNote)
+		{
+			if (CustomerId != customerId)
+				throw DomainException.Forbidden("You are not authorized to update this return request.");
+
+			if (Status != ReturnRequestStatus.RequestMoreInfo)
+				throw DomainException.BadRequest("Only return requests that require more information can be updated.");
+
+			Reason = reason;
+			CustomerNote = string.IsNullOrWhiteSpace(customerNote) ? null : customerNote.Trim();
+			ApprovedRefundAmount = null;
+			StaffNote = null;
+			InspectionNote = null;
+			IsRestocked = false;
+			VnpTransactionNo = null;
+
+			Status = ReturnRequestStatus.Pending;
+		}
+
+		public void CancelByCustomer(Guid customerId)
+		{
+			if (CustomerId != customerId)
+				throw DomainException.Forbidden("You are not authorized to cancel this return request.");
+
+			if (Status != ReturnRequestStatus.Pending && Status != ReturnRequestStatus.RequestMoreInfo)
+				throw DomainException.BadRequest("Only pending or request-more-info return requests can be cancelled.");
+
+			Status = ReturnRequestStatus.Rejected;
+		}
+
+		private static List<OrderReturnRequestDetail> BuildReturnDetails(List<ReturnRequestDetailPayload> returnRequestDetails)
+		{
+			if (returnRequestDetails == null || returnRequestDetails.Count == 0)
+				throw DomainException.BadRequest("At least one return detail is required.");
+
+			if (returnRequestDetails.GroupBy(x => x.OrderDetailId).Any(x => x.Count() > 1))
+				throw DomainException.BadRequest("Duplicate order details are not allowed in a return request.");
+
+			return [.. returnRequestDetails
+				.Select(x => OrderReturnRequestDetail.Create(new OrderReturnRequestDetail.ReturnRequestDetailPayload
+				{
+					OrderDetailId = x.OrderDetailId,
+					RequestedQuantity = x.RequestedQuantity,
+					OrderedQuantity = x.OrderedQuantity
+				}))];
 		}
 
 		public void AttachReturnShipping(Guid shippingInfoId)

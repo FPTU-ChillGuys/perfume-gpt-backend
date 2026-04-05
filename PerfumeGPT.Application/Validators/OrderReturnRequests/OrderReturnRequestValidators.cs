@@ -41,13 +41,35 @@ namespace PerfumeGPT.Application.Validators.OrderReturnRequests
 	{
 		public ProcessInitialReturnDtoValidator()
 		{
+           RuleFor(x => x)
+				.Must(x => !(x.IsApproved && x.IsRequestMoreInfo))
+				.WithMessage("A return request cannot be both approved and require more info.");
+
 			RuleFor(x => x.StaffNote)
-				.NotEmpty().WithMessage("Staff note is required when rejecting a return request.")
-				.When(x => !x.IsApproved);
+              .NotEmpty().WithMessage("Staff note is required when rejecting or requesting more info.")
+				.When(x => !x.IsApproved || x.IsRequestMoreInfo);
 
 			RuleFor(x => x.StaffNote)
 				.MaximumLength(1000).WithMessage("Staff note must not exceed 1000 characters.")
 				.When(x => !string.IsNullOrWhiteSpace(x.StaffNote));
+		}
+	}
+
+	public class UpdateReturnRequestDtoValidator : AbstractValidator<UpdateReturnRequestDto>
+	{
+		public UpdateReturnRequestDtoValidator()
+		{
+			RuleFor(x => x.CustomerNote)
+				.MaximumLength(1000).WithMessage("Customer note must not exceed 1000 characters.")
+				.When(x => !string.IsNullOrWhiteSpace(x.CustomerNote));
+
+			RuleFor(x => x.TemporaryMediaIds)
+				.Must(mediaIds => mediaIds == null || mediaIds.Distinct().Count() == mediaIds.Count)
+				.WithMessage("Temporary media IDs must be unique.");
+
+			RuleFor(x => x.RemoveMediaIds)
+				.Must(mediaIds => mediaIds == null || mediaIds.Distinct().Count() == mediaIds.Count)
+				.WithMessage("Remove media IDs must be unique.");
 		}
 	}
 
