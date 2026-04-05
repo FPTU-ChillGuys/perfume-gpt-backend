@@ -86,6 +86,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			var paidOrderIds = _context.PaymentTransactions
 				.AsNoTracking()
+				.AsSplitQuery()
 				.Where(pt => pt.TransactionStatus == TransactionStatus.Success
 					&& pt.CreatedAt >= fromDateUtc
 					&& pt.CreatedAt <= toDateUtc)

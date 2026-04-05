@@ -207,7 +207,7 @@ namespace PerfumeGPT.Application.Services
 				.ToList();
 
 				var pricedItems = cartResponse.Items
-					.Select(item => (item.VariantId, item.Quantity, item.Discount))
+				   .Select(item => (item.VariantId, item.BatchId, item.Quantity, item.Discount, (decimal?)item.FinalTotal))
 					.ToList();
 
 				// Set payment expiration
@@ -295,7 +295,7 @@ namespace PerfumeGPT.Application.Services
 					.ToList();
 
 				var pricedItems = request.OrderDetails
-					.Select(od => (od.VariantId, od.Quantity, 0m))
+				 .Select(od => (od.VariantId, (Guid?)null, od.Quantity, 0m, (decimal?)null))
 					.ToList();
 
 				var order = Order.CreateOffline(staffId, 0);
@@ -383,12 +383,10 @@ namespace PerfumeGPT.Application.Services
 
 			return BaseResponse<PreviewOrderResponse>.Ok(response);
 		}
-
 		#endregion Checkout Operations
 
 
 		#region Order Status Management
-
 		public async Task<BaseResponse<PickListResponse?>> UpdateOrderStatusAsync(Guid orderId, Guid staffId, UpdateOrderStatusRequest request)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>

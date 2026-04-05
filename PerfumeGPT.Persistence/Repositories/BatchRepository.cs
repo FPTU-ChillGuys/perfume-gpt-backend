@@ -169,5 +169,14 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 			return true;
 		}
+
+		public async Task<List<Batch>> GetBatchesByIds(List<Guid> ids)
+		{
+			return await _context.Batches
+				.Where(b => ids.Contains(b.Id))
+				.Include(b => b.ImportDetail)
+				.AsNoTracking()
+				.ToListAsync();
+		}
 	}
 }

@@ -7,6 +7,8 @@ using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using static PerfumeGPT.Domain.Entities.StockAdjustmentDetail;
 
 namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
@@ -49,22 +51,40 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		{
 			var pickListItems = new List<PickListItemResponse>();
 
-			var reservationsByVariant = reservations
-				.Where(r => r.Status == ReservationStatus.Reserved)
-				.GroupBy(r => r.VariantId).ToList();
+			var activeReservations = reservations.Where(r => r.Status == ReservationStatus.Reserved).ToList();
+
+			var reservationsByBatch = activeReservations.ToLookup(r => r.BatchId);
+
+			var batchIds = activeReservations.Select(r => r.BatchId).Distinct().ToList();
+
+			var batches = await _unitOfWork.Batches.GetBatchesByIds(batchIds);
+			var batchDictionary = batches.ToDictionary(b => b.Id);
 
 			foreach (var orderDetail in orderDetails)
 			{
-				var variantReservations = reservationsByVariant.FirstOrDefault(g => g.Key == orderDetail.VariantId);
-
 				var batchInfoList = new List<PickListBatchInfo>();
 
-				if (variantReservations != null)
+				Guid? snapshotBatchId = null;
+				try
 				{
-					foreach (var reservation in variantReservations)
+					using var jsonDoc = JsonDocument.Parse(orderDetail.Snapshot);
+					if (jsonDoc.RootElement.TryGetProperty("BatchId", out var batchIdElement))
 					{
-						var batch = await _unitOfWork.Batches.GetBatchByIdWithIncludesAsync(reservation.BatchId);
-						if (batch != null)
+						snapshotBatchId = batchIdElement.GetGuid();
+					}
+				}
+				catch
+				{
+					// If snapshot parsing fails, we can choose to log this incident or ignore it based on requirements. For now, we'll ignore and proceed without batch info.
+				}
+
+				if (snapshotBatchId.HasValue)
+				{
+					var matchingReservations = reservationsByBatch[snapshotBatchId.Value];
+
+					foreach (var reservation in matchingReservations)
+					{
+						if (batchDictionary.TryGetValue(reservation.BatchId, out var batch))
 						{
 							batchInfoList.Add(new PickListBatchInfo
 							{
@@ -91,7 +111,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 			return pickListItems;
 		}
-		#endregion
+		#endregion Pick List Generation
 
 
 		#region Order Fulfillment
@@ -155,6 +175,10 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			if (activeReservations.Count == 0)
 				throw AppException.BadRequest("No active reservations found.");
 
+			var batchIds = activeReservations.Select(r => r.BatchId).Distinct().ToList();
+			var batches = await _unitOfWork.Batches.GetAllAsync(b => batchIds.Contains(b.Id), asNoTracking: true);
+			var batchDictionary = batches.ToDictionary(b => b.Id);
+
 			// Validate all order details are included in the request
 			var requestOrderDetailIds = request.Items.Select(i => i.OrderDetailId).ToHashSet();
 			var orderDetailIds = order.OrderDetails.Select(od => od.Id).ToHashSet();
@@ -165,73 +189,61 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				var extraDetails = requestOrderDetailIds.Except(orderDetailIds).ToList();
 
 				if (missingDetails.Count > 0)
-				{
-					return BaseResponse<bool>.Fail(
-						$"Missing fulfillment items for order details: {string.Join(", ", missingDetails)}.",
-						ResponseErrorType.BadRequest);
-				}
+					throw AppException.BadRequest($"Missing fulfillment items for order details: {string.Join(", ", missingDetails)}.");
 
 				if (extraDetails.Count > 0)
-				{
-					return BaseResponse<bool>.Fail(
-						$"Unknown order detail IDs provided: {string.Join(", ", extraDetails)}.",
-						ResponseErrorType.BadRequest);
-				}
+					throw AppException.BadRequest($"Unknown order detail IDs provided: {string.Join(", ", extraDetails)}.");
 			}
 
 			foreach (var item in request.Items)
 			{
-				var orderDetail = order.OrderDetails.FirstOrDefault(od => od.Id == item.OrderDetailId);
-				if (orderDetail == null)
-				{
-					return BaseResponse<bool>.Fail(
-						$"Order detail {item.OrderDetailId} not found.",
-						ResponseErrorType.NotFound);
-				}
+				var orderDetail = order.OrderDetails.FirstOrDefault(od => od.Id == item.OrderDetailId) ?? throw AppException.BadRequest($"Order detail {item.OrderDetailId} not found in order.");
 
 				// Validate quantity matches order detail quantity
 				if (item.Quantity != orderDetail.Quantity)
+					throw AppException.BadRequest($"Quantity mismatch for order detail {item.OrderDetailId}. Expected: {orderDetail.Quantity}, Provided: {item.Quantity}.");
+
+				Guid? expectedBatchId = null;
+				try
 				{
-					return BaseResponse<bool>.Fail(
-						$"Quantity mismatch for order detail {item.OrderDetailId}. Expected: {orderDetail.Quantity}, Provided: {item.Quantity}.",
-						ResponseErrorType.BadRequest);
-				}
-
-				var variantReservations = activeReservations.Where(r => r.VariantId == orderDetail.VariantId).ToList();
-
-				// Validate total reserved quantity matches order quantity
-				var totalReservedQuantity = variantReservations.Sum(r => r.ReservedQuantity);
-				if (totalReservedQuantity != orderDetail.Quantity)
-				{
-					return BaseResponse<bool>.Fail(
-						$"Reserved quantity mismatch for order detail {item.OrderDetailId}. Reserved: {totalReservedQuantity}, Required: {orderDetail.Quantity}.",
-						ResponseErrorType.BadRequest);
-				}
-
-				var matchingReservation = false;
-
-				foreach (var reservation in variantReservations)
-				{
-					var batch = await _unitOfWork.Batches.GetByIdAsync(reservation.BatchId);
-					if (batch != null && batch.BatchCode == item.ScannedBatchCode)
+					using var jsonDoc = JsonDocument.Parse(orderDetail.Snapshot);
+					if (jsonDoc.RootElement.TryGetProperty("BatchId", out var batchIdElement))
 					{
-						matchingReservation = true;
-						break;
+						expectedBatchId = batchIdElement.GetGuid();
 					}
 				}
+				catch { }
 
-				if (!matchingReservation)
+				if (expectedBatchId.HasValue)
 				{
-					return BaseResponse<bool>.Fail(
-						$"Scanned batch code '{item.ScannedBatchCode}' does not match any reserved batch for order detail {item.OrderDetailId}. Use SwapDamagedStockAsync if the item is damaged.",
-						ResponseErrorType.BadRequest);
+					if (!batchDictionary.TryGetValue(expectedBatchId.Value, out var expectedBatch))
+						throw AppException.Internal($"Database inconsistency: Expected batch with ID {expectedBatchId.Value} not found.");
+
+					if (expectedBatch.BatchCode != item.ScannedBatchCode)
+						throw AppException.BadRequest($"Scanned batch code '{item.ScannedBatchCode}' is incorrect for order detail {item.OrderDetailId}. Expected: '{expectedBatch.BatchCode}'.");
+
+					var exactReservation = activeReservations.FirstOrDefault(r => r.BatchId == expectedBatchId.Value && r.VariantId == orderDetail.VariantId);
+					if (exactReservation == null || exactReservation.ReservedQuantity < orderDetail.Quantity)
+						throw AppException.BadRequest($"Reservation mismatch or insufficient reserved quantity for batch '{expectedBatch.BatchCode}' and order detail {item.OrderDetailId}.");
+				}
+				else
+				{
+					var variantReservations = activeReservations.Where(r => r.VariantId == orderDetail.VariantId).ToList();
+
+					var validBatchCodes = variantReservations
+						.Select(r => batchDictionary.TryGetValue(r.BatchId, out var b) ? b.BatchCode : null)
+						.Where(code => code != null)
+						.ToList();
+
+					if (!validBatchCodes.Contains(item.ScannedBatchCode))
+						throw AppException.BadRequest($"Scanned batch code '{item.ScannedBatchCode}' does not match any reserved batch for order detail {item.OrderDetailId}. Valid codes: {string.Join(", ", validBatchCodes)}.");
 				}
 			}
 
 			return BaseResponse<bool>.Ok(true);
 		}
 
-		#endregion
+		#endregion Order Fulfillment
 
 		#region Damaged Stock Handling
 		public async Task<SwapDamagedStockResponse> SwapDamagedStockAsync(Guid orderId, Guid staffId, SwapDamagedStockRequest request)
@@ -250,25 +262,18 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 				  // Step 2: Process damaged batch and release reservation
 				  await ProcessDamagedBatchAsync(damagedBatch, damagedReservation, quantityToSwap, variantId);
-				  damagedReservation.Release();
-				  damagedBatch.Release(quantityToSwap);
-				  damagedBatch.DecreaseQuantity(quantityToSwap);
-
-				  // Step 3: Stock update for damaged batch
-				  stock.ReleaseReservation(quantityToSwap);
-				  stock.Decrease(quantityToSwap);
 
 				  _unitOfWork.StockReservations.Update(damagedReservation);
 				  _unitOfWork.Batches.Update(damagedBatch);
 
-				  // Step 4: Reserve new batch for the order
+				  // Step 3: Reserve new batch for the order
 				  var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
 				  var newBatch = availableBatches
 					  .Where(b => b.Id != damagedBatch.Id && b.AvailableInBatch >= quantityToSwap)
 					  .OrderBy(b => b.ExpiryDate)
 					  .FirstOrDefault() ?? throw AppException.BadRequest($"No available batch found for replacement.");
 
-				  // Step 5: Create new reservation for the order
+				  // Step 4: Create new reservation for the order
 				  var newReservation = new StockReservation(orderId, newBatch.Id, variantId, quantityToSwap, damagedReservation.ExpiresAt);
 				  await _unitOfWork.StockReservations.AddAsync(newReservation);
 
@@ -278,6 +283,32 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				  // Step 6: Update stock reserved quantity
 				  stock.Reserve(quantityToSwap);
 				  _unitOfWork.Stocks.Update(stock);
+
+				  // Step 7: Update order detail snapshot to reflect new batch info
+				  var targetOrderDetail = order.OrderDetails.FirstOrDefault(od =>
+				  {
+					  try
+					  {
+						  using var doc = JsonDocument.Parse(od.Snapshot);
+						  if (doc.RootElement.TryGetProperty("BatchId", out var bIdElement))
+							  return bIdElement.GetGuid() == damagedBatch.Id;
+					  }
+					  catch { }
+					  return false;
+				  });
+
+				  if (targetOrderDetail != null)
+				  {
+					  var snapshotNode = JsonNode.Parse(targetOrderDetail.Snapshot);
+					  if (snapshotNode != null)
+					  {
+						  snapshotNode["BatchId"] = newBatch.Id;
+						  snapshotNode["BatchCode"] = newBatch.BatchCode;
+						  snapshotNode["ExpiryDate"] = newBatch.ExpiryDate;
+
+						  targetOrderDetail.UpdateBatchInfoInSnapshot(newBatch.Id, newBatch.BatchCode, newBatch.ExpiryDate);
+					  }
+				  }
 
 				  var newBatchWithIncludes = await _unitOfWork.Batches.GetBatchByIdWithIncludesAsync(newBatch.Id);
 
@@ -368,7 +399,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				_unitOfWork.Stocks.Update(stock);
 			}
 		}
-
-		#endregion
+		#endregion Damaged Stock Handling
 	}
 }

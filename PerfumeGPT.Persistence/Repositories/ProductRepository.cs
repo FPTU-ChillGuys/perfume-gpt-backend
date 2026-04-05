@@ -245,8 +245,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			};
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductListItemsAsync(
-		GetPagedProductRequest request)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductListItemsAsync(GetPagedProductRequest request)
 		{
 			var now = DateTime.UtcNow;
 
@@ -337,6 +336,7 @@ namespace PerfumeGPT.Persistence.Repositories
 							   pi.Campaign.EndDate >= now &&
 							   pi.IsActive))
 				   })
+				   .AsSplitQuery()
 				   .AsNoTracking()
 				   .ToListAsync();
 
@@ -357,8 +357,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetBestSellerProductsAsync(
-		GetPagedProductRequest request)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetBestSellerProductsAsync(GetPagedProductRequest request)
 		{
 			var now = DateTime.UtcNow;
 
@@ -434,6 +433,7 @@ namespace PerfumeGPT.Persistence.Repositories
 							   pi.Campaign.EndDate >= now &&
 							   pi.IsActive))
 				   })
+				   .AsSplitQuery()
 				   .AsNoTracking()
 				   .ToListAsync();
 
@@ -455,8 +455,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetNewArrivalProductsAsync(
-		GetPagedProductRequest request)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetNewArrivalProductsAsync(GetPagedProductRequest request)
 		{
 			var now = DateTime.UtcNow;
 
@@ -511,6 +510,7 @@ namespace PerfumeGPT.Persistence.Repositories
 							   pi.Campaign.EndDate >= now &&
 							   pi.IsActive))
 				   })
+				   .AsSplitQuery()
 				   .AsNoTracking()
 				   .ToListAsync();
 
@@ -635,6 +635,7 @@ namespace PerfumeGPT.Persistence.Repositories
 							pi.Campaign.StartDate <= now &&
 							pi.Campaign.EndDate >= now))
 				})
+				.AsSplitQuery()
 				.AsNoTracking()
 				.ToListAsync();
 
@@ -658,28 +659,28 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<ProductInforResponse?> GetProductInfoAsync(Guid productId)
 			=> await _context.Products
 			  .Where(p => !p.IsDeleted && p.Id == productId)
-              .Select(p => new ProductInforResponse
-				{
-					ProductCode = p.Id.ToString(),
-					BrandName = p.Brand.Name,
-					Origin = p.Origin,
-					ReleaseYear = p.ReleaseYear,
-					Gender = p.Gender,
-					ScentGroup = string.Join(", ", p.ProductFamilyMaps.Select(pfm => pfm.OlfactoryFamily.Name)),
-					Style = string.Join(", ", p.ProductAttributes
+			  .Select(p => new ProductInforResponse
+			  {
+				  ProductCode = p.Id.ToString(),
+				  BrandName = p.Brand.Name,
+				  Origin = p.Origin,
+				  ReleaseYear = p.ReleaseYear,
+				  Gender = p.Gender,
+				  ScentGroup = string.Join(", ", p.ProductFamilyMaps.Select(pfm => pfm.OlfactoryFamily.Name)),
+				  Style = string.Join(", ", p.ProductAttributes
 						.Where(pa => pa.Attribute.InternalCode == "STYLE")
 						.Select(pa => pa.Value.Value)),
-					TopNotes = string.Join(", ", p.ProductScentMaps
+				  TopNotes = string.Join(", ", p.ProductScentMaps
 						.Where(psm => psm.NoteType == NoteType.Top)
 						.Select(psm => psm.ScentNote.Name)),
-					HeartNotes = string.Join(", ", p.ProductScentMaps
+				  HeartNotes = string.Join(", ", p.ProductScentMaps
 						.Where(psm => psm.NoteType == NoteType.Heart)
 						.Select(psm => psm.ScentNote.Name)),
-					BaseNotes = string.Join(", ", p.ProductScentMaps
+				  BaseNotes = string.Join(", ", p.ProductScentMaps
 						.Where(psm => psm.NoteType == NoteType.Base)
 						.Select(psm => psm.ScentNote.Name)),
-					Description = p.Description ?? string.Empty
-				})
+				  Description = p.Description ?? string.Empty
+			  })
 				.AsSplitQuery()
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
@@ -764,18 +765,18 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
-               .Select(p => new ProductListItemWithVariants
-				{
-					Id = p.Id,
-					Name = p.Name,
-					BrandId = p.BrandId,
-					BrandName = p.Brand.Name,
-					CategoryId = p.CategoryId,
-					CategoryName = p.Category.Name,
-					Description = p.Description,
-					NumberOfVariants = p.Variants.Count(v => !v.IsDeleted),
-					VariantPrices = p.Variants.Where(v => !v.IsDeleted).Select(v => v.BasePrice).ToList(),
-					PrimaryImage = p.Media
+			   .Select(p => new ProductListItemWithVariants
+			   {
+				   Id = p.Id,
+				   Name = p.Name,
+				   BrandId = p.BrandId,
+				   BrandName = p.Brand.Name,
+				   CategoryId = p.CategoryId,
+				   CategoryName = p.Category.Name,
+				   Description = p.Description,
+				   NumberOfVariants = p.Variants.Count(v => !v.IsDeleted),
+				   VariantPrices = p.Variants.Where(v => !v.IsDeleted).Select(v => v.BasePrice).ToList(),
+				   PrimaryImage = p.Media
 						.Where(m => m.IsPrimary && !m.IsDeleted)
 						.Select(m => new MediaResponse
 						{
@@ -788,7 +789,7 @@ namespace PerfumeGPT.Persistence.Repositories
 							FileSize = m.FileSize
 						})
 						.FirstOrDefault(),
-					Variants = p.Variants
+				   Variants = p.Variants
 						.Where(v => !v.IsDeleted)
 						.Select(v => new VariantSummaryItem
 						{
@@ -797,7 +798,7 @@ namespace PerfumeGPT.Persistence.Repositories
 							ConcentrationName = v.Concentration.Name
 						})
 						.ToList()
-				})
+			   })
 				.ToListAsync();
 
 			return (items, totalCount);

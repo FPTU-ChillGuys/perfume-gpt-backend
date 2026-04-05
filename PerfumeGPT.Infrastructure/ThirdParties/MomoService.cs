@@ -47,9 +47,9 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			var notifyUrl = _configuration["Momo:NotifyUrl"] ?? returnUrl;
 
-			var orderId = request.OrderId.ToString();
+			var orderId = request.PaymentId.ToString();
 			var requestId = request.PaymentId.ToString("N");
-			var orderInfo = $"Thanh toan don hang: {request.OrderCode}";
+			var orderInfo = $"{request.OrderCode}";
 			var amountLong = (long)request.Amount;
 			var extraData = Convert.ToBase64String(Encoding.UTF8.GetBytes(request.OrderId.ToString()));
 

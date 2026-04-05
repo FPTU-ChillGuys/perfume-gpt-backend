@@ -1,5 +1,6 @@
 ﻿using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Exceptions;
+using System.Text.Json.Nodes;
 
 namespace PerfumeGPT.Domain.Entities
 {
@@ -13,11 +14,7 @@ namespace PerfumeGPT.Domain.Entities
 		public decimal UnitPrice { get; private set; }
 		public decimal ApportionedDiscount { get; private set; }
 		public string Snapshot { get; private set; } = null!;
-
-		// TÍNH TOÁN ĐỘNG: Tổng tiền thực tế khách phải trả cho dòng này (Không lưu xuống DB)
 		public decimal FinalTotal => (UnitPrice * Quantity) - ApportionedDiscount;
-
-		// TÍNH TOÁN ĐỘNG: Đơn giá được phép hoàn trả cho 1 sản phẩm (Không lưu xuống DB)
 		public decimal RefundableUnitPrice => Quantity > 0 ? FinalTotal / Quantity : 0;
 
 		// Navigation properties
@@ -60,6 +57,20 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("Invalid discount amount. It cannot be negative or exceed the total line price.");
 
 			ApportionedDiscount = discountAmount;
+		}
+
+		public void UpdateBatchInfoInSnapshot(Guid newBatchId, string newBatchCode, DateTime newExpiryDate)
+		{
+			if (string.IsNullOrWhiteSpace(Snapshot))
+				throw DomainException.BadRequest("Cannot update an empty snapshot.");
+
+			var snapshotNode = JsonNode.Parse(Snapshot) ?? throw DomainException.BadRequest("Failed to parse snapshot JSON.");
+
+			snapshotNode["BatchId"] = newBatchId;
+			snapshotNode["BatchCode"] = newBatchCode;
+			snapshotNode["ExpiryDate"] = newExpiryDate;
+
+			Snapshot = snapshotNode.ToJsonString();
 		}
 	}
 }

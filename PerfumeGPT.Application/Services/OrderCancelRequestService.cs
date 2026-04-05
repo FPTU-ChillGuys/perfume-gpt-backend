@@ -90,12 +90,7 @@ namespace PerfumeGPT.Application.Services
 								.OrderByDescending(p => p.CreatedAt)
 								.ToList();
 
-					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod);
-
-					if (originalPayment == null)
-					{
-						throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
-					}
+					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod) ?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
 
 					var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext not available.");
 					var refundAmount = cancelRequest.RefundAmount ?? originalPayment.Amount;

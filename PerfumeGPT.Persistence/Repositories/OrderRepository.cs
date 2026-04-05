@@ -110,7 +110,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					 Quantity = od.Quantity,
 					 UnitPrice = od.UnitPrice,
 					 RefunablePrice = ((od.UnitPrice * od.Quantity) - od.ApportionedDiscount) / od.Quantity,
-					 Total = od.UnitPrice * od.Quantity
+					 Total = od.UnitPrice * od.Quantity - od.ApportionedDiscount,
 				 }).ToList()
 			 })
 				.ToListAsync();
@@ -181,7 +181,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					 : null,
 				 Quantity = od.Quantity,
 				 UnitPrice = od.UnitPrice,
-				 Total = od.UnitPrice * od.Quantity,
+				 Total = od.UnitPrice * od.Quantity - od.ApportionedDiscount,
 				 ReservedBatches = o.StockReservations
 					 .Where(sr => sr.VariantId == od.VariantId)
 					 .Select(sr => new ReservedBatchResponse
@@ -258,7 +258,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				 Quantity = od.Quantity,
 				 UnitPrice = od.UnitPrice,
 				 RefunablePrice = ((od.UnitPrice * od.Quantity) - od.ApportionedDiscount) / od.Quantity,
-				 Total = od.UnitPrice * od.Quantity,
+				 Total = od.UnitPrice * od.Quantity - od.ApportionedDiscount,
 				 ReservedBatches = o.StockReservations
 					 .Where(sr => sr.VariantId == od.VariantId)
 					 .Select(sr => new ReservedBatchResponse
@@ -439,7 +439,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				VariantInfo = variantParts.Count > 0 ? string.Join(" ", variantParts) : "N/A",
 				Quantity = detail.Quantity,
 				UnitPrice = detail.UnitPrice,
-				Subtotal = detail.UnitPrice * detail.Quantity
+				Subtotal = detail.UnitPrice * detail.Quantity - detail.ApportionedDiscount
 			};
 		}
 	}

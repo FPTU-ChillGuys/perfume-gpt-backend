@@ -16,7 +16,6 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<(List<OrderReturnRequestResponse> Items, int TotalCount)> GetPagedResponsesAsync(GetPagedReturnRequestsRequest request)
 		{
 			var query = _context.OrderReturnRequests
-				.Include(r => r.Customer)
 				.AsNoTracking()
 				.AsQueryable();
 
@@ -96,7 +95,6 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<(List<OrderReturnRequestResponse> Items, int TotalCount)> GetPagedUserResponsesAsync(Guid userId, GetPagedUserReturnRequestsRequest request)
 		{
 			var query = _context.OrderReturnRequests
-				.Include(r => r.Customer)
 				.Where(r => r.CustomerId == userId)
 				.AsNoTracking()
 				.AsQueryable();

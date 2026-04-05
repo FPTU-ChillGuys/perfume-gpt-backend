@@ -21,13 +21,16 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 		public async Task CreateOrderDetailsAsync(
 			Order order,
-			List<(Guid VariantId, int Quantity, decimal LineDiscount)> items,
+			List<(Guid VariantId, Guid? BatchId, int Quantity, decimal LineDiscount, decimal? LineFinalTotal)> items,
 			decimal? finalTotalAmount = null)
 		{
 			if (order == null) throw AppException.BadRequest("Order is required.");
 			if (items == null || items.Count == 0) throw AppException.BadRequest("Order items are required.");
 
-			var stockItems = items.Select(i => (i.VariantId, i.Quantity)).ToList();
+			var stockItems = items
+				.GroupBy(i => i.VariantId)
+				.Select(g => (VariantId: g.Key, Quantity: g.Sum(x => x.Quantity)))
+				.ToList();
 			var stockValidation = await _inventoryManager.ValidateStockAvailabilityAsync(stockItems);
 			if (!stockValidation)
 			{
@@ -38,38 +41,126 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			var variants = await _unitOfWork.Variants.GetVariantsWithDetailsByIdsAsync(variantIds);
 
 			var variantDictionary = variants.ToDictionary(v => v.Id);
+			decimal explicitDiscountTotal = 0m;
 
-			foreach (var (VariantId, Quantity, LineDiscount) in items)
+			var batchStockTracker = new Dictionary<Guid, int>();
+
+			foreach (var (VariantId, BatchId, Quantity, LineDiscount, LineFinalTotal) in items)
 			{
 				if (!variantDictionary.TryGetValue(VariantId, out var variant))
 					throw AppException.NotFound($"Product variant {VariantId} not found.");
 
 				decimal unitPrice = variant.BasePrice;
+				var lineSubtotal = unitPrice * Quantity;
 
-				var snapshotData = new
+				if (LineFinalTotal.HasValue && LineFinalTotal.Value > lineSubtotal)
+					throw AppException.BadRequest("Final total amount cannot exceed subtotal.");
+
+				if (BatchId.HasValue)
 				{
-					variant.Sku,
-					variant.Barcode,
-					ProductName = variant.Product?.Name ?? "Unknown Product",
-					variant.VolumeMl,
-					VariantType = variant.Type.ToString(),
-					Concentration = variant.Concentration?.Name
-				};
+					var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b => b.Id == BatchId.Value && b.VariantId == VariantId)
+						?? throw AppException.NotFound($"Batch {BatchId.Value} not found for variant {VariantId}.");
 
-				string snapshotJson = JsonSerializer.Serialize(snapshotData);
+					if (!batchStockTracker.ContainsKey(batch.Id))
+						batchStockTracker[batch.Id] = batch.AvailableInBatch;
 
-				order.AddOrderDetail(
-					 VariantId,
-					 Quantity,
-					 unitPrice,
-					 snapshotJson);
+					if (batchStockTracker[batch.Id] < Quantity)
+						throw AppException.Conflict($"Data inconsistency: Batch {batch.Id} does not have enough stock for variant {VariantId}. Need {Quantity}, available {batchStockTracker[batch.Id]}.");
 
-				if (LineDiscount > 0)
+					batchStockTracker[batch.Id] -= Quantity;
+
+					var totalLineDiscount = LineFinalTotal.HasValue
+						? lineSubtotal - LineFinalTotal.Value
+						: LineDiscount;
+
+					totalLineDiscount = Math.Max(0m, Math.Min(totalLineDiscount, lineSubtotal));
+					explicitDiscountTotal += totalLineDiscount;
+
+					var snapshotData = new
+					{
+						variant.Sku,
+						variant.Barcode,
+						ProductName = variant.Product?.Name ?? "Unknown Product",
+						variant.VolumeMl,
+						VariantType = variant.Type.ToString(),
+						Concentration = variant.Concentration?.Name,
+						BatchId = batch.Id,
+						batch.BatchCode,
+						batch.ExpiryDate,
+						FinalUnitPrice = Quantity > 0
+							? (lineSubtotal - totalLineDiscount) / Quantity
+							: 0m
+					};
+
+					string snapshotJson = JsonSerializer.Serialize(snapshotData);
+
+					order.AddOrderDetail(
+						 VariantId,
+						 Quantity,
+						 unitPrice,
+						 snapshotJson);
+
+					if (totalLineDiscount > 0)
+					{
+						var createdOrderDetail = order.OrderDetails.Last();
+						createdOrderDetail.ApplyDiscount(totalLineDiscount);
+					}
+
+					continue;
+				}
+
+				var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(VariantId);
+				var remainingToAllocate = Quantity;
+				var allocations = new List<(Batch Batch, int Quantity)>();
+
+				foreach (var batch in availableBatches)
 				{
-					var createdOrderDetail = order.OrderDetails.Last();
-					var lineTotal = createdOrderDetail.UnitPrice * createdOrderDetail.Quantity;
-					var safeDiscount = Math.Min(LineDiscount, lineTotal);
-					createdOrderDetail.ApplyDiscount(safeDiscount);
+					if (remainingToAllocate <= 0)
+						break;
+
+					if (!batchStockTracker.ContainsKey(batch.Id))
+						batchStockTracker[batch.Id] = batch.AvailableInBatch;
+
+					var availableInBatch = batchStockTracker[batch.Id];
+					if (availableInBatch <= 0) continue;
+
+					var quantityFromBatch = Math.Min(remainingToAllocate, availableInBatch);
+					allocations.Add((batch, quantityFromBatch));
+					remainingToAllocate -= quantityFromBatch;
+
+					batchStockTracker[batch.Id] -= quantityFromBatch;
+				}
+
+				if (remainingToAllocate > 0)
+					throw AppException.Conflict($"Data inconsistency: Batches do not have enough stock for variant {VariantId}. Need {Quantity}, missing {remainingToAllocate}.");
+
+				foreach (var (batch, allocatedQuantity) in allocations)
+				{
+					var detailLineTotal = unitPrice * allocatedQuantity;
+
+					var snapshotData = new
+					{
+						variant.Sku,
+						variant.Barcode,
+						ProductName = variant.Product?.Name ?? "Unknown Product",
+						variant.VolumeMl,
+						VariantType = variant.Type.ToString(),
+						Concentration = variant.Concentration?.Name,
+						BatchId = batch.Id,
+						batch.BatchCode,
+						batch.ExpiryDate,
+						FinalUnitPrice = allocatedQuantity > 0
+							? detailLineTotal / allocatedQuantity
+							: 0m
+					};
+
+					string snapshotJson = JsonSerializer.Serialize(snapshotData);
+
+					order.AddOrderDetail(
+						 VariantId,
+						 allocatedQuantity,
+						 unitPrice,
+						 snapshotJson);
 				}
 			}
 
@@ -77,7 +168,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			if (subtotal <= 0)
 				return;
 
-			var explicitDiscountTotal = items.Sum(x => Math.Max(0m, x.LineDiscount));
 			if (explicitDiscountTotal > 0)
 			{
 				if (finalTotalAmount.HasValue)

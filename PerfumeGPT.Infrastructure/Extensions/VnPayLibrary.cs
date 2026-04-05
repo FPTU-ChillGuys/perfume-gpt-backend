@@ -41,7 +41,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 
 			foreach (var (key, value) in _requestData.Where(kv => !string.IsNullOrEmpty(kv.Value)))
 			{
-				data.Append(WebUtility.UrlEncode(key) + "=" + Uri.EscapeDataString(value) + "&");
+				data.Append(WebUtility.UrlEncode(key) + "=" + WebUtility.UrlEncode(value) + "&");
 			}
 
 			var querystring = data.ToString();
@@ -83,7 +83,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 
 			foreach (var (key, value) in _responseData.Where(kv => !string.IsNullOrEmpty(kv.Value)))
 			{
-				data.Append(WebUtility.UrlEncode(key) + "=" + Uri.EscapeDataString(value) + "&");
+				data.Append(WebUtility.UrlEncode(key) + "=" + WebUtility.UrlEncode(value) + "&");
 			}
 
 			//remove last '&'
@@ -128,7 +128,6 @@ namespace PerfumeGPT.Infrastructure.Extensions
 				{
 					if (remoteIpAddress.AddressFamily == AddressFamily.InterNetworkV6)
 					{
-						// Dùng phiên bản Async và AWAIT
 						var entry = await Dns.GetHostEntryAsync(remoteIpAddress);
 						remoteIpAddress = entry.AddressList
 							.FirstOrDefault(x => x.AddressFamily == AddressFamily.InterNetwork);

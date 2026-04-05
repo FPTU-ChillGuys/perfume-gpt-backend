@@ -4,7 +4,6 @@ using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Exceptions;
-using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
@@ -17,23 +16,17 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly ICampaignRepository _campaignRepository;
-		private readonly IPromotionItemRepository _promotionItemRepository;
 		private readonly IUserService _userService;
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IMapper _mapper;
 
 		public VoucherService(
 			IUnitOfWork unitOfWork,
-			ICampaignRepository campaignRepository,
-			IPromotionItemRepository promotionItemRepository,
 			IMapper mapper,
 			IUserService userService,
 			ILoyaltyTransactionService loyaltyTransactionService)
 		{
 			_unitOfWork = unitOfWork;
-			_campaignRepository = campaignRepository;
-			_promotionItemRepository = promotionItemRepository;
 			_mapper = mapper;
 			_userService = userService;
 			_loyaltyTransactionService = loyaltyTransactionService;
@@ -374,7 +367,7 @@ namespace PerfumeGPT.Application.Services
 				return;
 			}
 
-			var campaign = await _campaignRepository.FirstOrDefaultAsync(
+			var campaign = await _unitOfWork.Campaigns.FirstOrDefaultAsync(
 				c => c.Id == voucher.CampaignId.Value && !c.IsDeleted,
 				asNoTracking: true) ?? throw AppException.NotFound("Campaign not found for this voucher");
 
@@ -399,7 +392,7 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Cart items are required for product-level voucher validation");
 			}
 
-			var hasMatchingActiveItem = await _promotionItemRepository.AnyAsync(
+			var hasMatchingActiveItem = await _unitOfWork.PromotionItems.AnyAsync(
 				i => i.CampaignId == campaign.Id
 					&& !i.IsDeleted
 					&& i.ItemType == voucher.TargetItemType

@@ -13,7 +13,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<Batch?> GetBatchByIdWithIncludesAsync(Guid batchId);
 		Task<Guid?> GetVariantIdByBatchIdAsync(Guid batchId);
 		Task<List<BatchLookupResponse>> GetBatchLookupAsync();
-
+		Task<List<Batch>> GetBatchesByIds(List<Guid> ids);
 		Task<bool> DeductBatchesByVariantIdAsync(Guid variantId, int quantity);
 	}
 }

@@ -322,9 +322,10 @@ namespace PerfumeGPT.Application.Services
 				returnRequest.StartInspection(inspectedById, request.InspectionNote);
 				_unitOfWork.OrderReturnRequests.Update(returnRequest);
 
-				if (returnRequest.Order.Status != OrderStatus.Returned)
+				if (returnRequest.Order.Status == OrderStatus.Delivered ||
+					returnRequest.Order.Status == OrderStatus.Partial_Returned)
 				{
-					returnRequest.Order.SetStatus(OrderStatus.Returned);
+					returnRequest.Order.SetStatus(OrderStatus.Returning);
 				}
 
 				return BaseResponse<string>.Ok("Inspection started.");
@@ -549,21 +550,24 @@ namespace PerfumeGPT.Application.Services
 
 				var order = freshReturnRequest.Order;
 				var approvedRefundAmount = freshReturnRequest.ApprovedRefundAmount!.Value;
-				var isPartialRefund = approvedRefundAmount < payment.Amount;
 
-				freshReturnRequest.MarkRefunded(refundTransactionNo);
+				var isFullyRefunded = approvedRefundAmount >= payment.Amount;
 
-				if (isPartialRefund)
+				if (isFullyRefunded)
+				{
+					order.MarkRefunded();
+					if (order.Status != OrderStatus.Returned)
+					{
+						order.SetStatus(OrderStatus.Returned);
+					}
+				}
+				else
 				{
 					order.MarkPartiallyRefunded();
 					if (order.Status != OrderStatus.Partial_Returned)
 					{
 						order.SetStatus(OrderStatus.Partial_Returned);
 					}
-				}
-				else
-				{
-					order.MarkRefunded();
 				}
 
 				var successRefund = PaymentTransaction.CreateRefund(
