@@ -172,28 +172,28 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> UpdateReturnRequestAsync(Guid customerId, Guid requestId, UpdateReturnRequestDto request)
 		{
-          var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			{
-				var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithOrderDetailsAsync(requestId)
-					?? throw AppException.NotFound("Return request not found.");
+			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			  {
+				  var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithOrderDetailsAsync(requestId)
+					  ?? throw AppException.NotFound("Return request not found.");
 
-				if (returnRequest.CustomerId != customerId)
-					throw AppException.Forbidden("You are not allowed to update this return request.");
+				  if (returnRequest.CustomerId != customerId)
+					  throw AppException.Forbidden("You are not allowed to update this return request.");
 
-				if (request.RemoveMediaIds != null && request.RemoveMediaIds.Count > 0)
-				{
-					var existingMediaIds = returnRequest.ProofImages.Select(x => x.Id).ToHashSet();
-					var invalidMediaId = request.RemoveMediaIds.FirstOrDefault(id => !existingMediaIds.Contains(id));
+				  if (request.RemoveMediaIds != null && request.RemoveMediaIds.Count > 0)
+				  {
+					  var existingMediaIds = returnRequest.ProofImages.Select(x => x.Id).ToHashSet();
+					  var invalidMediaId = request.RemoveMediaIds.FirstOrDefault(id => !existingMediaIds.Contains(id));
 
-					if (invalidMediaId != Guid.Empty)
-						throw AppException.BadRequest($"Media {invalidMediaId} does not belong to this return request.");
-				}
+					  if (invalidMediaId != Guid.Empty)
+						  throw AppException.BadRequest($"Media {invalidMediaId} does not belong to this return request.");
+				  }
 
-				returnRequest.UpdateByCustomer(customerId, request.Reason, request.CustomerNote);
-				_unitOfWork.OrderReturnRequests.Update(returnRequest);
+				  returnRequest.UpdateByCustomer(customerId, request.CustomerNote);
+				  _unitOfWork.OrderReturnRequests.Update(returnRequest);
 
-				return BaseResponse<string>.Ok("Return request updated and resubmitted for review.");
-			});
+				  return BaseResponse<string>.Ok("Return request updated and resubmitted for review.");
+			  });
 
 			if (request.RemoveMediaIds != null && request.RemoveMediaIds.Count > 0)
 			{
@@ -245,7 +245,7 @@ namespace PerfumeGPT.Application.Services
 				var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithPickAddressAsync(requestId)
 					 ?? throw AppException.NotFound("Return request not found.");
 
-                returnRequest.Process(processedById, request.IsApproved, request.IsRequestMoreInfo, request.StaffNote);
+				returnRequest.Process(processedById, request.IsApproved, request.IsRequestMoreInfo, request.StaffNote);
 
 				if (request.IsApproved && !returnRequest.IsRefundOnly)
 				{

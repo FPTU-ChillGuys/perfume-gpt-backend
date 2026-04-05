@@ -112,7 +112,7 @@ namespace PerfumeGPT.Domain.Entities
 			Status = ReturnRequestStatus.ApprovedForReturn;
 		}
 
-		public void UpdateByCustomer(Guid customerId, ReturnOrderReason reason, string? customerNote)
+		public void UpdateByCustomer(Guid customerId, string? customerNote)
 		{
 			if (CustomerId != customerId)
 				throw DomainException.Forbidden("You are not authorized to update this return request.");
@@ -120,7 +120,6 @@ namespace PerfumeGPT.Domain.Entities
 			if (Status != ReturnRequestStatus.RequestMoreInfo)
 				throw DomainException.BadRequest("Only return requests that require more information can be updated.");
 
-			Reason = reason;
 			CustomerNote = string.IsNullOrWhiteSpace(customerNote) ? null : customerNote.Trim();
 			ApprovedRefundAmount = null;
 			StaffNote = null;
