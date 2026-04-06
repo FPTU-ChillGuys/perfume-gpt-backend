@@ -2,8 +2,8 @@ using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.CartItems;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
-using PerfumeGPT.Application.DTOs.Responses.Orders.OrderDetails;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
@@ -23,7 +23,6 @@ namespace PerfumeGPT.Application.Services
 		private readonly ICartService _cartService;
 		private readonly IVoucherService _voucherService;
 		private readonly IOrderPaymentService _orderPaymentService;
-		private readonly IOrderInventoryManager _inventoryManager;
 		private readonly IOrderShippingHelper _shippingHelper;
 		private readonly IOrderDetailsFactory _orderDetailsFactory;
 		private readonly IStockReservationService _stockReservationService;
@@ -37,7 +36,6 @@ namespace PerfumeGPT.Application.Services
 			ICartService cartService,
 			IVoucherService voucherService,
 			IOrderPaymentService orderPaymentService,
-			IOrderInventoryManager inventoryManager,
 			IOrderShippingHelper shippingHelper,
 			IOrderDetailsFactory orderDetailsFactory,
 			IStockReservationService stockReservationService,
@@ -50,7 +48,6 @@ namespace PerfumeGPT.Application.Services
 			_cartService = cartService;
 			_voucherService = voucherService;
 			_orderPaymentService = orderPaymentService;
-			_inventoryManager = inventoryManager;
 			_shippingHelper = shippingHelper;
 			_orderDetailsFactory = orderDetailsFactory;
 			_stockReservationService = stockReservationService;
@@ -246,193 +243,171 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request)
 		{
-			if (request.OrderDetails.Count == 0)
+			if (request.ScannedItems == null || request.ScannedItems.Count == 0)
 				throw AppException.BadRequest("No items in the order.");
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				// Resolve voucher if provided
-				VoucherResponse? voucher = null;
-				if (!string.IsNullOrEmpty(request.VoucherCode))
-				{
-					voucher = await _voucherService.GetVoucherByCodeAsync(request.VoucherCode)
-						?? throw AppException.BadRequest("Invalid voucher code.");
-
-					if (voucher.ExpiryDate < DateTime.UtcNow)
-						throw AppException.BadRequest("Voucher has expired.");
-				}
-
-				// Create order details
-				var itemsToValidate = request.OrderDetails
-				  .Select(od => (od.VariantId, od.Quantity))
+				// 1. GOM NHÓM DỮ LIỆU QUÉT
+				var groupedScans = request.ScannedItems
+					.GroupBy(x => new { x.Barcode, x.BatchCode })
+					.Select(g => new { g.Key.Barcode, g.Key.BatchCode, Quantity = g.Sum(item => item.Quantity) })
 					.ToList();
 
-				var pricedItems = request.OrderDetails
-				 .Select(od => (od.VariantId, (Guid?)null, od.Quantity, 0m, (decimal?)null))
-					.ToList();
+				var checkoutItems = new List<CartCheckoutItemDto>();
 
-				var order = Order.CreateOffline(staffId, 0);
-				await _orderDetailsFactory.CreateOrderDetailsAsync(order, pricedItems);
-
-				// Calculate totals
-				decimal subtotal = order.OrderDetails.Sum(od => od.UnitPrice * od.Quantity);
-				decimal totalAmount = subtotal;
-
-				if (voucher != null)
+				// 2. TRUY VẤN DATABASE & KHÓA BATCH_ID
+				foreach (var scan in groupedScans)
 				{
-					var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(voucher.Code, subtotal);
-					totalAmount = discountedTotal;
+					var variant = await _unitOfWork.Variants.GetByBarcodeAsync(scan.Barcode)
+						?? throw AppException.NotFound($"Variant with barcode {scan.Barcode} not found.");
+
+					var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b => b.BatchCode == scan.BatchCode && b.VariantId == variant.Id)
+						?? throw AppException.NotFound($"Batch {scan.BatchCode} not found for product {variant.Sku}.");
+
+					var subTotal = variant.BasePrice * scan.Quantity;
+
+					checkoutItems.Add(new CartCheckoutItemDto
+					{
+						VariantId = variant.Id,
+						BatchId = batch.Id, // 💥 BẮT BUỘC CÓ BATCH ID
+						VariantName = $"{variant.Sku} - {variant.VolumeMl}ml",
+						Quantity = scan.Quantity,
+						UnitPrice = variant.BasePrice,
+						SubTotal = subTotal,
+						Discount = 0m,
+						FinalTotal = subTotal,
+						BatchCode = batch.BatchCode
+					});
 				}
 
-				order.SetTotalAmount(totalAmount);
+				// 3. TÍNH TIỀN CHUNG
+				var (pricedItems, subtotal, finalAmount, voucherMessage) = await _cartService.CalculatePricingEngineAsync(
+					checkoutItems,
+					request.VoucherCode,
+					request.CustomerId);
 
-				// Persist order
+				if (request.ExpectedTotalPrice.HasValue && Math.Abs(request.ExpectedTotalPrice.Value - finalAmount) > 0.0001m)
+					throw AppException.Conflict("Price has changed since preview. Please refresh and check the total amount again.");
+
+				// 4. TẠO ĐƠN HÀNG CHỜ (PENDING)
+				var order = Order.CreateOffline(request.CustomerId, staffId, finalAmount);
+
+				var factoryItems = pricedItems
+					.Select(item => (item.VariantId, item.BatchId, item.Quantity, item.Discount, (decimal?)item.FinalTotal))
+					.ToList();
+
+				await _orderDetailsFactory.CreateOrderDetailsAsync(order, factoryItems, finalAmount);
 				await _unitOfWork.Orders.AddAsync(order);
 
-				// Mark voucher as reserved and link UserVoucher to order
-				if (voucher != null)
+				// 5. XỬ LÝ VOUCHER
+				if (!string.IsNullOrEmpty(request.VoucherCode))
 				{
-					var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(
-						null,
-						request.Recipient?.ContactPhoneNumber,
-						voucher.Id,
-						order.Id);
-
-					if (markVoucherResult != null)
+					var voucher = await _voucherService.GetVoucherByCodeAsync(request.VoucherCode);
+					if (voucher != null)
 					{
-						var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
-							uv => uv.VoucherId == voucher.Id && uv.OrderId == order.Id);
+						var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(
+							request.CustomerId, request.Recipient?.ContactPhoneNumber, voucher.Id, order.Id);
 
-						if (userVoucher != null)
-						{
-							order.AssignVoucher(userVoucher);
-							_unitOfWork.Orders.Update(order);
-						}
+						if (markVoucherResult != null) order.AssignVoucher(markVoucherResult);
 					}
-
-					await _voucherService.MarkVoucherAsUsedAsync(voucher.Id);
 				}
 
-				// Setup shipping if needed
 				if (!request.IsPickupInStore && request.Recipient != null)
 				{
-					await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, customerId: null, savedAddressId: null);
-
-					totalAmount = order.TotalAmount;
+					await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, request.CustomerId, savedAddressId: null);
 				}
 
-				// Deduct inventory immediately for offline orders
-				await _inventoryManager.DeductInventoryAsync(itemsToValidate);
+				// 6. GIỮ KHO CHÍNH XÁC THEO LÔ (EXACT BATCH RESERVATION)
+				var posReservationItems = pricedItems
+					.GroupBy(x => new { x.VariantId, x.BatchId })
+					.Select(g => (VariantId: g.Key.VariantId, BatchId: g.Key.BatchId!.Value, Quantity: g.Sum(x => x.Quantity)))
+					.ToList();
 
-				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(
-					order,
-					totalAmount,
-					request.Payment.Method);
+				// Set payment expiration
+				var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
 
-				return BaseResponse<string>.Ok(response, "In-store checkout successful.");
+				await _stockReservationService.ReserveExactBatchStockForOrderAsync(order.Id, posReservationItems, paymentExpiresAt);
+
+				// 7. TẠO GIAO DỊCH THANH TOÁN (PENDING)
+				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, finalAmount, request.Payment.Method);
+
+				return BaseResponse<string>.Ok(response, "Order created. Waiting for payment confirmation.");
 			});
-		}
-
-		public async Task<BaseResponse<PreviewOrderResponse>> PreviewOrder(PreviewOrderRequest request)
-		{
-			if (request.BarCodes.Count == 0)
-				throw AppException.BadRequest("No items to preview.");
-
-			var items = await BuildPreviewItemsAsync(request.BarCodes);
-			if (!items.Success || items.Payload == null)
-				throw AppException.BadRequest(items.Message!);
-
-			decimal subtotal = items.Payload.Sum(i => i.Total);
-			decimal discount = await CalculateVoucherDiscountAsync(request.VoucherCode, subtotal);
-
-			var response = new PreviewOrderResponse
-			{
-				Items = items.Payload,
-				SubTotal = subtotal,
-				ShippingFee = 0,
-				Discount = discount,
-				Total = subtotal + 0 - discount
-			};
-
-			return BaseResponse<PreviewOrderResponse>.Ok(response);
 		}
 		#endregion Checkout Operations
 
 
 		#region Order Status Management
-		public async Task<BaseResponse<PickListResponse?>> UpdateOrderStatusAsync(Guid orderId, Guid staffId, UpdateOrderStatusRequest request)
+		public async Task<BaseResponse<PickListResponse?>> UpdateOrderStatusToPreparingAsync(Guid orderId, Guid staffId)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			   {
 				   var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId)
 					   ?? throw AppException.NotFound("Order not found.");
 
-				   // Validate offline order restrictions
-				   if (order.Type == OrderType.Offline && request.Status != OrderStatus.Cancelled)
-					   throw AppException.BadRequest("Offline orders can only be cancelled. Other status updates are not allowed.");
-
-				   // Handle cancellation first to align refund/no-refund flows
-				   if (request.Status == OrderStatus.Cancelled)
-				   {
-					   var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
-
-					   // Paid cancellation => create cancel request, wait for approval/refund flow
-					   if (isRefundRequired)
-					   {
-						   var hasPendingCancelRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(
-							   x => x.OrderId == order.Id && x.Status == CancelRequestStatus.Pending);
-
-						   if (hasPendingCancelRequest)
-							   throw AppException.BadRequest("A pending cancel request already exists for this order.");
-
-						   var payload = new CancelRequestPayload
-						   {
-							   Reason = CancelOrderReason.InsufficientStock,
-							   IsRefundRequired = true,
-							   RefundAmount = order.TotalAmount,
-							   StaffNote = request.Note
-						   };
-
-						   var cancelRequest = OrderCancelRequest.Create(order.Id, staffId, payload);
-						   cancelRequest.Order = order;
-
-						   await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
-
-						   return BaseResponse<PickListResponse?>.Ok(null, "Cancel request submitted successfully.");
-					   }
-
-					   // staff cancels without refund => direct cancel
-					   await HandleOrderCancellationAsync(order);
-					   order.SetStaff(staffId);
-					   _unitOfWork.Orders.Update(order);
-
-					   var orderType = order.Type == OrderType.Online ? "online" : "in-store";
-					   return BaseResponse<PickListResponse?>.Ok(null, $"Order status updated to {request.Status} for {orderType} order.");
-				   }
-
-				   // return order handle
-
-				   if (request.Status == OrderStatus.Delivered)
-					   throw AppException.BadRequest("Delivered status is synchronized from shipping provider. Please run shipping sync instead.");
+				   if (order.Status != OrderStatus.Pending)
+					   throw AppException.BadRequest($"Order status can only be updated from Pending to Preparing. Current: {order.Status}.");
 
 				   // Update order status
-				   order.SetStatus(request.Status);
+				   order.SetStatus(OrderStatus.Preparing);
 				   order.SetStaff(staffId);
 				   _unitOfWork.Orders.Update(order);
 
-				   // Update shipping status
-				   UpdateShippingStatus(order, request.Status);
-
 				   PickListResponse? pickListResponse = null;
-				   // Handle Processing status - return pick list
-				   if (request.Status == OrderStatus.Processing && order.Type == OrderType.Online)
+				   // Handle Preparing status - return pick list
+				   if (order.PaymentStatus == PaymentStatus.Paid || order.PaymentTransactions.Any(p => p.Method == PaymentMethod.CashOnDelivery))
 				   {
 					   pickListResponse = await _fulfillmentService.GetPickListAsync(order);
 				   }
 
 				   var orderTypeText = order.Type == OrderType.Online ? "online" : "in-store";
-				   return BaseResponse<PickListResponse?>.Ok(pickListResponse, $"Order status updated to {request.Status} for {orderTypeText} order.");
+				   return BaseResponse<PickListResponse?>.Ok(pickListResponse, $"Order is prepared for {orderTypeText} order.");
 			   });
+		}
+
+		public async Task<BaseResponse<string>> CancelOrderByStaffAsync(Guid orderId, Guid staffId, StaffCancelOrderRequest request)
+		{
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId)
+					?? throw AppException.NotFound("Order not found.");
+
+				if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Preparing && order.Status != OrderStatus.ReadyToPick)
+					throw AppException.BadRequest($"Cannot cancel order with status {order.Status}. Only Pending or Preparing orders can be cancelled.");
+
+				var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
+
+				if (isRefundRequired)
+				{
+					var hasPendingCancelRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(
+						x => x.OrderId == order.Id && x.Status == CancelRequestStatus.Pending);
+
+					if (hasPendingCancelRequest)
+						throw AppException.BadRequest("A pending cancel request already exists for this order.");
+
+					var payload = new CancelRequestPayload
+					{
+						Reason = request.Reason,
+						IsRefundRequired = true,
+						RefundAmount = order.TotalAmount,
+						StaffNote = request.Note
+					};
+
+					var cancelRequest = OrderCancelRequest.Create(order.Id, staffId, payload);
+					cancelRequest.Order = order;
+
+					await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
+					return BaseResponse<string>.Ok("Cancel request submitted successfully.");
+				}
+
+				await HandleOrderCancellationAsync(order);
+				order.SetStaff(staffId);
+				_unitOfWork.Orders.Update(order);
+
+				var orderType = order.Type == OrderType.Online ? "online" : "in-store";
+				return BaseResponse<string>.Ok($"Order cancelled successfully for {orderType} order.");
+			});
 		}
 
 		public async Task<BaseResponse<string>> CancelOrderAsync(Guid orderId, Guid userId, UserCancelOrderRequest request)
@@ -448,8 +423,8 @@ namespace PerfumeGPT.Application.Services
 				   // Validate order type
 				   order.EnsureOnlineOrder();
 
-				   if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Processing)
-					   throw AppException.BadRequest($"Cannot cancel order with status {order.Status}. Only Pending or Processing orders can be cancelled.");
+				   if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Preparing && order.Status != OrderStatus.ReadyToPick)
+					   throw AppException.BadRequest($"Cannot cancel order with status {order.Status}. Only Pending or Preparing orders can be cancelled.");
 
 				   var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
 
@@ -509,90 +484,12 @@ namespace PerfumeGPT.Application.Services
 		#region Private Helper Methods
 		private static DateTime GetPaymentExpiration(PaymentMethod method)
 		{
-			return method == PaymentMethod.VnPay
-				? DateTime.UtcNow.AddMinutes(15)
-				: DateTime.UtcNow.AddDays(1);
-		}
-
-		private async Task<BaseResponse<List<OrderDetailListItems>>> BuildPreviewItemsAsync(List<string> barCodes)
-		{
-			var items = new List<OrderDetailListItems>();
-
-			foreach (var barcode in barCodes.Distinct())
+			return method switch
 			{
-				var variantResponse = await _variantService.GetVariantByBarcodeAsync(barcode);
-				if (!variantResponse.Success || variantResponse.Payload == null)
-				{
-					return BaseResponse<List<OrderDetailListItems>>.Fail(
-						$"Product with barcode {barcode} not found.",
-						ResponseErrorType.NotFound);
-				}
-
-				var variant = variantResponse.Payload;
-				var quantity = barCodes.Count(b => b == barcode);
-				var itemTotal = variant.BasePrice * quantity;
-
-				items.Add(new OrderDetailListItems
-				{
-					VariantId = variant.Id,
-					VariantName = $"{variant.Sku} - {variant.VolumeMl}ml - {variant.ConcentrationName} - {variant.Type}",
-					ImageUrl = variant.Media?.FirstOrDefault(m => m.IsPrimary)?.Url ?? string.Empty,
-					Quantity = quantity,
-					Total = (int)itemTotal
-				});
-			}
-
-			return BaseResponse<List<OrderDetailListItems>>.Ok(items);
-		}
-
-		private async Task<decimal> CalculateVoucherDiscountAsync(string? voucherCode, decimal subtotal)
-		{
-			if (string.IsNullOrEmpty(voucherCode))
-			{
-				return 0;
-			}
-
-			var voucherResponse = await _voucherService.GetVoucherByCodeAsync(voucherCode);
-			if (voucherResponse == null)
-			{
-				return 0;
-			}
-
-			var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(voucherResponse.Code, subtotal);
-			return subtotal - discountedTotal;
-		}
-
-		private void UpdateShippingStatus(Order order, OrderStatus newStatus)
-		{
-			if (order.ForwardShipping == null) return;
-
-			var shippingInfo = order.ForwardShipping;
-
-			var mappedStatus = _shippingHelper.MapOrderStatusToShippingStatus(newStatus);
-			if (!mappedStatus.HasValue)
-				return;
-
-			switch (mappedStatus.Value)
-			{
-				case ShippingStatus.Pending:
-					break;
-				case ShippingStatus.Delivering:
-					shippingInfo.MarkAsDelivering();
-					break;
-				case ShippingStatus.Delivered:
-					if (shippingInfo.Status != ShippingStatus.Delivering)
-						shippingInfo.MarkAsDelivering();
-					shippingInfo.MarkAsDelivered();
-					break;
-				case ShippingStatus.Cancelled:
-					shippingInfo.Cancel();
-					break;
-				case ShippingStatus.Returned:
-					shippingInfo.MarkAsReturned();
-					break;
-			}
-
-			_unitOfWork.ShippingInfos.Update(shippingInfo);
+				PaymentMethod.VnPay => DateTime.UtcNow.AddMinutes(15),
+				PaymentMethod.Momo => DateTime.UtcNow.AddMinutes(30),
+				_ => DateTime.UtcNow.AddDays(1)
+			};
 		}
 
 		private async Task HandleOrderCancellationAsync(Order order)
@@ -606,7 +503,6 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			order.SetStatus(OrderStatus.Cancelled);
-			UpdateShippingStatus(order, OrderStatus.Cancelled);
 			await _stockReservationService.ReleaseReservationAsync(order.Id);
 			await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
 		}

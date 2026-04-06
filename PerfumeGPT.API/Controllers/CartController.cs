@@ -30,6 +30,13 @@ namespace PerfumeGPT.API.Controllers
 			_updateCartItemValidator = updateCartItemValidator;
 		}
 
+		[HttpPost("pos-preview")]
+		public async Task<ActionResult<BaseResponse<PreviewPosOrderResponse>>> GetCartPosPreview([FromBody] PreviewPosOrderRequest request)
+		{
+			var result = await _cartService.PreviewPosOrderAsync(request);
+			return HandleResponse(result);
+		}
+
 		[HttpGet("items")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<GetCartItemsResponse>), StatusCodes.Status200OK)]

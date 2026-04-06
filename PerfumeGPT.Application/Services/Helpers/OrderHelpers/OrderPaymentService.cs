@@ -20,7 +20,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		public OrderPaymentService(
 			IUnitOfWork unitOfWork,
 			IVnPayService vnPayService,
-		   IMomoService momoService,
+			IMomoService momoService,
 			IHttpContextAccessor httpContextAccessor)
 		{
 			_unitOfWork = unitOfWork;
@@ -66,7 +66,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				return checkoutResponse.PaymentUrl;
 			}
 
-			return order.Id.ToString();
+			return payment.Id.ToString();
 		}
 	}
 }

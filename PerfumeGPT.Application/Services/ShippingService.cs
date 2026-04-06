@@ -125,7 +125,7 @@ namespace PerfumeGPT.Application.Services
 
 			return normalized switch
 			{
-				"ready_to_pick" => ShippingStatus.Pending,
+				"ready_to_pick" => ShippingStatus.ReadyToPick,
 				"picking" or "picked" or "storing" or "sorting" or "transporting" or "delivering" or "money_collect_picking" or "money_collect_delivering" => ShippingStatus.Delivering,
 				"delivered" => ShippingStatus.Delivered,
 				"cancel" => ShippingStatus.Cancelled,
@@ -145,14 +145,14 @@ namespace PerfumeGPT.Application.Services
 			switch (targetStatus)
 			{
 				case ShippingStatus.Delivering:
-					if (shippingInfo.Status == ShippingStatus.Pending)
+					if (shippingInfo.Status == ShippingStatus.ReadyToPick)
 					{
 						shippingInfo.MarkAsDelivering();
 						return true;
 					}
 					break;
 				case ShippingStatus.Delivered:
-					if (shippingInfo.Status == ShippingStatus.Pending)
+					if (shippingInfo.Status == ShippingStatus.ReadyToPick)
 					{
 						shippingInfo.MarkAsDelivering();
 						shippingInfo.MarkAsDelivered();
@@ -182,7 +182,7 @@ namespace PerfumeGPT.Application.Services
 				case ShippingStatus.Returned:
 					if (shippingInfo.Status == ShippingStatus.Returning ||
 						shippingInfo.Status == ShippingStatus.Delivering ||
-						shippingInfo.Status == ShippingStatus.Pending)
+						shippingInfo.Status == ShippingStatus.ReadyToPick)
 					{
 						if (shippingInfo.Status != ShippingStatus.Returning)
 						{

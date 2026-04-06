@@ -219,6 +219,7 @@ namespace PerfumeGPT.Persistence.Repositories
 						.ToList(),
 					ProofImages = r.ProofImages
 						.OrderBy(m => m.DisplayOrder)
+						.Where(m => !m.IsDeleted)
 						.Select(m => new MediaResponse
 						{
 							Id = m.Id,

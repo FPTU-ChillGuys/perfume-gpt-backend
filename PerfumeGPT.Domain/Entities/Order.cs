@@ -21,7 +21,7 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime? PaymentExpiresAt { get; private set; }
 		public DateTime? PaidAt { get; private set; }
 		public Guid? ForwardShippingId { get; private set; }
-		public Guid ContactAddressId { get; private set; }
+		public Guid? ContactAddressId { get; private set; }
 
 		// Navigation properties
 		public virtual User? Customer { get; set; }
@@ -35,7 +35,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<OrderReturnRequest> ReturnRequests { get; set; } = null!;
 		public virtual UserVoucher? UserVoucher { get; set; }
 		public virtual ShippingInfo? ForwardShipping { get; set; }
-		public virtual ContactAddress ContactAddress { get; set; } = null!;
+		public virtual ContactAddress? ContactAddress { get; set; } = null!;
 
 		// IHasTimestamps implementation
 		public DateTime? UpdatedAt { get; set; }
@@ -61,7 +61,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		public static Order CreateOffline(Guid staffId, decimal totalAmount)
+		public static Order CreateOffline(Guid? customerId, Guid staffId, decimal totalAmount)
 		{
 			if (staffId == Guid.Empty)
 				throw DomainException.BadRequest("Staff ID is required for offline orders.");
@@ -70,6 +70,7 @@ namespace PerfumeGPT.Domain.Entities
 
 			return new Order
 			{
+				CustomerId = customerId,
 				StaffId = staffId,
 				Code = OrderCodeGenerator.Generate(OrderType.Offline),
 				Type = OrderType.Offline,
@@ -133,18 +134,29 @@ namespace PerfumeGPT.Domain.Entities
 
 			var validTransitions = new Dictionary<OrderStatus, List<OrderStatus>>
 			{
-				{ OrderStatus.Pending, [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Cancelled] },
-				{ OrderStatus.Processing, [OrderStatus.Delivering, OrderStatus.Cancelled] },
-				{ OrderStatus.Delivering, [OrderStatus.Delivered, OrderStatus.Returned] },
+				{ OrderStatus.Pending, [OrderStatus.Pending, OrderStatus.Preparing, OrderStatus.Delivered, OrderStatus.Cancelled] },
+
+				{ OrderStatus.Preparing, [OrderStatus.ReadyToPick, OrderStatus.Cancelled] },
+
+				{ OrderStatus.ReadyToPick, [OrderStatus.Delivering, OrderStatus.Delivered, OrderStatus.Cancelled] },
+
+				{ OrderStatus.Delivering, [OrderStatus.Delivered, OrderStatus.Returning, OrderStatus.Cancelled] },
+
 				{ OrderStatus.Delivered, [OrderStatus.Returning, OrderStatus.Returned] },
+
 				{ OrderStatus.Returning, [OrderStatus.Returned, OrderStatus.Partial_Returned] },
 				{ OrderStatus.Cancelled, [] },
-				{ OrderStatus.Partial_Returned, [OrderStatus.Returned, OrderStatus.Returning] },
-				{ OrderStatus.Returned, [OrderStatus.Partial_Returned] }
+				{ OrderStatus.Partial_Returned, [] },
+				{ OrderStatus.Returned, [] }
 			};
 
 			if (!(validTransitions.ContainsKey(Status) && validTransitions[Status].Contains(newStatus)))
 				throw DomainException.BadRequest($"Cannot change status from {Status} to {newStatus}.");
+
+			if (Type == OrderType.Offline && (newStatus == OrderStatus.Preparing || newStatus == OrderStatus.ReadyToPick || newStatus == OrderStatus.Delivering))
+			{
+				throw DomainException.BadRequest("Offline POS orders skip packaging and delivering phases and must go directly to Delivered.");
+			}
 
 			Status = newStatus;
 		}

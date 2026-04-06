@@ -170,14 +170,6 @@ namespace PerfumeGPT.Application.Services
 		public async Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId)
 			=> await _unitOfWork.Variants.GetVariantForCreateOrderAsync(variantId);
 
-		public async Task<BaseResponse<ProductVariantResponse>> GetVariantByBarcodeAsync(string barcode)
-		{
-			var variant = await _unitOfWork.Variants.GetByBarcodeAsync(barcode)
-				?? throw AppException.NotFound("Variant not found");
-
-			return BaseResponse<ProductVariantResponse>.Ok(variant, "Variant retrieved successfully");
-		}
-
 		public async Task<BaseResponse<List<VariantLookupItem>>> GetVariantLookupListAsync(Guid? productId = null)
 		{
 			var lookupItems = await _unitOfWork.Variants.GetLookupList(productId);

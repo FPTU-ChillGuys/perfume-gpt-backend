@@ -23,6 +23,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			.Include(sr => sr.Order)
 			.Include(sr => sr.Batch)
 			.Include(sr => sr.ProductVariant)
+			.AsSplitQuery()
 			.Where(sr => sr.Status == ReservationStatus.Reserved
 				&& sr.ExpiresAt <= DateTime.UtcNow)
 			.ToListAsync();

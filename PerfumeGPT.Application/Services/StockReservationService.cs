@@ -59,6 +59,64 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
+		public async Task ReserveExactBatchStockForOrderAsync(Guid orderId, List<(Guid VariantId, Guid BatchId, int Quantity)> items, DateTime expiresAt)
+		{
+			if (items == null || items.Count == 0)
+			{
+				throw AppException.BadRequest("At least one reservation item is required.");
+			}
+
+			var normalizedItems = items
+				.GroupBy(i => new { i.VariantId, i.BatchId })
+				.Select(g => (g.Key.VariantId, g.Key.BatchId, Quantity: g.Sum(x => x.Quantity)))
+				.ToList();
+
+			// 💥 BƯỚC 1: KIỂM TRA TẤT CẢ QUYỀN TRUY CẬP VÀ SỐ LƯỢNG (Chỉ ĐỌC, không GHI)
+			var batchDict = new Dictionary<Guid, Batch>();
+			foreach (var (VariantId, BatchId, Quantity) in normalizedItems)
+			{
+				var batch = await _unitOfWork.Batches.GetByIdAsync(BatchId)
+					?? throw AppException.NotFound($"Batch {BatchId} not found.");
+
+				if (batch.VariantId != VariantId)
+					throw AppException.BadRequest($"Batch {BatchId} does not belong to variant {VariantId}.");
+
+				if (batch.ExpiryDate <= DateTime.UtcNow)
+					throw AppException.Conflict($"Batch {BatchId} has expired and cannot be reserved.");
+
+				if (batch.AvailableInBatch < Quantity)
+					throw AppException.Conflict($"Insufficient quantity in batch {BatchId}. Available: {batch.AvailableInBatch}, requested: {Quantity}.");
+
+				batchDict[BatchId] = batch; // Cache lại để dùng ở dưới, tránh Query DB 2 lần
+			}
+
+			// 💥 BƯỚC 2: KHI ĐÃ CHẮC CHẮN 100% CÓ ĐỦ HÀNG -> THỰC THI THAY ĐỔI
+			var quantitiesByVariant = normalizedItems
+				.GroupBy(i => i.VariantId)
+				.Select(g => new { VariantId = g.Key, Quantity = g.Sum(x => x.Quantity) })
+				.ToList();
+
+			foreach (var item in quantitiesByVariant)
+			{
+				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == item.VariantId)
+					?? throw AppException.NotFound($"Stock for variant {item.VariantId} not found.");
+
+				stock.Reserve(item.Quantity);
+				_unitOfWork.Stocks.Update(stock);
+			}
+
+			foreach (var (VariantId, BatchId, Quantity) in normalizedItems)
+			{
+				var batch = batchDict[BatchId]; // Lấy từ Cache
+
+				var reservation = new StockReservation(orderId, BatchId, VariantId, Quantity, expiresAt);
+				await _unitOfWork.StockReservations.AddAsync(reservation);
+
+				batch.Reserve(Quantity);
+				_unitOfWork.Batches.Update(batch);
+			}
+		}
+
 		public async Task CommitReservationAsync(Guid orderId)
 		{
 			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(orderId);

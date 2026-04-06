@@ -2,7 +2,8 @@
 {
 	public enum ShippingStatus
 	{
-		Pending = 1,
+		UnAssigned = 1,
+		ReadyToPick,
 		Delivering,
 		Delivered,
 		Cancelled,

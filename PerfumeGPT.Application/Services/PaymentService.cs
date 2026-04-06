@@ -227,6 +227,16 @@ namespace PerfumeGPT.Application.Services
 
 				await _unitOfWork.Payments.AddAsync(newPayment);
 
+				var refreshedExpiration = GetPaymentExpiration(paymentMethod);
+				order.SetPaymentExpiration(refreshedExpiration);
+
+				var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(order.Id);
+				foreach (var reservation in reservations.Where(r => r.Status == ReservationStatus.Reserved))
+				{
+					reservation.SetExpiration(refreshedExpiration);
+					_unitOfWork.StockReservations.Update(reservation);
+				}
+
 				order.MarkUnpaid();
 				_unitOfWork.Orders.Update(order);
 
@@ -327,6 +337,16 @@ namespace PerfumeGPT.Application.Services
 				default:
 					throw AppException.BadRequest("Unsupported payment method.");
 			}
+		}
+
+		private static DateTime GetPaymentExpiration(PaymentMethod method)
+		{
+			return method switch
+			{
+				PaymentMethod.VnPay => DateTime.UtcNow.AddMinutes(15),
+				PaymentMethod.Momo => DateTime.UtcNow.AddMinutes(30),
+				_ => DateTime.UtcNow.AddDays(1)
+			};
 		}
 	}
 }

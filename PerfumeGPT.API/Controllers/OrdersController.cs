@@ -20,6 +20,7 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<CreateInStoreOrderRequest> _checkoutInStoreValidator;
 		private readonly IValidator<PreviewOrderRequest> _previewOrderValidator;
 		private readonly IValidator<UpdateOrderStatusRequest> _updateOrderStatusValidator;
+		private readonly IValidator<StaffCancelOrderRequest> _staffCancelOrderValidator;
 		private readonly IValidator<UserCancelOrderRequest> _cancelOrderValidator;
 		private readonly IValidator<FulfillOrderRequest> _fulfillOrderValidator;
 		private readonly IValidator<SwapDamagedStockRequest> _swapDamagedStockValidator;
@@ -32,6 +33,7 @@ namespace PerfumeGPT.API.Controllers
 			IValidator<CreateInStoreOrderRequest> checkoutInStoreValidator,
 			IValidator<PreviewOrderRequest> previewOrderValidator,
 			IValidator<UpdateOrderStatusRequest> updateOrderStatusValidator,
+			IValidator<StaffCancelOrderRequest> staffCancelOrderValidator,
 			IValidator<UserCancelOrderRequest> cancelOrderValidator,
 			IValidator<FulfillOrderRequest> fulfillOrderValidator,
 			IValidator<SwapDamagedStockRequest> swapDamagedStockValidator)
@@ -43,6 +45,7 @@ namespace PerfumeGPT.API.Controllers
 			_checkoutInStoreValidator = checkoutInStoreValidator;
 			_previewOrderValidator = previewOrderValidator;
 			_updateOrderStatusValidator = updateOrderStatusValidator;
+			_staffCancelOrderValidator = staffCancelOrderValidator;
 			_cancelOrderValidator = cancelOrderValidator;
 			_fulfillOrderValidator = fulfillOrderValidator;
 			_swapDamagedStockValidator = swapDamagedStockValidator;
@@ -74,6 +77,17 @@ namespace PerfumeGPT.API.Controllers
 		{
 			var userId = GetCurrentUserId();
 			var response = await _orderService.GetUserOrderByIdAsync(orderId, userId);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("ByOrderCode")]
+		[Authorize(Roles = "user")]
+		[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<UserOrderResponse>>> GetOrderByCode([FromQuery] string orderCode)
+		{
+			var response = await _orderService.GetOrderByCodeAsync(orderCode);
 			return HandleResponse(response);
 		}
 
@@ -160,38 +174,37 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _orderService.CheckoutInStore(staffId, request);
 			return HandleResponse(response);
 		}
-
-		[HttpGet("preview")]
-		[ProducesResponseType(typeof(BaseResponse<PreviewOrderResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PreviewOrderResponse>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<PreviewOrderResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<PreviewOrderResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PreviewOrderResponse>>> PreviewOrder([FromQuery] PreviewOrderRequest request)
-		{
-			var validation = await ValidateRequestAsync(_previewOrderValidator, request);
-			if (validation != null) return validation;
-
-			var response = await _orderService.PreviewOrder(request);
-			return HandleResponse(response);
-		}
 		#endregion Checkout Operations
 
 
 
 		#region Order Status Management
-		[HttpPut("{orderId:guid}/status")]
+		[HttpPut("{orderId:guid}/staff-prepare")]
 		[Authorize(Roles = "staff")]
 		[ProducesResponseType(typeof(BaseResponse<PickListResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PickListResponse>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<PickListResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<PickListResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PickListResponse>>> UpdateOrderStatus([FromRoute] Guid orderId, [FromBody] UpdateOrderStatusRequest request)
+		public async Task<ActionResult<BaseResponse<PickListResponse>>> UpdateOrderStatus([FromRoute] Guid orderId)
 		{
-			var validation = await ValidateRequestAsync(_updateOrderStatusValidator, request);
+			var staffId = GetCurrentUserId();
+			var response = await _orderService.UpdateOrderStatusToPreparingAsync(orderId, staffId);
+			return HandleResponse(response);
+		}
+
+		[HttpPost("{orderId:guid}/staff-cancel")]
+		[Authorize(Roles = "staff")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<string>>> CancelOrderByStaff([FromRoute] Guid orderId, [FromBody] StaffCancelOrderRequest request)
+		{
+			var validation = await ValidateRequestAsync(_staffCancelOrderValidator, request);
 			if (validation != null) return validation;
 
 			var staffId = GetCurrentUserId();
-			var response = await _orderService.UpdateOrderStatusAsync(orderId, staffId, request);
+			var response = await _orderService.CancelOrderByStaffAsync(orderId, staffId, request);
 			return HandleResponse(response);
 		}
 

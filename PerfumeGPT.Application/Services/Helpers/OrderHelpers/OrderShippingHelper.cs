@@ -79,12 +79,15 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		{
 			return orderStatus switch
 			{
-				OrderStatus.Processing => ShippingStatus.Pending,
+				OrderStatus.Pending => ShippingStatus.UnAssigned,
+				OrderStatus.Preparing => ShippingStatus.UnAssigned,
+				OrderStatus.ReadyToPick => ShippingStatus.ReadyToPick,
 				OrderStatus.Delivering => ShippingStatus.Delivering,
 				OrderStatus.Delivered => ShippingStatus.Delivered,
 				OrderStatus.Cancelled => ShippingStatus.Cancelled,
 				OrderStatus.Returning => ShippingStatus.Returning,
 				OrderStatus.Returned => ShippingStatus.Returned,
+				OrderStatus.Partial_Returned => ShippingStatus.Returned,
 				_ => null
 			};
 		}

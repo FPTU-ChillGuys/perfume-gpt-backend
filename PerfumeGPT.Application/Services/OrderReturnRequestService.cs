@@ -578,6 +578,7 @@ namespace PerfumeGPT.Application.Services
 				);
 
 				successRefund.MarkSuccess(refundTransactionNo);
+				freshReturnRequest.MarkRefunded(refundTransactionNo);
 
 				_unitOfWork.Orders.Update(order);
 				await _unitOfWork.Payments.AddAsync(successRefund);

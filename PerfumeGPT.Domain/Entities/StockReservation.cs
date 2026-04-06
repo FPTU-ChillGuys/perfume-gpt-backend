@@ -55,5 +55,10 @@ namespace PerfumeGPT.Domain.Entities
 
 			Status = ReservationStatus.Released;
 		}
+
+		public void SetExpiration(DateTime expiresAt)
+		{
+			ExpiresAt = expiresAt;
+		}
 	}
 }

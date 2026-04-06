@@ -22,11 +22,11 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		#region Checkout Operations
 		Task<BaseResponse<string>> Checkout(Guid userId, CreateOrderRequest request);
 		Task<BaseResponse<string>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request);
-		Task<BaseResponse<PreviewOrderResponse>> PreviewOrder(PreviewOrderRequest request);
 		#endregion Checkout Operations
 
 		#region Order Status Management
-		Task<BaseResponse<PickListResponse?>> UpdateOrderStatusAsync(Guid orderId, Guid staffId, UpdateOrderStatusRequest request);
+		Task<BaseResponse<PickListResponse?>> UpdateOrderStatusToPreparingAsync(Guid orderId, Guid staffId);
+		Task<BaseResponse<string>> CancelOrderByStaffAsync(Guid orderId, Guid staffId, StaffCancelOrderRequest request);
 		Task<BaseResponse<string>> CancelOrderAsync(Guid orderId, Guid userId, UserCancelOrderRequest request);
 		#endregion Order Status Management
 
