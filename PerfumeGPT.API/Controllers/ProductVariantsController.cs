@@ -66,6 +66,17 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(result);
 		}
 
+		[HttpGet("for-pos")]
+		[ProducesResponseType(typeof(BaseResponse<ProductVariantForPosResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<ProductVariantForPosResponse>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<ProductVariantForPosResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<ProductVariantForPosResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<ProductVariantForPosResponse>>> GetVariantByInfo([FromQuery] GetVariantByInfoRequest request)
+		{
+			var result = await _variantService.GetVariantByInfoAsync(request);
+			return HandleResponse(result);
+		}
+
 		[HttpPost]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<string>>), StatusCodes.Status400BadRequest)]

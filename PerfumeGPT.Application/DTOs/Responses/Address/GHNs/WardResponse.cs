@@ -26,7 +26,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Address.GHNs
 		public int Status { get; init; }
 
 		[JsonPropertyName("CreatedDate")]
-		public required string CreatedDate { get; init; }
+		public string? CreatedDate { get; init; }
 
 		[JsonPropertyName("UpdatedDate")]
 		public required string UpdatedDate { get; init; }

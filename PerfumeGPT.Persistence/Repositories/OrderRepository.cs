@@ -406,7 +406,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<Order?> GetOrderForPickListAsync(Guid orderId)
 		=> await _context.Orders
 			.Include(o => o.OrderDetails)
-			.FirstOrDefaultAsync(o => o.Id == orderId && o.Status == OrderStatus.ReadyToPick);
+			.FirstOrDefaultAsync(o => o.Id == orderId && o.Status == OrderStatus.Preparing);
 
 		public async Task<Order?> GetOrderForFulfillmentAsync(Guid orderId)
 		=> await _context.Orders

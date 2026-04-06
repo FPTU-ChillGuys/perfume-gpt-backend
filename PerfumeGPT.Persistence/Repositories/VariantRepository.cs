@@ -81,6 +81,51 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
 
+		public async Task<ProductVariantForPosResponse?> GetVariantByInfoAsync(GetVariantByInfoRequest request)
+		{
+			var query = _context.ProductVariants
+				.Where(v => !v.IsDeleted && v.Status == VariantStatus.Active)
+				.AsQueryable();
+
+			if (!string.IsNullOrWhiteSpace(request.Barcode))
+			{
+				var barcode = request.Barcode.Trim();
+				query = query.Where(v => v.Barcode == barcode);
+			}
+
+			if (!string.IsNullOrWhiteSpace(request.Sku))
+			{
+				var sku = request.Sku.Trim().ToUpperInvariant();
+				query = query.Where(v => v.Sku == sku);
+			}
+
+			if (!string.IsNullOrWhiteSpace(request.Name))
+			{
+				var name = request.Name.Trim();
+				query = query.Where(v => EF.Functions.Like(v.Product.Name, $"%{name}%"));
+			}
+
+			return await query
+				.OrderByDescending(v => v.CreatedAt)
+				.Select(v => new ProductVariantForPosResponse
+				{
+					Id = v.Id,
+					Barcode = v.Barcode,
+					Sku = v.Sku,
+					Name = v.Product.Name,
+					VolumeMl = v.VolumeMl,
+					ConcentrationName = v.Concentration.Name,
+					DisplayName = $"{v.Product.Name} - {v.VolumeMl}ml - {v.Concentration.Name}",
+					BasePrice = v.BasePrice,
+					PrimaryImageUrl = v.Media
+						.Where(m => m.IsPrimary && !m.IsDeleted)
+						.Select(m => m.Url)
+						.FirstOrDefault()
+				})
+				.AsNoTracking()
+				.FirstOrDefaultAsync();
+		}
+
 		public async Task<ProductVariant?> GetBySkuAsync(string sku)
 		=> await _context.ProductVariants
 		   .Where(v => !v.IsDeleted && v.Sku == sku)
