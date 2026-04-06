@@ -389,6 +389,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Include(o => o.ForwardShipping)
 				.Include(o => o.ContactAddress)
 				.Include(o => o.OrderDetails)
+				.Include(o => o.PaymentTransactions)
 				.AsSplitQuery()
 				.FirstOrDefaultAsync(o => o.Id == orderId);
 
@@ -405,7 +406,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<Order?> GetOrderForPickListAsync(Guid orderId)
 		=> await _context.Orders
 			.Include(o => o.OrderDetails)
-			.FirstOrDefaultAsync(o => o.Id == orderId && o.Status == OrderStatus.Processing);
+			.FirstOrDefaultAsync(o => o.Id == orderId && o.Status == OrderStatus.ReadyToPick);
 
 		public async Task<Order?> GetOrderForFulfillmentAsync(Guid orderId)
 		=> await _context.Orders

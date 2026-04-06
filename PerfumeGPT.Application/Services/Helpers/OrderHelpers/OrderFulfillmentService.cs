@@ -131,6 +131,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				await _stockReservationService.CommitReservationAsync(order.Id);
 
 				order.SetStaff(staffId);
+				order.SetStatus(OrderStatus.ReadyToPick);
 				_unitOfWork.Orders.Update(order);
 
 				orderForGhn = order;
@@ -158,8 +159,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			var order = await _unitOfWork.Orders.GetOrderForFulfillmentAsync(orderId)
 			 ?? throw AppException.NotFound("Order not found.");
 
-			if (order.Status != OrderStatus.Processing)
-				throw AppException.BadRequest($"Order must be in Processing status. Current: {order.Status}");
+			if (order.Status != OrderStatus.Preparing)
+				throw AppException.BadRequest($"Order must be in Preparing status. Current: {order.Status}");
 
 			if (order.Type != OrderType.Online)
 				throw AppException.BadRequest("Only online orders can be fulfilled through this method.");
@@ -330,8 +331,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			var order = await _unitOfWork.Orders.GetOrderForSwapDamagedStockAsync(orderId)
 				 ?? throw AppException.NotFound("Order not found.");
 
-			if (order.Status != OrderStatus.Processing)
-				throw AppException.BadRequest($"Order must be in Processing status.");
+			if (order.Status != OrderStatus.Preparing)
+				throw AppException.BadRequest($"Order must be in Preparing status.");
 
 			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(order.Id);
 			var damagedReservation = reservations.FirstOrDefault(r => r.Id == request.DamagedReservationId)

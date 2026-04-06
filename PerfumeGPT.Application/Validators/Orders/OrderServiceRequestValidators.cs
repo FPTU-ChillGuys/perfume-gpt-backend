@@ -89,12 +89,6 @@ namespace PerfumeGPT.Application.Validators.Orders
 	{
 		public CreateInStoreOrderRequestValidator()
 		{
-			RuleFor(x => x.OrderDetails)
-				.NotEmpty().WithMessage("At least one order detail is required.");
-
-			RuleForEach(x => x.OrderDetails)
-				.SetValidator(new CreateOrderDetailRequestValidator());
-
 			RuleFor(x => x.Payment)
 				.NotNull().WithMessage("Payment information is required.");
 
@@ -150,6 +144,16 @@ namespace PerfumeGPT.Application.Validators.Orders
 		public UserCancelOrderRequestValidator()
 		{
 			RuleFor(x => x.Reason).IsInEnum().WithMessage("Invalid cancellation reason.");
+		}
+	}
+
+	public class StaffCancelOrderRequestValidator : AbstractValidator<StaffCancelOrderRequest>
+	{
+		public StaffCancelOrderRequestValidator()
+		{
+			RuleFor(x => x.Note)
+				.MaximumLength(1000).WithMessage("Note must not exceed 1000 characters.")
+				.When(x => !string.IsNullOrWhiteSpace(x.Note));
 		}
 	}
 

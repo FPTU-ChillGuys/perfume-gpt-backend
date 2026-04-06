@@ -27,7 +27,7 @@ namespace PerfumeGPT.Domain.Entities
 				Type = type,
 				CarrierName = carrierName,
 				ShippingFee = shippingFee,
-				Status = ShippingStatus.Pending,
+				Status = ShippingStatus.UnAssigned,
 				EstimatedDeliveryDate = EstimatedDeliveryDate
 			};
 		}
@@ -60,7 +60,7 @@ namespace PerfumeGPT.Domain.Entities
 
 		public void MarkAsReturning()
 		{
-			if (Status != ShippingStatus.Delivering && Status != ShippingStatus.Pending)
+            if (Status != ShippingStatus.Delivering && Status != ShippingStatus.ReadyToPick && Status != ShippingStatus.Delivered)
 				throw DomainException.BadRequest("Cannot mark as returning unless the shipment failed during delivery or pickup.");
 
 			Status = ShippingStatus.Returning;
@@ -68,7 +68,7 @@ namespace PerfumeGPT.Domain.Entities
 
 		public void MarkAsReturned()
 		{
-			if (Status != ShippingStatus.Returning && Status != ShippingStatus.Delivering && Status != ShippingStatus.Pending)
+			if (Status != ShippingStatus.Returning && Status != ShippingStatus.Delivering && Status != ShippingStatus.ReadyToPick)
 				throw DomainException.BadRequest("Cannot mark as returned from the current status.");
 
 			Status = ShippingStatus.Returned;
@@ -80,6 +80,7 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("Tracking number is required.");
 
 			TrackingNumber = trackingNumber.Trim();
+			Status = ShippingStatus.ReadyToPick;
 		}
 	}
 }

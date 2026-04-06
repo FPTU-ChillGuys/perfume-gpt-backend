@@ -1,6 +1,5 @@
 using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
-using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Validators.Orders
 {
@@ -8,10 +7,6 @@ namespace PerfumeGPT.Application.Validators.Orders
 	{
 		public UpdateOrderStatusValidator()
 		{
-			RuleFor(x => x.Status)
-				.IsInEnum()
-				.WithMessage("Invalid order status.");
-
 			RuleFor(x => x.Note)
 				.MaximumLength(500)
 				.When(x => !string.IsNullOrEmpty(x.Note))

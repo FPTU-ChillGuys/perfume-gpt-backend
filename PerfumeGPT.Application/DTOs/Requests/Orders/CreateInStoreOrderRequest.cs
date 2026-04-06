@@ -1,14 +1,26 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.Orders.OrderDetails;
+﻿using PerfumeGPT.Application.DTOs.Requests.Carts;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Orders
 {
+	//public record CreateInStoreOrderRequest
+	//{
+	//	public string? VoucherCode { get; init; }
+	//	public bool IsPickupInStore { get; init; } = false;
+
+	//	public required List<CreateOrderDetailRequest> OrderDetails { get; init; }
+	//	public ContactAddressInformation? Recipient { get; init; }
+	//	public required PaymentInformation Payment { get; init; }
+	//}
+
 	public record CreateInStoreOrderRequest
 	{
+		public required List<PosScanItemRequest> ScannedItems { get; init; }
 		public string? VoucherCode { get; init; }
-		public bool IsPickupInStore { get; init; } = false;
+		public Guid? CustomerId { get; init; } // Rất quan trọng nếu muốn tích điểm hoặc lưu lịch sử
 
-		public required List<CreateOrderDetailRequest> OrderDetails { get; init; }
+		public bool IsPickupInStore { get; init; } = true;
 		public ContactAddressInformation? Recipient { get; init; }
 		public required PaymentInformation Payment { get; init; }
+		public decimal? ExpectedTotalPrice { get; init; } // Để chống sai lệch giá lúc nhân viên bấm thanh toán
 	}
 }

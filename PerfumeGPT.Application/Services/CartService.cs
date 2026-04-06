@@ -26,9 +26,92 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
+		public async Task<BaseResponse<PreviewPosOrderResponse>> PreviewPosOrderAsync(PreviewPosOrderRequest request)
+		{
+			if (request.ScannedItems == null || request.ScannedItems.Count == 0)
+				throw AppException.BadRequest("No items scanned.");
+
+			// 1. Gom nhóm và TÍNH TỔNG Quantity gửi lên
+			var groupedScans = request.ScannedItems
+				.GroupBy(x => new { x.Barcode, x.BatchCode })
+				.Select(g => new
+				{
+					g.Key.Barcode,
+					g.Key.BatchCode,
+					Quantity = g.Sum(item => item.Quantity) // Cộng dồn số lượng
+				})
+				.ToList();
+
+			var checkoutItems = new List<CartCheckoutItemDto>();
+
+			// 2. TRUY VẤN DATABASE LẤY GIÁ VÀ KIỂM TRA LÔ
+			foreach (var scan in groupedScans)
+			{
+				// Lấy Variant qua Barcode
+				var variantResponse = await _unitOfWork.Variants.GetByBarcodeAsync(scan.Barcode)
+					?? throw AppException.NotFound("Variant not found");
+
+				var variant = variantResponse;
+
+				// Lấy chính xác Batch qua BatchCode VÀ VariantId
+				var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b =>
+					b.BatchCode == scan.BatchCode && b.VariantId == variant.Id)
+					?? throw AppException.NotFound($"Batch {scan.BatchCode} not found for product {variant.Sku}.");
+
+				var subTotal = variant.BasePrice * scan.Quantity;
+
+				checkoutItems.Add(new CartCheckoutItemDto
+				{
+					VariantId = variant.Id,
+					BatchId = batch.Id,
+					VariantName = $"{variant.Sku} - {variant.VolumeMl}ml - {variant.Type}",
+					Quantity = scan.Quantity,
+					UnitPrice = variant.BasePrice,
+					SubTotal = subTotal,
+					Discount = 0m,
+					FinalTotal = subTotal,
+					// Dữ liệu phụ để map trả về UI
+					ImageUrl = variant.Media?.FirstOrDefault(m => m.IsPrimary)?.Url ?? string.Empty,
+					BatchCode = batch.BatchCode
+				});
+			}
+
+			// 3. ĐƯA VÀO CỖ MÁY TÍNH TIỀN CHUNG (Shared Pricing Engine)
+			// Bạn phải tái cấu trúc hàm BuildCheckoutPricingAsync cũ để nhận đầu vào là List<CartCheckoutItemDto>
+			var (pricedItems, subtotal, finalAmount, voucherMessage) = await CalculatePricingEngineAsync(
+				checkoutItems,
+				request.VoucherCode,
+				request.CustomerId);
+
+			// 4. MAP SANG DTO HIỂN THỊ
+			var responseItems = pricedItems.Select(item => new PosOrderDetailListItem
+			{
+				VariantId = item.VariantId,
+				BatchId = item.BatchId!.Value, // Chắc chắn có vì POS ép quét batch
+				VariantName = item.VariantName,
+				Quantity = item.Quantity,
+				UnitPrice = item.UnitPrice,
+				SubTotal = item.SubTotal,
+				Discount = item.Discount,
+				FinalTotal = item.FinalTotal,
+				ImageUrl = item.ImageUrl ?? "",
+				BatchCode = item.BatchCode ?? throw AppException.BadRequest("Batch code is required for POS items.")
+			}).ToList();
+
+			var response = new PreviewPosOrderResponse
+			{
+				Items = responseItems,
+				SubTotal = subtotal,
+				Discount = subtotal - finalAmount,
+				TotalPrice = finalAmount
+			};
+
+			return BaseResponse<PreviewPosOrderResponse>.Ok(response, string.IsNullOrWhiteSpace(voucherMessage) ? "Order previewed successfully." : voucherMessage);
+		}
+
 		public async Task<CartCheckoutResponse> GetCartForCheckoutAsync(Guid userId, GetCartTotalRequest request)
 		{
-			var (items, subtotal, finalAmount, _) = await BuildCheckoutPricingAsync(userId, request);
+			var (items, _, finalAmount, _) = await BuildCheckoutPricingAsync(userId, request);
 			if (items.Count == 0)
 			{
 				return new CartCheckoutResponse
@@ -93,6 +176,39 @@ namespace PerfumeGPT.Application.Services
 				 string.IsNullOrWhiteSpace(voucherMessage)
 					 ? "Cart total calculated successfully"
 					 : voucherMessage);
+		}
+
+		public async Task<(List<CartCheckoutItemDto> Items, decimal Subtotal, decimal FinalAmount, string? Message)> CalculatePricingEngineAsync(
+			List<CartCheckoutItemDto> checkoutItems, string? voucherCode, Guid? userId)
+		{
+			var subtotal = checkoutItems.Sum(x => x.SubTotal);
+
+			if (string.IsNullOrWhiteSpace(voucherCode))
+				return (checkoutItems, subtotal, subtotal, null);
+
+			var voucher = await _voucherService.GetVoucherByCodeAsync(voucherCode)
+				?? throw AppException.NotFound("Voucher not found");
+
+			var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(
+				voucherCode, userId, subtotal, null, checkoutItems.Select(x => x.VariantId));
+
+			if (!voucherValidation)
+				throw AppException.BadRequest("Voucher validation failed.");
+
+			if (voucher.ApplyType == VoucherType.Product && voucher.CampaignId.HasValue)
+			{
+				var (pricedItems, message) = await ApplyProductLevelVoucherDiscountAsync(voucher, checkoutItems);
+				var finalAmount = pricedItems.Sum(x => x.FinalTotal);
+				return (pricedItems, subtotal, finalAmount, message);
+			}
+
+			var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(voucherCode, subtotal);
+			var totalDiscount = subtotal - discountedTotal;
+
+			var adjustedItems = ApplyProportionalDiscount(checkoutItems, totalDiscount, x => x.SubTotal);
+			var finalTotal = adjustedItems.Sum(x => x.FinalTotal);
+
+			return (adjustedItems, subtotal, finalTotal, null);
 		}
 
 		private async Task<(List<CartCheckoutItemDto> Items, decimal Subtotal, decimal FinalAmount, string? Message)> BuildCheckoutPricingAsync(Guid userId, GetCartTotalRequest request)
@@ -303,16 +419,58 @@ namespace PerfumeGPT.Application.Services
 					continue;
 				}
 
-				var (lineAllocations, allowedQty) = SplitLineByBatch(line, variantPromotions, batchAvailability);
+				if (line.BatchId.HasValue)
+				{
+					var hasGlobalPromotion = variantPromotions.Any(x => !x.BatchId.HasValue);
+					var specificPromo = variantPromotions.FirstOrDefault(x => x.BatchId == line.BatchId.Value);
+
+					if (hasGlobalPromotion)
+					{
+						allocations.Add(new CheckoutLineAllocation(line, true));
+						eligibleSubtotal += line.SubTotal;
+					}
+					else if (specificPromo != null)
+					{
+						var allowedQty = 0;
+						if (batchAvailability.TryGetValue(line.BatchId.Value, out var available) && available > 0)
+						{
+							allowedQty = Math.Min(line.Quantity, available);
+							batchAvailability[line.BatchId.Value] = available - allowedQty;
+						}
+
+						if (allowedQty > 0)
+						{
+							var eligibleLine = line with { Quantity = allowedQty, SubTotal = line.UnitPrice * allowedQty, FinalTotal = line.UnitPrice * allowedQty };
+							allocations.Add(new CheckoutLineAllocation(eligibleLine, true));
+							eligibleSubtotal += eligibleLine.SubTotal;
+						}
+
+						var excludedQty = line.Quantity - allowedQty;
+						if (excludedQty > 0)
+						{
+							var ineligibleLine = line with { Quantity = excludedQty, SubTotal = line.UnitPrice * excludedQty, FinalTotal = line.UnitPrice * excludedQty };
+							allocations.Add(new CheckoutLineAllocation(ineligibleLine, false));
+							messageLines.Add($"'{line.VariantName}' (Batch {line.BatchCode}): only {allowedQty} eligible for discount, {excludedQty} over promo limit.");
+						}
+					}
+					else
+					{
+						allocations.Add(new CheckoutLineAllocation(line, false));
+					}
+
+					continue;
+				}
+
+				var (lineAllocations, allowedQtyOnline) = SplitLineByBatch(line, variantPromotions, batchAvailability);
 				allocations.AddRange(lineAllocations);
 				eligibleSubtotal += lineAllocations
 					.Where(x => x.IsEligible)
 					.Sum(x => x.Item.SubTotal);
 
-				var excludedQty = line.Quantity - allowedQty;
+				var excludedQtyOnline = line.Quantity - allowedQtyOnline;
 
-				if (excludedQty > 0)
-					messageLines.Add($"'{line.VariantName}': only {allowedQty} in promotion, {excludedQty} not.");
+				if (excludedQtyOnline > 0)
+					messageLines.Add($"'{line.VariantName}': only {allowedQtyOnline} in promotion, {excludedQtyOnline} not.");
 			}
 
 			return (allocations, eligibleSubtotal, messageLines);

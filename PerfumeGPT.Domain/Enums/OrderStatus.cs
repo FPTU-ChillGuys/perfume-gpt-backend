@@ -3,7 +3,8 @@
 	public enum OrderStatus
 	{
 		Pending = 1,
-		Processing,
+		Preparing,
+		ReadyToPick,
 		Delivering,
 		Delivered,
 		Returning,

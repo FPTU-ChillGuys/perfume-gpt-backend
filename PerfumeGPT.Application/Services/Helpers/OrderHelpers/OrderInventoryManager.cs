@@ -45,22 +45,5 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 			return true;
 		}
-
-		public async Task DeductInventoryAsync(List<(Guid VariantId, int Quantity)> items)
-		{
-			var aggregatedItems = items
-				   .GroupBy(i => i.VariantId)
-				   .Select(g => (VariantId: g.Key, Quantity: g.Sum(x => x.Quantity)));
-
-			foreach (var (VariantId, Quantity) in aggregatedItems)
-			{
-				// Use BatchService to deduct batches (FIFO) - this will also recalculate stock automatically
-				var batchDeducted = await _batchService.DeductBatchesByVariantIdAsync(VariantId, Quantity);
-				if (!batchDeducted)
-				{
-					throw AppException.Internal($"Failed to deduct batch quantity for variant {VariantId}.");
-				}
-			}
-		}
 	}
 }
