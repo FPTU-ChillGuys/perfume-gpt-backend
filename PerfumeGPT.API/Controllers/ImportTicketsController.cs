@@ -71,7 +71,7 @@ namespace PerfumeGPT.API.Controllers
 		[AllowAnonymous]
 		[ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<ExcelTemplateResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<FileContentResult>> DownloadImportTemplate()
+		public async Task<IActionResult> DownloadImportTemplate()
 		{
 			var response = await _importTicketService.GenerateImportTemplateAsync();
 
