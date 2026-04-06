@@ -232,7 +232,7 @@ namespace PerfumeGPT.API.Controllers
 
 			if (orderId.HasValue && orderId.Value != Guid.Empty)
 			{
-				queryParams.Add($"orderIdInternal={orderId.Value}");
+				queryParams.Add($"orderId={orderId.Value}");
 			}
 
 			if (paymentId.HasValue && paymentId.Value != Guid.Empty)
