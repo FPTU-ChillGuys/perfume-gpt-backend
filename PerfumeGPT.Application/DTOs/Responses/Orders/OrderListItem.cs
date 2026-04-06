@@ -18,8 +18,10 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public bool IsReturnalbe { get; init; }
 		public ShippingStatus? ShippingStatus { get; init; }
 		public DateTime CreatedAt { get; init; }
+		public DateTime? PaymentExpiresAt { get; init; }
 		public DateTime? UpdatedAt { get; init; }
 		public required List<OrderDetailListItem> OrderDetails { get; init; }
+		public List<PaymentInfoResponse>? PaymentTransactions { set; get; }
 	}
 
 	public record OrderDetailListItem

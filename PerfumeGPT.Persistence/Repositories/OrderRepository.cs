@@ -15,20 +15,13 @@ namespace PerfumeGPT.Persistence.Repositories
 		public OrderRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<(List<OrderListItem> Orders, int TotalCount)> GetPagedOrdersAsync(
-			GetPagedOrdersRequest request,
-			Guid? userId = null,
-			Guid? staffId = null)
+			GetPagedOrdersRequest request)
 		{
 			IQueryable<Order> query = _context.Orders.AsQueryable();
 
-			if (userId.HasValue)
+			if (request.UserId.HasValue)
 			{
-				query = query.Where(o => o.CustomerId == userId.Value);
-			}
-
-			if (staffId.HasValue)
-			{
-				query = query.Where(o => o.StaffId == staffId.Value);
+				query = query.Where(o => o.CustomerId == request.UserId.Value);
 			}
 
 			if (request.Status.HasValue)
@@ -97,6 +90,7 @@ namespace PerfumeGPT.Persistence.Repositories
 						&& o.ForwardShipping.ShippedDate.Value >= DateTime.UtcNow.AddDays(-7),
 				 ShippingStatus = o.ForwardShipping != null ? o.ForwardShipping.Status : null,
 				 CreatedAt = o.CreatedAt,
+				 PaymentExpiresAt = o.PaymentExpiresAt,
 				 UpdatedAt = o.UpdatedAt,
 				 OrderDetails = o.OrderDetails.Select(od => new OrderDetailListItem
 				 {
@@ -111,7 +105,17 @@ namespace PerfumeGPT.Persistence.Repositories
 					 UnitPrice = od.UnitPrice,
 					 RefunablePrice = ((od.UnitPrice * od.Quantity) - od.ApportionedDiscount) / od.Quantity,
 					 Total = od.UnitPrice * od.Quantity - od.ApportionedDiscount,
-				 }).ToList()
+				 }).ToList(),
+				 PaymentTransactions = o.PaymentTransactions
+				 .Select(pt => new PaymentInfoResponse
+				 {
+					 Id = pt.Id,
+					 TransactionType = pt.TransactionType,
+					 Status = pt.TransactionStatus,
+					 PaymentMethod = pt.Method,
+					 FailureReason = pt.FailureReason,
+					 TotalAmount = pt.Amount
+				 }).ToList(),
 			 })
 				.ToListAsync();
 
@@ -121,6 +125,84 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<OrderResponse?> GetOrderWithFullDetailsAsync(Guid orderId)
 		=> await _context.Orders
 			.Where(o => o.Id == orderId)
+		 .Select(o => new OrderResponse
+		 {
+			 Id = o.Id,
+			 Code = o.Code,
+			 CustomerId = o.CustomerId,
+			 CustomerName = o.Customer != null ? o.Customer.FullName : null,
+			 CustomerEmail = o.Customer != null ? o.Customer.Email : null,
+			 StaffId = o.StaffId,
+			 StaffName = o.Staff != null ? o.Staff.FullName : null,
+			 Type = o.Type,
+			 Status = o.Status,
+			 PaymentStatus = o.PaymentStatus,
+			 TotalAmount = o.TotalAmount,
+			 VoucherId = o.UserVoucherId,
+			 VoucherCode = o.UserVoucher != null ? o.UserVoucher.Voucher.Code : null,
+			 PaymentExpiresAt = o.PaymentExpiresAt,
+			 PaidAt = o.PaidAt,
+			 CreatedAt = o.CreatedAt,
+			 UpdatedAt = o.UpdatedAt,
+			 PaymentTransactions = o.PaymentTransactions
+				.Select(pt => new PaymentInfoResponse
+				{
+					Id = pt.Id,
+					TransactionType = pt.TransactionType,
+					Status = pt.TransactionStatus,
+					PaymentMethod = pt.Method,
+					FailureReason = pt.FailureReason,
+					TotalAmount = pt.Amount
+				}).ToList(),
+			 ShippingInfo = o.ForwardShipping == null ? null : new ShippingInfoResponse
+			 {
+				 Id = o.ForwardShipping.Id,
+				 CarrierName = o.ForwardShipping.CarrierName,
+				 TrackingNumber = o.ForwardShipping.TrackingNumber,
+				 ShippingFee = o.ForwardShipping.ShippingFee,
+				 Status = o.ForwardShipping.Status,
+				 EstimatedDeliveryDate = o.ForwardShipping.EstimatedDeliveryDate,
+				 ShippedDate = o.ForwardShipping.ShippedDate
+			 },
+			 RecipientInfo = o.ContactAddress == null ? null : new RecipientInfoResponse
+			 {
+				 Id = o.ContactAddress.Id,
+				 RecipientName = o.ContactAddress.ContactName,
+				 RecipientPhoneNumber = o.ContactAddress.ContactPhoneNumber,
+				 DistrictName = o.ContactAddress.DistrictName,
+				 WardName = o.ContactAddress.WardName,
+				 ProvinceName = o.ContactAddress.ProvinceName,
+				 FullAddress = o.ContactAddress.FullAddress
+			 },
+			 OrderDetails = o.OrderDetails.Select(od => new OrderDetailResponse
+			 {
+				 Id = od.Id,
+				 VariantId = od.VariantId,
+				 VariantName = od.ProductVariant != null ? $"{od.ProductVariant.Sku} - {od.ProductVariant.VolumeMl}ml" : string.Empty,
+				 ImageUrl = od.ProductVariant != null && od.ProductVariant.Media.Count > 0
+					 ? (od.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
+						 ?? od.ProductVariant.Media.Select(m => m.Url).FirstOrDefault())
+					 : null,
+				 Quantity = od.Quantity,
+				 UnitPrice = od.UnitPrice,
+				 Total = od.UnitPrice * od.Quantity - od.ApportionedDiscount,
+				 ReservedBatches = o.StockReservations
+					 .Where(sr => sr.VariantId == od.VariantId)
+					 .Select(sr => new ReservedBatchResponse
+					 {
+						 BatchId = sr.BatchId,
+						 BatchCode = sr.Batch.BatchCode,
+						 ReservedQuantity = sr.ReservedQuantity,
+						 ExpiryDate = sr.Batch.ExpiryDate
+					 }).ToList()
+			 }).ToList()
+		 })
+			.AsSplitQuery()
+			.FirstOrDefaultAsync();
+
+		public async Task<OrderResponse?> GetOrderWithFullDetailsByCodeAsync(string orderCode)
+		=> await _context.Orders
+			.Where(o => o.Code == orderCode)
 		 .Select(o => new OrderResponse
 		 {
 			 Id = o.Id,
@@ -267,7 +349,7 @@ namespace PerfumeGPT.Persistence.Repositories
 						 BatchCode = sr.Batch.BatchCode,
 						 ReservedQuantity = sr.ReservedQuantity,
 						 ExpiryDate = sr.Batch.ExpiryDate
-					 }).ToList()
+					 }).ToList(),
 			 }).ToList()
 		 })
 			.AsSplitQuery()

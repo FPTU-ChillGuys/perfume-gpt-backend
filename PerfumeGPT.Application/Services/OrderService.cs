@@ -10,7 +10,6 @@ using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
-using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using static PerfumeGPT.Domain.Entities.OrderCancelRequest;
@@ -22,7 +21,6 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly ICartService _cartService;
-		private readonly IVariantService _variantService;
 		private readonly IVoucherService _voucherService;
 		private readonly IOrderPaymentService _orderPaymentService;
 		private readonly IOrderInventoryManager _inventoryManager;
@@ -30,16 +28,13 @@ namespace PerfumeGPT.Application.Services
 		private readonly IOrderDetailsFactory _orderDetailsFactory;
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IOrderFulfillmentService _fulfillmentService;
-		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
 		private readonly IContactAddressService _recipientService;
 		private readonly INotificationService _notificationService;
-		private readonly IAuditScope _auditScope;
 		private readonly IGHNService _ghnService;
 
 		public OrderService(
 			IUnitOfWork unitOfWork,
 			ICartService cartService,
-			IVariantService variantService,
 			IVoucherService voucherService,
 			IOrderPaymentService orderPaymentService,
 			IOrderInventoryManager inventoryManager,
@@ -49,13 +44,10 @@ namespace PerfumeGPT.Application.Services
 			IOrderFulfillmentService fulfillmentService,
 			INotificationService notificationService,
 			IContactAddressService recipientService,
-			IAuditScope auditScope,
-		   ILoyaltyTransactionService loyaltyTransactionService,
 			IGHNService ghnService)
 		{
 			_unitOfWork = unitOfWork;
 			_cartService = cartService;
-			_variantService = variantService;
 			_voucherService = voucherService;
 			_orderPaymentService = orderPaymentService;
 			_inventoryManager = inventoryManager;
@@ -65,8 +57,6 @@ namespace PerfumeGPT.Application.Services
 			_fulfillmentService = fulfillmentService;
 			_notificationService = notificationService;
 			_recipientService = recipientService;
-			_auditScope = auditScope;
-			_loyaltyTransactionService = loyaltyTransactionService;
 			_ghnService = ghnService;
 		}
 		#endregion Dependencies
@@ -95,8 +85,17 @@ namespace PerfumeGPT.Application.Services
 			   });
 		}
 
-
 		#region Query Operations
+		public async Task<BaseResponse<OrderResponse>> GetOrderByCodeAsync(string orderCode)
+		{
+			var order = await _unitOfWork.Orders.GetOrderWithFullDetailsByCodeAsync(orderCode);
+			if (order == null)
+			{
+				return BaseResponse<OrderResponse>.Fail("Order not found or does not belong to user.", ResponseErrorType.NotFound);
+			}
+			return BaseResponse<OrderResponse>.Ok(order, "Order retrieved successfully.");
+		}
+
 		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersAsync(GetPagedOrdersRequest request)
 		{
 			var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request);
@@ -118,19 +117,6 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<OrderResponse>.Ok(order, "Order retrieved successfully.");
 		}
 
-		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersByStaffIdAsync(Guid staffId, GetPagedOrdersRequest request)
-		{
-			var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request, staffId: staffId);
-
-			var pagedResult = new PagedResult<OrderListItem>(
-				orders,
-				request.PageNumber,
-				request.PageSize,
-				totalCount);
-
-			return BaseResponse<PagedResult<OrderListItem>>.Ok(pagedResult, "Staff orders retrieved successfully.");
-		}
-
 		public async Task<BaseResponse<ReceiptResponse>> GetInvoiceAsync(Guid orderId)
 		{
 			var invoice = await _unitOfWork.Orders.GetInvoiceAsync(orderId)
@@ -150,19 +136,6 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<UserOrderResponse>.Fail("Order not found or does not belong to user.", ResponseErrorType.NotFound);
 			}
 			return BaseResponse<UserOrderResponse>.Ok(order, "Order retrieved successfully.");
-		}
-
-		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersByUserIdAsync(Guid userId, GetPagedOrdersRequest request)
-		{
-			var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request, userId: userId);
-
-			var pagedResult = new PagedResult<OrderListItem>(
-				orders,
-				request.PageNumber,
-				request.PageSize,
-				totalCount);
-
-			return BaseResponse<PagedResult<OrderListItem>>.Ok(pagedResult, "User orders retrieved successfully.");
 		}
 
 		public async Task<BaseResponse<ReceiptResponse>> GetMyInvoiceAsync(Guid orderId, Guid userId)
@@ -510,7 +483,7 @@ namespace PerfumeGPT.Application.Services
 				   return BaseResponse<string>.Ok("Cancel request submitted successfully.");
 			   });
 		}
-		#endregion
+		#endregion Order Status Management
 
 
 		#region Fulfillment Operations
@@ -655,6 +628,6 @@ namespace PerfumeGPT.Application.Services
 
 			return voucher;
 		}
-		#endregion
+		#endregion Private Helper Methods
 	}
 }

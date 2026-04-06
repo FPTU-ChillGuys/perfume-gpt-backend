@@ -59,7 +59,9 @@ namespace PerfumeGPT.API.Controllers
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
-			var response = await _orderService.GetOrdersByUserIdAsync(userId, request);
+			var requestWithUserId = request with { UserId = userId };
+
+			var response = await _orderService.GetOrdersAsync(requestWithUserId);
 			return HandleResponse(response);
 		}
 
@@ -86,22 +88,11 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _orderService.GetMyInvoiceAsync(orderId, userId);
 			return HandleResponse(response);
 		}
-
 		#endregion User Query Operations
 
 
 
 		#region Staff/Admin Query Operations
-		[HttpGet("user/{userId}")]
-		[Authorize(Roles = "staff,admin")]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PagedResult<OrderListItem>>>> GetOrdersByUserId([FromRoute] Guid userId, [FromQuery] GetPagedOrdersRequest request)
-		{
-			var response = await _orderService.GetOrdersByUserIdAsync(userId, request);
-			return HandleResponse(response);
-		}
-
 		[HttpGet]
 		[Authorize(Roles = "staff,admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]
@@ -131,16 +122,6 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<ReceiptResponse>>> GetOrderInvoice([FromRoute] Guid orderId)
 		{
 			var response = await _orderService.GetInvoiceAsync(orderId);
-			return HandleResponse(response);
-		}
-
-		[HttpGet("staff/{staffId}")]
-		[Authorize(Roles = "admin")]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderListItem>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PagedResult<OrderListItem>>>> GetOrdersByStaffId([FromRoute] Guid staffId, [FromQuery] GetPagedOrdersRequest request)
-		{
-			var response = await _orderService.GetOrdersByStaffIdAsync(staffId, request);
 			return HandleResponse(response);
 		}
 		#endregion Staff/Admin Query Operations
