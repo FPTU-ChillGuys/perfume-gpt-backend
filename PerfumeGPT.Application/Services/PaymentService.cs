@@ -64,20 +64,14 @@ namespace PerfumeGPT.Application.Services
 					?? throw AppException.NotFound("Order not found.");
 
 				return request.IsSuccess
-					   ? await CompleteSuccessfulPayment(payment, order)
-					   : await HandleFailedPayment(payment, order, request.FailureReason);
+					? await CompleteSuccessfulPayment(payment, order)
+					: await HandleFailedPayment(payment, order, request.FailureReason);
 			});
 		}
 
-		// change or retry payment methods
-		public async Task<BaseResponse<string>> ChangePaymentMethodAsync(Guid paymentId, PaymentInformation newMethod)
+		public async Task<BaseResponse<string>> RetryOrChangePaymentMethodAsync(Guid paymentId, PaymentInformation? newMethod = null)
 		{
-			return await ProcessPaymentRetryAsync(paymentId, newMethod, requirePending: true);
-		}
-
-		public async Task<BaseResponse<string>> RetryPaymentWithMethodAsync(Guid paymentId, PaymentInformation? newMethod = null)
-		{
-			return await ProcessPaymentRetryAsync(paymentId, newMethod, requirePending: false);
+			return await ProcessPaymentRetryAsync(paymentId, newMethod);
 		}
 
 		public async Task<BaseResponse<PaymentTransactionOverviewResponse>> GetTransactionsForManagementAsync(GetPaymentTransactionsFilterRequest request)
@@ -184,7 +178,7 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		// private methods
-		private async Task<BaseResponse<string>> ProcessPaymentRetryAsync(Guid paymentId, PaymentInformation? newMethod = null, bool requirePending = false)
+		private async Task<BaseResponse<string>> ProcessPaymentRetryAsync(Guid paymentId, PaymentInformation? newMethod = null)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
@@ -196,23 +190,15 @@ namespace PerfumeGPT.Application.Services
 					throw AppException.BadRequest("Cannot retry completed payments.");
 				}
 
-				if (requirePending)
+				if (currentPayment.TransactionStatus != TransactionStatus.Pending &&
+					 currentPayment.TransactionStatus != TransactionStatus.Failed)
 				{
-					if (!currentPayment.IsPending())
-					{
-						throw AppException.BadRequest(
-							"Only pending payments can change payment methods. Use RetryPaymentWithMethod for failed payments.");
-					}
-
-					if (newMethod != null && currentPayment.Method == newMethod.Method)
-					{
-						throw AppException.BadRequest("New payment method is the same as current method.");
-					}
+					throw AppException.BadRequest("Only pending or failed payments can be retried.");
 				}
-				else if (currentPayment.TransactionStatus != TransactionStatus.Failed)
+
+				if (currentPayment.IsPending() && newMethod != null && currentPayment.Method == newMethod.Method)
 				{
-					throw AppException.BadRequest(
-						"Only failed payments can be retried. Use ChangePaymentMethod to switch payment methods for pending payments.");
+					throw AppException.BadRequest("New payment method is the same as current method.");
 				}
 
 				var order = await _unitOfWork.Orders.GetByIdAsync(currentPayment.OrderId)

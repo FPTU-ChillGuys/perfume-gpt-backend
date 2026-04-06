@@ -122,18 +122,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> RetryPayment([FromRoute] Guid paymentId, [FromBody] PaymentInformation? newMethod = null)
 		{
-			var response = await _paymentService.RetryPaymentWithMethodAsync(paymentId, newMethod);
-			return HandleResponse(response);
-		}
-
-		[HttpPut("{paymentId:guid}/method")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> ChangePaymentMethod([FromRoute] Guid paymentId, [FromBody] PaymentInformation newMethod)
-		{
-			var response = await _paymentService.ChangePaymentMethodAsync(paymentId, newMethod);
+			var response = await _paymentService.RetryOrChangePaymentMethodAsync(paymentId, newMethod);
 			return HandleResponse(response);
 		}
 
@@ -211,7 +200,6 @@ namespace PerfumeGPT.API.Controllers
 		{
 			var paramsToForward = new[]
 			{
-				"orderId",
 				"requestId",
 				"amount",
 				"transId",
@@ -232,7 +220,7 @@ namespace PerfumeGPT.API.Controllers
 
 			if (orderId.HasValue && orderId.Value != Guid.Empty)
 			{
-				queryParams.Add($"orderIdInternal={orderId.Value}");
+				queryParams.Add($"orderId={orderId.Value}");
 			}
 
 			if (paymentId.HasValue && paymentId.Value != Guid.Empty)

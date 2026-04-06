@@ -59,6 +59,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				  {
 					  Id = pt.Id,
 					  OrderId = pt.OrderId,
+					  OrderCode = pt.Order.Code,
 					  Method = pt.Method,
 					  TransactionType = pt.TransactionType,
 					  TransactionStatus = pt.TransactionStatus,

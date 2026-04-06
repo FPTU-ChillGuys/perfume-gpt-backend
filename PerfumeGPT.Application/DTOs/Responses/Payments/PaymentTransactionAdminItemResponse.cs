@@ -6,6 +6,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Payments
 	{
 		public Guid Id { get; init; }
 		public Guid OrderId { get; init; }
+		public required string OrderCode { get; init; }
 		public PaymentMethod Method { get; init; }
 		public TransactionType TransactionType { get; init; }
 		public TransactionStatus TransactionStatus { get; init; }
