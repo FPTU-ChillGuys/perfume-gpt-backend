@@ -26,7 +26,6 @@ namespace PerfumeGPT.Domain.Entities
 		public decimal? ApprovedRefundAmount { get; private set; }
 		public bool IsRefunded { get; private set; }
 		public bool IsRefundOnly { get; private set; }
-		//public string? VnpTransactionNo { get; private set; }
 		public string? RefundTransactionReference { get; private set; }
 		public bool IsRestocked { get; private set; }
 

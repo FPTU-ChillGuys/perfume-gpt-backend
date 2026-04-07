@@ -92,6 +92,7 @@ namespace PerfumeGPT.Application.Services
 
 				await _unitOfWork.Campaigns.AddAsync(campaign);
 
+				_backgroundJobService.ScheduleCampaignStart(_logger, campaign.Id, campaign.StartDate);
 				_backgroundJobService.ScheduleCampaignEnd(_logger, campaign.Id, campaign.EndDate);
 
 				return BaseResponse<string>.Ok(campaign.Id.ToString(), "Campaign created successfully.");

@@ -41,7 +41,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			var failedTransactionsCount = await query.CountAsync(pt => pt.TransactionStatus == TransactionStatus.Failed);
 			var cancelledTransactionsCount = await query.CountAsync(pt => pt.TransactionStatus == TransactionStatus.Cancelled);
 			var totalPaymentAmount = await query
-				.Where(pt => pt.TransactionType == TransactionType.Payment)
+				.Where(pt => pt.TransactionType == TransactionType.Payment && pt.TransactionStatus == TransactionStatus.Success)
 				.SumAsync(pt => (decimal?)pt.Amount) ?? 0m;
 			var totalRefundAmount = await query
 				.Where(pt => pt.TransactionType == TransactionType.Refund)

@@ -12,5 +12,6 @@
 		public required List<PosScanItemRequest> ScannedItems { get; init; }
 		public string? VoucherCode { get; init; }
 		public Guid? CustomerId { get; init; }
+       public string? SessionId { get; init; }
 	}
 }

@@ -6,6 +6,7 @@ using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
@@ -16,13 +17,16 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IVoucherService _voucherService;
+		private readonly ISignalRService _signalRService;
 
 		public CartService(
 			IUnitOfWork unitOfWork,
-			IVoucherService voucherService)
+         IVoucherService voucherService,
+			ISignalRService signalRService)
 		{
 			_unitOfWork = unitOfWork;
 			_voucherService = voucherService;
+           _signalRService = signalRService;
 		}
 		#endregion Dependencies
 
@@ -105,6 +109,19 @@ namespace PerfumeGPT.Application.Services
 				Discount = subtotal - finalAmount,
 				TotalPrice = finalAmount
 			};
+
+			if (!string.IsNullOrWhiteSpace(request.SessionId))
+			{
+				var customerDisplayData = new CartDisplayDto
+				{
+					Items = response.Items,
+					SubTotal = response.SubTotal,
+					Discount = response.Discount,
+					TotalPrice = response.TotalPrice
+				};
+
+				await _signalRService.UpdateCustomerDisplayAsync(request.SessionId, customerDisplayData);
+			}
 
 			return BaseResponse<PreviewPosOrderResponse>.Ok(response, string.IsNullOrWhiteSpace(voucherMessage) ? "Order previewed successfully." : voucherMessage);
 		}

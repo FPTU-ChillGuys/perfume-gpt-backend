@@ -1,5 +1,6 @@
 ﻿using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
+using PerfumeGPT.Application.DTOs.Responses.Inventory;
 using System.Net;
 using System.Text;
 
@@ -7,6 +8,48 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 {
 	public class EmailTemplateService : IEmailTemplateService
 	{
+		public string GetLowStockAlertTemplate(IEnumerable<LowStockAlertItem> lowStockItems, DateTime generatedAtUtc)
+		{
+			var rows = new StringBuilder();
+			foreach (var item in lowStockItems)
+			{
+				rows.Append($"""
+                    <tr>
+                    <td style="padding:8px;border:1px solid #e5e7eb;">{WebUtility.HtmlEncode(item.ProductName)}</td>
+                    <td style="padding:8px;border:1px solid #e5e7eb;">{WebUtility.HtmlEncode(item.VariantSku)}</td>
+                    <td style="padding:8px;border:1px solid #e5e7eb;text-align:right;">{item.TotalQuantity}</td>
+                    <td style="padding:8px;border:1px solid #e5e7eb;text-align:right;">{item.AvailableQuantity}</td>
+                    <td style="padding:8px;border:1px solid #e5e7eb;text-align:right;">{item.LowStockThreshold}</td>
+                    </tr>
+                    """);
+			}
+
+			return $"""
+                    <!doctype html>
+                    <html>
+                      <head>
+                        <meta charset="utf-8">
+                        <meta name="viewport" content="width=device-width,initial-scale=1">
+                        <title>Low stock alert</title>
+                      </head>
+                      <body style="font-family:Arial,Helvetica,sans-serif;background:#f7f7f7;padding:20px;">
+                        <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+                          <table width="760" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;padding:24px;">
+                            <tr><td><h2 style="margin:0 0 12px;">PerfumeGPT - Low Stock Alert</h2></td></tr>
+                            <tr><td style="padding-bottom:16px;color:#374151;">Detected at: <b>{generatedAtUtc:yyyy-MM-dd HH:mm:ss} UTC</b><br/>The following variants are at or below their low stock threshold.</td></tr>
+                            <tr><td>
+                              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">
+                                <thead><tr style="background:#f3f4f6;"><th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Product</th><th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">SKU</th><th style="padding:8px;border:1px solid #e5e7eb;text-align:right;">Total Qty</th><th style="padding:8px;border:1px solid #e5e7eb;text-align:right;">Available Qty</th><th style="padding:8px;border:1px solid #e5e7eb;text-align:right;">Threshold</th></tr></thead>
+                                <tbody>{rows}</tbody>
+                              </table>
+                            </td></tr>
+                          </table>
+                        </td></tr></table>
+                      </body>
+                    </html>
+                    """;
+		}
+
 		public string GetInvoiceTemplate(ReceiptResponse invoice)
 		{
 			var itemsHtml = new StringBuilder();

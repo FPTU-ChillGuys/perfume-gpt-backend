@@ -26,5 +26,16 @@ namespace PerfumeGPT.Persistence.Repositories
 				(u.PhoneNumber != null && u.PhoneNumber == normalizedInput) ||
 				(u.Email != null && u.Email.ToLower() == normalizedInput));
 		}
+
+		public async Task<List<string>> GetActiveAdminEmailsAsync()
+		{
+			var adminUsers = await _userManager.GetUsersInRoleAsync("admin");
+
+			return adminUsers
+				.Where(u => u.IsActive && !u.IsDeleted && !string.IsNullOrWhiteSpace(u.Email))
+				.Select(u => u.Email!)
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.ToList();
+		}
 	}
 }

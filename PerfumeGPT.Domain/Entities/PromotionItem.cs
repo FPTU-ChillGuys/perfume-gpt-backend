@@ -14,7 +14,6 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid? BatchId { get; private set; }
 		public PromotionType ItemType { get; private set; } // Clearance, NewArrival, Regular, etc.
 		public bool IsActive { get; private set; }
-		public bool AutoStopWhenBatchEmpty { get; private set; }
 		public int? MaxUsage { get; private set; }
 		public int CurrentUsage { get; private set; }
 
@@ -51,7 +50,6 @@ namespace PerfumeGPT.Domain.Entities
 				ItemType = details.ItemType,
 				MaxUsage = details.MaxUsage,
 				CurrentUsage = 0,
-				AutoStopWhenBatchEmpty = details.BatchId.HasValue,
 				IsActive = details.IsActive
 			};
 		}
@@ -69,7 +67,6 @@ namespace PerfumeGPT.Domain.Entities
 			BatchId = details.BatchId;
 			ItemType = details.ItemType;
 			MaxUsage = details.MaxUsage;
-			AutoStopWhenBatchEmpty = details.BatchId.HasValue;
 			IsActive = details.IsActive;
 		}
 

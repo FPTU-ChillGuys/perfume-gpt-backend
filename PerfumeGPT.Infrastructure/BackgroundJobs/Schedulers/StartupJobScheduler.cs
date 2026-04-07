@@ -35,6 +35,12 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs.Schedulers
 				job => job.SyncGhnShippingStatusAsync(),
 				"*/15 * * * *"); // Cron: every 15 minutes
 
+			// Send low stock alert email to admins every day at 08:00 UTC
+			RecurringJob.AddOrUpdate<LowStockAlertJob>(
+				"send-low-stock-alert-to-admins",
+				job => job.SendLowStockAlertToAdminsAsync(),
+				"0 8 * * *");
+
 			return Task.CompletedTask;
 		}
 

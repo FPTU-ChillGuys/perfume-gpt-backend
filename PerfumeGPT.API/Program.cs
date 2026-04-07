@@ -137,6 +137,7 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 app.MapControllers();
 
 app.MapHub<NotificationHub>("/hubs/notifications");
+app.MapHub<PosHub>("/posHub");
 
 ApplyMigration();
 app.Run();

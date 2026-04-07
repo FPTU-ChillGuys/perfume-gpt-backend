@@ -20,7 +20,6 @@ namespace PerfumeGPT.Domain.Entities
 		public decimal? RefundAmount { get; private set; }
 		public bool IsRefunded { get; private set; }
 
-		//public string? VnpTransactionNo { get; private set; }
 		// Đổi tên để dùng chung cho mọi phương thức
 		public string? RefundTransactionReference { get; private set; }
 

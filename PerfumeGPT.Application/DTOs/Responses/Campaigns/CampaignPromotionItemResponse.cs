@@ -12,7 +12,6 @@ namespace PerfumeGPT.Application.DTOs.Responses.Campaigns
 		public PromotionType ItemType { get; init; }
 		public DateTime? StartDate { get; init; }
 		public DateTime? EndDate { get; init; }
-		public bool AutoStopWhenBatchEmpty { get; init; }
 		public int? MaxUsage { get; init; }
 		public int CurrentUsage { get; init; }
 	}

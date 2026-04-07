@@ -28,6 +28,17 @@ namespace PerfumeGPT.Application.Extensions
 				   campaignId);
 		}
 
+		public static bool ScheduleCampaignStart(this IBackgroundJobService backgroundJobService, ILogger logger, Guid campaignId, DateTime startDate)
+		{
+			return TrySchedule<ICampaignStartAppService>(
+				   backgroundJobService,
+				   logger,
+				   x => x.MarkCampaignAsStartedAsync(campaignId),
+				   startDate,
+				   "Unable to schedule campaign start job for campaign {CampaignId}.",
+				   campaignId);
+		}
+
 		private static bool TryEnqueue<TJob>(
 			IBackgroundJobService backgroundJobService,
 			ILogger logger,

@@ -14,5 +14,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<(IEnumerable<StockResponse> Stocks, int TotalCount)> GetPagedInventoryAsync(GetPagedInventoryRequest request);
 		Task<StockResponse?> GetStockWithDetailsByVariantIdAsync(Guid variantId);
 		Task<(int TotalVariants, int TotalStockQuantity, int LowStockVariantsCount)> GetInventorySummaryDataAsync();
+		Task<List<LowStockAlertItem>> GetLowStockAlertItemsAsync();
 	}
 }

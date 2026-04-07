@@ -7,5 +7,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	{
 		Task<User?> FindByPhoneNumberAsync(string phoneNumber);
 		Task<User?> FindByPhoneOrEmailAsync(string phoneOrEmail);
+		Task<List<string>> GetActiveAdminEmailsAsync();
 	}
 }

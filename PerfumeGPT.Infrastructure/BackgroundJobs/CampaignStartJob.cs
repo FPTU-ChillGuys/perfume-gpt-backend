@@ -4,27 +4,29 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Infrastructure.BackgroundJobs
 {
-	public class CampaignEndJob : ICampaignEndAppService
+	public class CampaignStartJob : ICampaignStartAppService
 	{
 		private readonly IUnitOfWork _unitOfWork;
 
-		public CampaignEndJob(IUnitOfWork unitOfWork)
+		public CampaignStartJob(IUnitOfWork unitOfWork)
 		{
 			_unitOfWork = unitOfWork;
 		}
 
-		public async Task MarkCampaignAsEndedAsync(Guid campaignId)
+		public async Task MarkCampaignAsStartedAsync(Guid campaignId)
 		{
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId);
 
-			if (campaign != null && campaign.Status != CampaignStatus.Completed)
+			if (campaign != null && campaign.Status == CampaignStatus.Upcoming)
 			{
-				campaign.UpdateStatus(CampaignStatus.Completed, DateTime.UtcNow);
+				campaign.UpdateStatus(CampaignStatus.Active, DateTime.UtcNow);
 				foreach (var item in campaign.Items)
 				{
-					item.SetActive(false);
+					item.SetActive(true);
 				}
+
 				_unitOfWork.Campaigns.Update(campaign);
+
 				await _unitOfWork.SaveChangesAsync();
 			}
 		}

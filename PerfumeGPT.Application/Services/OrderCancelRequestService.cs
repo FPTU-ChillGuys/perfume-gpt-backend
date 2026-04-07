@@ -136,15 +136,19 @@ namespace PerfumeGPT.Application.Services
 					var refundAmount = cancelRequest.RefundAmount ?? originalPayment.Amount;
 					var isRefundSuccess = false;
 
-					switch (originalPayment.Method)
+					switch (request.RefundMethod)
 					{
 						case PaymentMethod.VnPay:
+							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod)
+								?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
+
+							var refundAmountVnPay = cancelRequest.RefundAmount ?? originalPayment.Amount;
 							var vnPayResponse = await _vnPayService.RefundAsync(context, new VnPayRefundRequest
 							{
 								OrderId = order.Id,
-								Amount = refundAmount,
+								Amount = refundAmountVnPay,
 								PaymentId = originalPayment.Id,
-								TransactionType = refundAmount == originalPayment.Amount ? "02" : "03",
+								TransactionType = refundAmountVnPay == originalPayment.Amount ? "02" : "03",
 								TransactionNo = originalPayment.GatewayTransactionNo,
 								CreateBy = processedBy.ToString(),
 								OrderInfo = $"Refund for Order {order.Code}",
@@ -157,11 +161,15 @@ namespace PerfumeGPT.Application.Services
 							break;
 
 						case PaymentMethod.Momo:
+							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod)
+								?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
+
+							var refundAmountMomo = cancelRequest.RefundAmount ?? originalPayment.Amount;
 							var momoResponse = await _momoService.RefundAsync(context, new MomoRefundRequest
 							{
 								OrderId = order.Id,
 								OrderCode = order.Code,
-								Amount = refundAmount,
+								Amount = refundAmountMomo,
 								PaymentId = originalPayment.Id,
 								TransactionNo = originalPayment.GatewayTransactionNo,
 								Description = $"Refund for Order {order.Code}"
@@ -172,38 +180,54 @@ namespace PerfumeGPT.Application.Services
 							refundTransactionNo = momoResponse.TransactionNo;
 							break;
 
-						case PaymentMethod.CashInStore:
 						case PaymentMethod.ExternalBankTransfer:
+						case PaymentMethod.CashInStore:
+							originalPayment = successfulOnlinePayments.FirstOrDefault()
+								?? throw AppException.NotFound("No successful payment found for this order to reference for manual refund.");
+
 							if (string.IsNullOrWhiteSpace(request.ManualTransactionReference))
 								throw AppException.BadRequest("Manual transaction reference is required for Bank Transfer refunds.");
 
 							isRefundSuccess = true;
-							refundMessage = request.StaffNote ?? "Manual refund recorded.";
-							refundTransactionNo = request.ManualTransactionReference?.Trim();
+							refundMessage = request.StaffNote ?? "Manual refund recorded by Admin.";
+							refundTransactionNo = request.ManualTransactionReference.Trim();
 							break;
 
 						default:
-							throw AppException.BadRequest($"Refund is not supported for payment method {originalPayment.Method}.");
+							throw AppException.BadRequest($"Refund is not supported for payment method {request.RefundMethod}.");
 					}
+
+					var finalRefundAmount = cancelRequest.RefundAmount ?? originalPayment.Amount;
 
 					if (!isRefundSuccess)
 					{
 						var failedRefund = PaymentTransaction.CreateRefund(
 							orderId: order.Id,
 							originalPaymentId: originalPayment.Id,
-							method: originalPayment.Method,
-							refundAmount: refundAmount
+							method: request.RefundMethod,
+							refundAmount: finalRefundAmount
 						);
 
 						failedRefund.MarkFailed(
-						 reason: refundMessage,
+							reason: refundMessage,
 							gatewayTransactionNo: refundTransactionNo
 						);
 
 						await _unitOfWork.Payments.AddAsync(failedRefund);
 						await _unitOfWork.SaveChangesAsync();
 
-						throw AppException.BadRequest($"Refund failed via {originalPayment.Method}. Cancellation aborted. Reason: {refundMessage}");
+						throw AppException.BadRequest($"Refund failed via {request.RefundMethod}. Cancellation aborted. Reason: {refundMessage}");
+					}
+					else
+					{
+						var successRefund = PaymentTransaction.CreateRefund(
+							orderId: order.Id,
+							originalPaymentId: originalPayment.Id,
+							method: request.RefundMethod,
+							refundAmount: finalRefundAmount
+						);
+						successRefund.MarkSuccess(refundTransactionNo);
+						await _unitOfWork.Payments.AddAsync(successRefund);
 					}
 				}
 

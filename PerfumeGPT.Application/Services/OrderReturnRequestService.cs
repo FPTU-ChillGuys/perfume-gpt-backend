@@ -555,18 +555,18 @@ namespace PerfumeGPT.Application.Services
 					break;
 
 				case PaymentMethod.ExternalBankTransfer:
-				case PaymentMethod.CashInStore: // Tùy vào Enum của bạn
+				case PaymentMethod.CashInStore:
 
-					// LUỒNG 2: HOÀN TIỀN THỦ CÔNG (KẾ TOÁN ĐÃ CHUYỂN KHOẢN NGOÀI ĐỜI THỰC)
 					if (string.IsNullOrWhiteSpace(request.ManualTransactionReference))
-						throw AppException.BadRequest("Manual transaction reference (Bank transfer code) is required for COD refunds.");
+						throw AppException.BadRequest("Manual transaction reference (Bank transfer code) is required for manual refunds.");
 
-					var codPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == PaymentMethod.CashOnDelivery || p.Method == PaymentMethod.CashInStore)
-						?? throw AppException.NotFound($"No successful COD payment found for this order to reference for manual refund.");
-					originalPaymentId = codPayment.Id; // Có thể null nếu COD không lưu record Payment lúc giao hàng
-					originalPaymentAmount = returnRequest.Order.TotalAmount; // Lấy tổng giá trị đơn làm gốc
+					var primaryPayment = successfulOnlinePayments.FirstOrDefault()
+						?? throw AppException.NotFound("No successful payment found for this order to reference for manual refund.");
 
-					// Thành công ngay lập tức vì Kế toán đã bấm xác nhận
+					originalPaymentId = primaryPayment.Id;
+					// Lấy amount từ payment, nếu payment = 0 (trường hợp COD không lưu amount) thì lấy tổng đơn hàng
+					originalPaymentAmount = primaryPayment.Amount > 0 ? primaryPayment.Amount : returnRequest.Order.TotalAmount;
+
 					isRefundSuccess = true;
 					refundMessage = request.Note ?? "Manual refund recorded by Finance Admin";
 					refundTransactionNo = request.ManualTransactionReference.Trim();

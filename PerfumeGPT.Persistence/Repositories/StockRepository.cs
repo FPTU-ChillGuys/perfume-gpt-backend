@@ -90,23 +90,23 @@ namespace PerfumeGPT.Persistence.Repositories
 			var stocks = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
-             .Select(s => new StockResponse
-				{
-					Id = s.Id,
-					VariantId = s.VariantId,
-					VariantSku = s.ProductVariant.Sku,
-					ProductName = s.ProductVariant.Product.Name,
-					VariantImageUrl = s.ProductVariant.Media
+			 .Select(s => new StockResponse
+			 {
+				 Id = s.Id,
+				 VariantId = s.VariantId,
+				 VariantSku = s.ProductVariant.Sku,
+				 ProductName = s.ProductVariant.Product.Name,
+				 VariantImageUrl = s.ProductVariant.Media
 						.Where(m => m.IsPrimary && !m.IsDeleted)
 						.Select(m => m.Url)
 						.FirstOrDefault() ?? string.Empty,
-					VolumeMl = s.ProductVariant.VolumeMl,
-					ConcentrationName = s.ProductVariant.Concentration.Name,
-					TotalQuantity = s.TotalQuantity,
-					AvailableQuantity = s.AvailableQuantity,
-					LowStockThreshold = s.LowStockThreshold,
-					Status = s.Status
-				})
+				 VolumeMl = s.ProductVariant.VolumeMl,
+				 ConcentrationName = s.ProductVariant.Concentration.Name,
+				 TotalQuantity = s.TotalQuantity,
+				 AvailableQuantity = s.AvailableQuantity,
+				 LowStockThreshold = s.LowStockThreshold,
+				 Status = s.Status
+			 })
 				.ToListAsync();
 
 			return (stocks, totalCount);
@@ -115,7 +115,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<StockResponse?> GetStockWithDetailsByVariantIdAsync(Guid variantId)
 		=> await _context.Stocks
 			.AsNoTracking()
-         .Where(s => s.VariantId == variantId)
+		 .Where(s => s.VariantId == variantId)
 			.Select(s => new StockResponse
 			{
 				Id = s.Id,
@@ -143,5 +143,21 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			return (totalVariants, totalStockQuantity, lowStockVariantsCount);
 		}
+
+		public async Task<List<LowStockAlertItem>> GetLowStockAlertItemsAsync()
+		=> await _context.Stocks
+			.AsNoTracking()
+			.Where(s => s.TotalQuantity <= s.LowStockThreshold)
+			.OrderBy(s => s.TotalQuantity)
+			.Select(s => new LowStockAlertItem
+			{
+				VariantId = s.VariantId,
+				VariantSku = s.ProductVariant.Sku,
+				ProductName = s.ProductVariant.Product.Name,
+				TotalQuantity = s.TotalQuantity,
+				AvailableQuantity = s.AvailableQuantity,
+				LowStockThreshold = s.LowStockThreshold
+			})
+			.ToListAsync();
 	}
 }

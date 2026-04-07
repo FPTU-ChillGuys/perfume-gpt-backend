@@ -82,7 +82,6 @@ namespace PerfumeGPT.Persistence.Repositories
 					 ItemType = x.ItemType,
 					 StartDate = x.Campaign.StartDate,
 					 EndDate = x.Campaign.EndDate,
-					 AutoStopWhenBatchEmpty = x.AutoStopWhenBatchEmpty,
 					 MaxUsage = x.MaxUsage,
 					 CurrentUsage = x.CurrentUsage
 				 })
