@@ -9,7 +9,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderCancelRequests
 		public Guid RequestedById { get; init; }
 		public string? RequestedByEmail { get; init; }
 		public Guid? ProcessedById { get; init; }
-		
+
 		public required string Reason { get; init; }
 		public string? StaffNote { get; init; }
 		public CancelRequestStatus Status { get; init; }
@@ -17,6 +17,9 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderCancelRequests
 		public bool IsRefundRequired { get; init; }
 		public decimal? RefundAmount { get; init; }
 		public bool IsRefunded { get; init; }
+		public string? RefundBankName { get; init; }
+		public string? RefundAccountName { get; init; }
+		public string? RefundAccountNumber { get; init; }
 		public string? VnpTransactionNo { get; init; }
 
 		public DateTime CreatedAt { get; init; }

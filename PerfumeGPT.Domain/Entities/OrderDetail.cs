@@ -72,5 +72,14 @@ namespace PerfumeGPT.Domain.Entities
 
 			Snapshot = snapshotNode.ToJsonString();
 		}
+
+		public void UpdateQuantityAndDiscount(int newQuantity, decimal newApportionedDiscount)
+		{
+			if (newQuantity <= 0)
+				throw DomainException.BadRequest("Quantity must be greater than zero.");
+
+			Quantity = newQuantity;
+			ApportionedDiscount = newApportionedDiscount;
+		}
 	}
 }

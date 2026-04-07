@@ -26,8 +26,13 @@ namespace PerfumeGPT.Domain.Entities
 		public decimal? ApprovedRefundAmount { get; private set; }
 		public bool IsRefunded { get; private set; }
 		public bool IsRefundOnly { get; private set; }
-		public string? VnpTransactionNo { get; private set; }
+		//public string? VnpTransactionNo { get; private set; }
+		public string? RefundTransactionReference { get; private set; }
 		public bool IsRestocked { get; private set; }
+
+		public string? RefundBankName { get; private set; }
+		public string? RefundAccountNumber { get; private set; }
+		public string? RefundAccountName { get; private set; }
 
 		// Navigation properties
 		public virtual Order Order { get; set; } = null!;
@@ -57,6 +62,20 @@ namespace PerfumeGPT.Domain.Entities
 			if (payload.RequestedRefundAmount < 0)
 				throw DomainException.BadRequest("Requested refund amount cannot be negative.");
 
+			bool hasBankInfo = !string.IsNullOrWhiteSpace(payload.RefundBankName) ||
+						   !string.IsNullOrWhiteSpace(payload.RefundAccountNumber) ||
+						   !string.IsNullOrWhiteSpace(payload.RefundAccountName);
+
+			if (hasBankInfo)
+			{
+				if (string.IsNullOrWhiteSpace(payload.RefundBankName) ||
+					string.IsNullOrWhiteSpace(payload.RefundAccountNumber) ||
+					string.IsNullOrWhiteSpace(payload.RefundAccountName))
+				{
+					throw DomainException.BadRequest("Incomplete bank information. All fields are required if requesting a manual refund.");
+				}
+			}
+
 			return new OrderReturnRequest
 			{
 				OrderId = orderId,
@@ -68,7 +87,11 @@ namespace PerfumeGPT.Domain.Entities
 				ApprovedRefundAmount = null,
 				IsRefunded = false,
 				IsRefundOnly = payload.IsRefundOnly,
-				ReturnDetails = returnDetails
+				ReturnDetails = returnDetails,
+
+				RefundBankName = payload.RefundBankName?.Trim(),
+				RefundAccountNumber = payload.RefundAccountNumber?.Trim(),
+				RefundAccountName = payload.RefundAccountName?.Trim().ToUpperInvariant()
 			};
 		}
 
@@ -112,7 +135,12 @@ namespace PerfumeGPT.Domain.Entities
 			Status = ReturnRequestStatus.ApprovedForReturn;
 		}
 
-		public void UpdateByCustomer(Guid customerId, string? customerNote)
+		public void UpdateByCustomer(
+			   Guid customerId,
+			   string? customerNote,
+			   string? refundBankName = null,
+			   string? refundAccountNumber = null,
+			   string? refundAccountName = null)
 		{
 			if (CustomerId != customerId)
 				throw DomainException.Forbidden("You are not authorized to update this return request.");
@@ -120,12 +148,30 @@ namespace PerfumeGPT.Domain.Entities
 			if (Status != ReturnRequestStatus.RequestMoreInfo)
 				throw DomainException.BadRequest("Only return requests that require more information can be updated.");
 
+			bool hasBankInfo = !string.IsNullOrWhiteSpace(refundBankName)
+				|| !string.IsNullOrWhiteSpace(refundAccountNumber)
+				|| !string.IsNullOrWhiteSpace(refundAccountName);
+
+			if (hasBankInfo)
+			{
+				if (string.IsNullOrWhiteSpace(refundBankName)
+					|| string.IsNullOrWhiteSpace(refundAccountNumber)
+					|| string.IsNullOrWhiteSpace(refundAccountName))
+				{
+					throw DomainException.BadRequest("Incomplete bank information. All fields are required if requesting a manual refund.");
+				}
+
+				RefundBankName = refundBankName.Trim();
+				RefundAccountNumber = refundAccountNumber.Trim();
+				RefundAccountName = refundAccountName.Trim().ToUpperInvariant();
+			}
+
 			CustomerNote = string.IsNullOrWhiteSpace(customerNote) ? null : customerNote.Trim();
 			ApprovedRefundAmount = null;
 			StaffNote = null;
 			InspectionNote = null;
 			IsRestocked = false;
-			VnpTransactionNo = null;
+			RefundTransactionReference = null;
 
 			Status = ReturnRequestStatus.Pending;
 		}
@@ -218,7 +264,7 @@ namespace PerfumeGPT.Domain.Entities
 			Status = ReturnRequestStatus.Rejected;
 		}
 
-		public void MarkRefunded(string? vnpTransactionNo = null)
+		public void MarkRefunded(string? transactionReference = null)
 		{
 			if (Status != ReturnRequestStatus.ReadyForRefund)
 				throw DomainException.BadRequest("Only return requests ready for refund can be completed.");
@@ -230,7 +276,7 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("Return request is already refunded.");
 
 			IsRefunded = true;
-			VnpTransactionNo = string.IsNullOrWhiteSpace(vnpTransactionNo) ? null : vnpTransactionNo.Trim();
+			RefundTransactionReference = string.IsNullOrWhiteSpace(transactionReference) ? null : transactionReference.Trim();
 			Status = ReturnRequestStatus.Completed;
 		}
 
@@ -242,6 +288,10 @@ namespace PerfumeGPT.Domain.Entities
 			public required bool IsRefundOnly { get; init; }
 			public string? CustomerNote { get; init; }
 			public required List<ReturnRequestDetailPayload> ReturnDetails { get; init; }
+
+			public string? RefundBankName { get; init; }
+			public string? RefundAccountNumber { get; init; }
+			public string? RefundAccountName { get; init; }
 		}
 
 		public record ReturnRequestDetailPayload

@@ -23,6 +23,7 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 		private readonly IVnPayService _vnPayService;
 		private readonly IMomoService _momoService;
+		private readonly IStockReservationService _stockReservationService;
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IVoucherService _voucherService;
@@ -36,7 +37,8 @@ namespace PerfumeGPT.Application.Services
 			IHttpContextAccessor httpContextAccessor,
 			IVoucherService voucherService,
 			ILogger<PaymentService> logger,
-			IBackgroundJobService backgroundJobService)
+			IBackgroundJobService backgroundJobService,
+			IStockReservationService stockReservationService)
 		{
 			_vnPayService = vnPayService;
 			_momoService = momoService;
@@ -45,6 +47,7 @@ namespace PerfumeGPT.Application.Services
 			_voucherService = voucherService;
 			_logger = logger;
 			_backgroundJobService = backgroundJobService;
+			_stockReservationService = stockReservationService;
 		}
 		#endregion Dependencies
 
@@ -60,7 +63,7 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<bool>.Ok(true, "Payment already processed.");
 				}
 
-				var order = await _unitOfWork.Orders.GetByIdAsync(payment.OrderId)
+				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
 					?? throw AppException.NotFound("Order not found.");
 
 				return request.IsSuccess
@@ -259,17 +262,13 @@ namespace PerfumeGPT.Application.Services
 				await _voucherService.MarkVoucherAsUsedAsync(order.Id);
 			}
 
-			if (payment.Method == PaymentMethod.CashInStore)
+			if (order.Type == OrderType.Offline && order.ForwardShippingId == null)
 			{
-				order.SetStatus(OrderStatus.Delivered);
-			}
-			if (payment.Method == PaymentMethod.VnPay)
-			{
-				order.SetStatus(OrderStatus.Pending);
-			}
-			if (payment.Method == PaymentMethod.Momo)
-			{
-				order.SetStatus(OrderStatus.Pending);
+				if (order.Status != OrderStatus.Delivered)
+				{
+					order.SetStatus(OrderStatus.Delivered);
+					await _stockReservationService.CommitReservationAsync(order.Id);
+				}
 			}
 
 			_unitOfWork.Payments.Update(payment);
@@ -279,7 +278,6 @@ namespace PerfumeGPT.Application.Services
 			if (existingReceipt == null)
 			{
 				var receipt = Receipt.Create(payment.Id);
-
 				await _unitOfWork.Receipts.AddAsync(receipt);
 			}
 
@@ -339,13 +337,15 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		private static DateTime GetPaymentExpiration(PaymentMethod method)
+		private static DateTime? GetPaymentExpiration(PaymentMethod method)
 		{
 			return method switch
 			{
 				PaymentMethod.VnPay => DateTime.UtcNow.AddMinutes(15),
 				PaymentMethod.Momo => DateTime.UtcNow.AddMinutes(30),
-				_ => DateTime.UtcNow.AddDays(1)
+				PaymentMethod.CashOnDelivery => null,
+				PaymentMethod.CashInStore => null,
+				_ => null
 			};
 		}
 	}

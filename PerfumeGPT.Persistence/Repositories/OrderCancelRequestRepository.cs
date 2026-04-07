@@ -44,7 +44,10 @@ namespace PerfumeGPT.Persistence.Repositories
 					IsRefundRequired = r.IsRefundRequired,
 					RefundAmount = r.RefundAmount,
 					IsRefunded = r.IsRefunded,
-					VnpTransactionNo = r.VnpTransactionNo,
+					RefundBankName = r.RefundBankName,
+					RefundAccountName = r.RefundAccountName,
+					RefundAccountNumber = r.RefundAccountNumber,
+					VnpTransactionNo = r.RefundTransactionReference,
 					CreatedAt = r.CreatedAt,
 					UpdatedAt = r.UpdatedAt
 				})

@@ -247,83 +247,164 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		#endregion Order Fulfillment
 
 		#region Damaged Stock Handling
+
+
 		public async Task<SwapDamagedStockResponse> SwapDamagedStockAsync(Guid orderId, Guid staffId, SwapDamagedStockRequest request)
 		{
+			if (request.DamagedQuantity <= 0)
+				throw AppException.BadRequest("Damaged quantity must be greater than 0.");
+
 			var (order, damagedReservation, damagedBatch) = await ValidateSwapRequestAsync(orderId, request);
-			var quantityToSwap = damagedReservation.ReservedQuantity;
+
+			if (request.DamagedQuantity > damagedReservation.ReservedQuantity)
+				throw AppException.BadRequest($"Damaged quantity ({request.DamagedQuantity}) cannot exceed reserved quantity ({damagedReservation.ReservedQuantity}).");
+
+			var quantityToSwap = request.DamagedQuantity;
 			var variantId = damagedReservation.VariantId;
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			  {
-				  var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
-				  ?? throw AppException.NotFound("Stock not found.");
+			{
+				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
+					?? throw AppException.NotFound("Stock not found.");
 
-				  // Step 1: Create stock adjustment for damaged batch
-				  await CreateDamageAdjustmentAsync(staffId, orderId, variantId, damagedBatch.Id, quantityToSwap, request.DamageNote);
+				StockReservation? primaryNewReservation = null;
+				Batch? primaryReplacementBatch = null;
+				int primaryReservedQuantity = 0;
 
-				  // Step 2: Process damaged batch and release reservation
-				  await ProcessDamagedBatchAsync(damagedBatch, damagedReservation, quantityToSwap, variantId);
+				// Step 1: Xuất kho phế phẩm (Ghi nhận hỏng hóc)
+				await CreateDamageAdjustmentAsync(staffId, orderId, variantId, damagedBatch.Id, quantityToSwap, request.DamageNote);
 
-				  _unitOfWork.StockReservations.Update(damagedReservation);
-				  _unitOfWork.Batches.Update(damagedBatch);
+				// Step 2: Xử lý Lô cũ VÀ Phiếu giữ kho cũ
+				damagedBatch.Release(quantityToSwap);
+				damagedBatch.DecreaseQuantity(quantityToSwap);
+				_unitOfWork.Batches.Update(damagedBatch);
 
-				  // Step 3: Reserve new batch for the order
-				  var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
-				  var newBatch = availableBatches
-					  .Where(b => b.Id != damagedBatch.Id && b.AvailableInBatch >= quantityToSwap)
-					  .OrderBy(b => b.ExpiryDate)
-					  .FirstOrDefault() ?? throw AppException.BadRequest($"No available batch found for replacement.");
+				if (quantityToSwap == damagedReservation.ReservedQuantity)
+				{
+					// Hỏng toàn bộ -> Huỷ phiếu giữ kho cũ
+					damagedReservation.Release();
+				}
+				else
+				{
+					// 💥 Hỏng 1 phần -> Giảm số lượng giữ kho cũ (Cần tạo hàm DecreaseQuantity bên trong Entity StockReservation)
+					damagedReservation.DecreaseQuantity(quantityToSwap);
+				}
+				_unitOfWork.StockReservations.Update(damagedReservation);
 
-				  // Step 4: Create new reservation for the order
-				  var newReservation = new StockReservation(orderId, newBatch.Id, variantId, quantityToSwap, damagedReservation.ExpiresAt);
-				  await _unitOfWork.StockReservations.AddAsync(newReservation);
+				stock.ReleaseReservation(quantityToSwap);
+				stock.Decrease(quantityToSwap);
 
-				  newBatch.Reserve(quantityToSwap);
-				  _unitOfWork.Batches.Update(newBatch);
+				// Step 3: Tìm các lô mới thay thế (Áp dụng FIFO thay vì FirstOrDefault để gom đủ hàng)
+				var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+				var remainingToSwap = quantityToSwap;
+				var replacementAllocations = new List<(Batch Batch, int Quantity)>();
 
-				  // Step 6: Update stock reserved quantity
-				  stock.Reserve(quantityToSwap);
-				  _unitOfWork.Stocks.Update(stock);
+				foreach (var batch in availableBatches.Where(b => b.Id != damagedBatch.Id).OrderBy(b => b.ExpiryDate))
+				{
+					if (remainingToSwap <= 0) break;
+					if (batch.AvailableInBatch <= 0) continue;
 
-				  // Step 7: Update order detail snapshot to reflect new batch info
-				  var targetOrderDetail = order.OrderDetails.FirstOrDefault(od =>
-				  {
-					  try
-					  {
-						  using var doc = JsonDocument.Parse(od.Snapshot);
-						  if (doc.RootElement.TryGetProperty("BatchId", out var bIdElement))
-							  return bIdElement.GetGuid() == damagedBatch.Id;
-					  }
-					  catch { }
-					  return false;
-				  });
+					var take = Math.Min(remainingToSwap, batch.AvailableInBatch);
+					replacementAllocations.Add((batch, take));
+					remainingToSwap -= take;
+				}
 
-				  if (targetOrderDetail != null)
-				  {
-					  var snapshotNode = JsonNode.Parse(targetOrderDetail.Snapshot);
-					  if (snapshotNode != null)
-					  {
-						  snapshotNode["BatchId"] = newBatch.Id;
-						  snapshotNode["BatchCode"] = newBatch.BatchCode;
-						  snapshotNode["ExpiryDate"] = newBatch.ExpiryDate;
+				if (remainingToSwap > 0)
+					throw AppException.BadRequest($"Not enough stock across all batches to replace damaged items. Missing: {remainingToSwap}");
 
-						  targetOrderDetail.UpdateBatchInfoInSnapshot(newBatch.Id, newBatch.BatchCode, newBatch.ExpiryDate);
-					  }
-				  }
+				// Step 4: Kỹ thuật Tách (Splitting) OrderDetail
+				var targetOrderDetail = order.OrderDetails.FirstOrDefault(od =>
+				{
+					try
+					{
+						using var doc = JsonDocument.Parse(od.Snapshot);
+						return doc.RootElement.TryGetProperty("BatchId", out var bIdElement) && bIdElement.GetGuid() == damagedBatch.Id;
+					}
+					catch { return false; }
+				}) ?? throw AppException.Internal("Database inconsistency: Target OrderDetail not found for the damaged batch.");
 
-				  var newBatchWithIncludes = await _unitOfWork.Batches.GetBatchByIdWithIncludesAsync(newBatch.Id);
+				// Tính toán đơn giá và chiết khấu chia đều trên 1 sản phẩm
+				var unitPrice = targetOrderDetail.UnitPrice;
+				// Giả định bạn có thuộc tính ApportionedDiscount trong OrderDetail
+				var perItemDiscount = targetOrderDetail.Quantity > 0 ? (targetOrderDetail.ApportionedDiscount / targetOrderDetail.Quantity) : 0;
 
-				  return new SwapDamagedStockResponse
-				  {
-					  NewReservationId = newReservation.Id,
-					  NewBatchId = newBatch.Id,
-					  NewBatchCode = newBatch.BatchCode,
-					  NewLocation = newBatchWithIncludes?.ImportDetail?.Note,
-					  ReservedQuantity = quantityToSwap,
-					  ExpiryDate = newBatch.ExpiryDate,
-					  Message = $"Successfully swapped damaged batch with new batch {newBatch.BatchCode}."
-				  };
-			  });
+				if (quantityToSwap < targetOrderDetail.Quantity || replacementAllocations.Count > 1)
+				{
+					// KỊCH BẢN PHỨC TẠP: Hỏng 1 phần HOẶC phải gom từ nhiều lô mới
+					var goodQuantity = targetOrderDetail.Quantity - quantityToSwap;
+
+					if (goodQuantity > 0)
+					{
+						// Giữ lại số chai còn xài được ở OrderDetail cũ (Cần tạo hàm UpdateQuantityAndDiscount)
+						targetOrderDetail.UpdateQuantityAndDiscount(goodQuantity, perItemDiscount * goodQuantity);
+					}
+					else
+					{
+						order.OrderDetails.Remove(targetOrderDetail); // Tuỳ cấu hình EF Core của bạn có cho phép xoá ko
+					}
+
+					// Tạo các dòng OrderDetail mới cho phần hàng thay thế
+					foreach (var (repBatch, repQty) in replacementAllocations)
+					{
+						// Tạo Reservation mới
+						var newReservation = new StockReservation(orderId, repBatch.Id, variantId, repQty, damagedReservation.ExpiresAt);
+						await _unitOfWork.StockReservations.AddAsync(newReservation);
+						primaryNewReservation ??= newReservation;
+						if (primaryReplacementBatch is null)
+						{
+							primaryReplacementBatch = repBatch;
+							primaryReservedQuantity = repQty;
+						}
+						repBatch.Reserve(repQty);
+						_unitOfWork.Batches.Update(repBatch);
+						stock.Reserve(repQty);
+
+						// Thêm OrderDetail mới bằng cách clone Snapshot cũ
+						var snapshotNode = JsonNode.Parse(targetOrderDetail.Snapshot)!.AsObject();
+						snapshotNode["BatchId"] = repBatch.Id;
+						snapshotNode["BatchCode"] = repBatch.BatchCode;
+						snapshotNode["ExpiryDate"] = repBatch.ExpiryDate;
+
+						var newDetail = OrderDetail.Create(variantId, repQty, unitPrice, snapshotNode.ToJsonString());
+						newDetail.ApplyDiscount(perItemDiscount * repQty); // Copy tỷ lệ giảm giá sang
+						order.AddOrderDetails([newDetail]);
+					}
+				}
+				else
+				{
+					// KỊCH BẢN ĐƠN GIẢN: Hỏng 100% lô cũ và tìm được 1 lô mới bù đúng 100%
+					var repBatch = replacementAllocations[0].Batch;
+					var repQty = replacementAllocations[0].Quantity;
+
+					var newReservation = new StockReservation(orderId, repBatch.Id, variantId, repQty, damagedReservation.ExpiresAt);
+					await _unitOfWork.StockReservations.AddAsync(newReservation);
+					primaryNewReservation = newReservation;
+					primaryReplacementBatch = repBatch;
+					primaryReservedQuantity = repQty;
+
+					repBatch.Reserve(repQty);
+					_unitOfWork.Batches.Update(repBatch);
+					stock.Reserve(repQty);
+
+					targetOrderDetail.UpdateBatchInfoInSnapshot(repBatch.Id, repBatch.BatchCode, repBatch.ExpiryDate);
+				}
+
+				_unitOfWork.Stocks.Update(stock);
+
+				if (primaryNewReservation is null || primaryReplacementBatch is null)
+					throw AppException.Internal("Database inconsistency: Replacement reservation was not created.");
+
+				return new SwapDamagedStockResponse
+				{
+					NewReservationId = primaryNewReservation.Id,
+					NewBatchId = primaryReplacementBatch.Id,
+					NewBatchCode = primaryReplacementBatch.BatchCode,
+					NewLocation = primaryReplacementBatch.ImportDetail?.Note,
+					ReservedQuantity = primaryReservedQuantity,
+					ExpiryDate = primaryReplacementBatch.ExpiryDate,
+					Message = $"Successfully swapped {quantityToSwap} damaged items. System used {replacementAllocations.Count} replacement batch(es)."
+				};
+			});
 		}
 
 		private async Task<(Order, StockReservation, Batch)> ValidateSwapRequestAsync(Guid orderId, SwapDamagedStockRequest request)
@@ -374,31 +455,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			stockAdjustment.Complete(staffId);
 
 			await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
-		}
-
-		private async Task ProcessDamagedBatchAsync(
-			Batch damagedBatch,
-			StockReservation damagedReservation,
-			int quantityToSwap,
-			Guid variantId)
-		{
-			// Decrease damaged batch quantities
-			damagedBatch.Release(quantityToSwap);
-			damagedBatch.DecreaseQuantity(quantityToSwap);
-			_unitOfWork.Batches.Update(damagedBatch);
-
-			// Release the damaged reservation
-			damagedReservation.Release();
-			_unitOfWork.StockReservations.Update(damagedReservation);
-
-			// Update stock quantities
-			var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
-			if (stock != null)
-			{
-				stock.ReleaseReservation(quantityToSwap);
-				stock.Decrease(quantityToSwap);
-				_unitOfWork.Stocks.Update(stock);
-			}
 		}
 		#endregion Damaged Stock Handling
 	}

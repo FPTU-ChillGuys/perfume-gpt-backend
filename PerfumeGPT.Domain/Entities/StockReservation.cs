@@ -14,7 +14,7 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid VariantId { get; private set; }
 		public int ReservedQuantity { get; private set; }
 		public ReservationStatus Status { get; private set; }
-		public DateTime ExpiresAt { get; private set; }
+		public DateTime? ExpiresAt { get; private set; }
 
 		// Navigation properties
 		public virtual Order Order { get; private set; } = null!;
@@ -26,7 +26,7 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime CreatedAt { get; set; }
 
 		// Factory method
-		public StockReservation(Guid orderId, Guid batchId, Guid variantId, int quantity, DateTime expiresAt)
+		public StockReservation(Guid orderId, Guid batchId, Guid variantId, int quantity, DateTime? expiresAt)
 		{
 			if (quantity <= 0)
 				throw DomainException.BadRequest("Reservation quantity must be strictly positive.");
@@ -56,7 +56,14 @@ namespace PerfumeGPT.Domain.Entities
 			Status = ReservationStatus.Released;
 		}
 
-		public void SetExpiration(DateTime expiresAt)
+		public void DecreaseQuantity(int quantity)
+		{
+			if (quantity <= 0 || quantity > ReservedQuantity)
+				throw DomainException.BadRequest("Invalid decrease quantity.");
+			ReservedQuantity -= quantity;
+		}
+
+		public void SetExpiration(DateTime? expiresAt)
 		{
 			ExpiresAt = expiresAt;
 		}

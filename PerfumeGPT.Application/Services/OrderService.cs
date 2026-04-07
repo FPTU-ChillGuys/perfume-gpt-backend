@@ -10,6 +10,7 @@ using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
+using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using static PerfumeGPT.Domain.Entities.OrderCancelRequest;
@@ -30,6 +31,8 @@ namespace PerfumeGPT.Application.Services
 		private readonly IContactAddressService _recipientService;
 		private readonly INotificationService _notificationService;
 		private readonly IGHNService _ghnService;
+		private readonly IAuditScope _auditScope;
+		private readonly ILoyaltyTransactionService _loyaltyService;
 
 		public OrderService(
 			IUnitOfWork unitOfWork,
@@ -42,7 +45,9 @@ namespace PerfumeGPT.Application.Services
 			IOrderFulfillmentService fulfillmentService,
 			INotificationService notificationService,
 			IContactAddressService recipientService,
-			IGHNService ghnService)
+			IGHNService ghnService,
+			ILoyaltyTransactionService loyaltyService,
+			IAuditScope auditScope)
 		{
 			_unitOfWork = unitOfWork;
 			_cartService = cartService;
@@ -55,6 +60,8 @@ namespace PerfumeGPT.Application.Services
 			_notificationService = notificationService;
 			_recipientService = recipientService;
 			_ghnService = ghnService;
+			_loyaltyService = loyaltyService;
+			_auditScope = auditScope;
 		}
 		#endregion Dependencies
 
@@ -270,7 +277,7 @@ namespace PerfumeGPT.Application.Services
 					checkoutItems.Add(new CartCheckoutItemDto
 					{
 						VariantId = variant.Id,
-						BatchId = batch.Id, // 💥 BẮT BUỘC CÓ BATCH ID
+						BatchId = batch.Id, // BẮT BUỘC CÓ BATCH ID
 						VariantName = $"{variant.Sku} - {variant.VolumeMl}ml",
 						Quantity = scan.Quantity,
 						UnitPrice = variant.BasePrice,
@@ -315,7 +322,7 @@ namespace PerfumeGPT.Application.Services
 
 				if (!request.IsPickupInStore && request.Recipient != null)
 				{
-					await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, request.CustomerId, savedAddressId: null);
+					await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, request.CustomerId, null);
 				}
 
 				// 6. GIỮ KHO CHÍNH XÁC THEO LÔ (EXACT BATCH RESERVATION)
@@ -324,10 +331,7 @@ namespace PerfumeGPT.Application.Services
 					.Select(g => (VariantId: g.Key.VariantId, BatchId: g.Key.BatchId!.Value, Quantity: g.Sum(x => x.Quantity)))
 					.ToList();
 
-				// Set payment expiration
-				var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
-
-				await _stockReservationService.ReserveExactBatchStockForOrderAsync(order.Id, posReservationItems, paymentExpiresAt);
+				await _stockReservationService.ReserveExactBatchStockForOrderAsync(order.Id, posReservationItems, null);
 
 				// 7. TẠO GIAO DỊCH THANH TOÁN (PENDING)
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, finalAmount, request.Payment.Method);
@@ -342,28 +346,34 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PickListResponse?>> UpdateOrderStatusToPreparingAsync(Guid orderId, Guid staffId)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			   {
-				   var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId)
-					   ?? throw AppException.NotFound("Order not found.");
+			{
+				var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId)
+					?? throw AppException.NotFound("Order not found.");
 
-				   if (order.Status != OrderStatus.Pending)
-					   throw AppException.BadRequest($"Order status can only be updated from Pending to Preparing. Current: {order.Status}.");
+				if (order.Status != OrderStatus.Pending)
+					throw AppException.BadRequest($"Order status can only be updated from Pending to Preparing. Current: {order.Status}.");
 
-				   // Update order status
-				   order.SetStatus(OrderStatus.Preparing);
-				   order.SetStaff(staffId);
-				   _unitOfWork.Orders.Update(order);
+				// 1. RÀO CHẮN TÀI CHÍNH (FINANCIAL GUARD)
+				// Chú ý: Đảm bảo PaymentMethod.CashOnDelivery khớp với Enum thực tế của bạn
+				bool isPaid = order.PaymentStatus == PaymentStatus.Paid;
+				bool isCod = order.PaymentTransactions.Any(p => p.Method == PaymentMethod.CashOnDelivery);
 
-				   PickListResponse? pickListResponse = null;
-				   // Handle Preparing status - return pick list
-				   if (order.PaymentStatus == PaymentStatus.Paid || order.PaymentTransactions.Any(p => p.Method == PaymentMethod.CashOnDelivery))
-				   {
-					   pickListResponse = await _fulfillmentService.GetPickListAsync(order);
-				   }
+				if (!isPaid && !isCod)
+				{
+					throw AppException.BadRequest("Cannot prepare an unpaid order unless it is Cash On Delivery (COD).");
+				}
 
-				   var orderTypeText = order.Type == OrderType.Online ? "online" : "in-store";
-				   return BaseResponse<PickListResponse?>.Ok(pickListResponse, $"Order is prepared for {orderTypeText} order.");
-			   });
+				// 2. CHUYỂN TRẠNG THÁI (Entity Order sẽ tự chặn nếu là đơn Takeaway)
+				order.SetStatus(OrderStatus.Preparing);
+				order.SetStaff(staffId);
+				_unitOfWork.Orders.Update(order);
+
+				// 3. LẤY PICK LIST CHẮC CHẮN 100% CÓ DATA
+				var pickListResponse = await _fulfillmentService.GetPickListAsync(order);
+
+				var orderTypeText = order.Type == OrderType.Online ? "Online" : "In-store Delivery";
+				return BaseResponse<PickListResponse?>.Ok(pickListResponse, $"Order is ready for picking ({orderTypeText}).");
+			});
 		}
 
 		public async Task<BaseResponse<string>> CancelOrderByStaffAsync(Guid orderId, Guid staffId, StaffCancelOrderRequest request)
@@ -447,7 +457,10 @@ namespace PerfumeGPT.Application.Services
 				   {
 					   Reason = request.Reason,
 					   IsRefundRequired = isRefundRequired,
-					   RefundAmount = isRefundRequired ? order.TotalAmount : null
+					   RefundAmount = isRefundRequired ? order.TotalAmount : null,
+					   RefundBankName = request.RefundBankName,
+					   RefundAccountNumber = request.RefundAccountNumber,
+					   RefundAccountName = request.RefundAccountName
 				   };
 
 				   var cancelRequest = OrderCancelRequest.Create(order.Id, userId, payload);
@@ -474,6 +487,58 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<string>.Ok(await _fulfillmentService.FulfillOrderAsync(orderId, staffId, request));
 		}
 
+		public async Task<BaseResponse<string>> DeliverOrderToInStoreCustomerAsync(Guid orderId, Guid staffId)
+		{
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId)
+					?? throw AppException.NotFound("Order not found.");
+
+				if (order.Type != OrderType.Online)
+					throw AppException.BadRequest("Only online orders are supported for this operation.");
+
+				if (order.Status != OrderStatus.ReadyToPick)
+					throw AppException.BadRequest($"Order must be in ReadyToPick status. Current: {order.Status}.");
+
+				if (order.ForwardShipping != null)
+					throw AppException.BadRequest("This order is configured for delivery. Use shipping workflow to complete delivery.");
+
+				// 1. CẬP NHẬT TRẠNG THÁI VÀ NHÂN VIÊN GIAO HÀNG
+				order.SetStatus(OrderStatus.Delivered);
+				order.SetStaff(staffId);
+
+				// 2. XỬ LÝ DÒNG TIỀN (NẾU KHÁCH CHỌN TRẢ SAU/COD)
+				if (order.PaymentStatus != PaymentStatus.Paid)
+				{
+					order.MarkPaid(DateTime.UtcNow);
+				}
+
+				var pendingCod = order.PaymentTransactions.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
+				if (pendingCod != null)
+				{
+					pendingCod.MarkSuccess("Customer paid and received order in-store.");
+					_unitOfWork.Payments.Update(pendingCod);
+				}
+
+				// 💥 3. FIX LỖI: TÍCH ĐIỂM THÀNH VIÊN (LOYALTY)
+				if (order.CustomerId.HasValue)
+				{
+					using (_auditScope.BeginSystemAction())
+					{
+						int points = (int)(order.TotalAmount * 0.01m); // 1% tích luỹ
+						if (points > 0)
+						{
+							await _loyaltyService.PlusPointAsync(order.CustomerId.Value, points, order.Id, false);
+						}
+					}
+				}
+
+				_unitOfWork.Orders.Update(order);
+
+				return BaseResponse<string>.Ok("Order delivered to customer successfully.");
+			});
+		}
+
 		public async Task<BaseResponse<SwapDamagedStockResponse>> SwapDamagedStockAsync(Guid orderId, Guid staffId, SwapDamagedStockRequest request)
 		{
 			return BaseResponse<SwapDamagedStockResponse>.Ok(await _fulfillmentService.SwapDamagedStockAsync(orderId, staffId, request));
@@ -482,13 +547,15 @@ namespace PerfumeGPT.Application.Services
 
 
 		#region Private Helper Methods
-		private static DateTime GetPaymentExpiration(PaymentMethod method)
+		private static DateTime? GetPaymentExpiration(PaymentMethod method)
 		{
 			return method switch
 			{
 				PaymentMethod.VnPay => DateTime.UtcNow.AddMinutes(15),
 				PaymentMethod.Momo => DateTime.UtcNow.AddMinutes(30),
-				_ => DateTime.UtcNow.AddDays(1)
+				PaymentMethod.CashOnDelivery => null,
+				PaymentMethod.CashInStore => null,
+				_ => null
 			};
 		}
 
@@ -503,7 +570,10 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			order.SetStatus(OrderStatus.Cancelled);
-			await _stockReservationService.ReleaseReservationAsync(order.Id);
+
+			// Gọi hàm mới nâng cấp
+			await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(order.Id);
+
 			await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
 		}
 

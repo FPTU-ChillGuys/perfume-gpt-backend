@@ -144,6 +144,34 @@ namespace PerfumeGPT.Application.Validators.Orders
 		public UserCancelOrderRequestValidator()
 		{
 			RuleFor(x => x.Reason).IsInEnum().WithMessage("Invalid cancellation reason.");
+
+			RuleFor(x => x.RefundBankName)
+				.MaximumLength(255).WithMessage("Refund bank name must not exceed 255 characters.")
+				.When(x => !string.IsNullOrWhiteSpace(x.RefundBankName));
+
+			RuleFor(x => x.RefundAccountNumber)
+				.MaximumLength(50).WithMessage("Refund account number must not exceed 50 characters.")
+				.When(x => !string.IsNullOrWhiteSpace(x.RefundAccountNumber));
+
+			RuleFor(x => x.RefundAccountName)
+				.MaximumLength(255).WithMessage("Refund account name must not exceed 255 characters.")
+				.When(x => !string.IsNullOrWhiteSpace(x.RefundAccountName));
+
+			RuleFor(x => x)
+				.Must(x =>
+				{
+					var hasBankInfo = !string.IsNullOrWhiteSpace(x.RefundBankName)
+						|| !string.IsNullOrWhiteSpace(x.RefundAccountNumber)
+						|| !string.IsNullOrWhiteSpace(x.RefundAccountName);
+
+					if (!hasBankInfo)
+						return true;
+
+					return !string.IsNullOrWhiteSpace(x.RefundBankName)
+						&& !string.IsNullOrWhiteSpace(x.RefundAccountNumber)
+						&& !string.IsNullOrWhiteSpace(x.RefundAccountName);
+				})
+				.WithMessage("Incomplete bank information. Bank name, account number, and account name are all required if requesting a manual refund.");
 		}
 	}
 

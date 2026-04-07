@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260406123609_Reservation_ExpiredAt_Nullable")]
+    partial class Reservation_ExpiredAt_Nullable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -986,21 +989,9 @@ namespace PerfumeGPT.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("RefundAccountName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RefundAccountNumber")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<decimal?>("RefundAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("RefundBankName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RefundTransactionReference")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("RequestedById")
                         .HasColumnType("uniqueidentifier");
@@ -1014,6 +1005,9 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("VnpTransactionNo")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -1109,18 +1103,6 @@ namespace PerfumeGPT.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("RefundAccountName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RefundAccountNumber")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RefundBankName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RefundTransactionReference")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<decimal>("RequestedRefundAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1137,6 +1119,9 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("VnpTransactionNo")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 

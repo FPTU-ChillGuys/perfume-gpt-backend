@@ -274,6 +274,19 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpPut("{orderId:guid}/deliver-in-store")]
+		[Authorize(Roles = "staff")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<string>>> DeliverOrderToInStoreCustomer([FromRoute] Guid orderId)
+		{
+			var staffId = GetCurrentUserId();
+			var response = await _orderService.DeliverOrderToInStoreCustomerAsync(orderId, staffId);
+			return HandleResponse(response);
+		}
+
 		[HttpPost("{orderId:guid}/swap-damaged")]
 		[Authorize(Roles = "staff")]
 		[ProducesResponseType(typeof(BaseResponse<SwapDamagedStockResponse>), StatusCodes.Status200OK)]

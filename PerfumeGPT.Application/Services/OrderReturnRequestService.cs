@@ -12,6 +12,7 @@ using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using System.Text.Json;
 using static PerfumeGPT.Domain.Entities.StockAdjustmentDetail;
 
 namespace PerfumeGPT.Application.Services
@@ -47,6 +48,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PagedResult<OrderReturnRequestResponse>>> GetPagedReturnRequestsAsync(GetPagedReturnRequestsRequest request)
 		{
 			var (items, totalCount) = await _unitOfWork.OrderReturnRequests.GetPagedResponsesAsync(request);
+			items = MaskRefundAccountNumbers(items);
 
 			return BaseResponse<PagedResult<OrderReturnRequestResponse>>.Ok(
 				new PagedResult<OrderReturnRequestResponse>(items, request.PageNumber, request.PageSize, totalCount),
@@ -56,6 +58,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PagedResult<OrderReturnRequestResponse>>> GetPagedUserReturnRequestsAsync(Guid userId, GetPagedUserReturnRequestsRequest request)
 		{
 			var (items, totalCount) = await _unitOfWork.OrderReturnRequests.GetPagedUserResponsesAsync(userId, request);
+			items = MaskRefundAccountNumbers(items);
 
 			return BaseResponse<PagedResult<OrderReturnRequestResponse>>.Ok(
 				new PagedResult<OrderReturnRequestResponse>(items, request.PageNumber, request.PageSize, totalCount),
@@ -70,7 +73,32 @@ namespace PerfumeGPT.Application.Services
 			if (!isPrivilegedUser && returnRequest.CustomerId != requesterId)
 				throw AppException.Forbidden("You are not allowed to view this return request.");
 
+			returnRequest = MaskRefundAccountNumbers(returnRequest);
+
 			return BaseResponse<OrderReturnRequestResponse>.Ok(returnRequest, "Return request retrieved successfully.");
+		}
+
+		private List<OrderReturnRequestResponse> MaskRefundAccountNumbers(List<OrderReturnRequestResponse> items)
+			=> [.. items.Select(MaskRefundAccountNumbers)];
+
+		private OrderReturnRequestResponse MaskRefundAccountNumbers(OrderReturnRequestResponse item)
+		{
+			var canViewFullBankInfo = _httpContextAccessor.HttpContext?.User.IsInRole(UserRole.admin.ToString()) == true;
+			if (canViewFullBankInfo)
+				return item;
+
+			return item with
+			{
+				RefundAccountNumber = MaskAccountNumber(item.RefundAccountNumber)
+			};
+		}
+
+		private static string? MaskAccountNumber(string? accountNumber)
+		{
+			if (string.IsNullOrWhiteSpace(accountNumber) || accountNumber.Length <= 4)
+				return accountNumber;
+
+			return new string('*', accountNumber.Length - 4) + accountNumber[^4..];
 		}
 
 		public async Task<BaseResponse<string>> CreateReturnRequestAsync(Guid customerId, CreateReturnRequestDto request)
@@ -135,7 +163,10 @@ namespace PerfumeGPT.Application.Services
 					RequestedRefundAmount = requestedRefundAmount,
 					IsRefundOnly = request.IsRefundOnly,
 					ReturnDetails = payloadDetails,
-					CustomerNote = request.CustomerNote
+					CustomerNote = request.CustomerNote,
+					RefundBankName = request.RefundBankName,
+					RefundAccountNumber = request.RefundAccountNumber,
+					RefundAccountName = request.RefundAccountName
 				};
 
 				var pickupAddress = await _recipientService.CreateContactAddressAsync(request.Recipient, request.SavedAddressId, customerId);
@@ -189,7 +220,12 @@ namespace PerfumeGPT.Application.Services
 						  throw AppException.BadRequest($"Media {invalidMediaId} does not belong to this return request.");
 				  }
 
-				  returnRequest.UpdateByCustomer(customerId, request.CustomerNote);
+				  returnRequest.UpdateByCustomer(
+						 customerId,
+						 request.CustomerNote,
+						 request.RefundBankName,
+						 request.RefundAccountNumber,
+						 request.RefundAccountName);
 				  _unitOfWork.OrderReturnRequests.Update(returnRequest);
 
 				  return BaseResponse<string>.Ok(returnRequest.Id.ToString(), "Return request updated and resubmitted for review.");
@@ -349,13 +385,6 @@ namespace PerfumeGPT.Application.Services
 
 				if (returnRequest.IsRestocked)
 				{
-					var committedReservations = (await _unitOfWork.StockReservations.GetByOrderIdAsync(returnRequest.OrderId))
-						.Where(r => r.Status == ReservationStatus.Committed)
-						.ToList();
-
-					if (committedReservations.Count == 0)
-						throw AppException.BadRequest("No committed stock reservations found for this order to restock.");
-
 					var stockAdjustment = StockAdjustment.Create(
 						inspectedById,
 						DateTime.UtcNow,
@@ -365,65 +394,52 @@ namespace PerfumeGPT.Application.Services
 					var orderDetailsById = returnRequest.Order.OrderDetails
 						  .ToDictionary(d => d.Id);
 
-					var restockedByVariant = returnRequest.ReturnDetails.Count > 0
-						? returnRequest.ReturnDetails
-							.Select(d =>
-							{
-								if (!orderDetailsById.TryGetValue(d.OrderDetailId, out var orderDetail))
-									throw AppException.BadRequest($"Order detail {d.OrderDetailId} not found in the order for restocking.");
+					if (returnRequest.ReturnDetails == null || returnRequest.ReturnDetails.Count == 0)
+						throw AppException.Internal("Return details are missing. Cannot process restocking.");
 
-								return new
-								{
-									orderDetail.VariantId,
-									d.RequestedQuantity
-								};
-							})
-							.GroupBy(x => x.VariantId)
-							.ToDictionary(g => g.Key, g => g.Sum(x => x.RequestedQuantity))
-						: returnRequest.Order.OrderDetails
-							.GroupBy(d => d.VariantId)
-							.ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
-
-					foreach (var item in restockedByVariant)
+					foreach (var returnDetail in returnRequest.ReturnDetails)
 					{
-						var variantReservations = committedReservations
-							.Where(r => r.VariantId == item.Key)
-							.ToList();
+						var orderDetail = orderDetailsById[returnDetail.OrderDetailId];
 
-						var committedQty = variantReservations.Sum(r => r.ReservedQuantity);
-						if (committedQty < item.Value)
-							throw AppException.BadRequest($"Committed reservations for variant {item.Key} are not enough to restock returned quantity.");
-
-						var remainingToRestock = item.Value;
-						foreach (var reservation in variantReservations)
+						// 💥 GIẢI MÃ BATCH ID TỪ SNAPSHOT CỦA CHÍNH CÁI CHAI KHÁCH TRẢ
+						Guid batchId;
+						try
 						{
-							if (remainingToRestock <= 0)
-								break;
-
-							var qtyFromThisReservation = Math.Min(remainingToRestock, reservation.ReservedQuantity);
-							var note = $"Restock from return request {returnRequest.Id}";
-
-							reservation.Batch.IncreaseQuantity(qtyFromThisReservation);
-							_unitOfWork.Batches.Update(reservation.Batch);
-
-							var detailPayload = new StockAdjustmentDetailPayload
-							{
-								ProductVariantId = item.Key,
-								BatchId = reservation.BatchId,
-								AdjustmentQuantity = qtyFromThisReservation,
-								Note = note
-							};
-
-							stockAdjustment.AddApprovedDetail(detailPayload, approvedQuantity: qtyFromThisReservation);
-
-							remainingToRestock -= qtyFromThisReservation;
+							using var doc = JsonDocument.Parse(orderDetail.Snapshot);
+							batchId = doc.RootElement.GetProperty("BatchId").GetGuid();
+						}
+						catch
+						{
+							throw AppException.Internal($"Failed to extract BatchId from OrderDetail {orderDetail.Id} snapshot.");
 						}
 
-						var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == item.Key)
-							?? throw AppException.NotFound($"Stock for variant {item.Key} not found.");
+						var quantityToRestock = returnDetail.RequestedQuantity;
+						if (quantityToRestock <= 0) continue;
 
-						stock.Increase(item.Value);
+						// Tăng số lượng trong Batch đích danh
+						var batch = await _unitOfWork.Batches.GetByIdAsync(batchId)
+							?? throw AppException.NotFound($"Batch {batchId} found in snapshot does not exist in database.");
+
+						batch.IncreaseQuantity(quantityToRestock);
+						_unitOfWork.Batches.Update(batch);
+
+						// Tăng số lượng trong Stock tổng
+						var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == orderDetail.VariantId)
+							?? throw AppException.NotFound($"Stock for variant {orderDetail.VariantId} not found.");
+
+						stock.Increase(quantityToRestock);
 						_unitOfWork.Stocks.Update(stock);
+
+						// Ghi log nhập kho (Stock Adjustment)
+						var detailPayload = new StockAdjustmentDetailPayload
+						{
+							ProductVariantId = orderDetail.VariantId,
+							BatchId = batchId,
+							AdjustmentQuantity = quantityToRestock,
+							Note = $"Restock from return request {returnRequest.Id}"
+						};
+
+						stockAdjustment.AddApprovedDetail(detailPayload, approvedQuantity: quantityToRestock);
 					}
 
 					stockAdjustment.UpdateStatus(StockAdjustmentStatus.InProgress);
@@ -461,42 +477,39 @@ namespace PerfumeGPT.Application.Services
 			if (!returnRequest.ApprovedRefundAmount.HasValue || returnRequest.ApprovedRefundAmount.Value <= 0)
 				throw AppException.BadRequest("Approved refund amount must be greater than 0.");
 
-			if (request.RefundMethod != PaymentMethod.VnPay
-				 && request.RefundMethod != PaymentMethod.Momo)
-			{
-				throw AppException.BadRequest("Only VNPay or Momo are supported for refund processing.");
-			}
+			bool isRefundSuccess = false;
+			string refundMessage = "";
+			string? refundTransactionNo = null;
+			Guid originalPaymentId;
+			decimal originalPaymentAmount = 0;
 
 			var successfulOnlinePayments = (await _unitOfWork.Payments.GetAllAsync(
-				p => p.OrderId == returnRequest.OrderId
-					&& p.TransactionStatus == TransactionStatus.Success
-					&& (p.Method == PaymentMethod.VnPay || p.Method == PaymentMethod.Momo)))
-				.OrderByDescending(p => p.CreatedAt)
-			   .ToList();
-
-			var payment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod)
-				?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
+				p => p.OrderId == returnRequest.OrderId && p.TransactionStatus == TransactionStatus.Success))
+				.OrderByDescending(p => p.CreatedAt).ToList();
 
 			var httpContext = _httpContextAccessor.HttpContext
 				?? throw AppException.Internal("HttpContext not available.");
 
-			bool isRefundSuccess;
-			string refundMessage;
-			string? refundTransactionNo;
-
-			switch (payment.Method)
+			switch (request.RefundMethod)
 			{
 				case PaymentMethod.VnPay:
+
+					var vnPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod)
+						?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
+
+					originalPaymentId = vnPayment.Id;
+					originalPaymentAmount = vnPayment.Amount;
+
 					var vnPayRefundResponse = await _vnPayService.RefundAsync(httpContext, new VnPayRefundRequest
 					{
 						OrderId = returnRequest.OrderId,
 						Amount = returnRequest.ApprovedRefundAmount.Value,
-						PaymentId = payment.Id,
-						TransactionNo = payment.GatewayTransactionNo,
-						TransactionType = returnRequest.ApprovedRefundAmount.Value == payment.Amount ? "02" : "03",
+						PaymentId = vnPayment.Id,
+						TransactionNo = vnPayment.GatewayTransactionNo,
+						TransactionType = returnRequest.ApprovedRefundAmount.Value == vnPayment.Amount ? "02" : "03",
 						CreateBy = financeAdminId.ToString(),
 						OrderInfo = $"Refund for return request {requestId}",
-						TransactionDate = payment.CreatedAt.ToString("yyyyMMddHHmmss")
+						TransactionDate = vnPayment.CreatedAt.ToString("yyyyMMddHHmmss")
 					});
 
 					isRefundSuccess = vnPayRefundResponse.IsSuccess;
@@ -505,13 +518,20 @@ namespace PerfumeGPT.Application.Services
 					break;
 
 				case PaymentMethod.Momo:
+
+					var momoPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod)
+						?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
+
+					originalPaymentId = momoPayment.Id;
+					originalPaymentAmount = momoPayment.Amount;
+
 					var momoRefundResponse = await _momoService.RefundAsync(httpContext, new MomoRefundRequest
 					{
 						OrderId = returnRequest.OrderId,
 						OrderCode = returnRequest.Order.Code,
 						Amount = returnRequest.ApprovedRefundAmount.Value,
-						PaymentId = payment.Id,
-						TransactionNo = payment.GatewayTransactionNo,
+						PaymentId = momoPayment.Id,
+						TransactionNo = momoPayment.GatewayTransactionNo,
 						Description = $"Refund for return request {requestId}"
 					});
 
@@ -520,24 +540,40 @@ namespace PerfumeGPT.Application.Services
 					refundTransactionNo = momoRefundResponse.TransactionNo;
 					break;
 
+				case PaymentMethod.ExternalBankTransfer:
+				case PaymentMethod.CashInStore: // Tùy vào Enum của bạn
+
+					// LUỒNG 2: HOÀN TIỀN THỦ CÔNG (KẾ TOÁN ĐÃ CHUYỂN KHOẢN NGOÀI ĐỜI THỰC)
+					if (string.IsNullOrWhiteSpace(request.ManualTransactionReference))
+						throw AppException.BadRequest("Manual transaction reference (Bank transfer code) is required for COD refunds.");
+
+					var codPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == PaymentMethod.CashOnDelivery || p.Method == PaymentMethod.CashInStore)
+						?? throw AppException.NotFound($"No successful COD payment found for this order to reference for manual refund.");
+					originalPaymentId = codPayment.Id; // Có thể null nếu COD không lưu record Payment lúc giao hàng
+					originalPaymentAmount = returnRequest.Order.TotalAmount; // Lấy tổng giá trị đơn làm gốc
+
+					// Thành công ngay lập tức vì Kế toán đã bấm xác nhận
+					isRefundSuccess = true;
+					refundMessage = request.Note ?? "Manual refund recorded by Finance Admin";
+					refundTransactionNo = request.ManualTransactionReference.Trim();
+					break;
+
 				default:
-					throw AppException.BadRequest($"Refund is not supported for payment method {payment.Method}.");
+					throw AppException.BadRequest($"Refund is not supported for payment method {request.RefundMethod}.");
 			}
 
 			if (!isRefundSuccess)
 			{
 				var failedRefund = PaymentTransaction.CreateRefund(
 					orderId: returnRequest.OrderId,
-					originalPaymentId: payment.Id,
-					method: payment.Method,
+					originalPaymentId: originalPaymentId,
+					method: request.RefundMethod,
 					refundAmount: returnRequest.ApprovedRefundAmount.Value
 				);
-
 				failedRefund.MarkFailed(refundMessage, refundTransactionNo);
-
 				await _unitOfWork.Payments.AddAsync(failedRefund);
 
-				throw AppException.BadRequest($"Refund failed via {payment.Method}: {refundMessage}");
+				throw AppException.BadRequest($"Refund failed via {request.RefundMethod}: {refundMessage}");
 			}
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
@@ -551,7 +587,7 @@ namespace PerfumeGPT.Application.Services
 				var order = freshReturnRequest.Order;
 				var approvedRefundAmount = freshReturnRequest.ApprovedRefundAmount!.Value;
 
-				var isFullyRefunded = approvedRefundAmount >= payment.Amount;
+				var isFullyRefunded = approvedRefundAmount >= originalPaymentAmount;
 
 				if (isFullyRefunded)
 				{
@@ -572,8 +608,8 @@ namespace PerfumeGPT.Application.Services
 
 				var successRefund = PaymentTransaction.CreateRefund(
 					orderId: order.Id,
-					originalPaymentId: payment.Id,
-					method: payment.Method,
+					originalPaymentId: originalPaymentId,
+					method: request.RefundMethod,
 					refundAmount: approvedRefundAmount
 				);
 

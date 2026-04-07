@@ -10,6 +10,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.SemanticKernel;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
+using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.Interfaces.ThirdParties.BackgroundJobs;
 using PerfumeGPT.Domain.Commons.Audits;
@@ -17,6 +18,7 @@ using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Infrastructure.BackgroundJobs;
 using PerfumeGPT.Infrastructure.BackgroundJobs.Commons;
 using PerfumeGPT.Infrastructure.BackgroundJobs.Schedulers;
+using PerfumeGPT.Infrastructure.Security;
 using PerfumeGPT.Infrastructure.ThirdParties;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
@@ -42,6 +44,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			services.AddScoped<IVnPayService, VnPayService>();
 			services.AddScoped<IMomoService, MomoService>();
 			services.AddScoped<ISignalRService, SignalRService>();
+			services.AddSingleton<IEncryptionProvider, AesEncryptionProvider>();
 
 			// Convention-based registration for repository implementations in the Persistence assembly.
 			// It will register classes where an interface named "I{ClassName}" exists.

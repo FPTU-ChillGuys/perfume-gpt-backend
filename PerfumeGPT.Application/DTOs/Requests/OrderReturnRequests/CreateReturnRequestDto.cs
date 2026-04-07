@@ -10,6 +10,9 @@ namespace PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests
 		public bool IsRefundOnly { get; init; }
 		public required List<ReturnItemDto> ReturnItems { get; init; }
 		public string? CustomerNote { get; init; }
+		public string? RefundBankName { get; init; }
+		public string? RefundAccountNumber { get; init; }
+		public string? RefundAccountName { get; init; }
 		public Guid? SavedAddressId { get; init; }
 		public ContactAddressInformation? Recipient { get; init; }
 		public List<Guid>? TemporaryMediaIds { get; init; }

@@ -14,6 +14,34 @@ namespace PerfumeGPT.Application.Validators.OrderReturnRequests
 				.MaximumLength(1000).WithMessage("Customer note must not exceed 1000 characters.")
 				.When(x => !string.IsNullOrWhiteSpace(x.CustomerNote));
 
+			RuleFor(x => x.RefundBankName)
+				.MaximumLength(255).WithMessage("Refund bank name must not exceed 255 characters.")
+				.When(x => !string.IsNullOrWhiteSpace(x.RefundBankName));
+
+			RuleFor(x => x.RefundAccountNumber)
+				.MaximumLength(50).WithMessage("Refund account number must not exceed 50 characters.")
+				.When(x => !string.IsNullOrWhiteSpace(x.RefundAccountNumber));
+
+			RuleFor(x => x.RefundAccountName)
+				.MaximumLength(255).WithMessage("Refund account name must not exceed 255 characters.")
+				.When(x => !string.IsNullOrWhiteSpace(x.RefundAccountName));
+
+			RuleFor(x => x)
+				.Must(x =>
+				{
+					var hasBankInfo = !string.IsNullOrWhiteSpace(x.RefundBankName)
+						|| !string.IsNullOrWhiteSpace(x.RefundAccountNumber)
+						|| !string.IsNullOrWhiteSpace(x.RefundAccountName);
+
+					if (!hasBankInfo)
+						return true;
+
+					return !string.IsNullOrWhiteSpace(x.RefundBankName)
+						&& !string.IsNullOrWhiteSpace(x.RefundAccountNumber)
+						&& !string.IsNullOrWhiteSpace(x.RefundAccountName);
+				})
+				.WithMessage("Incomplete bank information. All fields are required if requesting a manual refund.");
+
 			RuleFor(x => x.ReturnItems)
 				.NotEmpty().WithMessage("At least one return item is required.");
 
@@ -41,12 +69,12 @@ namespace PerfumeGPT.Application.Validators.OrderReturnRequests
 	{
 		public ProcessInitialReturnDtoValidator()
 		{
-           RuleFor(x => x)
-				.Must(x => !(x.IsApproved && x.IsRequestMoreInfo))
-				.WithMessage("A return request cannot be both approved and require more info.");
+			RuleFor(x => x)
+				 .Must(x => !(x.IsApproved && x.IsRequestMoreInfo))
+				 .WithMessage("A return request cannot be both approved and require more info.");
 
 			RuleFor(x => x.StaffNote)
-              .NotEmpty().WithMessage("Staff note is required when rejecting or requesting more info.")
+			  .NotEmpty().WithMessage("Staff note is required when rejecting or requesting more info.")
 				.When(x => !x.IsApproved || x.IsRequestMoreInfo);
 
 			RuleFor(x => x.StaffNote)
@@ -62,6 +90,34 @@ namespace PerfumeGPT.Application.Validators.OrderReturnRequests
 			RuleFor(x => x.CustomerNote)
 				.MaximumLength(1000).WithMessage("Customer note must not exceed 1000 characters.")
 				.When(x => !string.IsNullOrWhiteSpace(x.CustomerNote));
+
+			RuleFor(x => x.RefundBankName)
+				.MaximumLength(255).WithMessage("Refund bank name must not exceed 255 characters.")
+				.When(x => !string.IsNullOrWhiteSpace(x.RefundBankName));
+
+			RuleFor(x => x.RefundAccountNumber)
+				.MaximumLength(50).WithMessage("Refund account number must not exceed 50 characters.")
+				.When(x => !string.IsNullOrWhiteSpace(x.RefundAccountNumber));
+
+			RuleFor(x => x.RefundAccountName)
+				.MaximumLength(255).WithMessage("Refund account name must not exceed 255 characters.")
+				.When(x => !string.IsNullOrWhiteSpace(x.RefundAccountName));
+
+			RuleFor(x => x)
+				.Must(x =>
+				{
+					var hasBankInfo = !string.IsNullOrWhiteSpace(x.RefundBankName)
+						|| !string.IsNullOrWhiteSpace(x.RefundAccountNumber)
+						|| !string.IsNullOrWhiteSpace(x.RefundAccountName);
+
+					if (!hasBankInfo)
+						return true;
+
+					return !string.IsNullOrWhiteSpace(x.RefundBankName)
+						&& !string.IsNullOrWhiteSpace(x.RefundAccountNumber)
+						&& !string.IsNullOrWhiteSpace(x.RefundAccountName);
+				})
+				.WithMessage("Incomplete bank information. All fields are required if requesting a manual refund.");
 
 			RuleFor(x => x.TemporaryMediaIds)
 				.Must(mediaIds => mediaIds == null || mediaIds.Distinct().Count() == mediaIds.Count)

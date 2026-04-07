@@ -19,7 +19,15 @@ namespace PerfumeGPT.Domain.Entities
 		public bool IsRefundRequired { get; private set; }
 		public decimal? RefundAmount { get; private set; }
 		public bool IsRefunded { get; private set; }
-		public string? VnpTransactionNo { get; private set; }
+
+		//public string? VnpTransactionNo { get; private set; }
+		// Đổi tên để dùng chung cho mọi phương thức
+		public string? RefundTransactionReference { get; private set; }
+
+		// THÔNG TIN NGÂN HÀNG CỦA KHÁCH CUNG CẤP (Manual Refund)
+		public string? RefundBankName { get; private set; }
+		public string? RefundAccountNumber { get; private set; }
+		public string? RefundAccountName { get; private set; }
 
 		// Navigation properties
 		public virtual Order Order { get; set; } = null!;
@@ -45,6 +53,24 @@ namespace PerfumeGPT.Domain.Entities
 			if (payload.ProcessedById.HasValue && payload.ProcessedById.Value == Guid.Empty)
 				throw DomainException.BadRequest("Processed by user is invalid.");
 
+			var refundBankName = payload.RefundBankName?.Trim();
+			var refundAccountNumber = payload.RefundAccountNumber?.Trim();
+			var refundAccountName = payload.RefundAccountName?.Trim();
+
+			bool hasBankInfo = !string.IsNullOrWhiteSpace(refundBankName)
+				|| !string.IsNullOrWhiteSpace(refundAccountNumber)
+				|| !string.IsNullOrWhiteSpace(refundAccountName);
+
+			if (hasBankInfo)
+			{
+				if (string.IsNullOrWhiteSpace(refundBankName)
+					|| string.IsNullOrWhiteSpace(refundAccountNumber)
+					|| string.IsNullOrWhiteSpace(refundAccountName))
+				{
+					throw DomainException.BadRequest("Incomplete bank information. Bank name, account number, and account name are all required if requesting a manual refund.");
+				}
+			}
+
 			return new OrderCancelRequest
 			{
 				OrderId = orderId,
@@ -55,7 +81,10 @@ namespace PerfumeGPT.Domain.Entities
 				Status = CancelRequestStatus.Pending,
 				IsRefundRequired = payload.IsRefundRequired,
 				RefundAmount = payload.RefundAmount,
-				IsRefunded = false
+				IsRefunded = false,
+				RefundBankName = refundBankName,
+				RefundAccountNumber = refundAccountNumber,
+				RefundAccountName = refundAccountName?.ToUpperInvariant()
 			};
 		}
 
@@ -73,10 +102,10 @@ namespace PerfumeGPT.Domain.Entities
 			Status = isApproved ? CancelRequestStatus.Approved : CancelRequestStatus.Rejected;
 		}
 
-		public void MarkRefunded(string? vnpTransactionNo = null)
+		public void MarkRefunded(string? transactionReference = null)
 		{
 			IsRefunded = true;
-			VnpTransactionNo = string.IsNullOrWhiteSpace(vnpTransactionNo) ? null : vnpTransactionNo.Trim();
+			RefundTransactionReference = string.IsNullOrWhiteSpace(transactionReference) ? null : transactionReference.Trim();
 		}
 
 		// Records
@@ -87,6 +116,10 @@ namespace PerfumeGPT.Domain.Entities
 			public decimal? RefundAmount { get; init; }
 			public Guid? ProcessedById { get; init; }
 			public string? StaffNote { get; init; }
+
+			public string? RefundBankName { get; init; }
+			public string? RefundAccountNumber { get; init; }
+			public string? RefundAccountName { get; init; }
 		}
 	}
 }

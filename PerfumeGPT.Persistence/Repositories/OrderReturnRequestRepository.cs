@@ -55,7 +55,10 @@ namespace PerfumeGPT.Persistence.Repositories
 					ApprovedRefundAmount = r.ApprovedRefundAmount,
 					IsRefunded = r.IsRefunded,
 					IsRefundOnly = r.IsRefundOnly,
-					VnpTransactionNo = r.VnpTransactionNo,
+					RefundBankName = r.RefundBankName,
+					RefundAccountName = r.RefundAccountName,
+					RefundAccountNumber = r.RefundAccountNumber,
+					VnpTransactionNo = r.RefundTransactionReference,
 					IsRestocked = r.IsRestocked,
 					ReturnShippingInfo = r.ReturnShipping == null
 						? null
@@ -132,7 +135,10 @@ namespace PerfumeGPT.Persistence.Repositories
 					ApprovedRefundAmount = r.ApprovedRefundAmount,
 					IsRefunded = r.IsRefunded,
 					IsRefundOnly = r.IsRefundOnly,
-					VnpTransactionNo = r.VnpTransactionNo,
+					RefundBankName = r.RefundBankName,
+					RefundAccountName = r.RefundAccountName,
+					RefundAccountNumber = r.RefundAccountNumber,
+					VnpTransactionNo = r.RefundTransactionReference,
 					IsRestocked = r.IsRestocked,
 					ReturnShippingInfo = r.ReturnShipping == null
 						? null
@@ -192,7 +198,10 @@ namespace PerfumeGPT.Persistence.Repositories
 					ApprovedRefundAmount = r.ApprovedRefundAmount,
 					IsRefunded = r.IsRefunded,
 					IsRefundOnly = r.IsRefundOnly,
-					VnpTransactionNo = r.VnpTransactionNo,
+					RefundBankName = r.RefundBankName,
+					RefundAccountName = r.RefundAccountName,
+					RefundAccountNumber = r.RefundAccountNumber,
+					VnpTransactionNo = r.RefundTransactionReference,
 					IsRestocked = r.IsRestocked,
 					ReturnShippingInfo = r.ReturnShipping == null
 						? null

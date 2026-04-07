@@ -5,6 +5,7 @@
 		CashOnDelivery = 1,
 		VnPay,
 		Momo,
-		CashInStore
+		CashInStore,
+		ExternalBankTransfer,
 	}
 }

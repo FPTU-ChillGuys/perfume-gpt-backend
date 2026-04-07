@@ -47,10 +47,27 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PagedResult<OrderCancelRequestResponse>>> GetPagedRequestsAsync(GetPagedCancelRequestsRequest request)
 		{
 			var (items, totalCount) = await _unitOfWork.OrderCancelRequests.GetPagedResponsesAsync(request);
+			var canViewFullBankInfo = _httpContextAccessor.HttpContext?.User.IsInRole(UserRole.admin.ToString()) == true;
+
+			if (!canViewFullBankInfo)
+			{
+				items = [.. items.Select(i => i with
+				{
+					RefundAccountNumber = MaskAccountNumber(i.RefundAccountNumber)
+				})];
+			}
 
 			return BaseResponse<PagedResult<OrderCancelRequestResponse>>.Ok(
 				new PagedResult<OrderCancelRequestResponse>(items, request.PageNumber, request.PageSize, totalCount)
 			);
+		}
+
+		private static string? MaskAccountNumber(string? accountNumber)
+		{
+			if (string.IsNullOrWhiteSpace(accountNumber) || accountNumber.Length <= 4)
+				return accountNumber;
+
+			return new string('*', accountNumber.Length - 4) + accountNumber[^4..];
 		}
 
 		public async Task<BaseResponse<string>> ProcessRequestAsync(Guid requestId, Guid processedBy, string userRole, ProcessCancelRequest request)
@@ -77,18 +94,9 @@ namespace PerfumeGPT.Application.Services
 			{
 				if (cancelRequest.IsRefundRequired)
 				{
-					if (request.RefundMethod != PaymentMethod.VnPay
-						 && request.RefundMethod != PaymentMethod.Momo)
-					{
-						throw AppException.BadRequest("Only VNPay or Momo are supported for refund processing.");
-					}
-
 					var successfulOnlinePayments = (await _unitOfWork.Payments.GetAllAsync(
-								p => p.OrderId == order.Id
-								&& p.TransactionStatus == TransactionStatus.Success
-								&& (p.Method == PaymentMethod.VnPay || p.Method == PaymentMethod.Momo)))
-								.OrderByDescending(p => p.CreatedAt)
-								.ToList();
+						p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Success))
+						.OrderByDescending(p => p.CreatedAt).ToList();
 
 					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod) ?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
 
@@ -130,6 +138,16 @@ namespace PerfumeGPT.Application.Services
 							isRefundSuccess = momoResponse.IsSuccess;
 							refundMessage = momoResponse.Message;
 							refundTransactionNo = momoResponse.TransactionNo;
+							break;
+
+						case PaymentMethod.CashInStore:
+						case PaymentMethod.ExternalBankTransfer:
+							if (string.IsNullOrWhiteSpace(request.ManualTransactionReference))
+								throw AppException.BadRequest("Manual transaction reference is required for Bank Transfer refunds.");
+
+							isRefundSuccess = true;
+							refundMessage = request.StaffNote ?? "Manual refund recorded.";
+							refundTransactionNo = request.ManualTransactionReference?.Trim();
 							break;
 
 						default:
@@ -211,8 +229,7 @@ namespace PerfumeGPT.Application.Services
 						_unitOfWork.ShippingInfos.Update(freshOrder.ForwardShipping);
 					}
 
-					if (freshOrder.Type == OrderType.Online)
-						await _stockReservationService.ReleaseReservationAsync(freshOrder.Id);
+					await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(freshOrder.Id);
 
 					if (freshOrder.UserVoucherId.HasValue)
 						await _voucherService.RefundVoucherForCancelledOrderAsync(freshOrder.Id);

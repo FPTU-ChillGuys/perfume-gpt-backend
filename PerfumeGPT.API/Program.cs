@@ -45,7 +45,6 @@ static void LoadDotEnv(string path)
 				val = val.Substring(1, val.Length - 2);
 			}
 			Environment.SetEnvironmentVariable(key, val);
-			Console.WriteLine($"Set env var: {key}={val}");
 		}
 	}
 	catch (Exception ex)
@@ -57,7 +56,6 @@ static void LoadDotEnv(string path)
 var envPath = FindDotEnv(Directory.GetCurrentDirectory());
 if (envPath != null)
 {
-	Console.WriteLine($"Loading environment variables from: {envPath}");
 	LoadDotEnv(envPath);
 }
 

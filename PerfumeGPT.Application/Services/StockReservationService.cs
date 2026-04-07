@@ -15,7 +15,7 @@ namespace PerfumeGPT.Application.Services
 			_unitOfWork = unitOfWork;
 		}
 
-		public async Task ReserveStockForOrderAsync(Guid orderId, List<(Guid VariantId, int Quantity)> items, DateTime expiresAt)
+		public async Task ReserveStockForOrderAsync(Guid orderId, List<(Guid VariantId, int Quantity)> items, DateTime? expiresAt)
 		{
 			foreach (var (variantId, quantity) in items)
 			{
@@ -59,7 +59,7 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task ReserveExactBatchStockForOrderAsync(Guid orderId, List<(Guid VariantId, Guid BatchId, int Quantity)> items, DateTime expiresAt)
+		public async Task ReserveExactBatchStockForOrderAsync(Guid orderId, List<(Guid VariantId, Guid BatchId, int Quantity)> items, DateTime? expiresAt)
 		{
 			if (items == null || items.Count == 0)
 			{
@@ -160,35 +160,48 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task ReleaseReservationAsync(Guid orderId)
+		public async Task ReleaseOrRestockCancelledOrderAsync(Guid orderId)
 		{
 			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(orderId);
 			if (!reservations.Any()) return;
 
-			var reservationsGroupedByVariant = reservations
-				   .Where(r => r.Status == ReservationStatus.Reserved)
+			// Lấy CẢ phiếu Reserved và phiếu Committed
+			var activeReservations = reservations
+				   .Where(r => r.Status == ReservationStatus.Reserved || r.Status == ReservationStatus.Committed)
 				   .GroupBy(r => r.VariantId);
 
-			foreach (var group in reservationsGroupedByVariant)
+			foreach (var group in activeReservations)
 			{
 				var variantId = group.Key;
-				var totalQuantityToRelease = group.Sum(r => r.ReservedQuantity);
-
 				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
-				if (stock != null)
-				{
-					stock.ReleaseReservation(totalQuantityToRelease);
-					_unitOfWork.Stocks.Update(stock);
-				}
 
 				foreach (var reservation in group)
 				{
 					var batch = reservation.Batch;
-					batch.Release(reservation.ReservedQuantity);
+
+					if (reservation.Status == ReservationStatus.Reserved)
+					{
+						// 💥 TRƯỜNG HỢP 1: ĐƠN CHƯA ĐÓNG GÓI -> Chỉ cần nhả số lượng giữ (Release)
+						stock?.ReleaseReservation(reservation.ReservedQuantity);
+						batch.Release(reservation.ReservedQuantity);
+					}
+					else if (reservation.Status == ReservationStatus.Committed)
+					{
+						// 💥 TRƯỜNG HỢP 2: ĐƠN ĐÃ FULFILL -> Đã bị trừ vật lý -> Phải cộng lại (Increase/Restock)
+						if (stock != null) stock.Increase(reservation.ReservedQuantity);
+						batch.IncreaseQuantity(reservation.ReservedQuantity);
+					}
+
 					_unitOfWork.Batches.Update(batch);
 
+					// Đánh dấu phiếu này đã được giải phóng
 					reservation.Release();
 					_unitOfWork.StockReservations.Update(reservation);
+				}
+
+				if (stock != null)
+				{
+					_unitOfWork.Stocks.Update(stock);
 				}
 			}
 		}

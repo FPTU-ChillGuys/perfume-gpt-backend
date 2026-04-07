@@ -3,9 +3,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Persistence.Converters;
 using System.Security.Claims;
 using Attribute = PerfumeGPT.Domain.Entities.Attribute;
 
@@ -15,12 +17,18 @@ namespace PerfumeGPT.Persistence.Contexts
 	{
 		private readonly IHttpContextAccessor? _httpContextAccessor;
 		private readonly IAuditScope? _auditScope;
+		private readonly IEncryptionProvider? _encryptionProvider;
 
-		public PerfumeDbContext(DbContextOptions<PerfumeDbContext> options, IHttpContextAccessor? httpContextAccessor, IAuditScope? auditScope = null)
+      public PerfumeDbContext(
+			DbContextOptions<PerfumeDbContext> options,
+			IHttpContextAccessor? httpContextAccessor = null,
+			IAuditScope? auditScope = null,
+			IEncryptionProvider? encryptionProvider = null)
 			: base(options)
 		{
 			_httpContextAccessor = httpContextAccessor;
 			_auditScope = auditScope;
+           _encryptionProvider = encryptionProvider;
 		}
 
 		// Current user identifier for auditing (set externally, e.g. in services)
@@ -202,6 +210,9 @@ namespace PerfumeGPT.Persistence.Contexts
 		protected override void OnModelCreating(ModelBuilder builder)
 		{
 			base.OnModelCreating(builder);
+
+			var encryptionProvider = _encryptionProvider ?? new PassThroughEncryptionProvider();
+			var encryptionConverter = new EncryptionConverter(encryptionProvider);
 
 			// Configure BaseEntity primary keys
 			builder.Model.GetEntityTypes()
@@ -867,6 +878,14 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<OrderReturnRequest>().Property(orr => orr.RequestedRefundAmount).HasPrecision(18, 2);
 			builder.Entity<OrderReturnRequest>().Property(orr => orr.ApprovedRefundAmount).HasPrecision(18, 2);
 
+			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.RefundBankName).HasConversion(encryptionConverter);
+			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.RefundAccountNumber).HasConversion(encryptionConverter);
+			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.RefundAccountName).HasConversion(encryptionConverter);
+
+			builder.Entity<OrderReturnRequest>().Property(orr => orr.RefundBankName).HasConversion(encryptionConverter);
+			builder.Entity<OrderReturnRequest>().Property(orr => orr.RefundAccountNumber).HasConversion(encryptionConverter);
+			builder.Entity<OrderReturnRequest>().Property(orr => orr.RefundAccountName).HasConversion(encryptionConverter);
+
 			// Configure enum to string conversions
 			builder.Entity<PaymentTransaction>().Property(pt => pt.TransactionStatus).HasConversion<string>();
 			builder.Entity<PaymentTransaction>().Property(pt => pt.TransactionType).HasConversion<string>();
@@ -921,5 +940,11 @@ namespace PerfumeGPT.Persistence.Contexts
 			// Seed user roles
 			builder.Entity<IdentityUserRole<Guid>>().HasData(PerfumeDbContextSeed.SeedingUserRoles());
 		}
+
+	internal class PassThroughEncryptionProvider : IEncryptionProvider
+	{
+		public string? Encrypt(string? plainText) => plainText;
+		public string? Decrypt(string? cipherText) => cipherText;
+	}
 	}
 }

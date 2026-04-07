@@ -42,7 +42,7 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime CreatedAt { get; set; }
 
 		// Factory methods
-		public static Order CreateOnline(Guid customerId, decimal totalAmount, DateTime paymentExpiresAt)
+		public static Order CreateOnline(Guid customerId, decimal totalAmount, DateTime? paymentExpiresAt)
 		{
 			if (customerId == Guid.Empty)
 				throw DomainException.BadRequest("Customer ID is required for online orders.");
@@ -181,13 +181,16 @@ namespace PerfumeGPT.Domain.Entities
 
 		public void MarkPaid(DateTime paidAtUtc)
 		{
+			if (PaymentStatus == PaymentStatus.Paid)
+				throw DomainException.BadRequest("Order is already marked as paid.");
 			PaymentStatus = PaymentStatus.Paid;
 			PaidAt = paidAtUtc;
 		}
 
 		public void MarkUnpaid()
 		{
-			PaymentStatus = PaymentStatus.Unpaid;
+			if (PaymentStatus == PaymentStatus.Unpaid)
+				PaymentStatus = PaymentStatus.Unpaid;
 		}
 
 		public void MarkRefunded()
