@@ -31,6 +31,31 @@ namespace PerfumeGPT.Application.Services
 			return user;
 		}
 
+		public async Task<BaseResponse<CustomerForPosResponse>> GetCustomerForPosAsync(string phoneOrEmail)
+		{
+			if (string.IsNullOrWhiteSpace(phoneOrEmail))
+			{
+				return BaseResponse<CustomerForPosResponse>.Fail("Phone number or email is required.", ResponseErrorType.BadRequest);
+			}
+
+			var user = await _userRepository.FindByPhoneOrEmailAsync(phoneOrEmail);
+			if (user == null || user.IsDeleted || !user.IsActive)
+			{
+				return BaseResponse<CustomerForPosResponse>.Fail("Customer not found.", ResponseErrorType.NotFound);
+			}
+
+			var response = new CustomerForPosResponse
+			{
+				Id = user.Id,
+				FullName = user.FullName,
+				PhoneNumber = user.PhoneNumber ?? string.Empty,
+				Email = user.Email ?? string.Empty,
+				LoyaltyPoint = user.PointBalance
+			};
+
+			return BaseResponse<CustomerForPosResponse>.Ok(response, "Customer retrieved successfully.");
+		}
+
 		public async Task<BaseResponse<List<StaffLookupItem>>> GetStaffLookupAsync()
 		{
 			try

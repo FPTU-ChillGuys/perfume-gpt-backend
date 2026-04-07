@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
+using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Domain.Exceptions;
 
 namespace PerfumeGPT.Domain.Entities
@@ -90,6 +91,50 @@ namespace PerfumeGPT.Domain.Entities
 			if (string.IsNullOrWhiteSpace(fullName))
 				throw DomainException.BadRequest("Full name cannot be empty.");
 			FullName = fullName.Trim();
+		}
+
+		public LoyaltyTransaction EarnPoints(LoyaltyTransaction.EarnTransactionInfo info)
+		{
+			EnsureActive();
+
+			var transaction = LoyaltyTransaction.CreateEarn(this.Id, info);
+
+			LoyaltyTransactions.Add(transaction);
+
+			PointBalance += transaction.PointsChanged;
+
+			return transaction;
+		}
+
+		public LoyaltyTransaction SpendPoints(LoyaltyTransaction.SpendTransactionInfo info)
+		{
+			EnsureActive();
+
+			if (PointBalance < info.Points)
+				throw DomainException.BadRequest($"Insufficient point balance. Current balance is {PointBalance}, but tried to spend {info.Points}.");
+
+			var transaction = LoyaltyTransaction.CreateSpend(this.Id, info);
+
+			LoyaltyTransactions.Add(transaction);
+
+			PointBalance += transaction.PointsChanged;
+
+			return transaction;
+		}
+
+		public LoyaltyTransaction AdjustPointsManual(LoyaltyTransaction.ManualTransactionInfo info)
+		{
+			EnsureActive();
+
+			if (info.TransactionType == LoyaltyTransactionType.Spend && PointBalance < info.Points)
+				throw DomainException.BadRequest($"Insufficient point balance for manual deduction. Current: {PointBalance}.");
+
+			var transaction = LoyaltyTransaction.CreateManual(this.Id, info);
+
+			LoyaltyTransactions.Add(transaction);
+			PointBalance += transaction.PointsChanged;
+
+			return transaction;
 		}
 
 		// Record

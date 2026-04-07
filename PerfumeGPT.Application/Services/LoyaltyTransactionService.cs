@@ -2,9 +2,9 @@
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Loyalty;
 using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
-using PerfumeGPT.Domain.Entities;
 using static PerfumeGPT.Domain.Entities.LoyaltyTransaction;
 
 namespace PerfumeGPT.Application.Services
@@ -12,10 +12,12 @@ namespace PerfumeGPT.Application.Services
 	public class LoyaltyTransactionService : ILoyaltyTransactionService
 	{
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IUserRepository _userRepository;
 
-		public LoyaltyTransactionService(IUnitOfWork unitOfWork)
+		public LoyaltyTransactionService(IUnitOfWork unitOfWork, IUserRepository userRepository)
 		{
 			_unitOfWork = unitOfWork;
+			_userRepository = userRepository;
 		}
 
 		public async Task<BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>> GetLoyaltyHistoryAsync(Guid userId, GetPagedUserLoyaltyTransactionsRequest request)
@@ -52,6 +54,9 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<bool> PlusPointAsync(Guid userId, int points, Guid? orderId, bool saveChanges = true, string? reason = null)
 		{
+			var user = await _userRepository.GetByIdAsync(userId)
+				  ?? throw AppException.NotFound("User not found.");
+
 			var info = new EarnTransactionInfo
 			{
 				Points = points,
@@ -59,9 +64,8 @@ namespace PerfumeGPT.Application.Services
 				Reason = reason
 			};
 
-			var transaction = LoyaltyTransaction.CreateEarn(userId, info);
-
-			await _unitOfWork.LoyaltyTransactions.AddAsync(transaction);
+			user.EarnPoints(info);
+			_userRepository.Update(user);
 
 			if (saveChanges)
 			{
@@ -75,9 +79,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<bool> RedeemPointAsync(Guid userId, int points, Guid? voucherId, Guid? orderId, bool saveChanges = true, string? reason = null)
 		{
-			var currentBalance = await _unitOfWork.LoyaltyTransactions.GetPointBalanceAsync(userId);
-			if (currentBalance < points)
-				throw AppException.BadRequest("Insufficient loyalty points.");
+			var user = await _userRepository.GetByIdAsync(userId)
+				?? throw AppException.NotFound("User not found.");
 
 			var info = new SpendTransactionInfo
 			{
@@ -87,9 +90,8 @@ namespace PerfumeGPT.Application.Services
 				Reason = reason
 			};
 
-			var transaction = LoyaltyTransaction.CreateSpend(userId, info);
-
-			await _unitOfWork.LoyaltyTransactions.AddAsync(transaction);
+			user.SpendPoints(info);
+			_userRepository.Update(user);
 
 			if (saveChanges)
 			{
@@ -103,12 +105,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> ManualChangeAsync(Guid userId, ManualChangeRequest request)
 		{
-			if (request.TransactionType == Domain.Enums.LoyaltyTransactionType.Spend)
-			{
-				var currentBalance = await _unitOfWork.LoyaltyTransactions.GetPointBalanceAsync(userId);
-				if (currentBalance < request.Points)
-					throw AppException.BadRequest("Insufficient loyalty points.");
-			}
+			var user = await _userRepository.GetByIdAsync(userId)
+				 ?? throw AppException.NotFound("User not found.");
 
 			var info = new ManualTransactionInfo
 			{
@@ -117,8 +115,8 @@ namespace PerfumeGPT.Application.Services
 				Reason = request.Reason
 			};
 
-			var transaction = LoyaltyTransaction.CreateManual(userId, info);
-			await _unitOfWork.LoyaltyTransactions.AddAsync(transaction);
+			var transaction = user.AdjustPointsManual(info);
+			_userRepository.Update(user);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)

@@ -40,6 +40,16 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpGet("for-pos")]
+		[ProducesResponseType(typeof(BaseResponse<CustomerForPosResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<CustomerForPosResponse>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<CustomerForPosResponse>), StatusCodes.Status404NotFound)]
+		public async Task<ActionResult<BaseResponse<CustomerForPosResponse>>> GetCustomerForPos([FromQuery] string phoneOrEmail)
+		{
+			var response = await _userService.GetCustomerForPosAsync(phoneOrEmail);
+			return HandleResponse(response);
+		}
+
 		[HttpGet("staff-lookup")]
 		[ProducesResponseType(typeof(BaseResponse<List<StaffLookupItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<List<StaffLookupItem>>), StatusCodes.Status500InternalServerError)]
