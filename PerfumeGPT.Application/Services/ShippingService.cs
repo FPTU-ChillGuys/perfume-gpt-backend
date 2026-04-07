@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Shippings;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Shippings;
@@ -89,7 +90,9 @@ namespace PerfumeGPT.Application.Services
 
 				if (TryApplyShippingStatus(shippingInfo, targetStatus.Value))
 				{
-					var order = await _unitOfWork.Orders.FirstOrDefaultAsync(o => o.ForwardShippingId == shippingInfo.Id);
+                  var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
+						o => o.ForwardShippingId == shippingInfo.Id,
+						include: q => q.Include(o => o.PaymentTransactions));
 					if (order != null)
 					{
 						orderId = order.Id;
