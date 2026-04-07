@@ -88,7 +88,7 @@ namespace PerfumeGPT.Application.Services
 				if (!targetStatus.HasValue)
 					return false;
 
-				if (TryApplyShippingStatus(shippingInfo, targetStatus.Value))
+               if (TryApplyShippingStatus(shippingInfo, targetStatus.Value))
 				{
                   var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
 						o => o.ForwardShippingId == shippingInfo.Id,
@@ -107,6 +107,21 @@ namespace PerfumeGPT.Application.Services
 						}
 
 						returnRequestId = returnRequest.Id;
+
+						order = await _unitOfWork.Orders.FirstOrDefaultAsync(
+							o => o.Id == returnRequest.OrderId,
+							include: q => q.Include(o => o.PaymentTransactions));
+						if (order == null)
+						{
+							return false;
+						}
+
+                     orderId = order.Id;
+
+						if (targetStatus.Value == ShippingStatus.Delivering && order.Status == OrderStatus.Delivered)
+						{
+							order.SetStatus(OrderStatus.Returning);
+						}
 					}
 
 					_unitOfWork.ShippingInfos.Update(shippingInfo);

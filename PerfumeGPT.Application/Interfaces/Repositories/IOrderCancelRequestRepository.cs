@@ -8,5 +8,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	public interface IOrderCancelRequestRepository : IGenericRepository<OrderCancelRequest>
 	{
 		Task<(List<OrderCancelRequestResponse> Items, int TotalCount)> GetPagedResponsesAsync(GetPagedCancelRequestsRequest request);
+		Task<(List<OrderCancelRequestResponse> Items, int TotalCount)> GetPagedUserResponsesAsync(Guid userId, GetPagedCancelRequestsRequest request);
+		Task<OrderCancelRequestResponse?> GetResponseByIdAsync(Guid requestId);
 	}
 }

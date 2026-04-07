@@ -62,6 +62,38 @@ namespace PerfumeGPT.Application.Services
 			);
 		}
 
+		public async Task<BaseResponse<PagedResult<OrderCancelRequestResponse>>> GetPagedUserRequestsAsync(Guid userId, GetPagedCancelRequestsRequest request)
+		{
+			var (items, totalCount) = await _unitOfWork.OrderCancelRequests.GetPagedUserResponsesAsync(userId, request);
+			items = [.. items.Select(i => i with
+			{
+				RefundAccountNumber = MaskAccountNumber(i.RefundAccountNumber)
+			})];
+
+			return BaseResponse<PagedResult<OrderCancelRequestResponse>>.Ok(
+				new PagedResult<OrderCancelRequestResponse>(items, request.PageNumber, request.PageSize, totalCount)
+			);
+		}
+
+		public async Task<BaseResponse<OrderCancelRequestResponse>> GetRequestByIdAsync(Guid requestId, Guid requesterId, bool isPrivilegedUser)
+		{
+			var request = await _unitOfWork.OrderCancelRequests.GetResponseByIdAsync(requestId)
+				?? throw AppException.NotFound("Cancel request not found.");
+
+			if (!isPrivilegedUser && request.RequestedById != requesterId)
+				throw AppException.Forbidden("You are not allowed to view this cancel request.");
+
+			if (!isPrivilegedUser)
+			{
+				request = request with
+				{
+					RefundAccountNumber = MaskAccountNumber(request.RefundAccountNumber)
+				};
+			}
+
+			return BaseResponse<OrderCancelRequestResponse>.Ok(request, "Cancel request retrieved successfully.");
+		}
+
 		private static string? MaskAccountNumber(string? accountNumber)
 		{
 			if (string.IsNullOrWhiteSpace(accountNumber) || accountNumber.Length <= 4)

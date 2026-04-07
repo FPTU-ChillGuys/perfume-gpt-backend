@@ -28,6 +28,30 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpGet("my-requests")]
+		[Authorize(Roles = "user")]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderCancelRequestResponse>>), StatusCodes.Status200OK)]
+		public async Task<ActionResult<BaseResponse<PagedResult<OrderCancelRequestResponse>>>> GetMyRequests([FromQuery] GetPagedCancelRequestsRequest request)
+		{
+			var userId = GetCurrentUserId();
+			var response = await _cancelRequestService.GetPagedUserRequestsAsync(userId, request);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("{id:guid}")]
+		[Authorize(Roles = "user,admin,staff")]
+		[ProducesResponseType(typeof(BaseResponse<OrderCancelRequestResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<OrderCancelRequestResponse>), StatusCodes.Status403Forbidden)]
+		[ProducesResponseType(typeof(BaseResponse<OrderCancelRequestResponse>), StatusCodes.Status404NotFound)]
+		public async Task<ActionResult<BaseResponse<OrderCancelRequestResponse>>> GetRequestById([FromRoute] Guid id)
+		{
+			var requesterId = GetCurrentUserId();
+			var isPrivilegedUser = User.IsInRole("admin") || User.IsInRole("staff");
+
+			var response = await _cancelRequestService.GetRequestByIdAsync(id, requesterId, isPrivilegedUser);
+			return HandleResponse(response);
+		}
+
 
 		[HttpPost("{id:guid}/process")]
 		[Authorize(Roles = "admin,staff")]

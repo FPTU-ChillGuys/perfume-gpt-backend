@@ -6,6 +6,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderCancelRequests
 	{
 		public Guid Id { get; init; }
 		public Guid OrderId { get; init; }
+		public required string OrderCode { get; init; }
 		public Guid RequestedById { get; init; }
 		public string? RequestedByEmail { get; init; }
 		public Guid? ProcessedById { get; init; }

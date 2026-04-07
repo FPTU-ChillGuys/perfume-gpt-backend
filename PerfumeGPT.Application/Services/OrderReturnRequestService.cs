@@ -377,6 +377,24 @@ namespace PerfumeGPT.Application.Services
 					 request.IsRestocked,
 					 request.InspectionNote);
 
+				var order = returnRequest.Order;
+				var isFullyRefunded = request.ApprovedRefundAmount >= order.TotalAmount;
+
+				if (isFullyRefunded)
+				{
+					if (order.Status == OrderStatus.Returning)
+					{
+						order.SetStatus(OrderStatus.Returned);
+					}
+				}
+				else
+				{
+					if (order.Status == OrderStatus.Returning)
+					{
+						order.SetStatus(OrderStatus.Partial_Returned);
+					}
+				}
+
 				if (returnRequest.IsRestocked)
 				{
 					var stockAdjustment = StockAdjustment.Create(
@@ -440,6 +458,8 @@ namespace PerfumeGPT.Application.Services
 					stockAdjustment.Complete(inspectedById);
 					await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
 				}
+
+				_unitOfWork.Orders.Update(order);
 				_unitOfWork.OrderReturnRequests.Update(returnRequest);
 
 				return BaseResponse<string>.Ok("Inspection result recorded.");
@@ -586,18 +606,10 @@ namespace PerfumeGPT.Application.Services
 				if (isFullyRefunded)
 				{
 					order.MarkRefunded();
-					if (order.Status != OrderStatus.Returned)
-					{
-						order.SetStatus(OrderStatus.Returned);
-					}
 				}
 				else
 				{
 					order.MarkPartiallyRefunded();
-					if (order.Status != OrderStatus.Partial_Returned)
-					{
-						order.SetStatus(OrderStatus.Partial_Returned);
-					}
 				}
 
 				var successRefund = PaymentTransaction.CreateRefund(
