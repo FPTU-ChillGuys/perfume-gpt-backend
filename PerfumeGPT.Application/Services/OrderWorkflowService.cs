@@ -46,7 +46,7 @@ namespace PerfumeGPT.Application.Services
 					}
 
 					// Chốt giao dịch COD thành Success
-					var pendingCod = order.PaymentTransactions.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
+                   var pendingCod = order.PaymentTransactions?.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
 					if (pendingCod != null)
 					{
 						pendingCod.MarkSuccess("Thu hộ COD thành công bởi GHN");
@@ -80,7 +80,7 @@ namespace PerfumeGPT.Application.Services
 						order.SetStatus(OrderStatus.Returned);
 
 					// Huỷ khoản nợ COD (Khách không nhận, không thu được tiền)
-					var failedCod = order.PaymentTransactions.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
+                    var failedCod = order.PaymentTransactions?.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
 					if (failedCod != null)
 					{
 						failedCod.MarkCancelled("Khách không nhận hàng, hoàn về kho.");
@@ -116,7 +116,7 @@ namespace PerfumeGPT.Application.Services
 					{
 						order.SetStatus(OrderStatus.Cancelled);
 
-						var cancelCod = order.PaymentTransactions.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
+                        var cancelCod = order.PaymentTransactions?.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
 						if (cancelCod != null)
 						{
 							cancelCod.MarkCancelled("Giao vận bị huỷ.");
