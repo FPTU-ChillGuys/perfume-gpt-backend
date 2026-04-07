@@ -189,23 +189,20 @@ namespace PerfumeGPT.Application.Services
 					?? throw AppException.NotFound("Payment record not found.");
 
 				if (currentPayment.TransactionStatus == TransactionStatus.Success)
-				{
 					throw AppException.BadRequest("Cannot retry completed payments.");
-				}
 
 				if (currentPayment.TransactionStatus != TransactionStatus.Pending &&
 					 currentPayment.TransactionStatus != TransactionStatus.Failed)
-				{
 					throw AppException.BadRequest("Only pending or failed payments can be retried.");
-				}
 
 				if (currentPayment.IsPending() && newMethod != null && currentPayment.Method == newMethod.Method)
-				{
 					throw AppException.BadRequest("New payment method is the same as current method.");
-				}
 
 				var order = await _unitOfWork.Orders.GetByIdAsync(currentPayment.OrderId)
 					?? throw AppException.NotFound("Order not found.");
+
+				if (order.Status != OrderStatus.Pending)
+					throw AppException.BadRequest($"Cannot change payment method or retry because the order is already being processed (Current status: {order.Status}).");
 
 				var existingPendingPayments = await _unitOfWork.Payments
 					.GetAllAsync(p => p.OrderId == order.Id &&
@@ -230,13 +227,22 @@ namespace PerfumeGPT.Application.Services
 
 				await _unitOfWork.Payments.AddAsync(newPayment);
 
-				var refreshedExpiration = GetPaymentExpiration(paymentMethod);
-				order.SetPaymentExpiration(refreshedExpiration);
+				var freshExpiration = GetPaymentExpiration(paymentMethod);
+				DateTime? finalExpirationToSet = freshExpiration;
+
+				if (order.PaymentExpiresAt.HasValue && freshExpiration.HasValue)
+				{
+					finalExpirationToSet = order.PaymentExpiresAt.Value < freshExpiration.Value
+										 ? order.PaymentExpiresAt.Value
+										 : freshExpiration.Value;
+				}
+
+				order.SetPaymentExpiration(finalExpirationToSet);
 
 				var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(order.Id);
 				foreach (var reservation in reservations.Where(r => r.Status == ReservationStatus.Reserved))
 				{
-					reservation.SetExpiration(refreshedExpiration);
+					reservation.SetExpiration(finalExpirationToSet);
 					_unitOfWork.StockReservations.Update(reservation);
 				}
 
