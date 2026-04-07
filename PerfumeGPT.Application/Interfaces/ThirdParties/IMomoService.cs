@@ -9,6 +9,7 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 	{
 		Task<OrderCheckoutResponse> CreatePaymentUrlAsync(HttpContext context, MomoPaymentRequest request);
 		MomoPaymentResponse GetPaymentResponseAsync(IQueryCollection queryParameters);
+		Task<MomoQueryResponse> QueryTransactionAsync(MomoQueryRequest request);
 		Task<MomoRefundResponse> RefundAsync(HttpContext context, MomoRefundRequest request);
 	}
 }

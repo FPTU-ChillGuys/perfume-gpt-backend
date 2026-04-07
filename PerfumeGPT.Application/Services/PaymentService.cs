@@ -183,32 +183,59 @@ namespace PerfumeGPT.Application.Services
 		// private methods
 		private async Task<BaseResponse<string>> ProcessPaymentRetryAsync(Guid paymentId, PaymentInformation? newMethod = null)
 		{
+			var currentPayment = await _unitOfWork.Payments.GetByIdAsync(paymentId)
+				  ?? throw AppException.NotFound("Payment record not found.");
+
+			if (currentPayment.TransactionStatus == TransactionStatus.Success)
+				throw AppException.BadRequest("Cannot retry completed payments.");
+
+			if (currentPayment.Method == PaymentMethod.VnPay)
+			{
+				var statusSyncResponse = await TryCompleteVnPayIfAlreadyPaidAsync(currentPayment);
+				if (statusSyncResponse != null)
+				{
+					return statusSyncResponse;
+				}
+			}
+
+			if (currentPayment.Method == PaymentMethod.Momo)
+			{
+				var statusSyncResponse = await TryCompleteMomoIfAlreadyPaidAsync(currentPayment);
+				if (statusSyncResponse != null)
+				{
+					return statusSyncResponse;
+				}
+			}
+
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				var currentPayment = await _unitOfWork.Payments.GetByIdAsync(paymentId)
-					?? throw AppException.NotFound("Payment record not found.");
+				var payment = await _unitOfWork.Payments.GetByIdAsync(paymentId)
+					   ?? throw AppException.NotFound("Payment record not found.");
 
-				if (currentPayment.TransactionStatus == TransactionStatus.Success)
+				if (payment.TransactionStatus == TransactionStatus.Success)
 					throw AppException.BadRequest("Cannot retry completed payments.");
 
-				if (currentPayment.TransactionStatus != TransactionStatus.Pending &&
-					 currentPayment.TransactionStatus != TransactionStatus.Failed)
+				var isOnlineMethod = payment.Method == PaymentMethod.VnPay || payment.Method == PaymentMethod.Momo;
+				if (!isOnlineMethod &&
+					payment.TransactionStatus != TransactionStatus.Pending &&
+					payment.TransactionStatus != TransactionStatus.Failed)
 					throw AppException.BadRequest("Only pending or failed payments can be retried.");
 
-				if (currentPayment.IsPending() && newMethod != null && currentPayment.Method == newMethod.Method)
-					throw AppException.BadRequest("New payment method is the same as current method.");
-
-				var order = await _unitOfWork.Orders.GetByIdAsync(currentPayment.OrderId)
-					?? throw AppException.NotFound("Order not found.");
+				var order = await _unitOfWork.Orders.GetByIdAsync(payment.OrderId)
+					 ?? throw AppException.NotFound("Order not found.");
 
 				if (order.Status != OrderStatus.Pending)
 					throw AppException.BadRequest($"Cannot change payment method or retry because the order is already being processed (Current status: {order.Status}).");
 
+				if (order.PaymentExpiresAt.HasValue && order.PaymentExpiresAt.Value < DateTime.UtcNow)
+				{
+					throw AppException.BadRequest("The payment window for this order has expired. Please create a new order.");
+				}
+
 				var existingPendingPayments = await _unitOfWork.Payments
 					.GetAllAsync(p => p.OrderId == order.Id &&
-									  p.TransactionType == currentPayment.TransactionType &&
-									  p.TransactionStatus == TransactionStatus.Pending &&
-									  p.Id != paymentId);
+									  p.TransactionType == payment.TransactionType &&
+									  p.TransactionStatus == TransactionStatus.Pending);
 
 				foreach (var pendingPayment in existingPendingPayments)
 				{
@@ -216,45 +243,120 @@ namespace PerfumeGPT.Application.Services
 					_unitOfWork.Payments.Update(pendingPayment);
 				}
 
-				if (currentPayment.IsPending())
-				{
-					currentPayment.MarkCancelled("Superseded by new payment attempt.");
-					_unitOfWork.Payments.Update(currentPayment);
-				}
-
-				var paymentMethod = newMethod?.Method ?? currentPayment.Method;
-				var newPayment = currentPayment.CreateRetry(paymentMethod);
+				var paymentMethod = newMethod?.Method ?? payment.Method;
+				var newPayment = payment.CreateRetry(paymentMethod);
 
 				await _unitOfWork.Payments.AddAsync(newPayment);
 
-				var freshExpiration = GetPaymentExpiration(paymentMethod);
-				DateTime? finalExpirationToSet = freshExpiration;
+				var refreshedExpiration = GetPaymentExpiration(paymentMethod);
+				DateTime? finalExpirationToSet = order.PaymentExpiresAt;
 
-				if (order.PaymentExpiresAt.HasValue && freshExpiration.HasValue)
+				if (!order.PaymentExpiresAt.HasValue)
 				{
-					finalExpirationToSet = order.PaymentExpiresAt.Value < freshExpiration.Value
-										 ? order.PaymentExpiresAt.Value
-										 : freshExpiration.Value;
+					finalExpirationToSet = refreshedExpiration;
+				}
+				else if (refreshedExpiration.HasValue && refreshedExpiration.Value < order.PaymentExpiresAt.Value)
+				{
+					finalExpirationToSet = refreshedExpiration;
 				}
 
-				order.SetPaymentExpiration(finalExpirationToSet);
-
-				var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(order.Id);
-				foreach (var reservation in reservations.Where(r => r.Status == ReservationStatus.Reserved))
+				if (finalExpirationToSet != order.PaymentExpiresAt)
 				{
-					reservation.SetExpiration(finalExpirationToSet);
-					_unitOfWork.StockReservations.Update(reservation);
+					order.SetPaymentExpiration(finalExpirationToSet);
+
+					var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(order.Id);
+					foreach (var reservation in reservations.Where(r => r.Status == ReservationStatus.Reserved))
+					{
+						reservation.SetExpiration(finalExpirationToSet);
+						_unitOfWork.StockReservations.Update(reservation);
+					}
 				}
 
 				order.MarkUnpaid();
 				_unitOfWork.Orders.Update(order);
 
-				var methodChanged = currentPayment.Method != paymentMethod;
+				var methodChanged = payment.Method != paymentMethod;
 				var methodMessage = methodChanged
-					? $" (changed from {currentPayment.Method} to {paymentMethod})"
+				 ? $" (changed from {payment.Method} to {paymentMethod})"
 					: "";
 
 				return await GeneratePaymentResponse(newPayment, order, newPayment.RetryAttempt, methodMessage);
+			});
+		}
+
+		private async Task<BaseResponse<string>?> TryCompleteMomoIfAlreadyPaidAsync(PaymentTransaction payment)
+		{
+			var queryRequest = new MomoQueryRequest
+			{
+				PaymentId = payment.Id
+			};
+
+			var queryResponse = await _momoService.QueryTransactionAsync(queryRequest);
+			if (!queryResponse.IsSuccess)
+			{
+				return null;
+			}
+
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				var latestPayment = await _unitOfWork.Payments.GetByIdAsync(payment.Id)
+					?? throw AppException.NotFound("Payment record not found.");
+
+				if (latestPayment.TransactionStatus == TransactionStatus.Success)
+				{
+					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Order was already paid successfully.");
+				}
+
+				if (!latestPayment.IsPending())
+				{
+					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Gateway already confirmed payment.");
+				}
+
+				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(latestPayment.OrderId)
+					?? throw AppException.NotFound("Order not found.");
+
+				await CompleteSuccessfulPayment(latestPayment, order, queryResponse.TransactionNo);
+				return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Order was already paid successfully.");
+			});
+		}
+
+		private async Task<BaseResponse<string>?> TryCompleteVnPayIfAlreadyPaidAsync(PaymentTransaction payment)
+		{
+			var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext is not available.");
+			var queryRequest = new VnPayQueryRequest
+			{
+				PaymentId = payment.Id,
+				OrderInfo = $"Query payment status before retry: {payment.Id}",
+				TransactionNo = payment.GatewayTransactionNo,
+				TransactionDate = payment.CreatedAt.ToString("yyyyMMddHHmmss")
+			};
+
+			var queryResponse = await _vnPayService.QueryTransactionAsync(httpContext, queryRequest);
+			if (!queryResponse.IsSuccess)
+			{
+				return null;
+			}
+
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				var latestPayment = await _unitOfWork.Payments.GetByIdAsync(payment.Id)
+					?? throw AppException.NotFound("Payment record not found.");
+
+				if (latestPayment.TransactionStatus == TransactionStatus.Success)
+				{
+					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Order was already paid successfully.");
+				}
+
+				if (!latestPayment.IsPending())
+				{
+					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Gateway already confirmed payment.");
+				}
+
+				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(latestPayment.OrderId)
+					?? throw AppException.NotFound("Order not found.");
+
+				await CompleteSuccessfulPayment(latestPayment, order, queryResponse.TransactionNo);
+				return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Order was already paid successfully.");
 			});
 		}
 

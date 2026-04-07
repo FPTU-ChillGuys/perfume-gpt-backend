@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using System.Text.Json;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
 using PerfumeGPT.Application.DTOs.Responses.VNPays;
@@ -124,6 +125,116 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			};
 		}
 
+		public async Task<VnPayQueryResponse> QueryTransactionAsync(HttpContext context, VnPayQueryRequest request)
+		{
+			var vnp_RequestId = Guid.NewGuid().ToString("N");
+			var vnp_Version = _config["VnPay:Version"] ?? "2.1.0";
+			var vnp_Command = "querydr";
+			var vnp_TmnCode = _config["VnPay:TmnCode"] ?? string.Empty;
+			var vnp_TxnRef = request.PaymentId.ToString();
+			var vnp_OrderInfo = string.IsNullOrWhiteSpace(request.OrderInfo) ? $"Query GD: {vnp_TxnRef}" : request.OrderInfo;
+			var vnp_TransactionDate = request.TransactionDate;
+			var vnp_CreateDate = DateTime.UtcNow.AddHours(7).ToString("yyyyMMddHHmmss");
+			var vnp_IpAddr = await Utils.GetIpAddressAsync(context) ?? "127.0.0.1";
+
+			var secretKey = _config["VnPay:HashSecret"] ?? string.Empty;
+			var signData = $"{vnp_RequestId}|{vnp_Version}|{vnp_Command}|{vnp_TmnCode}|{vnp_TxnRef}|{vnp_TransactionDate}|{vnp_CreateDate}|{vnp_IpAddr}|{vnp_OrderInfo}";
+			var vnp_SecureHash = Utils.HmacSHA512(secretKey, signData);
+
+			var rqData = new
+			{
+				vnp_RequestId,
+				vnp_Version,
+				vnp_Command,
+				vnp_TmnCode,
+				vnp_TxnRef,
+				vnp_OrderInfo,
+				vnp_TransactionNo = request.TransactionNo,
+				vnp_TransactionDate,
+				vnp_CreateDate,
+				vnp_IpAddr,
+				vnp_SecureHash
+			};
+
+			var content = new StringContent(JsonSerializer.Serialize(rqData), System.Text.Encoding.UTF8, "application/json");
+			using var httpClient = new HttpClient();
+			var response = await httpClient.PostAsync(GetTransactionApiUrl(), content);
+			var responseString = await response.Content.ReadAsStringAsync();
+
+			if (!response.IsSuccessStatusCode)
+			{
+				return new VnPayQueryResponse
+				{
+					IsSuccess = false,
+					Message = $"VNPay query failed with HTTP {(int)response.StatusCode}",
+					PaymentId = request.PaymentId
+				};
+			}
+
+			try
+			{
+				using var jsonDocument = JsonDocument.Parse(responseString);
+				var root = jsonDocument.RootElement;
+
+				var responseCode = root.TryGetProperty("vnp_ResponseCode", out var responseCodeElement) ? responseCodeElement.GetString() : string.Empty;
+				var message = root.TryGetProperty("vnp_Message", out var messageElement) ? messageElement.GetString() : "Unknown response";
+				var transactionNo = root.TryGetProperty("vnp_TransactionNo", out var txNoElement) ? txNoElement.GetString() : string.Empty;
+				var transactionStatus = root.TryGetProperty("vnp_TransactionStatus", out var txStatusElement) ? txStatusElement.GetString() : string.Empty;
+				var amountRaw = root.TryGetProperty("vnp_Amount", out var amountElement) ? amountElement.GetString() : string.Empty;
+				var secureHash = root.TryGetProperty("vnp_SecureHash", out var secureHashElement) ? secureHashElement.GetString() : string.Empty;
+
+				if (string.IsNullOrEmpty(secureHash))
+				{
+					return new VnPayQueryResponse
+					{
+						IsSuccess = false,
+						Message = "Missing vnp_SecureHash in VNPay query response",
+						PaymentId = request.PaymentId,
+						ResponseCode = responseCode,
+						TransactionStatus = transactionStatus,
+						TransactionNo = transactionNo
+					};
+				}
+
+				var signatureData = BuildQueryResponseSignatureData(root);
+				var expectedSignature = Utils.HmacSHA512(secretKey, signatureData);
+				if (!string.Equals(expectedSignature, secureHash, StringComparison.OrdinalIgnoreCase))
+				{
+					return new VnPayQueryResponse
+					{
+						IsSuccess = false,
+						Message = "VNPay query signature validation failed",
+						PaymentId = request.PaymentId,
+						ResponseCode = responseCode,
+						TransactionStatus = transactionStatus,
+						TransactionNo = transactionNo
+					};
+				}
+
+				var apiSuccess = string.Equals(responseCode, "00", StringComparison.OrdinalIgnoreCase);
+				var paymentSuccess = string.Equals(transactionStatus, "00", StringComparison.OrdinalIgnoreCase);
+				return new VnPayQueryResponse
+				{
+					IsSuccess = apiSuccess && paymentSuccess,
+					Message = message ?? string.Empty,
+					PaymentId = request.PaymentId,
+					ResponseCode = responseCode,
+					TransactionStatus = transactionStatus,
+					TransactionNo = transactionNo,
+					Amount = decimal.TryParse(amountRaw, out var amount) ? amount / 100 : 0m
+				};
+			}
+			catch
+			{
+				return new VnPayQueryResponse
+				{
+					IsSuccess = false,
+					Message = "Invalid VNPay query response format",
+					PaymentId = request.PaymentId
+				};
+			}
+		}
+
 		public async Task<VnPayRefundResponse> RefundAsync(HttpContext context, VnPayRefundRequest request)
 		{
 			var vnp_RequestId = Guid.NewGuid().ToString("N");
@@ -142,7 +253,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			var secretKey = _config["VnPay:HashSecret"] ?? string.Empty;
 
-			var signData = $"{vnp_RequestId}|{vnp_Version}|{vnp_Command}|{vnp_TmnCode}|{vnp_TransactionType}|{vnp_TxnRef}|{vnp_Amount}|{vnp_TransactionNo}|{vnp_TransactionDate}|{vnp_CreateBy}|{vnp_CreateDate}|{vnp_IpAddr}|{vnp_OrderInfo}";
+         var signData = $"{vnp_RequestId}|{vnp_Version}|{vnp_Command}|{vnp_TmnCode}|{vnp_TransactionType}|{vnp_TxnRef}|{vnp_Amount}|{vnp_TransactionNo}|{vnp_TransactionDate}|{vnp_CreateBy}|{vnp_CreateDate}|{vnp_IpAddr}|{vnp_OrderInfo}";
 			var vnp_SecureHash = Utils.HmacSHA512(secretKey, signData);
 
 			var rqData = new
@@ -163,18 +274,10 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				vnp_SecureHash
 			};
 
-			var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(rqData), System.Text.Encoding.UTF8, "application/json");
-
-			var apiUrl = _config["VnPay:RefundUrl"];
-			if (string.IsNullOrEmpty(apiUrl))
-			{
-				apiUrl = _webHostEnvironment.EnvironmentName == Environments.Development
-					? _config["VnPay:RefundUrl"] ?? throw new InvalidOperationException("RefundUrl must be configured in development environment")
-					: "https://pay.vnpay.vn/merchant_webapi/api/transaction"; // fallback
-			}
+         var content = new StringContent(JsonSerializer.Serialize(rqData), System.Text.Encoding.UTF8, "application/json");
 
 			using var httpClient = new HttpClient();
-			var response = await httpClient.PostAsync(apiUrl, content);
+            var response = await httpClient.PostAsync(GetTransactionApiUrl(), content);
 			var responseString = await response.Content.ReadAsStringAsync();
 
 			// Assume refund request is always successful.
@@ -202,6 +305,48 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				Amount = request.Amount,
 				TransactionStatus = "00"
 			};
+		}
+
+		private string GetTransactionApiUrl()
+		{
+			var transactionApiUrl = _config["VnPay:TransactionApiUrl"];
+			if (!string.IsNullOrWhiteSpace(transactionApiUrl))
+			{
+				return transactionApiUrl;
+			}
+
+			var refundUrl = _config["VnPay:RefundUrl"];
+			if (!string.IsNullOrWhiteSpace(refundUrl))
+			{
+				return refundUrl;
+			}
+
+			return _webHostEnvironment.EnvironmentName == Environments.Development
+				? "https://sandbox.vnpayment.vn/merchant_webapi/api/transaction"
+				: "https://pay.vnpay.vn/merchant_webapi/api/transaction";
+		}
+
+		private static string BuildQueryResponseSignatureData(JsonElement root)
+		{
+			string GetValue(string propertyName)
+				=> root.TryGetProperty(propertyName, out var element) ? element.GetString() ?? string.Empty : string.Empty;
+
+			return string.Join("|",
+				GetValue("vnp_ResponseId"),
+				GetValue("vnp_Command"),
+				GetValue("vnp_ResponseCode"),
+				GetValue("vnp_Message"),
+				GetValue("vnp_TmnCode"),
+				GetValue("vnp_TxnRef"),
+				GetValue("vnp_Amount"),
+				GetValue("vnp_BankCode"),
+				GetValue("vnp_PayDate"),
+				GetValue("vnp_TransactionNo"),
+				GetValue("vnp_TransactionType"),
+				GetValue("vnp_TransactionStatus"),
+				GetValue("vnp_OrderInfo"),
+				GetValue("vnp_PromotionCode"),
+				GetValue("vnp_PromotionAmount"));
 		}
 	}
 }

@@ -159,6 +159,81 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			};
 		}
 
+		public async Task<MomoQueryResponse> QueryTransactionAsync(MomoQueryRequest request)
+		{
+			var endpoint = _configuration["Momo:QueryUrl"] ?? throw new InvalidOperationException("Momo QueryUrl or ApiUrl configuration is missing.");
+			var partnerCode = _configuration["Momo:PartnerCode"] ?? throw new InvalidOperationException("Momo PartnerCode configuration is missing.");
+			var accessKey = _configuration["Momo:AccessKey"] ?? throw new InvalidOperationException("Momo AccessKey configuration is missing.");
+			var secretKey = _configuration["Momo:SecretKey"] ?? throw new InvalidOperationException("Momo SecretKey configuration is missing.");
+
+			var requestId = Guid.NewGuid().ToString("N");
+			var orderId = request.PaymentId.ToString();
+			const string lang = "vi";
+
+			var rawHash = $"accessKey={accessKey}&orderId={orderId}&partnerCode={partnerCode}&requestId={requestId}";
+			var signature = ComputeHmacSha256(rawHash, secretKey);
+
+			var requestBody = new
+			{
+				partnerCode,
+				requestId,
+				orderId,
+				lang,
+				signature
+			};
+
+			var client = _httpClientFactory.CreateClient();
+			var response = await client.PostAsync(
+				endpoint,
+				new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json"));
+
+			var responseContent = await response.Content.ReadAsStringAsync();
+			if (!response.IsSuccessStatusCode)
+			{
+				return new MomoQueryResponse
+				{
+					IsSuccess = false,
+					Message = $"Momo query HTTP error: {response.StatusCode} - {responseContent}",
+					PaymentId = request.PaymentId
+				};
+			}
+
+			try
+			{
+				using var json = JsonDocument.Parse(responseContent);
+				var root = json.RootElement;
+
+				var resultCode = root.TryGetProperty("resultCode", out var resultCodeElement)
+					 ? resultCodeElement.GetInt32().ToString()
+					 : (root.TryGetProperty("errorCode", out var errorCodeElement) ? errorCodeElement.GetInt32().ToString() : string.Empty);
+				var message = root.TryGetProperty("message", out var messageElement)
+					? messageElement.GetString() ?? "Unknown error"
+					: "Unknown error";
+				var transactionNo = root.TryGetProperty("transId", out var transIdElement) ? transIdElement.ToString() : null;
+				var amountRaw = root.TryGetProperty("amount", out var amountElement) ? amountElement.ToString() : "0";
+
+				var success = string.Equals(resultCode, "0", StringComparison.OrdinalIgnoreCase);
+				return new MomoQueryResponse
+				{
+					IsSuccess = success,
+					Message = success ? "Payment successful" : message,
+					PaymentId = request.PaymentId,
+					ResultCode = resultCode,
+					TransactionNo = transactionNo,
+					Amount = decimal.TryParse(amountRaw, out var amount) ? amount : 0
+				};
+			}
+			catch
+			{
+				return new MomoQueryResponse
+				{
+					IsSuccess = false,
+					Message = "Invalid MoMo query response format.",
+					PaymentId = request.PaymentId
+				};
+			}
+		}
+
 		public async Task<MomoRefundResponse> RefundAsync(HttpContext context, MomoRefundRequest request)
 		{
 			var endpoint = _configuration["Momo:RefundUrl"] ?? throw new InvalidOperationException("Momo RefundUrl configuration is missing.");

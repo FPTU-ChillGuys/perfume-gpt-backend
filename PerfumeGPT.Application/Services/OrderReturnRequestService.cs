@@ -358,12 +358,6 @@ namespace PerfumeGPT.Application.Services
 				returnRequest.StartInspection(inspectedById, request.InspectionNote);
 				_unitOfWork.OrderReturnRequests.Update(returnRequest);
 
-				if (returnRequest.Order.Status == OrderStatus.Delivered ||
-					returnRequest.Order.Status == OrderStatus.Partial_Returned)
-				{
-					returnRequest.Order.SetStatus(OrderStatus.Returning);
-				}
-
 				return BaseResponse<string>.Ok("Inspection started.");
 			});
 		}
