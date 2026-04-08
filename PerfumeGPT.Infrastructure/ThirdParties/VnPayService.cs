@@ -44,7 +44,9 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			vnpay.AddRequestData("vnp_Locale", _config["VnPay:Locale"] ?? string.Empty);
 
 			// include subscription id and txn id in order info for later reconciliation
-			var orderInfo = $"Thanh toan don hang: {request.OrderCode}. So tien {request.Amount} {_config["VnPay:CurrCode"]}";
+			var orderInfo = $"Thanh toan don hang: {request.OrderCode}. So tien {request.Amount} {_config["VnPay:CurrCode"]}.";
+			if (request.PosSessionId != null)
+				orderInfo += $" PosSessionId: {request.PosSessionId}.";
 			vnpay.AddRequestData("vnp_OrderInfo", orderInfo);
 			vnpay.AddRequestData("vnp_OrderType", "210000"); // healh and beauty
 			vnpay.AddRequestData("vnp_ReturnUrl", returnUrl ?? string.Empty);
@@ -253,7 +255,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			var secretKey = _config["VnPay:HashSecret"] ?? string.Empty;
 
-         var signData = $"{vnp_RequestId}|{vnp_Version}|{vnp_Command}|{vnp_TmnCode}|{vnp_TransactionType}|{vnp_TxnRef}|{vnp_Amount}|{vnp_TransactionNo}|{vnp_TransactionDate}|{vnp_CreateBy}|{vnp_CreateDate}|{vnp_IpAddr}|{vnp_OrderInfo}";
+			var signData = $"{vnp_RequestId}|{vnp_Version}|{vnp_Command}|{vnp_TmnCode}|{vnp_TransactionType}|{vnp_TxnRef}|{vnp_Amount}|{vnp_TransactionNo}|{vnp_TransactionDate}|{vnp_CreateBy}|{vnp_CreateDate}|{vnp_IpAddr}|{vnp_OrderInfo}";
 			var vnp_SecureHash = Utils.HmacSHA512(secretKey, signData);
 
 			var rqData = new
@@ -274,10 +276,10 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				vnp_SecureHash
 			};
 
-         var content = new StringContent(JsonSerializer.Serialize(rqData), System.Text.Encoding.UTF8, "application/json");
+			var content = new StringContent(JsonSerializer.Serialize(rqData), System.Text.Encoding.UTF8, "application/json");
 
 			using var httpClient = new HttpClient();
-            var response = await httpClient.PostAsync(GetTransactionApiUrl(), content);
+			var response = await httpClient.PostAsync(GetTransactionApiUrl(), content);
 			var responseString = await response.Content.ReadAsStringAsync();
 
 			// Assume refund request is always successful.

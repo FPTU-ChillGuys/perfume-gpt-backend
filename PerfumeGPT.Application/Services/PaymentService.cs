@@ -23,7 +23,7 @@ namespace PerfumeGPT.Application.Services
 {
 	public class PaymentService : IPaymentService
 	{
-        private const long MaxPayOsOrderCode = 9007199254740991;
+		private const long MaxPayOsOrderCode = 9007199254740991;
 		#region Dependencies
 		private readonly IVnPayService _vnPayService;
 		private readonly IMomoService _momoService;
@@ -33,18 +33,20 @@ namespace PerfumeGPT.Application.Services
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IVoucherService _voucherService;
 		private readonly IBackgroundJobService _backgroundJobService;
+		private readonly ISignalRService _signalRService;
 		private readonly ILogger<PaymentService> _logger;
 
 		public PaymentService(
 			IVnPayService vnPayService,
 			IMomoService momoService,
-		 IPayOsService payOsService,
+			IPayOsService payOsService,
 			IUnitOfWork unitOfWork,
 			IHttpContextAccessor httpContextAccessor,
 			IVoucherService voucherService,
 			ILogger<PaymentService> logger,
 			IBackgroundJobService backgroundJobService,
-			IStockReservationService stockReservationService)
+			IStockReservationService stockReservationService,
+			ISignalRService signalRService)
 		{
 			_vnPayService = vnPayService;
 			_momoService = momoService;
@@ -55,6 +57,7 @@ namespace PerfumeGPT.Application.Services
 			_logger = logger;
 			_backgroundJobService = backgroundJobService;
 			_stockReservationService = stockReservationService;
+			_signalRService = signalRService;
 		}
 		#endregion Dependencies
 
@@ -261,6 +264,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<VnPayReturnResponse> ProcessVnPayReturnAsync(IQueryCollection queryParameters)
 		{
 			var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "VNPay payment failed");
+			var posSessionId = ResolvePosSessionIdFromVnPayReturn(queryParameters, vnPayResponse.PaymentInfo);
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
@@ -289,7 +293,7 @@ namespace PerfumeGPT.Application.Services
 
 				if (vnPayResponse.IsSuccess)
 				{
-					await CompleteSuccessfulPayment(payment, order, vnPayResponse.TransactionNo);
+					await CompleteSuccessfulPayment(payment, order, vnPayResponse.TransactionNo, posSessionId);
 					return payload;
 				}
 
@@ -537,7 +541,11 @@ namespace PerfumeGPT.Application.Services
 			});
 		}
 
-		private async Task<BaseResponse<bool>> CompleteSuccessfulPayment(PaymentTransaction payment, Order order, string? transactionNo = null)
+		private async Task<BaseResponse<bool>> CompleteSuccessfulPayment(
+			   PaymentTransaction payment,
+			   Order order,
+			   string? transactionNo = null,
+			   string? posSessionId = null)
 		{
 			payment.MarkSuccess(transactionNo);
 			order.MarkPaid(DateTime.UtcNow);
@@ -568,7 +576,114 @@ namespace PerfumeGPT.Application.Services
 
 			_backgroundJobService.EnqueueInvoiceEmail(_logger, order.Id);
 
+			posSessionId ??= ResolvePosSessionId();
+			if (!string.IsNullOrWhiteSpace(posSessionId))
+			{
+				var successMessage = payment.Method == PaymentMethod.VnPay
+					   ? "Thanh toán VNPay thành công"
+					   : "Thanh toán thành công";
+
+				try
+				{
+					await _signalRService.NotifyPosPaymentCompletedAsync(posSessionId, new PosPaymentCompletedDto
+					{
+						OrderId = order.Id,
+						Status = "Success",
+						Message = successMessage
+					});
+				}
+				catch (Exception ex)
+				{
+					_logger.LogWarning(ex, "Could not broadcast POS payment completion for order {OrderId} and session {SessionId}", order.Id, posSessionId);
+				}
+			}
+
 			return BaseResponse<bool>.Ok(true, "Payment processed successfully.");
+		}
+
+		private static string? ResolvePosSessionIdFromVnPayReturn(IQueryCollection queryParameters, string? paymentInfo)
+		{
+			if (queryParameters.TryGetValue("vnp_OrderInfo", out var orderInfoValue))
+			{
+				var sessionIdFromQuery = ExtractPosSessionId(orderInfoValue.ToString());
+				if (!string.IsNullOrWhiteSpace(sessionIdFromQuery))
+				{
+					return sessionIdFromQuery;
+				}
+			}
+
+			return ExtractPosSessionId(paymentInfo);
+		}
+
+		private static string? ExtractPosSessionId(string? source)
+		{
+			if (string.IsNullOrWhiteSpace(source))
+			{
+				return null;
+			}
+
+			const string marker = "PosSessionId:";
+			var markerIndex = source.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+			if (markerIndex < 0)
+			{
+				return null;
+			}
+
+			var valueStart = markerIndex + marker.Length;
+			if (valueStart >= source.Length)
+			{
+				return null;
+			}
+
+			var tail = source[valueStart..].Trim();
+			if (string.IsNullOrWhiteSpace(tail))
+			{
+				return null;
+			}
+
+			var dotIndex = tail.IndexOf('.');
+			var rawValue = dotIndex >= 0 ? tail[..dotIndex] : tail;
+			var sessionId = rawValue.Trim();
+
+			return string.IsNullOrWhiteSpace(sessionId) ? null : sessionId;
+		}
+
+		private string? ResolvePosSessionId()
+		{
+			var httpContext = _httpContextAccessor.HttpContext;
+			if (httpContext == null)
+			{
+				return null;
+			}
+
+			if (httpContext.Request.Headers.TryGetValue("X-Pos-Session-Id", out var headerSessionId))
+			{
+				var value = headerSessionId.ToString();
+				if (!string.IsNullOrWhiteSpace(value))
+				{
+					return value;
+				}
+			}
+
+			if (httpContext.Request.Query.TryGetValue("sessionId", out var querySessionId))
+			{
+				var value = querySessionId.ToString();
+				if (!string.IsNullOrWhiteSpace(value))
+				{
+					return value;
+				}
+			}
+
+			if (httpContext.Request.Query.TryGetValue("posSessionId", out var legacyQuerySessionId))
+			{
+				var value = legacyQuerySessionId.ToString();
+				if (!string.IsNullOrWhiteSpace(value))
+				{
+					return value;
+				}
+			}
+
+			return null;
 		}
 
 		private async Task<BaseResponse<bool>> HandleFailedPayment(PaymentTransaction payment, Order order, string? reason = null, string? transactionNo = null)

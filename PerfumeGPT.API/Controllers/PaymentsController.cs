@@ -38,7 +38,7 @@ namespace PerfumeGPT.API.Controllers
 		{
 			try
 			{
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
 
 				if (!Request.Query.ContainsKey("resultCode") ||
 					!Request.Query.ContainsKey("orderId"))
@@ -66,7 +66,7 @@ namespace PerfumeGPT.API.Controllers
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error processing MoMo callback");
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
 				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
 			}
 		}
@@ -74,19 +74,19 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("payos-return")]
 		[ProducesResponseType(StatusCodes.Status302Found)]
 		[ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> HandlePayOsReturnCallback()
+		public async Task<IActionResult> HandlePayOsReturnCallback()
 		{
 			try
 			{
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
 
-                if (!Request.Query.ContainsKey("orderCode") && !Request.Query.ContainsKey("paymentId"))
+				if (!Request.Query.ContainsKey("orderCode") && !Request.Query.ContainsKey("paymentId"))
 				{
 					_logger.LogWarning("PayOS callback missing required parameters");
 					return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Invalid payment callback")}");
 				}
 
-             var result = await _paymentService.ProcessPayOsReturnAsync(Request.Query);
+				var result = await _paymentService.ProcessPayOsReturnAsync(Request.Query);
 				var status = result.IsSuccess ? "success" : "failure";
 				var failureMessage = result.IsSuccess ? null : "PayOS payment failed.";
 
@@ -102,18 +102,18 @@ namespace PerfumeGPT.API.Controllers
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error processing PayOS callback");
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
 				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
 			}
 		}
 
 		[HttpGet("payos-cancel")]
 		[ProducesResponseType(StatusCodes.Status302Found)]
-        public async Task<IActionResult> HandlePayOsCancelCallback()
+		public async Task<IActionResult> HandlePayOsCancelCallback()
 		{
-         try
+			try
 			{
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
 				var result = await _paymentService.ProcessPayOsReturnAsync(Request.Query, isCancelCallback: true);
 
 				var redirectUrl = BuildPayOsRedirectUrl(
@@ -129,7 +129,7 @@ namespace PerfumeGPT.API.Controllers
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error processing PayOS cancel callback");
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
 				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
 			}
 		}
@@ -141,7 +141,7 @@ namespace PerfumeGPT.API.Controllers
 		{
 			try
 			{
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
 
 				// Validate required parameters exist
 				if (!Request.Query.ContainsKey("vnp_ResponseCode") ||
@@ -173,7 +173,7 @@ namespace PerfumeGPT.API.Controllers
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error processing VNPay callback");
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
 				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
 			}
 		}
@@ -300,13 +300,13 @@ namespace PerfumeGPT.API.Controllers
 			return $"{baseUrl}/payment/{status}{queryString}";
 		}
 
-       private static string BuildPayOsRedirectUrl(
-			string baseUrl,
-			string status,
-			IQueryCollection payOsQuery,
-			Guid? orderId = null,
-			Guid? paymentId = null,
-			string? errorMessage = null)
+		private static string BuildPayOsRedirectUrl(
+			 string baseUrl,
+			 string status,
+			 IQueryCollection payOsQuery,
+			 Guid? orderId = null,
+			 Guid? paymentId = null,
+			 string? errorMessage = null)
 		{
 			var paramsToForward = new[]
 			{

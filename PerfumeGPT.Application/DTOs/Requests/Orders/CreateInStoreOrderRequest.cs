@@ -22,5 +22,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Orders
 		public ContactAddressInformation? Recipient { get; init; }
 		public required PaymentInformation Payment { get; init; }
 		public decimal? ExpectedTotalPrice { get; init; } // Để chống sai lệch giá lúc nhân viên bấm thanh toán
+
+		public string? PosSessionId { get; set; }
 	}
 }

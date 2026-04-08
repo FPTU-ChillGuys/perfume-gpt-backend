@@ -120,7 +120,8 @@ if (app.Environment.IsDevelopment())
 	app.MapScalarApiReference();
 }
 
-app.UseCors("AllowConfiguredOrigins");
+//app.UseCors("AllowConfiguredOrigins");
+app.UseCors("AllowAllForDev");
 
 app.UseHttpsRedirection();
 

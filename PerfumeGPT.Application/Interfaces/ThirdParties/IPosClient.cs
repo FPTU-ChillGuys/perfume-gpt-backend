@@ -1,4 +1,5 @@
 using PerfumeGPT.Application.DTOs.Responses.Carts;
+using PerfumeGPT.Application.DTOs.Responses.Payments;
 
 namespace PerfumeGPT.Application.Interfaces.ThirdParties
 {
@@ -6,5 +7,6 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 	{
 		Task ReceiveBarcode(string barcode);
 		Task UpdateCustomerDisplay(CartDisplayDto cartData);
+		Task PaymentCompleted(PosPaymentCompletedDto paymentData);
 	}
 }

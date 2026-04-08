@@ -241,7 +241,7 @@ namespace PerfumeGPT.Application.Services
 				// Clear cart Items
 				await _cartService.ClearCartAsync(userId, request.ItemIds);
 
-				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, cartResponse.TotalPrice, request.Payment.Method);
+				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, cartResponse.TotalPrice, request.Payment.Method, null);
 				await _notificationService.CreateNewOrderNotificationAsync(order.Id, cartResponse.TotalPrice);
 
 				return BaseResponse<string>.Ok(response, "Checkout successful.");
@@ -334,7 +334,7 @@ namespace PerfumeGPT.Application.Services
 				await _stockReservationService.ReserveExactBatchStockForOrderAsync(order.Id, posReservationItems, null);
 
 				// 7. TẠO GIAO DỊCH THANH TOÁN (PENDING)
-				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, finalAmount, request.Payment.Method);
+				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, finalAmount, request.Payment.Method, request.PosSessionId);
 
 				return BaseResponse<string>.Ok(response, "Order created. Waiting for payment confirmation.");
 			});

@@ -130,13 +130,21 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			var aiBackendUrl = configuration["Back-end:aiUrl"] ?? throw new Exception("Missing ai url!!");
 			services.AddCors(options =>
 			{
-				options.AddPolicy("AllowConfiguredOrigins", builder =>
+				//options.AddPolicy("AllowConfiguredOrigins", builder =>
+				//{
+				//	builder
+				//		//.WithOrigins(webUrl, aiBackendUrl, webUrlHttps)
+				//		.AllowAnyOrigin()
+				//		.AllowAnyHeader()
+				//		.AllowAnyMethod()
+				//		.AllowCredentials();
+				//});
+				options.AddPolicy("AllowAllForDev", policy =>
 				{
-					builder
-						.WithOrigins(webUrl, aiBackendUrl, webUrlHttps)
-						.AllowAnyHeader()
-						.AllowAnyMethod()
-						.AllowCredentials();
+					policy.SetIsOriginAllowed(origin => true) // 💥 Cốt lõi: Linh động chấp nhận mọi Origin
+			  .AllowAnyHeader()
+			  .AllowAnyMethod()
+			  .AllowCredentials();
 				});
 			});
 

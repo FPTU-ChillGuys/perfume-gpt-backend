@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using PerfumeGPT.Application.DTOs.Responses.Carts;
+using PerfumeGPT.Application.DTOs.Responses.Payments;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 
 namespace PerfumeGPT.Infrastructure.Hubs
@@ -38,6 +39,14 @@ namespace PerfumeGPT.Infrastructure.Hubs
 				throw new HubException("Invalid session or cart data.");
 
 			await Clients.OthersInGroup(sessionId).UpdateCustomerDisplay(cartData);
+		}
+
+		public async Task NotifyPaymentSuccess(string sessionId, PosPaymentCompletedDto paymentData)
+		{
+			if (string.IsNullOrWhiteSpace(sessionId) || paymentData == null)
+				throw new HubException("Invalid session or payment data.");
+
+			await Clients.OthersInGroup(sessionId).PaymentCompleted(paymentData);
 		}
 	}
 }
