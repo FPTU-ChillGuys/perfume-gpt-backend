@@ -40,5 +40,13 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			await _posHubContext.Clients.Group(sessionId).PaymentCompleted(paymentData);
 		}
+
+		public async Task NotifyPosPaymentFailedAsync(string sessionId, PosPaymentCompletedDto paymentData)
+		{
+			if (string.IsNullOrWhiteSpace(sessionId) || paymentData is null)
+				return;
+
+			await _posHubContext.Clients.Group(sessionId).PaymentFailed(paymentData);
+		}
 	}
 }

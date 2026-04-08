@@ -8,5 +8,6 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		Task ReceiveBarcode(string barcode);
 		Task UpdateCustomerDisplay(CartDisplayDto cartData);
 		Task PaymentCompleted(PosPaymentCompletedDto paymentData);
+		Task PaymentFailed(PosPaymentCompletedDto paymentData);
 	}
 }

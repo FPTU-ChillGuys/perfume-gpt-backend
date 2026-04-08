@@ -23,8 +23,8 @@ namespace PerfumeGPT.Application.Services
 {
 	public class PaymentService : IPaymentService
 	{
-		private const long MaxPayOsOrderCode = 9007199254740991;
 		#region Dependencies
+		private const long MaxPayOsOrderCode = 9007199254740991;
 		private readonly IVnPayService _vnPayService;
 		private readonly IMomoService _momoService;
 		private readonly IPayOsService _payOsService;
@@ -263,44 +263,67 @@ namespace PerfumeGPT.Application.Services
 		// VnPay methods
 		public async Task<VnPayReturnResponse> ProcessVnPayReturnAsync(IQueryCollection queryParameters)
 		{
-			var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "VNPay payment failed");
-			var posSessionId = ResolvePosSessionIdFromVnPayReturn(queryParameters, vnPayResponse.PaymentInfo);
-
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			try
 			{
-				var payment = await _unitOfWork.Payments.GetByIdAsync(vnPayResponse.PaymentId)
-					?? throw AppException.NotFound("Payment record not found.");
+				var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "VNPay payment failed");
+				var posSessionId = ResolvePosSessionIdFromVnPayReturn(queryParameters, vnPayResponse.PaymentInfo);
 
-				var payload = new VnPayReturnResponse
+				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
-					PaymentId = payment.Id,
-					OrderId = payment.OrderId,
-					IsSuccess = vnPayResponse.IsSuccess
-				};
+					var payment = await _unitOfWork.Payments.GetByIdAsync(vnPayResponse.PaymentId)
+						?? throw AppException.NotFound("Payment record not found.");
 
-				if (!payment.IsPending())
-				{
-					return payload with { IsSuccess = payment.TransactionStatus == TransactionStatus.Success };
-				}
+					var payload = new VnPayReturnResponse
+					{
+						PaymentId = payment.Id,
+						OrderId = payment.OrderId,
+						IsSuccess = vnPayResponse.IsSuccess
+					};
 
-				if (payment.Amount != vnPayResponse.Amount)
-				{
-					throw AppException.BadRequest("Payment amount mismatch.");
-				}
+					if (!payment.IsPending())
+					{
+						return payload with { IsSuccess = payment.TransactionStatus == TransactionStatus.Success };
+					}
 
-				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
-					?? throw AppException.NotFound("Order not found.");
+					if (payment.Amount != vnPayResponse.Amount)
+					{
+						throw AppException.BadRequest("Payment amount mismatch.");
+					}
 
-				if (vnPayResponse.IsSuccess)
-				{
-					await CompleteSuccessfulPayment(payment, order, vnPayResponse.TransactionNo, posSessionId);
+					var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
+						?? throw AppException.NotFound("Order not found.");
+
+					if (vnPayResponse.IsSuccess)
+					{
+						await CompleteSuccessfulPayment(payment, order, vnPayResponse.TransactionNo, posSessionId);
+						return payload;
+					}
+
+					await HandleFailedPayment(payment, order, vnPayResponse.Message, vnPayResponse.TransactionNo, posSessionId);
 					return payload;
+				});
+			}
+			catch (DbUpdateConcurrencyException ex)
+			{
+				_logger.LogWarning(ex, "Giao dịch đã được xử lý bởi một luồng khác (Khả năng cao là IPN Webhook). Bỏ qua lỗi cập nhật.");
+
+				var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "VNPay payment failed");
+				var latestPayment = await _unitOfWork.Payments.FirstOrDefaultAsync(p => p.Id == vnPayResponse.PaymentId);
+
+				if (latestPayment == null)
+				{
+					throw AppException.NotFound("Payment record not found.");
 				}
 
-				await HandleFailedPayment(payment, order, vnPayResponse.Message, vnPayResponse.TransactionNo);
-				return payload;
-			});
+				return new VnPayReturnResponse
+				{
+					PaymentId = latestPayment.Id,
+					OrderId = latestPayment.OrderId,
+					IsSuccess = latestPayment.TransactionStatus == TransactionStatus.Success
+				};
+			}
 		}
+
 
 		private VnPaymentResponse GetValidatedVnPayResponse(IQueryCollection queryParameters, string invalidMessage)
 		{
@@ -656,15 +679,6 @@ namespace PerfumeGPT.Application.Services
 				return null;
 			}
 
-			if (httpContext.Request.Headers.TryGetValue("X-Pos-Session-Id", out var headerSessionId))
-			{
-				var value = headerSessionId.ToString();
-				if (!string.IsNullOrWhiteSpace(value))
-				{
-					return value;
-				}
-			}
-
 			if (httpContext.Request.Query.TryGetValue("sessionId", out var querySessionId))
 			{
 				var value = querySessionId.ToString();
@@ -686,13 +700,40 @@ namespace PerfumeGPT.Application.Services
 			return null;
 		}
 
-		private async Task<BaseResponse<bool>> HandleFailedPayment(PaymentTransaction payment, Order order, string? reason = null, string? transactionNo = null)
+		private async Task<BaseResponse<bool>> HandleFailedPayment(
+			PaymentTransaction payment,
+			Order order,
+			string? reason = null,
+			string? transactionNo = null,
+			string? posSessionId = null)
 		{
 			payment.MarkFailed(reason, transactionNo);
 			order.MarkUnpaid();
 
 			_unitOfWork.Payments.Update(payment);
 			_unitOfWork.Orders.Update(order);
+
+			posSessionId ??= ResolvePosSessionId();
+			if (!string.IsNullOrWhiteSpace(posSessionId))
+			{
+				var failedMessage = string.IsNullOrWhiteSpace(reason)
+					? "Thanh toán thất bại"
+					: reason;
+
+				try
+				{
+					await _signalRService.NotifyPosPaymentFailedAsync(posSessionId, new PosPaymentCompletedDto
+					{
+						OrderId = order.Id,
+						Status = "Failed",
+						Message = failedMessage
+					});
+				}
+				catch (Exception ex)
+				{
+					_logger.LogWarning(ex, "Could not broadcast POS payment failure for order {OrderId} and session {SessionId}", order.Id, posSessionId);
+				}
+			}
 
 			var message = string.IsNullOrEmpty(reason) ? "Payment failed." : $"Payment failed: {reason}";
 			return BaseResponse<bool>.Fail(message, ResponseErrorType.BadRequest);
