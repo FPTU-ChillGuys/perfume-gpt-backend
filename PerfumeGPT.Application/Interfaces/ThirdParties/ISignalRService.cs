@@ -9,5 +9,6 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		Task UpdateCustomerDisplayAsync(string sessionId, CartDisplayDto cartData);
 		Task NotifyPosPaymentCompletedAsync(string sessionId, PosPaymentCompletedDto paymentData);
 		Task NotifyPosPaymentFailedAsync(string sessionId, PosPaymentCompletedDto paymentData);
+       Task NotifyPosPaymentLinkUpdatedAsync(string sessionId, PosPaymentLinkDto paymentData);
 	}
 }

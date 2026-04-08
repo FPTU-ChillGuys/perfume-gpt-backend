@@ -49,12 +49,22 @@ namespace PerfumeGPT.Infrastructure.Hubs
 			await Clients.OthersInGroup(sessionId).PaymentCompleted(paymentData);
 		}
 
+
+
 		public async Task NotifyPaymentFailed(string sessionId, PosPaymentCompletedDto paymentData)
 		{
 			if (string.IsNullOrWhiteSpace(sessionId) || paymentData == null)
 				throw new HubException("Invalid session or payment data.");
 
 			await Clients.OthersInGroup(sessionId).PaymentFailed(paymentData);
+		}
+
+		public async Task NotifyPaymentLinkUpdated(string sessionId, PosPaymentLinkDto paymentData)
+		{
+			if (string.IsNullOrWhiteSpace(sessionId) || paymentData == null)
+				throw new HubException("Invalid session or payment data.");
+
+			await Clients.OthersInGroup(sessionId).PaymentLinkUpdated(paymentData);
 		}
 	}
 }

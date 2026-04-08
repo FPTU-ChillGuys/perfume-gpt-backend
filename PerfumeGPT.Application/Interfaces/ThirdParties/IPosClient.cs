@@ -9,5 +9,6 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		Task UpdateCustomerDisplay(CartDisplayDto cartData);
 		Task PaymentCompleted(PosPaymentCompletedDto paymentData);
 		Task PaymentFailed(PosPaymentCompletedDto paymentData);
+		Task PaymentLinkUpdated(PosPaymentLinkDto paymentData);
 	}
 }

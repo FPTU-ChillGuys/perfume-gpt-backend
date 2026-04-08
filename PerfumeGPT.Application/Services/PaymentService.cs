@@ -206,7 +206,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> RetryOrChangePaymentMethodAsync(Guid paymentId, PaymentInformation? newMethod = null)
 		{
-			return await ProcessPaymentRetryAsync(paymentId, newMethod);
+			return await ProcessPaymentRetryAsync(paymentId, newMethod, newMethod?.PosSessionId);
 		}
 
 		public async Task<BaseResponse<PaymentTransactionOverviewResponse>> GetTransactionsForManagementAsync(GetPaymentTransactionsFilterRequest request)
@@ -337,8 +337,10 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		// private methods
-		private async Task<BaseResponse<string>> ProcessPaymentRetryAsync(Guid paymentId, PaymentInformation? newMethod = null)
+		private async Task<BaseResponse<string>> ProcessPaymentRetryAsync(Guid paymentId, PaymentInformation? newMethod = null, string? posSessionId = null)
 		{
+			posSessionId ??= ResolvePosSessionId();
+
 			var currentPayment = await _unitOfWork.Payments.GetByIdAsync(paymentId)
 				  ?? throw AppException.NotFound("Payment record not found.");
 
@@ -448,7 +450,29 @@ namespace PerfumeGPT.Application.Services
 				 ? $" (changed from {payment.Method} to {paymentMethod})"
 					: "";
 
-				return await GeneratePaymentResponse(newPayment, order, newPayment.RetryAttempt, methodMessage);
+				var paymentResponse = await GeneratePaymentResponse(newPayment, order, newPayment.RetryAttempt, methodMessage, posSessionId);
+
+				if (!string.IsNullOrWhiteSpace(posSessionId)
+					&& !string.IsNullOrWhiteSpace(paymentResponse.Payload)
+					&& (paymentMethod == PaymentMethod.VnPay || paymentMethod == PaymentMethod.Momo || paymentMethod == PaymentMethod.PayOs))
+				{
+					try
+					{
+						await _signalRService.NotifyPosPaymentLinkUpdatedAsync(posSessionId, new PosPaymentLinkDto
+						{
+							OrderId = order.Id,
+							PaymentId = newPayment.Id,
+							Method = paymentMethod.ToString(),
+							PaymentUrl = paymentResponse.Payload
+						});
+					}
+					catch (Exception ex)
+					{
+						_logger.LogWarning(ex, "Could not broadcast POS payment link update for order {OrderId} and session {SessionId}", order.Id, posSessionId);
+					}
+				}
+
+				return paymentResponse;
 			});
 		}
 
@@ -739,7 +763,12 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<bool>.Fail(message, ResponseErrorType.BadRequest);
 		}
 
-		private async Task<BaseResponse<string>> GeneratePaymentResponse(PaymentTransaction payment, Order order, int retryAttempt, string methodMessage)
+		private async Task<BaseResponse<string>> GeneratePaymentResponse(
+			 PaymentTransaction payment,
+			 Order order,
+			 int retryAttempt,
+			 string methodMessage,
+			 string? posSessionId = null)
 		{
 			switch (payment.Method)
 			{
@@ -750,7 +779,8 @@ namespace PerfumeGPT.Application.Services
 						OrderId = order.Id,
 						OrderCode = order.Code,
 						PaymentId = payment.Id,
-						Amount = (int)payment.Amount
+						Amount = (int)payment.Amount,
+						PosSessionId = posSessionId
 					};
 
 					var paymentUrlResponse = await _vnPayService.CreatePaymentUrlAsync(httpContext, vnPayRequest);
