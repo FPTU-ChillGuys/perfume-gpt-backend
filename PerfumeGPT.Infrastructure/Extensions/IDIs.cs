@@ -43,6 +43,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			services.AddSingleton<ISupabaseService, SupabaseService>();
 			services.AddScoped<IVnPayService, VnPayService>();
 			services.AddScoped<IMomoService, MomoService>();
+			services.AddScoped<IPayOsService, PayOsService>();
 			services.AddScoped<ISignalRService, SignalRService>();
 			services.AddSingleton<IEncryptionProvider, AesEncryptionProvider>();
 

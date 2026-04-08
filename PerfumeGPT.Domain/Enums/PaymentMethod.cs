@@ -7,5 +7,6 @@
 		Momo,
 		CashInStore,
 		ExternalBankTransfer,
+		PayOs,
 	}
 }

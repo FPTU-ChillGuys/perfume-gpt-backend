@@ -71,6 +71,69 @@ namespace PerfumeGPT.API.Controllers
 			}
 		}
 
+		[HttpGet("payos-return")]
+		[ProducesResponseType(StatusCodes.Status302Found)]
+		[ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> HandlePayOsReturnCallback()
+		{
+			try
+			{
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+
+                if (!Request.Query.ContainsKey("orderCode") && !Request.Query.ContainsKey("paymentId"))
+				{
+					_logger.LogWarning("PayOS callback missing required parameters");
+					return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Invalid payment callback")}");
+				}
+
+             var result = await _paymentService.ProcessPayOsReturnAsync(Request.Query);
+				var status = result.IsSuccess ? "success" : "failure";
+				var failureMessage = result.IsSuccess ? null : "PayOS payment failed.";
+
+				var redirectUrl = BuildPayOsRedirectUrl(
+					frontendUrl,
+					status,
+					Request.Query,
+					result.OrderId,
+					result.PaymentId,
+					failureMessage);
+				return Redirect(redirectUrl);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error processing PayOS callback");
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
+			}
+		}
+
+		[HttpGet("payos-cancel")]
+		[ProducesResponseType(StatusCodes.Status302Found)]
+        public async Task<IActionResult> HandlePayOsCancelCallback()
+		{
+         try
+			{
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+				var result = await _paymentService.ProcessPayOsReturnAsync(Request.Query, isCancelCallback: true);
+
+				var redirectUrl = BuildPayOsRedirectUrl(
+					frontendUrl,
+					"failure",
+					Request.Query,
+					result.OrderId,
+					result.PaymentId,
+					"PayOS payment was cancelled.");
+
+				return Redirect(redirectUrl);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error processing PayOS cancel callback");
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? "http://localhost:3000";
+				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
+			}
+		}
+
 		[HttpGet("vnpay-return")]
 		[ProducesResponseType(StatusCodes.Status302Found)]
 		[ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -234,6 +297,52 @@ namespace PerfumeGPT.API.Controllers
 			}
 
 			var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
+			return $"{baseUrl}/payment/{status}{queryString}";
+		}
+
+       private static string BuildPayOsRedirectUrl(
+			string baseUrl,
+			string status,
+			IQueryCollection payOsQuery,
+			Guid? orderId = null,
+			Guid? paymentId = null,
+			string? errorMessage = null)
+		{
+			var paramsToForward = new[]
+			{
+				"code",
+				"id",
+				"cancel",
+				"status",
+				"orderCode"
+			};
+
+			var queryParams = new List<string>();
+
+			foreach (var paramName in paramsToForward)
+			{
+				if (payOsQuery.TryGetValue(paramName, out var value) && !string.IsNullOrWhiteSpace(value))
+				{
+					queryParams.Add($"{paramName}={Uri.EscapeDataString(value.ToString())}");
+				}
+			}
+
+			if (orderId.HasValue && orderId.Value != Guid.Empty)
+			{
+				queryParams.Add($"orderId={orderId.Value}");
+			}
+
+			if (paymentId.HasValue && paymentId.Value != Guid.Empty)
+			{
+				queryParams.Add($"paymentId={paymentId.Value}");
+			}
+
+			if (!string.IsNullOrWhiteSpace(errorMessage))
+			{
+				queryParams.Add($"error={Uri.EscapeDataString(errorMessage)}");
+			}
+
+			var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
 			return $"{baseUrl}/payment/{status}{queryString}";
 		}
 	}

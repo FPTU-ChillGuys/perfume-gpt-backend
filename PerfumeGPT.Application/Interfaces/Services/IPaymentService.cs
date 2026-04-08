@@ -4,6 +4,7 @@ using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Requests.Payments;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Payments;
+using PerfumeGPT.Application.DTOs.Responses.PayOs;
 using PerfumeGPT.Application.DTOs.Responses.VNPays;
 
 namespace PerfumeGPT.Application.Interfaces.Services
@@ -12,6 +13,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	{
 		Task<VnPayReturnResponse> ProcessVnPayReturnAsync(IQueryCollection queryParameters);
 		Task<MomoReturnResponse> ProcessMomoReturnAsync(IQueryCollection queryParameters);
+		Task<PayOsReturnResponse> ProcessPayOsReturnAsync(IQueryCollection queryParameters, bool isCancelCallback = false);
 		Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, ConfirmPaymentRequest request);
 		Task<BaseResponse<string>> RetryOrChangePaymentMethodAsync(Guid paymentId, PaymentInformation? newMethod = null);
 		Task<BaseResponse<PaymentTransactionOverviewResponse>> GetTransactionsForManagementAsync(GetPaymentTransactionsFilterRequest request);

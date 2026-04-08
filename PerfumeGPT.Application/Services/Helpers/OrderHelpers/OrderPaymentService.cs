@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using PerfumeGPT.Application.DTOs.Requests.Momos;
+using PerfumeGPT.Application.DTOs.Requests.PayOs;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
@@ -15,17 +16,20 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IVnPayService _vnPayService;
 		private readonly IMomoService _momoService;
+		private readonly IPayOsService _payOsService;
 		private readonly IHttpContextAccessor _httpContextAccessor;
 
 		public OrderPaymentService(
 			IUnitOfWork unitOfWork,
 			IVnPayService vnPayService,
 			IMomoService momoService,
+		   IPayOsService payOsService,
 			IHttpContextAccessor httpContextAccessor)
 		{
 			_unitOfWork = unitOfWork;
 			_vnPayService = vnPayService;
 			_momoService = momoService;
+			_payOsService = payOsService;
 			_httpContextAccessor = httpContextAccessor;
 		}
 
@@ -63,6 +67,19 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				};
 
 				var checkoutResponse = await _momoService.CreatePaymentUrlAsync(httpContext, momoRequest);
+				return checkoutResponse.PaymentUrl;
+			}
+			else if (paymentMethod == PaymentMethod.PayOs)
+			{
+				var payOsRequest = new PayOsPaymentRequest
+				{
+					OrderId = order.Id,
+					OrderCode = order.Code,
+					PaymentId = payment.Id,
+					Amount = (int)amount
+				};
+
+				var checkoutResponse = await _payOsService.CreatePaymentUrlAsync(payOsRequest);
 				return checkoutResponse.PaymentUrl;
 			}
 

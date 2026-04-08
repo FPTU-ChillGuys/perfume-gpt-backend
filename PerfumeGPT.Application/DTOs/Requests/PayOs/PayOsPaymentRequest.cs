@@ -1,0 +1,10 @@
+namespace PerfumeGPT.Application.DTOs.Requests.PayOs
+{
+	public record PayOsPaymentRequest
+	{
+		public Guid OrderId { get; init; }
+		public required string OrderCode { get; init; }
+		public Guid PaymentId { get; init; }
+		public int Amount { get; init; }
+	}
+}
