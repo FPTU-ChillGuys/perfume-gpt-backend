@@ -7,6 +7,7 @@ using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
+using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
 
 namespace PerfumeGPT.Persistence.Repositories
@@ -90,19 +91,19 @@ namespace PerfumeGPT.Persistence.Repositories
 			if (!string.IsNullOrWhiteSpace(request.Barcode))
 			{
 				var barcode = request.Barcode.Trim();
-				query = query.Where(v => v.Barcode == barcode);
+				query = query.Where(EfCollationExtensions.CollateContains<ProductVariant>(v => v.Barcode, barcode));
 			}
 
 			if (!string.IsNullOrWhiteSpace(request.Sku))
 			{
 				var sku = request.Sku.Trim().ToUpperInvariant();
-				query = query.Where(v => v.Sku == sku);
+				query = query.Where(EfCollationExtensions.CollateContains<ProductVariant>(v => v.Sku, sku));
 			}
 
 			if (!string.IsNullOrWhiteSpace(request.Name))
 			{
 				var name = request.Name.Trim();
-				query = query.Where(v => EF.Functions.Like(v.Product.Name, $"%{name}%"));
+				query = query.Where(EfCollationExtensions.CollateContains<ProductVariant>(v => v.Product.Name, name));
 			}
 
 			return await query

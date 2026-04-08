@@ -118,7 +118,7 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpGet("{orderId:guid}")]
-		[Authorize(Roles = "staff,admin")]
+		//[Authorize(Roles = "staff,admin")]
 		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status500InternalServerError)]
