@@ -635,6 +635,7 @@ namespace PerfumeGPT.Application.Services
 					await _signalRService.NotifyPosPaymentCompletedAsync(posSessionId, new PosPaymentCompletedDto
 					{
 						OrderId = order.Id,
+						PaymentId = payment.Id,
 						Status = "Success",
 						Message = successMessage
 					});
@@ -749,6 +750,7 @@ namespace PerfumeGPT.Application.Services
 					await _signalRService.NotifyPosPaymentFailedAsync(posSessionId, new PosPaymentCompletedDto
 					{
 						OrderId = order.Id,
+						PaymentId = payment.Id,
 						Status = "Failed",
 						Message = failedMessage
 					});

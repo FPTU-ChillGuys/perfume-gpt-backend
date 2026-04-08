@@ -18,8 +18,6 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<GetPagedOrdersRequest> _pagedOrdersValidator;
 		private readonly IValidator<CreateOrderRequest> _checkoutValidator;
 		private readonly IValidator<CreateInStoreOrderRequest> _checkoutInStoreValidator;
-		private readonly IValidator<PreviewOrderRequest> _previewOrderValidator;
-		private readonly IValidator<UpdateOrderStatusRequest> _updateOrderStatusValidator;
 		private readonly IValidator<StaffCancelOrderRequest> _staffCancelOrderValidator;
 		private readonly IValidator<UserCancelOrderRequest> _cancelOrderValidator;
 		private readonly IValidator<FulfillOrderRequest> _fulfillOrderValidator;
@@ -31,8 +29,6 @@ namespace PerfumeGPT.API.Controllers
 			IValidator<GetPagedOrdersRequest> pagedOrdersValidator,
 			IValidator<CreateOrderRequest> checkoutValidator,
 			IValidator<CreateInStoreOrderRequest> checkoutInStoreValidator,
-			IValidator<PreviewOrderRequest> previewOrderValidator,
-			IValidator<UpdateOrderStatusRequest> updateOrderStatusValidator,
 			IValidator<StaffCancelOrderRequest> staffCancelOrderValidator,
 			IValidator<UserCancelOrderRequest> cancelOrderValidator,
 			IValidator<FulfillOrderRequest> fulfillOrderValidator,
@@ -43,8 +39,6 @@ namespace PerfumeGPT.API.Controllers
 			_pagedOrdersValidator = pagedOrdersValidator;
 			_checkoutValidator = checkoutValidator;
 			_checkoutInStoreValidator = checkoutInStoreValidator;
-			_previewOrderValidator = previewOrderValidator;
-			_updateOrderStatusValidator = updateOrderStatusValidator;
 			_staffCancelOrderValidator = staffCancelOrderValidator;
 			_cancelOrderValidator = cancelOrderValidator;
 			_fulfillOrderValidator = fulfillOrderValidator;
@@ -80,7 +74,7 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpGet("ByOrderCode")]
+		[HttpGet("order-code")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status404NotFound)]
