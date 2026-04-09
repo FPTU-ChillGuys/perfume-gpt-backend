@@ -1,4 +1,4 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.Products;
+using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Products;
@@ -25,9 +25,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 
 		// Semantic search
 		Task<BaseResponse<List<ProductDailySaleFigureResponse>>> GetProductDailySaleFiguresAsync(DateOnly date);
-		Task<BaseResponse> UpdateAllProductsEmbeddingAsync();
-		Task<BaseResponse> UpdateProductEmbeddingAsync(Guid productId);
-		Task<BaseResponse<PagedResult<ProductListItemWithVariants>>> GetSemanticSearchProductAsync(string searchText, GetPagedProductRequest request);
+
 	}
 }
 

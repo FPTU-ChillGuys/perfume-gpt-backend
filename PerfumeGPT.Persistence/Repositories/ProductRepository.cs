@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.SqlTypes;
+using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.SemanticKernel;
@@ -740,120 +740,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
 
-		#region Vector Search Methods
-		public async Task<(List<ProductListItemWithVariants> Items, int TotalCount)>
-		GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request)
-		{
-			if (string.IsNullOrEmpty(searchText))
-				return ([], 0);
 
-			var embeddingGenerator = _kernel
-				.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
-
-			var searchEmbedding = await embeddingGenerator.GenerateVectorAsync(searchText);
-			var sqlVector = new SqlVector<float>(searchEmbedding);
-			const string metricType = "cosine";
-
-			var query = _context.Products
-			   .Where(p => !p.IsDeleted)
-				.OrderBy(p => EF.Functions.VectorDistance(metricType, p.Embedding!.Value, sqlVector))
-				.AsNoTracking()
-				.AsSplitQuery();
-
-			var totalCount = await query.CountAsync();
-
-			var items = await query
-				.Skip((request.PageNumber - 1) * request.PageSize)
-				.Take(request.PageSize)
-			   .Select(p => new ProductListItemWithVariants
-			   {
-				   Id = p.Id,
-				   Name = p.Name,
-				   BrandId = p.BrandId,
-				   BrandName = p.Brand.Name,
-				   CategoryId = p.CategoryId,
-				   CategoryName = p.Category.Name,
-				   Description = p.Description,
-				   NumberOfVariants = p.Variants.Count(v => !v.IsDeleted),
-				   VariantPrices = p.Variants.Where(v => !v.IsDeleted).Select(v => v.BasePrice).ToList(),
-				   PrimaryImage = p.Media
-						.Where(m => m.IsPrimary && !m.IsDeleted)
-						.Select(m => new MediaResponse
-						{
-							Id = m.Id,
-							Url = m.Url,
-							AltText = m.AltText,
-							IsPrimary = m.IsPrimary,
-							DisplayOrder = m.DisplayOrder,
-							MimeType = m.MimeType,
-							FileSize = m.FileSize
-						})
-						.FirstOrDefault(),
-				   Variants = p.Variants
-						.Where(v => !v.IsDeleted)
-						.Select(v => new VariantSummaryItem
-						{
-							Id = v.Id,
-							DisplayName = $"{v.Concentration.Name} - {v.VolumeMl}ml",
-							ConcentrationName = v.Concentration.Name
-						})
-						.ToList()
-			   })
-				.ToListAsync();
-
-			return (items, totalCount);
-		}
-
-		public async Task AddAllProductEmbeddingsAsync()
-		{
-			IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
-
-			var productIds = await _context.Products
-				.Where(p => !p.IsDeleted)
-				.Select(p => p.Id)
-				.ToListAsync();
-
-			const int batchSize = 50;
-
-			for (int i = 0; i < productIds.Count; i += batchSize)
-			{
-				var batchIds = productIds.Skip(i).Take(batchSize).ToList();
-
-				var productsBatch = await BuildFullProductDetailsQuery()
-					.Where(p => batchIds.Contains(p.Id))
-					.ToListAsync();
-
-				foreach (var product in productsBatch)
-				{
-					var textToEmbed = BuildEmbeddingText(product);
-					var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed);
-
-					product.Embedding = new SqlVector<float>(embedding);
-					_context.Update(product);
-				}
-
-				await _context.SaveChangesAsync();
-				_context.ChangeTracker.Clear();
-			}
-		}
-
-		public async Task AddProductEmbeddingsByIdAsync(Guid productId)
-		{
-			var embeddingGenerator = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
-
-			var product = await BuildFullProductDetailsQuery()
-				.FirstOrDefaultAsync(p => p.Id == productId && !p.IsDeleted);
-
-			if (product != null)
-			{
-				var textToEmbed = BuildEmbeddingText(product);
-				var embedding = await embeddingGenerator.GenerateVectorAsync(textToEmbed);
-
-				product.Embedding = new SqlVector<float>(embedding);
-				_context.Update(product);
-				await _context.SaveChangesAsync();
-			}
-		}
 
 		public async Task<List<ProductDailySaleFigureResponse>> GetProductDailySaleFiguresAsync(DateOnly date)
 		{
@@ -884,7 +771,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			return dailyFigures.Where(df => df.DailySaleFigures.Any(v => v.QuantitySold > 0)).ToList();
 		}
 
-		#endregion Vector Search Methods
+
 
 		#region Private Methods
 		private IQueryable<Product> BuildFullProductDetailsQuery()
@@ -908,63 +795,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 
-		private static string BuildEmbeddingText(Product product)
-		{
-			var sb = new StringBuilder();
 
-			sb.Append($"Name: {product.Name}.");
-			sb.Append($" Brand: {product.Brand?.Name}.");
-			sb.Append($" Category: {product.Category?.Name}.");
-
-			if (!string.IsNullOrWhiteSpace(product.Description))
-				sb.Append($" Description: {product.Description}.");
-
-			// Product-level attributes (e.g., Top Notes: Bergamot, Scent Family: Floral)
-			if (product.ProductAttributes?.Count > 0)
-			{
-				var grouped = product.ProductAttributes
-					.Where(pa => pa.Attribute != null && pa.Value != null)
-					.GroupBy(pa => pa.Attribute.Name);
-
-				foreach (var group in grouped)
-				{
-					var values = string.Join(", ", group.Select(pa => pa.Value.Value));
-					sb.Append($" {group.Key}: {values}.");
-				}
-			}
-
-			// Variants (e.g., concentration, volume, type, price, variant-level attributes)
-			if (product.Variants?.Count > 0)
-			{
-				var variantTexts = new List<string>();
-				foreach (var variant in product.Variants)
-				{
-					var parts = new List<string>();
-
-					if (variant.Concentration != null)
-						parts.Add(variant.Concentration.Name);
-
-					parts.Add($"{variant.VolumeMl}ml");
-					parts.Add(variant.Type.ToString());
-					parts.Add($"{variant.BasePrice:N0} VND");
-
-					// Variant-level attributes
-					if (variant.ProductAttributes?.Count > 0)
-					{
-						var variantAttrs = variant.ProductAttributes
-							.Where(pa => pa.Attribute != null && pa.Value != null)
-							.Select(pa => $"{pa.Attribute.Name}: {pa.Value.Value}");
-						parts.AddRange(variantAttrs);
-					}
-
-					variantTexts.Add(string.Join(", ", parts));
-				}
-
-				sb.Append($" Variants: [{string.Join("; ", variantTexts)}].");
-			}
-
-			return sb.ToString();
-		}
 
 		#endregion Private Methods
 	}
