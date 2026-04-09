@@ -5,6 +5,7 @@ using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
+using PerfumeGPT.Application.DTOs.Responses.Payments;
 using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.API.Controllers
@@ -139,11 +140,11 @@ namespace PerfumeGPT.API.Controllers
 		#region Checkout Operations
 		[HttpPost("checkout")]
 		[Authorize(Roles = "user")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> Checkout([FromBody] CreateOrderRequest request)
+		[ProducesResponseType(typeof(BaseResponse<CreatePaymentResponseDto>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<CreatePaymentResponseDto>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<CreatePaymentResponseDto>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<CreatePaymentResponseDto>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<CreatePaymentResponseDto>>> Checkout([FromBody] CreateOrderRequest request)
 		{
 			var validation = await ValidateRequestAsync(_checkoutValidator, request);
 			if (validation != null) return validation;
@@ -155,11 +156,11 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost("checkout-in-store")]
 		[Authorize(Roles = "staff")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> CheckoutInStore([FromBody] CreateInStoreOrderRequest request)
+		[ProducesResponseType(typeof(BaseResponse<CreatePaymentResponseDto>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<CreatePaymentResponseDto>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<CreatePaymentResponseDto>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<CreatePaymentResponseDto>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<CreatePaymentResponseDto>>> CheckoutInStore([FromBody] CreateInStoreOrderRequest request)
 		{
 			var validation = await ValidateRequestAsync(_checkoutInStoreValidator, request);
 			if (validation != null) return validation;

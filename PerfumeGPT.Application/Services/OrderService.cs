@@ -6,8 +6,10 @@ using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.CartItems;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
+using PerfumeGPT.Application.DTOs.Responses.Payments;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
@@ -157,7 +159,7 @@ namespace PerfumeGPT.Application.Services
 
 
 		#region Checkout Operations
-		public async Task<BaseResponse<string>> Checkout(Guid userId, CreateOrderRequest request)
+		public async Task<BaseResponse<CreatePaymentResponseDto>> Checkout(Guid userId, CreateOrderRequest request)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
@@ -235,7 +237,6 @@ namespace PerfumeGPT.Application.Services
 					var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(userId, null, voucher.Id, order.Id)
 						?? throw AppException.BadRequest("Failed to mark voucher as used.");
 
-					if (markVoucherResult != null)
 						order.AssignVoucher(markVoucherResult);
 				}
 
@@ -245,11 +246,11 @@ namespace PerfumeGPT.Application.Services
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, cartResponse.TotalPrice, request.Payment.Method, null);
 				await _notificationService.CreateNewOrderNotificationAsync(order.Id, cartResponse.TotalPrice);
 
-				return BaseResponse<string>.Ok(response, "Checkout successful.");
+				return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Checkout successful.");
 			});
 		}
 
-		public async Task<BaseResponse<string>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request)
+		public async Task<BaseResponse<CreatePaymentResponseDto>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request)
 		{
 			if (request.ScannedItems == null || request.ScannedItems.Count == 0)
 				throw AppException.BadRequest("No items in the order.");
@@ -337,7 +338,7 @@ namespace PerfumeGPT.Application.Services
 				// 7. TẠO GIAO DỊCH THANH TOÁN (PENDING)
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, finalAmount, request.Payment.Method, request.PosSessionId);
 
-				return BaseResponse<string>.Ok(response, "Order created. Waiting for payment confirmation.");
+				return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Order created. Waiting for payment confirmation.");
 			});
 		}
 		#endregion Checkout Operations
