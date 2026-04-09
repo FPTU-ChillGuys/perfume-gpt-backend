@@ -70,8 +70,6 @@ namespace PerfumeGPT.Application.Services
 						BulkOperationResult.FromBulkActionResponse("Media Upload", conversionResult));
 			}
 
-			await _unitOfWork.Products.AddProductEmbeddingsByIdAsync(product.Id);
-
 			var result = new BulkActionResult<string>(
 				product.Id.ToString(),
 				metadata.Operations.Count > 0 ? metadata : null);
@@ -130,7 +128,7 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update product");
 
-			await _unitOfWork.Products.AddProductEmbeddingsByIdAsync(productId);
+
 
 			var result = new BulkActionResult<string>(
 				productId.ToString(),
@@ -246,26 +244,7 @@ namespace PerfumeGPT.Application.Services
 				response, "Product daily sale figures retrieved successfully");
 		}
 
-		public async Task<BaseResponse<PagedResult<ProductListItemWithVariants>>> GetSemanticSearchProductAsync(
-			string searchText, GetPagedProductRequest request)
-		{
-			var (items, totalCount) = await _unitOfWork.Products.GetPagedProductsWithSemanticSearch(searchText, request);
-			return BaseResponse<PagedResult<ProductListItemWithVariants>>.Ok(
-				new PagedResult<ProductListItemWithVariants>(items, request.PageNumber, request.PageSize, totalCount),
-				"Semantic search products retrieved successfully");
-		}
 
-		public async Task<BaseResponse> UpdateAllProductsEmbeddingAsync()
-		{
-			await _unitOfWork.Products.AddAllProductEmbeddingsAsync();
-			return BaseResponse.Ok("All product embeddings updated successfully");
-		}
-
-		public async Task<BaseResponse> UpdateProductEmbeddingAsync(Guid productId)
-		{
-			await _unitOfWork.Products.AddProductEmbeddingsByIdAsync(productId);
-			return BaseResponse.Ok("Product embedding updated successfully");
-		}
 		#endregion
 
 		#region Private Methods

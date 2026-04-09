@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -173,26 +173,7 @@ namespace PerfumeGPT.API.Controllers
 
 
 		#region Product Recommendations
-		[HttpPost("embeddings/update/alls")]
-		public async Task<ActionResult<BaseResponse>> UpdateAllProductEmbeddings()
-		{
-			var response = await _productService.UpdateAllProductsEmbeddingAsync();
-			return HandleResponse(response);
-		}
 
-		[HttpPost("embeddings/update/{productId:guid}")]
-		public async Task<ActionResult<BaseResponse>> UpdateProductEmbeddings([FromRoute] Guid productId)
-		{
-			var response = await _productService.UpdateProductEmbeddingAsync(productId);
-			return HandleResponse(response);
-		}
-
-		[HttpGet("search/semantic")]
-		public async Task<ActionResult<BaseResponse<PagedResult<ProductListItemWithVariants>>>> GetSemanticSearchProducts([FromQuery] string searchText, [FromQuery] GetPagedProductRequest request)
-		{
-			var response = await _productService.GetSemanticSearchProductAsync(searchText, request);
-			return HandleResponse(response);
-		}
 
 		[HttpGet("daily-sale-figures")]
 		public async Task<ActionResult<BaseResponse<List<ProductDailySaleFigureResponse>>>> GetProductDailySaleFigures([FromQuery] DateOnly date)
