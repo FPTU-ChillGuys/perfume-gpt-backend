@@ -151,30 +151,28 @@ namespace PerfumeGPT.Persistence.Repositories
 			var now = DateTime.UtcNow;
 
 			var raw = await _context.ProductVariants
-				.AsNoTracking()
-			  .Where(v => !v.IsDeleted && v.Id == variantId)
-				.Select(v => new
-				{
-					Variant = new ProductVariantResponse
-					{
-						Id = v.Id,
-						ProductId = v.ProductId,
-						ProductName = v.Product.Name,
-						Barcode = v.Barcode,
-						Sku = v.Sku,
-						VolumeMl = v.VolumeMl,
-						ConcentrationId = v.ConcentrationId,
-						ConcentrationName = v.Concentration.Name,
-						Type = v.Type,
-						BasePrice = v.BasePrice,
-						RetailPrice = v.RetailPrice,
-						Status = v.Status,
-						Sillage = v.Sillage,
-						Longevity = v.Longevity,
-						StockQuantity = v.Stock != null
-							? v.Stock.TotalQuantity - v.Stock.ReservedQuantity
-							: 0,
-						Media = v.Media
+		.AsNoTracking()
+		.Where(v => !v.IsDeleted && v.Id == variantId)
+		.Select(v => new
+		{
+			Variant = new ProductVariantResponse
+			{
+				Id = v.Id,
+				ProductId = v.ProductId,
+				ProductName = v.Product.Name,
+				Barcode = v.Barcode,
+				Sku = v.Sku,
+				VolumeMl = v.VolumeMl,
+				ConcentrationId = v.ConcentrationId,
+				ConcentrationName = v.Concentration.Name,
+				Type = v.Type,
+				BasePrice = v.BasePrice,
+				RetailPrice = v.RetailPrice,
+				Status = v.Status,
+				Sillage = v.Sillage,
+				Longevity = v.Longevity,
+				StockQuantity = v.Stock != null ? v.Stock.TotalQuantity - v.Stock.ReservedQuantity : 0,
+				Media = v.Media
 							.Where(m => !m.IsDeleted)
 							.OrderBy(m => m.DisplayOrder)
 							.Select(m => new MediaResponse
@@ -188,7 +186,7 @@ namespace PerfumeGPT.Persistence.Repositories
 								FileSize = m.FileSize
 							})
 							.ToList(),
-						Attributes = v.ProductAttributes
+				Attributes = v.ProductAttributes
 							.Select(pa => new ProductAttributeResponse
 							{
 								AttributeId = pa.AttributeId,
@@ -197,10 +195,34 @@ namespace PerfumeGPT.Persistence.Repositories
 								Value = pa.Value.Value
 							})
 							.ToList()
-					},
+			},
 
-					// Lấy voucher tốt nhất từ campaign active duy nhất
-					ActiveVoucher = v.PromotionItems
+			BestPromotion = v.PromotionItems
+				.Where(pi =>
+					!pi.IsDeleted &&
+					pi.IsActive &&
+					!pi.Campaign.IsDeleted &&
+					pi.Campaign.Status == CampaignStatus.Active &&
+					pi.Campaign.StartDate <= now &&
+					pi.Campaign.EndDate >= now &&
+					(!pi.MaxUsage.HasValue || pi.CurrentUsage < pi.MaxUsage.Value)) // Chặn số lượt
+				.Select(pi => new
+				{
+					CampaignName = pi.Campaign.Name,
+					EndDate = pi.Campaign.EndDate,
+					DiscountType = pi.DiscountType,
+					DiscountValue = pi.DiscountValue,
+
+					// MAGIC Ở ĐÂY: Ép EF Core tính ra số tiền giảm thực tế để dễ so sánh
+					CalculatedDiscountAmount = pi.DiscountType == DiscountType.Percentage
+						? (v.BasePrice * pi.DiscountValue / 100m)
+						: pi.DiscountValue
+				})
+				.OrderByDescending(x => x.CalculatedDiscountAmount) // Giờ thì so sánh cực kỳ chính xác!
+				.FirstOrDefault(),
+
+			// Lấy voucher tốt nhất từ campaign active duy nhất
+			AvailableVouchers = v.PromotionItems
 						.Where(pi =>
 							!pi.IsDeleted &&
 							pi.IsActive &&
@@ -209,41 +231,38 @@ namespace PerfumeGPT.Persistence.Repositories
 							pi.Campaign.StartDate <= now &&
 							pi.Campaign.EndDate >= now)
 						.OrderByDescending(pi => pi.CreatedAt)
-						.SelectMany(pi => pi.Campaign.Vouchers
-							.Where(voucher =>
-								!voucher.IsDeleted &&
-								voucher.ExpiryDate >= now &&
-								voucher.ApplyType == VoucherType.Product &&
-								(voucher.RemainingQuantity == null || voucher.RemainingQuantity > 0) &&
-								(!voucher.TargetItemType.HasValue || voucher.TargetItemType == pi.ItemType))
-							.Select(voucher => new
-							{
-								CampaignName = pi.Campaign.Name,
-								voucher.Code,
-								voucher.DiscountType,
-								voucher.DiscountValue
-							}))
-						.OrderByDescending(x => x.DiscountValue) // ưu tiên giảm nhiều nhất
-						.FirstOrDefault()
-				})
-				.FirstOrDefaultAsync();
+						.SelectMany(pi => pi.Campaign.Vouchers)
+				.Where(voucher => !voucher.IsDeleted && voucher.ExpiryDate >= now && (voucher.RemainingQuantity == null || voucher.RemainingQuantity > 0))
+				.Select(voucher => voucher.Code)
+				.Distinct()
+				.ToList()
+		})
+		.FirstOrDefaultAsync();
 
 			if (raw?.Variant == null)
 				return null;
 
 			var response = raw.Variant;
 
-			if (raw.ActiveVoucher != null)
+          // Apply best promotion to calculate discounted price
+			if (raw.BestPromotion != null)
 			{
-				var discounted = raw.ActiveVoucher.DiscountType == DiscountType.Percentage
-					? response.BasePrice * (1 - raw.ActiveVoucher.DiscountValue / 100m)
-					: response.BasePrice - raw.ActiveVoucher.DiscountValue;
+				var safeDiscount = Math.Min(raw.BestPromotion.CalculatedDiscountAmount, response.BasePrice);
+               var discountedPrice = Math.Round(response.BasePrice - safeDiscount, 2, MidpointRounding.AwayFromZero);
 
 				response = response with
 				{
-					CampaignName = raw.ActiveVoucher.CampaignName,
-					VoucherCode = raw.ActiveVoucher.Code,
-					DiscountedPrice = discounted < 0 ? 0 : discounted
+                 DiscountedPrice = discountedPrice,
+					CampaignName = raw.BestPromotion.CampaignName,
+                    VoucherCode = raw.AvailableVouchers.FirstOrDefault()
+				};
+			}
+			else
+			{
+               response = response with
+				{
+					DiscountedPrice = response.BasePrice,
+					VoucherCode = raw.AvailableVouchers.FirstOrDefault()
 				};
 			}
 

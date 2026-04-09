@@ -10,5 +10,9 @@ namespace PerfumeGPT.Application.DTOs.Requests.Campaigns.Vouchers
 		public PromotionType TargetItemType { get; init; }
 		public DiscountType DiscountType { get; init; }
 		public VoucherType ApplyType { get; init; }
+       public decimal? MaxDiscountAmount { get; init; }
+		public required decimal MinOrderValue { get; init; }
+		public int? TotalQuantity { get; init; }
+		public int? MaxUsagePerUser { get; init; }
 	}
 }

@@ -11,9 +11,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IOrderInventoryManager _inventoryManager;
 
-		public OrderDetailsFactory(
-			IOrderInventoryManager inventoryManager,
-			IUnitOfWork unitOfWork)
+		public OrderDetailsFactory(IOrderInventoryManager inventoryManager, IUnitOfWork unitOfWork)
 		{
 			_inventoryManager = inventoryManager;
 			_unitOfWork = unitOfWork;
@@ -27,22 +25,13 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			if (order == null) throw AppException.BadRequest("Order is required.");
 			if (items == null || items.Count == 0) throw AppException.BadRequest("Order items are required.");
 
-			var stockItems = items
-				.GroupBy(i => i.VariantId)
-				.Select(g => (VariantId: g.Key, Quantity: g.Sum(x => x.Quantity)))
-				.ToList();
+			var stockItems = items.GroupBy(i => i.VariantId).Select(g => (VariantId: g.Key, Quantity: g.Sum(x => x.Quantity))).ToList();
 			var stockValidation = await _inventoryManager.ValidateStockAvailabilityAsync(stockItems);
-			if (!stockValidation)
-			{
-				throw AppException.BadRequest("Stock validation failed. Some items might be out of stock.");
-			}
+			if (!stockValidation) throw AppException.BadRequest("Stock validation failed.");
 
 			var variantIds = items.Select(i => i.VariantId).Distinct().ToList();
 			var variants = await _unitOfWork.Variants.GetVariantsWithDetailsByIdsAsync(variantIds);
-
 			var variantDictionary = variants.ToDictionary(v => v.Id);
-			decimal explicitDiscountTotal = 0m;
-
 			var batchStockTracker = new Dictionary<Guid, int>();
 
 			foreach (var (VariantId, BatchId, Quantity, LineDiscount, LineFinalTotal) in items)
@@ -53,73 +42,40 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				decimal unitPrice = variant.BasePrice;
 				var lineSubtotal = unitPrice * Quantity;
 
-				if (LineFinalTotal.HasValue && LineFinalTotal.Value > lineSubtotal)
-					throw AppException.BadRequest("Final total amount cannot exceed subtotal.");
+				// Lấy chính xác số tiền Discount từ Pricing Engine
+				var totalLineDiscount = LineFinalTotal.HasValue ? lineSubtotal - LineFinalTotal.Value : LineDiscount;
+				totalLineDiscount = Math.Max(0m, Math.Min(totalLineDiscount, lineSubtotal));
 
+				// TRƯỜNG HỢP 1: Có Batch cụ thể (Do Campaign hoặc user tự chọn)
 				if (BatchId.HasValue)
 				{
 					var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b => b.Id == BatchId.Value && b.VariantId == VariantId)
-						?? throw AppException.NotFound($"Batch {BatchId.Value} not found for variant {VariantId}.");
+						?? throw AppException.NotFound($"Batch {BatchId.Value} not found.");
 
-					if (!batchStockTracker.ContainsKey(batch.Id))
-						batchStockTracker[batch.Id] = batch.AvailableInBatch;
-
-					if (batchStockTracker[batch.Id] < Quantity)
-						throw AppException.Conflict($"Data inconsistency: Batch {batch.Id} does not have enough stock for variant {VariantId}. Need {Quantity}, available {batchStockTracker[batch.Id]}.");
+					if (!batchStockTracker.ContainsKey(batch.Id)) batchStockTracker[batch.Id] = batch.AvailableInBatch;
+					if (batchStockTracker[batch.Id] < Quantity) throw AppException.Conflict($"Batch {batch.Id} stock shortage.");
 
 					batchStockTracker[batch.Id] -= Quantity;
 
-					var totalLineDiscount = LineFinalTotal.HasValue
-						? lineSubtotal - LineFinalTotal.Value
-						: LineDiscount;
-
-					totalLineDiscount = Math.Max(0m, Math.Min(totalLineDiscount, lineSubtotal));
-					explicitDiscountTotal += totalLineDiscount;
-
-					var snapshotData = new
-					{
-						variant.Sku,
-						variant.Barcode,
-						ProductName = variant.Product?.Name ?? "Unknown Product",
-						variant.VolumeMl,
-						VariantType = variant.Type.ToString(),
-						Concentration = variant.Concentration?.Name,
-						BatchId = batch.Id,
-						batch.BatchCode,
-						batch.ExpiryDate,
-						FinalUnitPrice = Quantity > 0
-							? (lineSubtotal - totalLineDiscount) / Quantity
-							: 0m
-					};
-
-					string snapshotJson = JsonSerializer.Serialize(snapshotData);
-
-					order.AddOrderDetail(
-						 VariantId,
-						 Quantity,
-						 unitPrice,
-						 snapshotJson);
+					string snapshotJson = CreateSnapshotJson(variant, batch, Quantity, lineSubtotal, totalLineDiscount);
+					order.AddOrderDetail(VariantId, Quantity, unitPrice, snapshotJson);
 
 					if (totalLineDiscount > 0)
 					{
-						var createdOrderDetail = order.OrderDetails.Last();
-						createdOrderDetail.ApplyDiscount(totalLineDiscount);
+						order.OrderDetails.Last().ApplyDiscount(totalLineDiscount);
 					}
-
 					continue;
 				}
 
+				// TRƯỜNG HỢP 2: Không có Batch (Cắt Lô tự động FIFO)
 				var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(VariantId);
 				var remainingToAllocate = Quantity;
-				var allocations = new List<(Batch Batch, int Quantity)>();
+				var allocations = new List<(Batch Batch, int AllocatedQty)>();
 
 				foreach (var batch in availableBatches)
 				{
-					if (remainingToAllocate <= 0)
-						break;
-
-					if (!batchStockTracker.ContainsKey(batch.Id))
-						batchStockTracker[batch.Id] = batch.AvailableInBatch;
+					if (remainingToAllocate <= 0) break;
+					if (!batchStockTracker.ContainsKey(batch.Id)) batchStockTracker[batch.Id] = batch.AvailableInBatch;
 
 					var availableInBatch = batchStockTracker[batch.Id];
 					if (availableInBatch <= 0) continue;
@@ -127,92 +83,56 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					var quantityFromBatch = Math.Min(remainingToAllocate, availableInBatch);
 					allocations.Add((batch, quantityFromBatch));
 					remainingToAllocate -= quantityFromBatch;
-
 					batchStockTracker[batch.Id] -= quantityFromBatch;
 				}
 
-				if (remainingToAllocate > 0)
-					throw AppException.Conflict($"Data inconsistency: Batches do not have enough stock for variant {VariantId}. Need {Quantity}, missing {remainingToAllocate}.");
+				if (remainingToAllocate > 0) throw AppException.Conflict($"Stock shortage for variant {VariantId}.");
 
-				foreach (var (batch, allocatedQuantity) in allocations)
+				// Phân bổ số tiền Khuyến mãi của cả dòng xuống cho từng phần Lô bị cắt nhỏ
+				decimal allocatedDiscount = 0m;
+				for (int i = 0; i < allocations.Count; i++)
 				{
+					var (batch, allocatedQuantity) = allocations[i];
 					var detailLineTotal = unitPrice * allocatedQuantity;
 
-					var snapshotData = new
+					var isLast = i == allocations.Count - 1;
+					var sliceDiscount = isLast
+						? totalLineDiscount - allocatedDiscount // Lô cuối ôm phần tiền thừa (chống lệch xu)
+						: Math.Round((detailLineTotal / lineSubtotal) * totalLineDiscount, 2, MidpointRounding.AwayFromZero);
+
+					sliceDiscount = Math.Max(0m, Math.Min(sliceDiscount, detailLineTotal));
+					allocatedDiscount += sliceDiscount;
+
+					string snapshotJson = CreateSnapshotJson(variant, batch, allocatedQuantity, detailLineTotal, sliceDiscount);
+					order.AddOrderDetail(VariantId, allocatedQuantity, unitPrice, snapshotJson);
+
+					if (sliceDiscount > 0)
 					{
-						variant.Sku,
-						variant.Barcode,
-						ProductName = variant.Product?.Name ?? "Unknown Product",
-						variant.VolumeMl,
-						VariantType = variant.Type.ToString(),
-						Concentration = variant.Concentration?.Name,
-						BatchId = batch.Id,
-						batch.BatchCode,
-						batch.ExpiryDate,
-						FinalUnitPrice = allocatedQuantity > 0
-							? detailLineTotal / allocatedQuantity
-							: 0m
-					};
-
-					string snapshotJson = JsonSerializer.Serialize(snapshotData);
-
-					order.AddOrderDetail(
-						 VariantId,
-						 allocatedQuantity,
-						 unitPrice,
-						 snapshotJson);
-				}
-			}
-
-			var subtotal = order.OrderDetails.Sum(od => od.UnitPrice * od.Quantity);
-			if (subtotal <= 0)
-				return;
-
-			if (explicitDiscountTotal > 0)
-			{
-				if (finalTotalAmount.HasValue)
-				{
-					var expectedDiscountTotal = subtotal - finalTotalAmount.Value;
-					if (expectedDiscountTotal < 0)
-						throw AppException.BadRequest("Final total amount cannot exceed subtotal.");
-
-					var delta = expectedDiscountTotal - explicitDiscountTotal;
-					if (Math.Abs(delta) > 0.0001m)
-					{
-						var lastDetail = order.OrderDetails.Last();
-						var currentDiscount = lastDetail.ApportionedDiscount;
-						var lineTotal = lastDetail.UnitPrice * lastDetail.Quantity;
-						var adjustedDiscount = Math.Max(0m, Math.Min(currentDiscount + delta, lineTotal));
-						lastDetail.ApplyDiscount(adjustedDiscount);
+						order.OrderDetails.Last().ApplyDiscount(sliceDiscount);
 					}
 				}
-
-				return;
 			}
 
-			var effectiveFinalTotal = finalTotalAmount ?? order.TotalAmount;
-			var totalDiscount = subtotal - effectiveFinalTotal;
+			// ĐÃ XÓA TOÀN BỘ ĐOẠN TÍNH TOÁN APPORTIONMENT CŨ CỦA BẠN VÌ PRICING ENGINE ĐÃ LÀM RỒI
+		}
 
-			if (totalDiscount <= 0)
-				return;
-
-			if (totalDiscount > subtotal)
-				throw AppException.BadRequest("Total discount cannot exceed subtotal.");
-
-			decimal apportionedTotal = 0m;
-			for (var i = 0; i < order.OrderDetails.Count; i++)
+		// Tách hàm tạo Snapshot cho Clean Code
+		private static string CreateSnapshotJson(ProductVariant variant, Batch batch, int quantity, decimal lineTotal, decimal discount)
+		{
+			var snapshotData = new
 			{
-				var orderDetail = order.OrderDetails.ElementAt(i);
-				var lineTotal = orderDetail.UnitPrice * orderDetail.Quantity;
-
-				var apportionedDiscount = i == order.OrderDetails.Count - 1
-					? totalDiscount - apportionedTotal
-					: Math.Round((lineTotal / subtotal) * totalDiscount, 2, MidpointRounding.AwayFromZero);
-
-				apportionedDiscount = Math.Min(apportionedDiscount, lineTotal);
-				orderDetail.ApplyDiscount(apportionedDiscount);
-				apportionedTotal += apportionedDiscount;
-			}
+				variant.Sku,
+				variant.Barcode,
+				ProductName = variant.Product?.Name ?? "Unknown Product",
+				variant.VolumeMl,
+				VariantType = variant.Type.ToString(),
+				Concentration = variant.Concentration?.Name,
+				BatchId = batch.Id,
+				batch.BatchCode,
+				batch.ExpiryDate,
+				FinalUnitPrice = quantity > 0 ? (lineTotal - discount) / quantity : 0m
+			};
+			return JsonSerializer.Serialize(snapshotData);
 		}
 	}
 }

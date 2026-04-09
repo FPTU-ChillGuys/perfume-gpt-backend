@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
@@ -34,7 +33,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IContactAddressService _recipientService;
 		private readonly INotificationService _notificationService;
 		private readonly IGHNService _ghnService;
-       private readonly IBackgroundJobService _backgroundJobService;
+		private readonly IBackgroundJobService _backgroundJobService;
 		private readonly ILogger<OrderService> _logger;
 
 		public OrderService(
@@ -49,7 +48,7 @@ namespace PerfumeGPT.Application.Services
 			INotificationService notificationService,
 			IContactAddressService recipientService,
 			IGHNService ghnService,
-          IBackgroundJobService backgroundJobService,
+		  IBackgroundJobService backgroundJobService,
 			ILogger<OrderService> logger)
 		{
 			_unitOfWork = unitOfWork;
@@ -63,7 +62,7 @@ namespace PerfumeGPT.Application.Services
 			_notificationService = notificationService;
 			_recipientService = recipientService;
 			_ghnService = ghnService;
-           _backgroundJobService = backgroundJobService;
+			_backgroundJobService = backgroundJobService;
 			_logger = logger;
 		}
 		#endregion Dependencies
@@ -237,7 +236,7 @@ namespace PerfumeGPT.Application.Services
 					var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(userId, null, voucher.Id, order.Id)
 						?? throw AppException.BadRequest("Failed to mark voucher as used.");
 
-						order.AssignVoucher(markVoucherResult);
+					order.AssignVoucher(markVoucherResult);
 				}
 
 				// Clear cart Items
@@ -530,13 +529,13 @@ namespace PerfumeGPT.Application.Services
 					_unitOfWork.Payments.Update(pendingCod);
 				}
 
-                // 3. Schedule loyalty points after return window (Delivered + 10 days)
+				// 3. Schedule loyalty points after return window (Delivered + 10 days)
 				if (order.CustomerId.HasValue)
 				{
-                 int points = (int)(order.TotalAmount * 0.01m);
+					int points = (int)(order.TotalAmount * 0.01m);
 					if (points > 0)
 					{
-                       _backgroundJobService.ScheduleLoyaltyPointsGrant(_logger, order.Id, DateTime.UtcNow);
+						_backgroundJobService.ScheduleLoyaltyPointsGrant(_logger, order.Id, DateTime.UtcNow);
 					}
 				}
 

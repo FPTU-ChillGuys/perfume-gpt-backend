@@ -23,6 +23,21 @@ namespace PerfumeGPT.Application.Validators.Campaigns.Vouchers
 
 			RuleFor(x => x.TargetItemType)
 				.IsInEnum().WithMessage("Invalid target item type.");
+
+			RuleFor(x => x.MinOrderValue)
+				.GreaterThanOrEqualTo(0).WithMessage("Minimum order value must be greater than or equal to 0.");
+
+			RuleFor(x => x.MaxDiscountAmount)
+				.GreaterThan(0).WithMessage("Max discount amount must be greater than 0.")
+				.When(x => x.MaxDiscountAmount.HasValue);
+
+			RuleFor(x => x.TotalQuantity)
+				.GreaterThan(0).WithMessage("Total quantity must be greater than 0.")
+				.When(x => x.TotalQuantity.HasValue);
+
+			RuleFor(x => x.MaxUsagePerUser)
+				.GreaterThan(0).WithMessage("Max usage per user must be greater than 0.")
+				.When(x => x.MaxUsagePerUser.HasValue);
 		}
 	}
 }

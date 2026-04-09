@@ -10,7 +10,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<(List<UserVoucher> Items, int TotalCount)> GetPagedWithVouchersAsync(Guid userId, GetPagedUserVouchersRequest request);
 		Task<(List<AvailableVoucherResponse> Items, int TotalCount)> GetPagedAvailableVouchersAsync(Guid userId, GetPagedAvailableVouchersRequest request);
 		Task MigrateGuestVouchersAsync(Guid userId, string email, string phoneNumber);
-		Task<bool> HasRedeemedVoucherAsync(Guid userId, Guid voucherId, string? guestEmailOrPhone);
+		Task<int> GetUserVoucherUsageCountAsync(Guid userId, Guid voucherId, string? guestIdentifier);
 		Task<UserVoucher?> GetUnusedUserVoucherAsync(Guid userId, Guid voucherId);
 	}
 }

@@ -19,16 +19,16 @@ namespace PerfumeGPT.Persistence.Contexts
 		private readonly IAuditScope? _auditScope;
 		private readonly IEncryptionProvider? _encryptionProvider;
 
-      public PerfumeDbContext(
-			DbContextOptions<PerfumeDbContext> options,
-			IHttpContextAccessor? httpContextAccessor = null,
-			IAuditScope? auditScope = null,
-			IEncryptionProvider? encryptionProvider = null)
-			: base(options)
+		public PerfumeDbContext(
+			  DbContextOptions<PerfumeDbContext> options,
+			  IHttpContextAccessor? httpContextAccessor = null,
+			  IAuditScope? auditScope = null,
+			  IEncryptionProvider? encryptionProvider = null)
+			  : base(options)
 		{
 			_httpContextAccessor = httpContextAccessor;
 			_auditScope = auditScope;
-           _encryptionProvider = encryptionProvider;
+			_encryptionProvider = encryptionProvider;
 		}
 
 		// Current user identifier for auditing (set externally, e.g. in services)
@@ -487,7 +487,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<ProductVariant>()
 				.HasMany(v => v.PromotionItems)
 				.WithOne(p => p.ProductVariant)
-				.HasForeignKey(p => p.ProductVariantId)
+				.HasForeignKey(p => p.TargetProductVariantId)
 				.OnDelete(DeleteBehavior.Cascade);
 
 			// Batch -> Promotions
@@ -873,6 +873,9 @@ namespace PerfumeGPT.Persistence.Contexts
 
 			builder.Entity<Voucher>().Property(v => v.DiscountValue).HasPrecision(18, 2);
 			builder.Entity<Voucher>().Property(v => v.MinOrderValue).HasPrecision(18, 2);
+			builder.Entity<Voucher>().Property(v => v.MaxDiscountAmount).HasPrecision(18, 2);
+
+			builder.Entity<PromotionItem>().Property(pi => pi.DiscountValue).HasPrecision(18, 2);
 
 			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.RefundAmount).HasPrecision(18, 2);
 			builder.Entity<OrderReturnRequest>().Property(orr => orr.RequestedRefundAmount).HasPrecision(18, 2);
@@ -913,6 +916,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Stock>().Property(s => s.Status).HasConversion<string>();
 			builder.Entity<OrderReturnRequest>().Property(orr => orr.Status).HasConversion<string>();
 			builder.Entity<PromotionItem>().Property(p => p.ItemType).HasConversion<string>();
+			builder.Entity<PromotionItem>().Property(p => p.DiscountType).HasConversion<string>();
 			builder.Entity<Campaign>().Property(p => p.Status).HasConversion<string>();
 			builder.Entity<Campaign>().Property(p => p.Type).HasConversion<string>();
 			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.Status).HasConversion<string>();
@@ -941,10 +945,10 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<IdentityUserRole<Guid>>().HasData(PerfumeDbContextSeed.SeedingUserRoles());
 		}
 
-	internal class PassThroughEncryptionProvider : IEncryptionProvider
-	{
-		public string? Encrypt(string? plainText) => plainText;
-		public string? Decrypt(string? cipherText) => cipherText;
-	}
+		internal class PassThroughEncryptionProvider : IEncryptionProvider
+		{
+			public string? Encrypt(string? plainText) => plainText;
+			public string? Decrypt(string? cipherText) => cipherText;
+		}
 	}
 }

@@ -40,11 +40,13 @@ namespace PerfumeGPT.Persistence.Repositories
 				   ApplyType = v.ApplyType,
 				   TargetItemType = v.TargetItemType ?? default,
 				   RequiredPoints = v.RequiredPoints,
+                MaxDiscountAmount = v.MaxDiscountAmount,
 				   MinOrderValue = v.MinOrderValue,
 				   ExpiryDate = v.ExpiryDate,
 				   IsExpired = v.ExpiryDate < DateTime.UtcNow,
 				   TotalQuantity = v.TotalQuantity,
 				   RemainingQuantity = v.RemainingQuantity,
+                  MaxUsagePerUser = v.MaxUsagePerUser,
 				   IsPublic = v.IsPublic,
 				   CreatedAt = v.CreatedAt
 			   })
@@ -70,10 +72,12 @@ namespace PerfumeGPT.Persistence.Repositories
 				 DiscountValue = v.DiscountValue,
 				 DiscountType = v.DiscountType,
 				 RequiredPoints = v.RequiredPoints,
+                MaxDiscountAmount = v.MaxDiscountAmount,
 				 MinOrderValue = v.MinOrderValue,
 				 ExpiryDate = v.ExpiryDate,
 				 IsExpired = v.ExpiryDate < DateTime.UtcNow,
 				 RemainingQuantity = v.RemainingQuantity,
+                 MaxUsagePerUser = v.MaxUsagePerUser,
 				 CreatedAt = v.CreatedAt
 			 })
 				.ToListAsync();

@@ -81,6 +81,8 @@ namespace PerfumeGPT.Domain.Entities
 				ProductVariantId = details.ProductVariantId,
 				BatchId = details.BatchId,
 				ItemType = details.PromotionType,
+				DiscountType = details.DiscountType,
+				DiscountValue = details.DiscountValue,
 				MaxUsage = details.MaxUsage,
 				IsActive = this.Status == CampaignStatus.Active
 			});
@@ -101,7 +103,11 @@ namespace PerfumeGPT.Domain.Entities
 				ApplyType = details.ApplyType,
 				TargetItemType = details.TargetItemType,
 				CampaignId = this.Id,
-				ExpiryDate = this.EndDate
+				ExpiryDate = this.EndDate,
+				MaxDiscountAmount = details.MaxDiscountAmount,
+				MinOrderValue = details.MinOrderValue,
+				TotalQuantity = details.TotalQuantity,
+				MaxUsagePerUser = details.MaxUsagePerUser
 			});
 
 			Vouchers.Add(voucher);
@@ -123,6 +129,8 @@ namespace PerfumeGPT.Domain.Entities
 				ProductVariantId = details.ProductVariantId,
 				BatchId = details.BatchId,
 				ItemType = details.PromotionType,
+				DiscountType = details.DiscountType,
+				DiscountValue = details.DiscountValue,
 				MaxUsage = details.MaxUsage,
 				IsActive = Status == CampaignStatus.Active
 			});
@@ -146,7 +154,11 @@ namespace PerfumeGPT.Domain.Entities
 				ApplyType = details.ApplyType,
 				TargetItemType = details.TargetItemType,
 				CampaignId = this.Id,
-				ExpiryDate = this.EndDate
+				ExpiryDate = this.EndDate,
+				MaxDiscountAmount = details.MaxDiscountAmount,
+				MinOrderValue = details.MinOrderValue,
+				TotalQuantity = details.TotalQuantity,
+				MaxUsagePerUser = details.MaxUsagePerUser
 			});
 		}
 
@@ -203,6 +215,8 @@ namespace PerfumeGPT.Domain.Entities
 						ProductVariantId = req.ProductVariantId,
 						BatchId = req.BatchId,
 						ItemType = req.PromotionType,
+						DiscountType = req.DiscountType,
+						DiscountValue = req.DiscountValue,
 						MaxUsage = req.MaxUsage,
 						IsActive = isActive
 					});
@@ -214,6 +228,8 @@ namespace PerfumeGPT.Domain.Entities
 						ProductVariantId = req.ProductVariantId,
 						BatchId = req.BatchId,
 						PromotionType = req.PromotionType,
+						DiscountType = req.DiscountType,
+						DiscountValue = req.DiscountValue,
 						MaxUsage = req.MaxUsage
 					});
 				}
@@ -250,7 +266,11 @@ namespace PerfumeGPT.Domain.Entities
 						ApplyType = req.ApplyType,
 						TargetItemType = req.TargetItemType,
 						CampaignId = this.Id,
-						ExpiryDate = this.EndDate
+						ExpiryDate = this.EndDate,
+						MaxDiscountAmount = req.MaxDiscountAmount,
+						MinOrderValue = req.MinOrderValue,
+						TotalQuantity = req.TotalQuantity,
+						MaxUsagePerUser = req.MaxUsagePerUser
 					});
 				}
 				else
@@ -261,7 +281,11 @@ namespace PerfumeGPT.Domain.Entities
 						DiscountValue = req.DiscountValue,
 						DiscountType = req.DiscountType,
 						ApplyType = req.ApplyType,
-						TargetItemType = req.TargetItemType
+						TargetItemType = req.TargetItemType,
+						MaxDiscountAmount = req.MaxDiscountAmount,
+						MinOrderValue = req.MinOrderValue,
+						TotalQuantity = req.TotalQuantity,
+						MaxUsagePerUser = req.MaxUsagePerUser
 					});
 				}
 			}
@@ -295,6 +319,8 @@ namespace PerfumeGPT.Domain.Entities
 			public required Guid ProductVariantId { get; init; }
 			public Guid? BatchId { get; init; }
 			public required PromotionType PromotionType { get; init; }
+			public required DiscountType DiscountType { get; init; }
+			public required decimal DiscountValue { get; init; }
 			public int? MaxUsage { get; init; }
 		}
 
@@ -306,6 +332,10 @@ namespace PerfumeGPT.Domain.Entities
 			public required DiscountType DiscountType { get; init; }
 			public required VoucherType ApplyType { get; init; }
 			public required PromotionType TargetItemType { get; init; }
+			public decimal? MaxDiscountAmount { get; init; }
+			public required decimal MinOrderValue { get; init; }
+			public int? TotalQuantity { get; init; }
+			public int? MaxUsagePerUser { get; init; }
 		}
 
 		public sealed record CampaignCreationFactor
@@ -332,6 +362,8 @@ namespace PerfumeGPT.Domain.Entities
 			public required Guid ProductVariantId { get; init; }
 			public Guid? BatchId { get; init; }
 			public required PromotionType PromotionType { get; init; }
+			public required DiscountType DiscountType { get; init; }
+			public required decimal DiscountValue { get; init; }
 			public int? MaxUsage { get; init; }
 		}
 
@@ -342,6 +374,10 @@ namespace PerfumeGPT.Domain.Entities
 			public required DiscountType DiscountType { get; init; }
 			public required VoucherType ApplyType { get; init; }
 			public required PromotionType TargetItemType { get; init; }
+			public decimal? MaxDiscountAmount { get; init; }
+			public required decimal MinOrderValue { get; init; }
+			public int? TotalQuantity { get; init; }
+			public int? MaxUsagePerUser { get; init; }
 		}
 	}
 }

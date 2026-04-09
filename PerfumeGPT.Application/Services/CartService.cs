@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.CartItems;
@@ -21,12 +22,12 @@ namespace PerfumeGPT.Application.Services
 
 		public CartService(
 			IUnitOfWork unitOfWork,
-         IVoucherService voucherService,
+		 IVoucherService voucherService,
 			ISignalRService signalRService)
 		{
 			_unitOfWork = unitOfWork;
 			_voucherService = voucherService;
-           _signalRService = signalRService;
+			_signalRService = signalRService;
 		}
 		#endregion Dependencies
 
@@ -126,6 +127,17 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<PreviewPosOrderResponse>.Ok(response, string.IsNullOrWhiteSpace(voucherMessage) ? "Order previewed successfully." : voucherMessage);
 		}
 
+
+		public async Task<BaseResponse<string>> ClearCartAsync(Guid userId, List<Guid>? itemIds)
+		{
+			var hasItems = await _unitOfWork.CartItems.HasItemsAsync(userId);
+			if (hasItems)
+			{
+				await _unitOfWork.CartItems.ClearCartByUserIdAsync(userId, itemIds);
+			}
+			return BaseResponse<string>.Ok("Cart cleared successfully");
+		}
+
 		public async Task<CartCheckoutResponse> GetCartForCheckoutAsync(Guid userId, GetCartTotalRequest request)
 		{
 			var (items, _, finalAmount, _) = await BuildCheckoutPricingAsync(userId, request);
@@ -198,23 +210,25 @@ namespace PerfumeGPT.Application.Services
 		public async Task<(List<CartCheckoutItemDto> Items, decimal Subtotal, decimal FinalAmount, string? Message)> CalculatePricingEngineAsync(
 			List<CartCheckoutItemDto> checkoutItems, string? voucherCode, Guid? userId)
 		{
-			var subtotal = checkoutItems.Sum(x => x.SubTotal);
+			var (itemsAfterFlashSale, flashSaleMessage) = await ApplyAutoFlashSalesAsync(checkoutItems);
+			var subtotal = itemsAfterFlashSale.Sum(x => x.FinalTotal); // Subtotal MỚI sau khi đã trừ Flash Sale
 
+			// PHASE 2 & 3: XỬ LÝ VOUCHER
 			if (string.IsNullOrWhiteSpace(voucherCode))
-				return (checkoutItems, subtotal, subtotal, null);
+				return (itemsAfterFlashSale, subtotal, subtotal, flashSaleMessage);
 
 			var voucher = await _voucherService.GetVoucherByCodeAsync(voucherCode)
 				?? throw AppException.NotFound("Voucher not found");
 
 			var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(
-				voucherCode, userId, subtotal, null, checkoutItems.Select(x => x.VariantId));
+			   voucherCode, userId, subtotal, null, itemsAfterFlashSale.Select(x => x.VariantId));
 
 			if (!voucherValidation)
 				throw AppException.BadRequest("Voucher validation failed.");
 
 			if (voucher.ApplyType == VoucherType.Product && voucher.CampaignId.HasValue)
 			{
-				var (pricedItems, message) = await ApplyProductLevelVoucherDiscountAsync(voucher, checkoutItems);
+				var (pricedItems, message) = await ApplyProductLevelVoucherDiscountAsync(voucher, itemsAfterFlashSale);
 				var finalAmount = pricedItems.Sum(x => x.FinalTotal);
 				return (pricedItems, subtotal, finalAmount, message);
 			}
@@ -222,7 +236,7 @@ namespace PerfumeGPT.Application.Services
 			var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(voucherCode, subtotal);
 			var totalDiscount = subtotal - discountedTotal;
 
-			var adjustedItems = ApplyProportionalDiscount(checkoutItems, totalDiscount, x => x.SubTotal);
+			var adjustedItems = ApplyProportionalDiscount(itemsAfterFlashSale, totalDiscount, x => x.FinalTotal);
 			var finalTotal = adjustedItems.Sum(x => x.FinalTotal);
 
 			return (adjustedItems, subtotal, finalTotal, null);
@@ -247,46 +261,14 @@ namespace PerfumeGPT.Application.Services
 				})
 				.ToList();
 
-			var subtotal = checkoutItems.Sum(x => x.SubTotal);
-			if (string.IsNullOrWhiteSpace(request.VoucherCode))
-				return (checkoutItems, subtotal, subtotal, null);
-
-			var voucher = await _voucherService.GetVoucherByCodeAsync(request.VoucherCode)
-				?? throw AppException.NotFound("Voucher not found");
-
-			var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(
-				request.VoucherCode,
-				userId,
-				subtotal,
-				null,
-				items.Select(x => x.VariantId));
-
-			if (!voucherValidation)
-				throw AppException.BadRequest("Voucher validation failed");
-
-			if (voucher.ApplyType == VoucherType.Product && voucher.CampaignId.HasValue)
-			{
-				var (pricedItems, message) = await ApplyProductLevelVoucherDiscountAsync(voucher, checkoutItems);
-				var finalAmount = pricedItems.Sum(x => x.FinalTotal);
-				return (pricedItems, subtotal, finalAmount, message);
-			}
-
-			var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(request.VoucherCode, subtotal);
-			var totalDiscount = subtotal - discountedTotal;
-			var adjustedItems = ApplyProportionalDiscount(checkoutItems, totalDiscount, x => x.SubTotal);
-			var finalTotal = adjustedItems.Sum(x => x.FinalTotal);
-
-			return (adjustedItems, subtotal, finalTotal, null);
+			return await CalculatePricingEngineAsync(checkoutItems, request.VoucherCode, userId);
 		}
 
 		private async Task<(List<CartCheckoutItemDto> Items, string? Message)> ApplyProductLevelVoucherDiscountAsync(VoucherResponse voucher, List<CartCheckoutItemDto> items)
 		{
 			if (!voucher.CampaignId.HasValue)
 			{
-				var subtotal = items.Sum(x => x.SubTotal);
-				var discountedTotal = await _voucherService.CalculateVoucherDiscountAsync(voucher.Code, subtotal);
-				var totalDiscount = subtotal - discountedTotal;
-				return (ApplyProportionalDiscount(items, totalDiscount, x => x.SubTotal), null);
+				throw AppException.BadRequest("Product-level voucher must be associated with a campaign.");
 			}
 
 			var variantIds = items.Select(x => x.VariantId).Distinct().ToList();
@@ -346,13 +328,14 @@ namespace PerfumeGPT.Application.Services
 					? totalDiscount - allocated
 					: Math.Round((target.Weight / weightTotal) * totalDiscount, 2, MidpointRounding.AwayFromZero);
 
-				var safeDiscount = Math.Max(0m, Math.Min(rawDiscount, target.Item.SubTotal));
+				var lineBaseAmount = target.Item.FinalTotal;
+				var safeDiscount = Math.Max(0m, Math.Min(rawDiscount, lineBaseAmount));
 				allocated += safeDiscount;
 
 				result[target.Index] = target.Item with
 				{
-					Discount = safeDiscount,
-					FinalTotal = target.Item.SubTotal - safeDiscount
+					Discount = target.Item.Discount + safeDiscount,
+					FinalTotal = lineBaseAmount - safeDiscount
 				};
 			}
 
@@ -374,13 +357,13 @@ namespace PerfumeGPT.Application.Services
 					allocation.IsEligible,
 					Index = index
 				})
-				.Where(x => x.IsEligible && x.Item.SubTotal > 0)
+				.Where(x => x.IsEligible && x.Item.FinalTotal > 0)
 				.ToList();
 
 			if (weightedItems.Count == 0)
 				return result;
 
-			var weightTotal = weightedItems.Sum(x => x.Item.SubTotal);
+			var weightTotal = weightedItems.Sum(x => x.Item.FinalTotal);
 			if (weightTotal <= 0)
 				return result;
 
@@ -391,31 +374,21 @@ namespace PerfumeGPT.Application.Services
 				var isLast = i == weightedItems.Count - 1;
 				var rawDiscount = isLast
 					? totalDiscount - allocated
-					: Math.Round((target.Item.SubTotal / weightTotal) * totalDiscount, 2, MidpointRounding.AwayFromZero);
+				   : Math.Round((target.Item.FinalTotal / weightTotal) * totalDiscount, 2, MidpointRounding.AwayFromZero);
 
-				var safeDiscount = Math.Max(0m, Math.Min(rawDiscount, target.Item.SubTotal));
+				var lineBaseAmount = target.Item.FinalTotal;
+				var safeDiscount = Math.Max(0m, Math.Min(rawDiscount, lineBaseAmount));
 				allocated += safeDiscount;
 
 				result[target.Index] = target.Item with
 				{
 					Discount = safeDiscount,
-					FinalTotal = target.Item.SubTotal - safeDiscount
+					FinalTotal = lineBaseAmount - safeDiscount
 				};
 			}
 
 			return result;
 		}
-
-		public async Task<BaseResponse<string>> ClearCartAsync(Guid userId, List<Guid>? itemIds)
-		{
-			var hasItems = await _unitOfWork.CartItems.HasItemsAsync(userId);
-			if (hasItems)
-			{
-				await _unitOfWork.CartItems.ClearCartByUserIdAsync(userId, itemIds);
-			}
-			return BaseResponse<string>.Ok("Cart cleared successfully");
-		}
-
 
 		private static (List<CheckoutLineAllocation> Allocations, decimal EligibleSubtotal, List<string> MessageLines)
 		   EvaluateEligibleStock(
@@ -444,7 +417,7 @@ namespace PerfumeGPT.Application.Services
 					if (hasGlobalPromotion)
 					{
 						allocations.Add(new CheckoutLineAllocation(line, true));
-						eligibleSubtotal += line.SubTotal;
+						eligibleSubtotal += line.FinalTotal;
 					}
 					else if (specificPromo != null)
 					{
@@ -457,15 +430,15 @@ namespace PerfumeGPT.Application.Services
 
 						if (allowedQty > 0)
 						{
-							var eligibleLine = line with { Quantity = allowedQty, SubTotal = line.UnitPrice * allowedQty, FinalTotal = line.UnitPrice * allowedQty };
+							var eligibleLine = CreateSplitItem(line, allowedQty, line.BatchId);
 							allocations.Add(new CheckoutLineAllocation(eligibleLine, true));
-							eligibleSubtotal += eligibleLine.SubTotal;
+							eligibleSubtotal += eligibleLine.FinalTotal;
 						}
 
 						var excludedQty = line.Quantity - allowedQty;
 						if (excludedQty > 0)
 						{
-							var ineligibleLine = line with { Quantity = excludedQty, SubTotal = line.UnitPrice * excludedQty, FinalTotal = line.UnitPrice * excludedQty };
+							var ineligibleLine = CreateSplitItem(line, excludedQty, line.BatchId);
 							allocations.Add(new CheckoutLineAllocation(ineligibleLine, false));
 							messageLines.Add($"'{line.VariantName}' (Batch {line.BatchCode}): only {allowedQty} eligible for discount, {excludedQty} over promo limit.");
 						}
@@ -482,7 +455,7 @@ namespace PerfumeGPT.Application.Services
 				allocations.AddRange(lineAllocations);
 				eligibleSubtotal += lineAllocations
 					.Where(x => x.IsEligible)
-					.Sum(x => x.Item.SubTotal);
+				 .Sum(x => x.Item.FinalTotal);
 
 				var excludedQtyOnline = line.Quantity - allowedQtyOnline;
 
@@ -495,14 +468,35 @@ namespace PerfumeGPT.Application.Services
 
 		private static CartCheckoutItemDto CreateSplitItem(CartCheckoutItemDto source, int quantity, Guid? batchId)
 		{
-			var subTotal = source.UnitPrice * quantity;
+			if (quantity <= 0)
+			{
+				return source with
+				{
+					BatchId = batchId,
+					Quantity = 0,
+					SubTotal = 0m,
+					Discount = 0m,
+					FinalTotal = 0m
+				};
+			}
+
+			if (quantity == source.Quantity)
+			{
+				return source with { BatchId = batchId };
+			}
+
+			var sourceQty = Math.Max(1, source.Quantity);
+			var unitSubTotal = source.SubTotal / sourceQty;
+			var unitFinalTotal = source.FinalTotal / sourceQty;
+			var subTotal = Math.Round(unitSubTotal * quantity, 2, MidpointRounding.AwayFromZero);
+			var finalTotal = Math.Round(unitFinalTotal * quantity, 2, MidpointRounding.AwayFromZero);
 			return source with
 			{
 				BatchId = batchId,
 				Quantity = quantity,
 				SubTotal = subTotal,
-				Discount = 0m,
-				FinalTotal = subTotal
+				Discount = Math.Max(0m, subTotal - finalTotal),
+				FinalTotal = finalTotal
 			};
 		}
 
@@ -555,9 +549,15 @@ namespace PerfumeGPT.Application.Services
 		private async Task<Dictionary<Guid, List<PromotionItem>>> GetActivePromotionsByVariantAsync(Guid campaignId, PromotionType itemType, List<Guid> variantIds)
 		{
 			var promotionItems = await _unitOfWork.PromotionItems.GetAllAsync(
-				i => i.CampaignId == campaignId && !i.IsDeleted && i.ItemType == itemType && variantIds.Contains(i.ProductVariantId) && i.IsActive,
+				i => i.CampaignId == campaignId
+				  && !i.IsDeleted
+				  && i.ItemType == itemType
+				  && variantIds.Contains(i.TargetProductVariantId)
+				  && i.IsActive
+				  && (!i.MaxUsage.HasValue || i.CurrentUsage < i.MaxUsage.Value),
 				asNoTracking: true);
-			return promotionItems.GroupBy(x => x.ProductVariantId).ToDictionary(g => g.Key, g => g.ToList());
+
+			return promotionItems.GroupBy(x => x.TargetProductVariantId).ToDictionary(g => g.Key, g => g.ToList());
 		}
 
 		private async Task<Dictionary<Guid, int>> GetBatchAvailabilityAsync(IEnumerable<PromotionItem> promotionItems)
@@ -571,13 +571,109 @@ namespace PerfumeGPT.Application.Services
 
 		private static decimal CalculateDiscountAmount(VoucherResponse voucher, decimal eligibleSubtotal)
 		{
-			var discountAmount = voucher.DiscountType switch
+			var rawDiscountAmount = voucher.DiscountType switch
 			{
 				DiscountType.Percentage => eligibleSubtotal * (voucher.DiscountValue / 100m),
 				DiscountType.FixedAmount => voucher.DiscountValue,
 				_ => 0m
 			};
-			return Math.Min(discountAmount, eligibleSubtotal);
+
+			if (voucher.MaxDiscountAmount.HasValue && voucher.MaxDiscountAmount.Value > 0)
+			{
+				rawDiscountAmount = Math.Min(rawDiscountAmount, voucher.MaxDiscountAmount.Value);
+			}
+
+			return Math.Min(rawDiscountAmount, eligibleSubtotal);
+		}
+
+		private async Task<(List<CartCheckoutItemDto> Items, string? Message)> ApplyAutoFlashSalesAsync(List<CartCheckoutItemDto> items)
+		{
+			if (items.Count == 0)
+				return ([], null);
+
+			var variantIds = items.Select(x => x.VariantId).Distinct().ToList();
+			var now = DateTime.UtcNow;
+
+			// 1. TÌM TẤT CẢ PROMOTION ĐANG ACTIVE (Kết nối với bảng Campaign để check ngày tháng)
+			var activePromotions = await _unitOfWork.PromotionItems.GetAllAsync(
+				p => variantIds.Contains(p.TargetProductVariantId)
+				  && p.IsActive
+				  && !p.IsDeleted
+				  && p.Campaign.Status == CampaignStatus.Active
+				  && p.Campaign.StartDate <= now
+				  && p.Campaign.EndDate >= now
+				  && (!p.MaxUsage.HasValue || p.CurrentUsage < p.MaxUsage.Value), // Rào chắn số lượng
+				include: query => query.Include(p => p.Campaign),
+				asNoTracking: true);
+
+			if (!activePromotions.Any())
+				return (items.ToList(), null);
+
+			// Gom nhóm Promotion theo VariantId để dễ xử lý
+			var promoByVariant = activePromotions
+				.GroupBy(p => p.TargetProductVariantId)
+				.ToDictionary(g => g.Key, g => g.ToList());
+
+			var resultItems = new List<CartCheckoutItemDto>();
+			var messageLines = new List<string>();
+
+			// 2. LẶP QUA GIỎ HÀNG VÀ ÁP DỤNG "BEST DEAL"
+			foreach (var item in items)
+			{
+				if (promoByVariant.TryGetValue(item.VariantId, out var variantPromos))
+				{
+					// Lọc ra promotion hợp lệ (Global hoặc khớp chính xác BatchId)
+					var eligiblePromos = variantPromos
+						.Where(p => !p.BatchId.HasValue || p.BatchId == item.BatchId)
+						.ToList();
+
+					if (eligiblePromos.Any())
+					{
+						// THUẬT TOÁN BEST DEAL WINS: Tính thử tiền giảm của từng promo và lấy cái lớn nhất
+						var bestPromo = eligiblePromos
+							.Select(p => new
+							{
+								Promo = p,
+								CalculatedDiscountPerItem = CalculateFlashSaleDiscount(item.UnitPrice, p)
+							})
+							.OrderByDescending(x => x.CalculatedDiscountPerItem)
+							.First();
+
+						if (bestPromo.CalculatedDiscountPerItem > 0)
+						{
+							// Tính tổng tiền giảm cho Dòng này (Nhân với số lượng)
+							var totalDiscountForLine = bestPromo.CalculatedDiscountPerItem * item.Quantity;
+							var newFinalTotal = item.SubTotal - totalDiscountForLine;
+
+							resultItems.Add(item with
+							{
+								Discount = totalDiscountForLine,
+								FinalTotal = newFinalTotal
+							});
+
+							messageLines.Add($"'{item.VariantName}' áp dụng {bestPromo.Promo.Campaign.Name} (Giảm {bestPromo.CalculatedDiscountPerItem:N0}/sp)");
+							continue; // Xong món này, nhảy sang món tiếp theo
+						}
+					}
+				}
+
+				// Nếu không có promotion nào hợp lệ, giữ nguyên giá gốc
+				resultItems.Add(item);
+			}
+
+			var message = messageLines.Count > 0 ? string.Join(" | ", messageLines) : null;
+			return (resultItems, message);
+		}
+
+		// Hàm Helper tính toán mức giảm cho 1 sản phẩm
+		private static decimal CalculateFlashSaleDiscount(decimal unitPrice, PromotionItem promo)
+		{
+			var rawDiscount = promo.DiscountType == DiscountType.Percentage
+				? unitPrice * (promo.DiscountValue / 100m)
+				: promo.DiscountValue;
+
+			// Đảm bảo không giảm lố giá gốc của sản phẩm (Vd: Sp 100k mà flash sale giảm 150k thì chỉ giảm 100k)
+			return Math.Min(rawDiscount, unitPrice);
 		}
 	}
 }

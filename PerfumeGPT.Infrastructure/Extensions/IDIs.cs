@@ -98,10 +98,12 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			services.AddScoped<ShippingStatusSyncJob>();
 			services.AddScoped<LowStockAlertJob>();
 			services.AddScoped<InvoiceEmailJob>();
+			services.AddScoped<CampaignStartJob>();
 			services.AddScoped<CampaignEndJob>();
 			services.AddScoped<LoyaltyPointsGrantJob>();
 			services.AddScoped<IBackgroundJobService, HangfireBackgroundJobService>();
 			services.AddScoped<IInvoiceAppService, InvoiceEmailJob>();
+			services.AddScoped<ICampaignStartAppService, CampaignStartJob>();
 			services.AddScoped<ICampaignEndAppService, CampaignEndJob>();
 			services.AddScoped<ILoyaltyPointsAppService, LoyaltyPointsGrantJob>();
 			services.AddHostedService<StartupJobScheduler>();

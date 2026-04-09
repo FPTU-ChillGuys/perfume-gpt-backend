@@ -24,6 +24,10 @@ namespace PerfumeGPT.Application.Validators.Vouchers
 			RuleFor(x => x.RequiredPoints)
 				.GreaterThanOrEqualTo(0).WithMessage("Required points must be greater than or equal to 0.");
 
+			RuleFor(x => x.MaxDiscountAmount)
+				.GreaterThan(0).When(x => x.MaxDiscountAmount.HasValue)
+				.WithMessage("Max discount amount must be greater than 0.");
+
 			RuleFor(x => x.MinOrderValue)
 				.GreaterThanOrEqualTo(0).WithMessage("Minimum order value must be greater than or equal to 0.");
 
@@ -37,6 +41,10 @@ namespace PerfumeGPT.Application.Validators.Vouchers
 
 			RuleFor(x => x.TotalQuantity)
 				.GreaterThan(0).WithMessage("Total quantity must be greater than 0.");
+
+			RuleFor(x => x.MaxUsagePerUser)
+				.GreaterThan(0).When(x => x.MaxUsagePerUser.HasValue)
+				.WithMessage("Max usage per user must be greater than 0.");
 		}
 	}
 }
