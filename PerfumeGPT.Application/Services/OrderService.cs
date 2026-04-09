@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
@@ -10,7 +12,6 @@ using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
-using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using static PerfumeGPT.Domain.Entities.OrderCancelRequest;
@@ -31,8 +32,8 @@ namespace PerfumeGPT.Application.Services
 		private readonly IContactAddressService _recipientService;
 		private readonly INotificationService _notificationService;
 		private readonly IGHNService _ghnService;
-		private readonly IAuditScope _auditScope;
-		private readonly ILoyaltyTransactionService _loyaltyService;
+       private readonly IBackgroundJobService _backgroundJobService;
+		private readonly ILogger<OrderService> _logger;
 
 		public OrderService(
 			IUnitOfWork unitOfWork,
@@ -46,8 +47,8 @@ namespace PerfumeGPT.Application.Services
 			INotificationService notificationService,
 			IContactAddressService recipientService,
 			IGHNService ghnService,
-			ILoyaltyTransactionService loyaltyService,
-			IAuditScope auditScope)
+          IBackgroundJobService backgroundJobService,
+			ILogger<OrderService> logger)
 		{
 			_unitOfWork = unitOfWork;
 			_cartService = cartService;
@@ -60,8 +61,8 @@ namespace PerfumeGPT.Application.Services
 			_notificationService = notificationService;
 			_recipientService = recipientService;
 			_ghnService = ghnService;
-			_loyaltyService = loyaltyService;
-			_auditScope = auditScope;
+           _backgroundJobService = backgroundJobService;
+			_logger = logger;
 		}
 		#endregion Dependencies
 
@@ -356,11 +357,19 @@ namespace PerfumeGPT.Application.Services
 				// 1. RÀO CHẮN TÀI CHÍNH (FINANCIAL GUARD)
 				// Chú ý: Đảm bảo PaymentMethod.CashOnDelivery khớp với Enum thực tế của bạn
 				bool isPaid = order.PaymentStatus == PaymentStatus.Paid;
+				bool isDelivery = order.ForwardShipping != null;
 				bool isCod = order.PaymentTransactions.Any(p => p.Method == PaymentMethod.CashOnDelivery);
+				bool isCashInStore = order.PaymentTransactions.Any(p => p.Method == PaymentMethod.CashInStore);
 
-				if (!isPaid && !isCod)
+				// Đơn hàng CHỈ ĐƯỢC PHÉP chuẩn bị (Preparing) khi thoả mãn 1 trong 3 điều kiện:
+				// 1. Đã thanh toán thành công (VNPay, Momo, hoặc đã trả tiền mặt tại quầy).
+				// 2. Là đơn COD (Giao hàng thu tiền hộ - Mặc định cho nợ).
+				// 3. Là đơn Nhận tại quầy (!isDelivery) VÀ khách chọn Thanh toán tại quầy (CashInStore).
+				bool canPrepare = isPaid || isCod || (isCashInStore && !isDelivery);
+
+				if (!canPrepare)
 				{
-					throw AppException.BadRequest("Cannot prepare an unpaid order unless it is Cash On Delivery (COD).");
+					throw AppException.BadRequest("Cannot prepare an unpaid order unless it is Cash On Delivery (COD) or Pay in-store for pickup orders.");
 				}
 
 				// 2. CHUYỂN TRẠNG THÁI (Entity Order sẽ tự chặn nếu là đơn Takeaway)
@@ -520,16 +529,13 @@ namespace PerfumeGPT.Application.Services
 					_unitOfWork.Payments.Update(pendingCod);
 				}
 
-				// 💥 3. FIX LỖI: TÍCH ĐIỂM THÀNH VIÊN (LOYALTY)
+                // 3. Schedule loyalty points after return window (Delivered + 10 days)
 				if (order.CustomerId.HasValue)
 				{
-					using (_auditScope.BeginSystemAction())
+                 int points = (int)(order.TotalAmount * 0.01m);
+					if (points > 0)
 					{
-						int points = (int)(order.TotalAmount * 0.01m); // 1% tích luỹ
-						if (points > 0)
-						{
-							await _loyaltyService.PlusPointAsync(order.CustomerId.Value, points, order.Id, false);
-						}
+                       _backgroundJobService.ScheduleLoyaltyPointsGrant(_logger, order.Id, DateTime.UtcNow);
 					}
 				}
 

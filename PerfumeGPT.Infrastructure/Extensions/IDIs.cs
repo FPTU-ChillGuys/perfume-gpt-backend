@@ -99,9 +99,11 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			services.AddScoped<LowStockAlertJob>();
 			services.AddScoped<InvoiceEmailJob>();
 			services.AddScoped<CampaignEndJob>();
+			services.AddScoped<LoyaltyPointsGrantJob>();
 			services.AddScoped<IBackgroundJobService, HangfireBackgroundJobService>();
 			services.AddScoped<IInvoiceAppService, InvoiceEmailJob>();
 			services.AddScoped<ICampaignEndAppService, CampaignEndJob>();
+			services.AddScoped<ILoyaltyPointsAppService, LoyaltyPointsGrantJob>();
 			services.AddHostedService<StartupJobScheduler>();
 
 			// Configure ASP.NET Core Identity using the application's User entity and GUID roles

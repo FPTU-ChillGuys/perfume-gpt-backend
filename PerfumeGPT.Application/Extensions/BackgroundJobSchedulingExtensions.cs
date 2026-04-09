@@ -39,6 +39,27 @@ namespace PerfumeGPT.Application.Extensions
 				   campaignId);
 		}
 
+		public static bool ScheduleLoyaltyPointsGrant(this IBackgroundJobService backgroundJobService, ILogger logger, Guid orderId, DateTime deliveredAtUtc)
+		{
+			var normalizedDeliveredAt = deliveredAtUtc.Kind == DateTimeKind.Unspecified
+				? DateTime.SpecifyKind(deliveredAtUtc, DateTimeKind.Utc)
+				: deliveredAtUtc.ToUniversalTime();
+
+			var scheduleAt = normalizedDeliveredAt.AddDays(10);
+			if (scheduleAt < DateTime.UtcNow)
+			{
+				scheduleAt = DateTime.UtcNow;
+			}
+
+			return TrySchedule<ILoyaltyPointsAppService>(
+				backgroundJobService,
+				logger,
+				x => x.GrantPointsIfEligibleAsync(orderId),
+				scheduleAt,
+				"Unable to schedule loyalty point grant job for order {OrderId}.",
+				orderId);
+		}
+
 		private static bool TryEnqueue<TJob>(
 			IBackgroundJobService backgroundJobService,
 			ILogger logger,
