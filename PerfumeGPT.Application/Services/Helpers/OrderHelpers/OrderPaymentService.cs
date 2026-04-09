@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using PerfumeGPT.Application.DTOs.Requests.Momos;
 using PerfumeGPT.Application.DTOs.Requests.PayOs;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
+using PerfumeGPT.Application.DTOs.Responses.Payments;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
@@ -33,7 +34,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			_httpContextAccessor = httpContextAccessor;
 		}
 
-		public async Task<string> CreatePaymentAndGenerateResponseAsync(Order order, decimal amount, PaymentMethod paymentMethod, string? posSessionId)
+		public async Task<CreatePaymentResponseDto> CreatePaymentAndGenerateResponseAsync(Order order, decimal amount, PaymentMethod paymentMethod, string? posSessionId)
 		{
 			var payment = PaymentTransaction.Create(order.Id, paymentMethod, amount);
 
@@ -53,7 +54,12 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				};
 
 				var checkoutResponse = await _vnPayService.CreatePaymentUrlAsync(httpContext, vnPayRequest);
-				return checkoutResponse.PaymentUrl;
+				return new CreatePaymentResponseDto
+				{
+					PaymentId = payment.Id,
+					PaymentUrl = checkoutResponse.PaymentUrl,
+					OrderId = order.Id
+				};
 			}
 			else if (paymentMethod == PaymentMethod.Momo)
 			{
@@ -68,7 +74,12 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				};
 
 				var checkoutResponse = await _momoService.CreatePaymentUrlAsync(httpContext, momoRequest);
-				return checkoutResponse.PaymentUrl;
+				return new CreatePaymentResponseDto
+				{
+					PaymentId = payment.Id,
+					OrderId = order.Id,
+					PaymentUrl = checkoutResponse.PaymentUrl
+				};
 			}
 			else if (paymentMethod == PaymentMethod.PayOs)
 			{
@@ -81,10 +92,20 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				};
 
 				var checkoutResponse = await _payOsService.CreatePaymentUrlAsync(payOsRequest);
-				return checkoutResponse.PaymentUrl;
+				return new CreatePaymentResponseDto
+				{
+					PaymentId = payment.Id,
+					OrderId = order.Id,
+					PaymentUrl = checkoutResponse.PaymentUrl
+				};
 			}
 
-			return order.Id.ToString();
+			return new CreatePaymentResponseDto
+			{
+				PaymentId = payment.Id,
+				OrderId = order.Id,
+				PaymentUrl = null
+			};
 		}
 	}
 }
