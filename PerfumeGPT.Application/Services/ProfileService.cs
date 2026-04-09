@@ -1,5 +1,4 @@
-﻿using MapsterMapper;
-using PerfumeGPT.Application.DTOs.Requests.Profiles;
+﻿using PerfumeGPT.Application.DTOs.Requests.Profiles;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Profiles;
 using PerfumeGPT.Application.Exceptions;
@@ -12,11 +11,9 @@ namespace PerfumeGPT.Application.Services
 	public class ProfileService : IProfileService
 	{
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IMapper _mapper;
 
-		public ProfileService(IMapper mapper, IUnitOfWork unitOfWork)
+		public ProfileService(IUnitOfWork unitOfWork)
 		{
-			_mapper = mapper;
 			_unitOfWork = unitOfWork;
 		}
 
@@ -67,10 +64,12 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ProfileResponse>> GetProfileAsync(Guid userId)
 		{
-			var profile = await CreateProfileAsync(userId);
+			await CreateProfileAsync(userId);
 
-			var response = _mapper.Map<ProfileResponse>(profile);
-			return BaseResponse<ProfileResponse>.Ok(response, "Profile retrieved successfully");
+			var profile = await _unitOfWork.Profiles.GetProfileResponseByUserIdAsync(userId)
+				?? throw AppException.NotFound("Profile not found");
+
+			return BaseResponse<ProfileResponse>.Ok(profile, "Profile retrieved successfully");
 		}
 
 		private async Task ValidatePreferenceIdsAsync(
