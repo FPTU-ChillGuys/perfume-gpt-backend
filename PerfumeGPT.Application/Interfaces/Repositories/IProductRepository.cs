@@ -1,4 +1,4 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.Products;
+using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Products;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Domain.Entities;
@@ -19,20 +19,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<ProductInforResponse?> GetProductInfoAsync(Guid productId);
 		Task<ProductFastLookResponse?> GetProductFastLookAsync(Guid productId);
 
-		/// <summary>
-		///	Get paged products based on semantic search of the provided text.
-		///	</summary>
-		Task<(List<ProductListItemWithVariants> Items, int TotalCount)> GetPagedProductsWithSemanticSearch(string searchText, GetPagedProductRequest request);
-
-		/// <summary>
-		///	Add embeddings for all products in the database.
-		/// </summary>
-		Task AddAllProductEmbeddingsAsync();
-
-		/// <summary>
-		/// Add embedding for a specific product by its ID.
-		/// </summary>
-		Task AddProductEmbeddingsByIdAsync(Guid productId);
 
 		Task<List<ProductDailySaleFigureResponse>> GetProductDailySaleFiguresAsync(DateOnly date);
 	}
