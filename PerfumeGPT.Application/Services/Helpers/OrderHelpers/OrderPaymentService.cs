@@ -84,7 +84,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				return checkoutResponse.PaymentUrl;
 			}
 
-			return payment.Id.ToString();
+			return order.Id.ToString();
 		}
 	}
 }
