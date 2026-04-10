@@ -52,7 +52,9 @@ namespace PerfumeGPT.Persistence.Repositories
 			// IsUsed filter
 			if (request.IsUsed.HasValue)
 			{
-				Expression<Func<UserVoucher, bool>> isUsedFilter = uv => uv.IsUsed == request.IsUsed.Value;
+				Expression<Func<UserVoucher, bool>> isUsedFilter = request.IsUsed.Value
+					   ? uv => uv.Status == UsageStatus.Used
+					   : uv => uv.Status != UsageStatus.Used;
 				filter = filter == null ? isUsedFilter : filter.AndAlso(isUsedFilter);
 			}
 
@@ -133,7 +135,6 @@ namespace PerfumeGPT.Persistence.Repositories
 				.FirstOrDefaultAsync(uv =>
 					uv.UserId == userId &&
 					uv.VoucherId == voucherId &&
-					!uv.IsUsed &&
 					uv.Status == UsageStatus.Available &&
 					!uv.Voucher.IsDeleted &&
 					uv.Voucher.ExpiryDate > now);
@@ -143,10 +144,10 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			var now = DateTime.UtcNow;
 
-           var ownedAvailableVouchers = _context.Vouchers
-				.Where(v => !v.IsDeleted
-					&& v.ExpiryDate > now
-					&& v.UserVouchers.Any(uv => uv.UserId == userId && uv.Status == UsageStatus.Available));
+			var ownedAvailableVouchers = _context.Vouchers
+				 .Where(v => !v.IsDeleted
+					 && v.ExpiryDate > now
+					 && v.UserVouchers.Any(uv => uv.UserId == userId && uv.Status == UsageStatus.Available));
 
 			var publicFreeVouchers = _context.Vouchers
 				.Where(v => !v.IsDeleted

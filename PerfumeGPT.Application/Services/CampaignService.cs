@@ -165,7 +165,7 @@ namespace PerfumeGPT.Application.Services
 
 			foreach (var voucher in vouchersToRemove)
 			{
-				if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucher.Id && !uv.IsUsed))
+				if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucher.Id && uv.Status == UsageStatus.Used))
 					throw AppException.BadRequest($"Cannot remove voucher '{voucher.Code}' because it has already been redeemed.");
 			}
 
@@ -336,7 +336,7 @@ namespace PerfumeGPT.Application.Services
 
 			var voucher = campaign.Vouchers.FirstOrDefault(v => v.Id == voucherId && !v.IsDeleted) ?? throw AppException.NotFound("Campaign voucher not found.");
 
-			if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && !uv.IsUsed))
+			if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && uv.Status == UsageStatus.Used))
 			{
 				throw AppException.BadRequest("Cannot delete voucher that has been redeemed by users");
 			}

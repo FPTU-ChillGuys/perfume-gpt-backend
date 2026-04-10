@@ -1,6 +1,7 @@
 ﻿using Mapster;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Mappings
 {
@@ -17,13 +18,13 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ApplyType, src => src.ApplyType)
 				.Map(dest => dest.TargetItemType, src => src.TargetItemType)
 				.Map(dest => dest.RequiredPoints, src => src.RequiredPoints)
-              .Map(dest => dest.MaxDiscountAmount, src => src.MaxDiscountAmount)
+			  .Map(dest => dest.MaxDiscountAmount, src => src.MaxDiscountAmount)
 				.Map(dest => dest.MinOrderValue, src => src.MinOrderValue)
 				.Map(dest => dest.ExpiryDate, src => src.ExpiryDate)
 				.Map(dest => dest.IsExpired, src => src.ExpiryDate < DateTime.UtcNow)
 				.Map(dest => dest.TotalQuantity, src => src.TotalQuantity)
 				.Map(dest => dest.RemainingQuantity, src => src.RemainingQuantity)
-                .Map(dest => dest.MaxUsagePerUser, src => src.MaxUsagePerUser)
+				.Map(dest => dest.MaxUsagePerUser, src => src.MaxUsagePerUser)
 				.Map(dest => dest.IsPublic, src => src.IsPublic)
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt);
 
@@ -35,7 +36,7 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.DiscountType, src => src.Voucher.DiscountType.ToString())
 				.Map(dest => dest.MinOrderValue, src => src.Voucher.MinOrderValue)
 				.Map(dest => dest.ExpiryDate, src => src.Voucher.ExpiryDate)
-				.Map(dest => dest.IsUsed, src => src.IsUsed)
+				.Map(dest => dest.IsUsed, src => src.Status == UsageStatus.Used)
 				.Map(dest => dest.Status, src => src.Status.ToString())
 				.Map(dest => dest.IsExpired, src => src.Voucher.ExpiryDate < DateTime.UtcNow)
 				.Map(dest => dest.RedeemedAt, src => src.CreatedAt);
@@ -46,12 +47,12 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.DiscountValue, src => src.DiscountValue)
 				.Map(dest => dest.DiscountType, src => src.DiscountType.ToString())
 				.Map(dest => dest.RequiredPoints, src => src.RequiredPoints)
-              .Map(dest => dest.MaxDiscountAmount, src => src.MaxDiscountAmount)
+			  .Map(dest => dest.MaxDiscountAmount, src => src.MaxDiscountAmount)
 				.Map(dest => dest.MinOrderValue, src => src.MinOrderValue)
 				.Map(dest => dest.ExpiryDate, src => src.ExpiryDate)
 				.Map(dest => dest.IsExpired, src => src.ExpiryDate < DateTime.UtcNow)
 				.Map(dest => dest.RemainingQuantity, src => src.RemainingQuantity)
-             .Map(dest => dest.MaxUsagePerUser, src => src.MaxUsagePerUser)
+			 .Map(dest => dest.MaxUsagePerUser, src => src.MaxUsagePerUser)
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt);
 		}
 	}

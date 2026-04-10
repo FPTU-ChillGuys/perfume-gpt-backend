@@ -115,7 +115,7 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.NotFound("Voucher not found");
 			}
 
-			if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && !uv.IsUsed))
+			if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && uv.Status == UsageStatus.Used))
 			{
 				throw AppException.BadRequest("Cannot delete voucher that has been redeemed by users");
 			}
@@ -340,7 +340,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				if (voucher.ExpiryDate > DateTime.UtcNow)
 				{
-					if (oldUserVoucher.IsUsed)
+					if (oldUserVoucher.Status == UsageStatus.Used)
 						oldUserVoucher.RevertUsed();
 					else
 						oldUserVoucher.ReleaseReservation();
@@ -565,7 +565,7 @@ namespace PerfumeGPT.Application.Services
 					uv => uv.VoucherId == voucherId &&
 						  uv.UserId == null &&
 						  uv.GuestIdentifier == emailOrPhone &&
-						  !uv.IsUsed &&
+					   uv.Status != UsageStatus.Used &&
 						  (requiredStatus == null || uv.Status == requiredStatus),
 					asNoTracking: false
 				);
@@ -575,7 +575,7 @@ namespace PerfumeGPT.Application.Services
 				return await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
 					uv => uv.VoucherId == voucherId &&
 						  uv.UserId == effectiveUserId!.Value &&
-						  !uv.IsUsed &&
+					   uv.Status != UsageStatus.Used &&
 						  (requiredStatus == null || uv.Status == requiredStatus),
 					asNoTracking: false
 				);

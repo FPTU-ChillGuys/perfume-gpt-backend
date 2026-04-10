@@ -13,7 +13,6 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid VoucherId { get; private set; }
 		public Guid? OrderId { get; private set; }
 		public string? GuestIdentifier { get; private set; }
-		public bool IsUsed => Status == UsageStatus.Used;
 		public UsageStatus Status { get; private set; }
 
 		// Navigation properties
@@ -59,7 +58,7 @@ namespace PerfumeGPT.Domain.Entities
 			if (orderId == Guid.Empty)
 				throw DomainException.BadRequest("Order ID is required.");
 
-			if (IsUsed)
+			if (Status == UsageStatus.Used)
 				throw DomainException.BadRequest("Cannot reserve a used voucher.");
 
 			if (Status != UsageStatus.Available)
