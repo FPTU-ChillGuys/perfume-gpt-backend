@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.SemanticKernel;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -22,6 +23,7 @@ using PerfumeGPT.Infrastructure.Security;
 using PerfumeGPT.Infrastructure.ThirdParties;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using StackExchange.Redis;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -160,6 +162,31 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			{
 				options.PayloadSerializerOptions.PropertyNamingPolicy = null;
 			});
+
+			// Redis Pub/Sub — graceful skip if Redis is unavailable
+			var redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? "localhost";
+			var redisPort = Environment.GetEnvironmentVariable("REDIS_PORT") ?? "6379";
+			var redisEndpoint = $"{redisHost}:{redisPort}";
+			try
+			{
+				var redisConfig = new ConfigurationOptions
+				{
+					EndPoints = { redisEndpoint },
+					AbortOnConnectFail = false,
+					ConnectTimeout = 2000,
+					SyncTimeout = 2000,
+					ConnectRetry = 1,
+				};
+				var multiplexer = ConnectionMultiplexer.Connect(redisConfig);
+				services.AddSingleton<IConnectionMultiplexer>(multiplexer);
+				services.AddSingleton<IRedisPublisherService, RedisPublisherService>();
+				Console.WriteLine($"[Redis] Connected to {redisEndpoint}");
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"[Redis] Could not connect to {redisEndpoint}, using no-op publisher. Reason: {ex.Message}");
+				services.AddSingleton<IRedisPublisherService, NullRedisPublisherService>();
+			}
 		}
 
 		public static void AddIdentityServices(this IServiceCollection services, IConfiguration configuration)
