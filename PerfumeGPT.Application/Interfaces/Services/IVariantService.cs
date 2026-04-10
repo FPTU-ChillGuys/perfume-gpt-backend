@@ -13,7 +13,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<BulkActionResult<string>>> CreateVariantAsync(CreateVariantRequest request);
 		Task<BaseResponse<BulkActionResult<string>>> UpdateVariantAsync(Guid variantId, UpdateVariantRequest request);
 		Task<BaseResponse<string>> DeleteVariantAsync(Guid variantId);
-		Task<BaseResponse<ProductVariantForPosResponse>> GetVariantByInfoAsync(GetVariantByInfoRequest request);
+		Task<BaseResponse<ProductVariantForPosResponse>> GetVariantByInfoAsync(string keyword);
 		Task<BaseResponse<List<MediaResponse>>> GetVariantImagesAsync(Guid variantId);
 		Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId);
 	}

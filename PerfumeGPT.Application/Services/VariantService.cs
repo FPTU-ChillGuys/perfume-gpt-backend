@@ -177,16 +177,14 @@ namespace PerfumeGPT.Application.Services
 				lookupItems, "Variant lookup list retrieved successfully");
 		}
 
-		public async Task<BaseResponse<ProductVariantForPosResponse>> GetVariantByInfoAsync(GetVariantByInfoRequest request)
+		public async Task<BaseResponse<ProductVariantForPosResponse>> GetVariantByInfoAsync(string keyword)
 		{
-			if (string.IsNullOrWhiteSpace(request.Barcode)
-				&& string.IsNullOrWhiteSpace(request.Sku)
-				&& string.IsNullOrWhiteSpace(request.Name))
+			if (string.IsNullOrWhiteSpace(keyword))
 			{
 				throw AppException.BadRequest("At least one search criteria is required: barcode, sku, or name.");
 			}
 
-			var variant = await _unitOfWork.Variants.GetVariantByInfoAsync(request)
+			var variant = await _unitOfWork.Variants.GetVariantByInfoAsync(keyword)
 				?? throw AppException.NotFound("Variant not found");
 
 			return BaseResponse<ProductVariantForPosResponse>.Ok(
