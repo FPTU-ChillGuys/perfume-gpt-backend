@@ -162,11 +162,11 @@ namespace PerfumeGPT.Domain.Entities
 			ExpiryDate = details.ExpiryDate;
 			IsPublic = true;
 			RequiredPoints = 0;
-			MinOrderValue = 0;
-			TotalQuantity = null;
-			RemainingQuantity = null;
-			MaxUsagePerUser = null;
-			MaxDiscountAmount = null;
+			MinOrderValue = details.MinOrderValue;
+			TotalQuantity = details.TotalQuantity;
+			RemainingQuantity = details.TotalQuantity;
+			MaxUsagePerUser = details.MaxUsagePerUser;
+			MaxDiscountAmount = details.MaxDiscountAmount;
 		}
 
 		// Business logic methods
