@@ -63,6 +63,17 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<List<CampaignPromotionItemResponse>>.Ok(items, "Campaign items retrieved successfully.");
 		}
 
+		public async Task<BaseResponse<CampaignPromotionItemResponse>> GetCampaignItemByIdAsync(Guid campaignId, Guid itemId)
+		{
+			_ = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
+				?? throw AppException.NotFound("Campaign not found.");
+
+			var item = await _unitOfWork.Campaigns.GetCampaignItemByIdAsync(campaignId, itemId, asNoTracking: true)
+				?? throw AppException.NotFound("Campaign item not found.");
+
+			return BaseResponse<CampaignPromotionItemResponse>.Ok(item, "Campaign item retrieved successfully.");
+		}
+
 		public async Task<BaseResponse<string>> CreateCampaignAsync(CreateCampaignRequest request)
 		{
 			await ValidateCampaignItemsAsync(request.Items);

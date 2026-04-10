@@ -89,6 +89,17 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpGet("{campaignId:guid}/items/{itemId:guid}")]
+		[Authorize(Roles = "admin")]
+		[ProducesResponseType(typeof(BaseResponse<CampaignPromotionItemResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<CampaignPromotionItemResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<CampaignPromotionItemResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<CampaignPromotionItemResponse>>> GetCampaignItemById([FromRoute] Guid campaignId, [FromRoute] Guid itemId)
+		{
+			var response = await _campaignService.GetCampaignItemByIdAsync(campaignId, itemId);
+			return HandleResponse(response);
+		}
+
 		[HttpPut("{campaignId:guid}/status")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]

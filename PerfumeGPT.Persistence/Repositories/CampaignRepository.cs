@@ -90,6 +90,35 @@ namespace PerfumeGPT.Persistence.Repositories
 				 .ToListAsync();
 		}
 
+		public async Task<CampaignPromotionItemResponse?> GetCampaignItemByIdAsync(Guid campaignId, Guid itemId, bool asNoTracking = true)
+		{
+			IQueryable<PromotionItem> query = _context.Promotions
+				.Where(x => x.CampaignId == campaignId && x.Id == itemId && !x.IsDeleted);
+
+			if (asNoTracking)
+			{
+				query = query.AsNoTracking();
+			}
+
+			return await query
+				.Select(x => new CampaignPromotionItemResponse
+				{
+					Id = x.Id,
+					CampaignId = x.CampaignId,
+					ProductVariantId = x.TargetProductVariantId,
+					BatchId = x.BatchId,
+					Name = x.ProductVariant.Product.Name ?? string.Empty,
+					ItemType = x.ItemType,
+					DiscountType = x.DiscountType,
+					DiscountValue = x.DiscountValue,
+					StartDate = x.Campaign.StartDate,
+					EndDate = x.Campaign.EndDate,
+					MaxUsage = x.MaxUsage,
+					CurrentUsage = x.CurrentUsage
+				})
+				.FirstOrDefaultAsync();
+		}
+
 		public async Task<Campaign?> GetCampaignWithDetailsAsync(Guid campaignId)
 		{
 			return await _context.Campaigns

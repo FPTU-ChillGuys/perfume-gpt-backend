@@ -13,6 +13,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<PagedResult<CampaignResponse>>> GetPagedCampaignsAsync(GetPagedCampaignsRequest request);
 		Task<BaseResponse<CampaignResponse>> GetCampaignByIdAsync(Guid campaignId);
 		Task<BaseResponse<List<CampaignPromotionItemResponse>>> GetCampaignItemsByCampaignIdAsync(Guid campaignId);
+		Task<BaseResponse<CampaignPromotionItemResponse>> GetCampaignItemByIdAsync(Guid campaignId, Guid itemId);
 		Task<BaseResponse<string>> UpdateCampaignStatusAsync(Guid campaignId, UpdateCampaignStatusRequest request);
 		Task<BaseResponse<string>> UpdateCampaignAsync(Guid campaignId, UpdateCampaignRequest request);
 		Task<BaseResponse<string>> DeleteCampaignAsync(Guid campaignId);
@@ -22,7 +23,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<string>> DeleteCampaignItemAsync(Guid campaignId, Guid itemId);
 
 		Task<BaseResponse<string>> AddCampaignVoucherAsync(Guid campaignId, CreateCampaignVoucherRequest request);
-       Task<BaseResponse<List<VoucherResponse>>> GetCampaignVouchersByCampaignIdAsync(Guid campaignId);
+		Task<BaseResponse<List<VoucherResponse>>> GetCampaignVouchersByCampaignIdAsync(Guid campaignId);
 		Task<BaseResponse<VoucherResponse>> GetCampaignVoucherByIdAsync(Guid campaignId, Guid voucherId);
 		Task<BaseResponse<string>> UpdateCampaignVoucherAsync(Guid campaignId, Guid voucherId, UpdateCampaignVoucherRequest request);
 		Task<BaseResponse<string>> DeleteCampaignVoucherAsync(Guid campaignId, Guid voucherId);
