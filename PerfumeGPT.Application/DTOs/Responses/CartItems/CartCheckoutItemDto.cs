@@ -12,5 +12,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.CartItems
 		public decimal SubTotal { get; init; }
 		public decimal Discount { get; init; }
 		public decimal FinalTotal { get; init; }
+
+		public decimal ApportionedVoucherDiscount { get; init; }
 	}
 }

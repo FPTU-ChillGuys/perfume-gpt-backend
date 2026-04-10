@@ -521,7 +521,7 @@ namespace PerfumeGPT.Application.Services
 
 			// 5. Tính giá cuối và làm tròn ĐỒNG NHẤT với Pipeline (2 chữ số thập phân)
 			// Nếu tiền của bạn là VNĐ không có số lẻ, bạn có thể đổi số 2 thành số 0 ở ĐỒNG LOẠT tất cả các hàm.
-			var finalPrice = Math.Round(totalPrice - safeDiscountAmount, 2, MidpointRounding.AwayFromZero);
+			var finalPrice = Math.Round(totalPrice - safeDiscountAmount, 0, MidpointRounding.AwayFromZero);
 
 			return finalPrice;
 		}

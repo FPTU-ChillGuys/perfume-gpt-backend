@@ -240,7 +240,7 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				// Clear cart Items
-				await _cartService.ClearCartAsync(userId, request.ItemIds);
+				await _cartService.ClearCartAsync(userId, request.ItemIds, false);
 
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, cartResponse.TotalPrice, request.Payment.Method, null);
 				await _notificationService.CreateNewOrderNotificationAsync(order.Id, cartResponse.TotalPrice);

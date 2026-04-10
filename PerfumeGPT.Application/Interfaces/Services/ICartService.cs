@@ -13,6 +13,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 			List<CartCheckoutItemDto> checkoutItems, string? voucherCode, Guid? userId);
 		Task<BaseResponse<GetCartItemsResponse>> GetCartItemsAsync(Guid userId, GetPagedCartItemsRequest request);
 		Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, GetCartTotalRequest request);
-		Task<BaseResponse<string>> ClearCartAsync(Guid userId, List<Guid>? itemIds);
+		Task<BaseResponse<string>> ClearCartAsync(Guid userId, List<Guid>? itemIds, bool saveChanges = true);
 	}
 }

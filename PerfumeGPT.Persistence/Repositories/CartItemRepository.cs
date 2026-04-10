@@ -88,7 +88,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			var query = _context.CartItems.Where(ci => ci.UserId == userId);
 
 			if (itemIds != null && itemIds.Count > 0)
-				query = query.Where(ci => itemIds.Contains(ci.Id) && ci.ProductVariant.Stock.TotalQuantity - ci.ProductVariant.Stock.ReservedQuantity > 0);
+				query = query.Where(ci => itemIds.Contains(ci.Id));
 
 			_context.CartItems.RemoveRange(query);
 		}

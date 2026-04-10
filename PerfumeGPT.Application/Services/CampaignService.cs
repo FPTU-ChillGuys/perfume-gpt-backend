@@ -272,6 +272,16 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<string>.Ok(voucher.Id.ToString(), "Campaign voucher created successfully.");
 		}
 
+		public async Task<BaseResponse<List<VoucherResponse>>> GetCampaignVouchersByCampaignIdAsync(Guid campaignId)
+		{
+			_ = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
+				?? throw AppException.NotFound("Campaign not found.");
+
+			var vouchers = await _unitOfWork.Vouchers.GetByCampaignIdAsync(campaignId);
+
+			return BaseResponse<List<VoucherResponse>>.Ok(vouchers, "Campaign vouchers retrieved successfully.");
+		}
+
 		public async Task<BaseResponse<VoucherResponse>> GetCampaignVoucherByIdAsync(Guid campaignId, Guid voucherId)
 		{
 			_ = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)

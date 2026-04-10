@@ -88,26 +88,38 @@ namespace PerfumeGPT.Application.Services
 				request.VoucherCode,
 				request.CustomerId);
 
-			// 4. MAP SANG DTO HIỂN THỊ
-			var responseItems = pricedItems.Select(item => new PosOrderDetailListItem
+			// 4. MAP SANG DTO HIỂN THỊ (Tách bạch UI)
+			var responseItems = pricedItems.Select(item =>
 			{
-				VariantId = item.VariantId,
-				BatchId = item.BatchId!.Value, // Chắc chắn có vì POS ép quét batch
-				VariantName = item.VariantName,
-				Quantity = item.Quantity,
-				UnitPrice = item.UnitPrice,
-				SubTotal = item.SubTotal,
-				Discount = item.Discount,
-				FinalTotal = item.FinalTotal,
-				ImageUrl = item.ImageUrl ?? "",
-				BatchCode = item.BatchCode ?? throw AppException.BadRequest("Batch code is required for POS items.")
+				// TÁCH BẠCH: Tiền giảm của món hàng = Tổng giảm - Phần gánh Voucher
+				var promoDiscountOnly = item.Discount - item.ApportionedVoucherDiscount;
+				var lineTotalBeforeVoucher = item.SubTotal - promoDiscountOnly;
+
+				return new PosOrderDetailListItem
+				{
+					VariantId = item.VariantId,
+					BatchId = item.BatchId!.Value,
+					VariantName = item.VariantName,
+					Quantity = item.Quantity,
+					UnitPrice = item.UnitPrice,
+					SubTotal = item.SubTotal, // Giá gốc (VD: 1.580.000)
+
+					// CHỈ HIỂN THỊ GIÁ TRỊ CỦA PROMOTION
+					Discount = promoDiscountOnly,
+					FinalTotal = lineTotalBeforeVoucher,
+
+					ImageUrl = item.ImageUrl ?? "",
+					BatchCode = item.BatchCode ?? throw AppException.BadRequest("Batch code is required for POS items.")
+				};
 			}).ToList();
 
 			var response = new PreviewPosOrderResponse
 			{
 				Items = responseItems,
-				SubTotal = subtotal,
-				Discount = subtotal - finalAmount,
+
+				// Tổng của đơn hàng giữ nguyên logic cũ, rất chuẩn xác:
+				SubTotal = subtotal, // Đây là tổng tiền sau khi đã trừ Promotion của các Items
+				Discount = subtotal - finalAmount, // Đây chính xác là tiền giảm của Voucher
 				TotalPrice = finalAmount
 			};
 
@@ -128,13 +140,24 @@ namespace PerfumeGPT.Application.Services
 		}
 
 
-		public async Task<BaseResponse<string>> ClearCartAsync(Guid userId, List<Guid>? itemIds)
+		public async Task<BaseResponse<string>> ClearCartAsync(Guid userId, List<Guid>? itemIds, bool saveChanges = true)
 		{
 			var hasItems = await _unitOfWork.CartItems.HasItemsAsync(userId);
 			if (hasItems)
 			{
 				await _unitOfWork.CartItems.ClearCartByUserIdAsync(userId, itemIds);
+
+				if (saveChanges)
+				{
+					var saved = await _unitOfWork.SaveChangesAsync();
+					if (!saved)
+					{
+						throw AppException.Internal("Could not clear cart");
+					}
+				}
 			}
+
+
 			return BaseResponse<string>.Ok("Cart cleared successfully");
 		}
 
@@ -163,22 +186,61 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<GetCartItemsResponse>> GetCartItemsAsync(Guid userId, GetPagedCartItemsRequest request)
 		{
-			var items = await _unitOfWork.CartItems.GetCartItemsByUserIdAsync(userId, request.ItemIds);
-			if (items == null || items.Count == 0)
+			// 1. Lấy dữ liệu thô từ DB
+			var rawItems = await _unitOfWork.CartItems.GetCartItemsByUserIdAsync(userId, request.ItemIds);
+			if (rawItems == null || rawItems.Count == 0)
 			{
 				return BaseResponse<GetCartItemsResponse>.Ok(
 					new GetCartItemsResponse { Items = [] },
 					"Cart is empty");
 			}
 
+			// 2. Chuyển đổi sang định dạng của Pricing Engine
+			var checkoutItems = rawItems.Select(item => new CartCheckoutItemDto
+			{
+				VariantId = item.VariantId,
+				VariantName = item.VariantName,
+				Quantity = item.Quantity,
+				UnitPrice = item.VariantPrice,
+				SubTotal = item.SubTotal,
+				Discount = 0m,
+				FinalTotal = item.SubTotal
+			}).ToList();
+
+			// 3. Chạy Pricing Engine (Truyền VoucherCode = null để chỉ lấy Promotion)
+			var (pricedItems, _, _, _) = await CalculatePricingEngineAsync(checkoutItems, null, userId);
+			var pricedItemByVariant = pricedItems
+				.GroupBy(x => x.VariantId)
+				.ToDictionary(g => g.Key, g => g.First());
+
+			// 4. Map kết quả từ Engine ngược lại vào Response Items
+			var responseItems = rawItems.Select(rawItem =>
+			 {
+				 if (pricedItemByVariant.TryGetValue(rawItem.VariantId, out var pricedItem))
+				 {
+					 return rawItem with
+					 {
+						 Discount = pricedItem.Discount,
+						 FinalTotal = pricedItem.FinalTotal
+					 };
+				 }
+
+				 return rawItem with
+				 {
+					 Discount = 0m,
+					 FinalTotal = rawItem.SubTotal
+				 };
+			 }).ToList();
+
 			return BaseResponse<GetCartItemsResponse>.Ok(
-				new GetCartItemsResponse { Items = items },
+			  new GetCartItemsResponse { Items = responseItems },
 				"Cart items retrieved successfully");
 		}
 
 		public async Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, GetCartTotalRequest request)
 		{
-			var (items, subtotal, finalAmount, voucherMessage) = await BuildCheckoutPricingAsync(userId, request);
+			var (items, engineSubtotal, finalAmount, voucherMessage) = await BuildCheckoutPricingAsync(userId, request);
+
 			if (items.Count == 0)
 			{
 				return BaseResponse<GetCartTotalResponse>.Ok(
@@ -186,18 +248,28 @@ namespace PerfumeGPT.Application.Services
 					{
 						Subtotal = 0m,
 						ShippingFee = 0m,
+						Discount = 0m,
 						TotalPrice = 0m
 					},
 					"Cart is empty");
 			}
 
-			// 4. Build response
+			// TÁCH BẠCH DISCOUNT VOUCHER VÀ PROMOTION
+			// 1. Tiền giảm của Promotion = Tổng Discount - Phần gánh Voucher
+			var totalPromoDiscount = items.Sum(x => x.Discount - x.ApportionedVoucherDiscount);
+
+			// 2. Subtotal hiển thị = Tổng giá gốc - Tiền Promotion (Sẽ ra đúng 5.222.000)
+			var subTotalAfterPromo = items.Sum(x => x.SubTotal) - totalPromoDiscount;
+
+			// 3. Discount hiển thị = Tiền Voucher (Sẽ ra đúng 100.000)
+			var voucherDiscount = items.Sum(x => x.ApportionedVoucherDiscount);
+
 			var response = new GetCartTotalResponse
 			{
-				Subtotal = subtotal,
-				ShippingFee = 0,
-				Discount = subtotal - finalAmount,
-				TotalPrice = finalAmount + 0
+				Subtotal = subTotalAfterPromo,
+				ShippingFee = 0m, // Logic phí ship của bạn
+				Discount = voucherDiscount,
+				TotalPrice = finalAmount
 			};
 
 			return BaseResponse<GetCartTotalResponse>.Ok(
@@ -326,7 +398,7 @@ namespace PerfumeGPT.Application.Services
 				var isLast = i == weightedItems.Count - 1;
 				var rawDiscount = isLast
 					? totalDiscount - allocated
-					: Math.Round((target.Weight / weightTotal) * totalDiscount, 2, MidpointRounding.AwayFromZero);
+					: Math.Round((target.Weight / weightTotal) * totalDiscount, 0, MidpointRounding.AwayFromZero);
 
 				var lineBaseAmount = target.Item.FinalTotal;
 				var safeDiscount = Math.Max(0m, Math.Min(rawDiscount, lineBaseAmount));
@@ -335,6 +407,10 @@ namespace PerfumeGPT.Application.Services
 				result[target.Index] = target.Item with
 				{
 					Discount = target.Item.Discount + safeDiscount,
+
+					// CẬP NHẬT: Lưu vết số tiền Voucher mà dòng này phải gánh
+					ApportionedVoucherDiscount = target.Item.ApportionedVoucherDiscount + safeDiscount,
+
 					FinalTotal = lineBaseAmount - safeDiscount
 				};
 			}
@@ -374,7 +450,7 @@ namespace PerfumeGPT.Application.Services
 				var isLast = i == weightedItems.Count - 1;
 				var rawDiscount = isLast
 					? totalDiscount - allocated
-				   : Math.Round((target.Item.FinalTotal / weightTotal) * totalDiscount, 2, MidpointRounding.AwayFromZero);
+				   : Math.Round((target.Item.FinalTotal / weightTotal) * totalDiscount, 0, MidpointRounding.AwayFromZero);
 
 				var lineBaseAmount = target.Item.FinalTotal;
 				var safeDiscount = Math.Max(0m, Math.Min(rawDiscount, lineBaseAmount));
@@ -382,7 +458,11 @@ namespace PerfumeGPT.Application.Services
 
 				result[target.Index] = target.Item with
 				{
-					Discount = safeDiscount,
+					Discount = target.Item.Discount + safeDiscount,
+
+					// CẬP NHẬT: Lưu vết số tiền Voucher mà dòng này phải gánh
+					ApportionedVoucherDiscount = target.Item.ApportionedVoucherDiscount + safeDiscount,
+
 					FinalTotal = lineBaseAmount - safeDiscount
 				};
 			}
@@ -488,8 +568,8 @@ namespace PerfumeGPT.Application.Services
 			var sourceQty = Math.Max(1, source.Quantity);
 			var unitSubTotal = source.SubTotal / sourceQty;
 			var unitFinalTotal = source.FinalTotal / sourceQty;
-			var subTotal = Math.Round(unitSubTotal * quantity, 2, MidpointRounding.AwayFromZero);
-			var finalTotal = Math.Round(unitFinalTotal * quantity, 2, MidpointRounding.AwayFromZero);
+			var subTotal = Math.Round(unitSubTotal * quantity, 0, MidpointRounding.AwayFromZero);
+			var finalTotal = Math.Round(unitFinalTotal * quantity, 0, MidpointRounding.AwayFromZero);
 			return source with
 			{
 				BatchId = batchId,
@@ -573,7 +653,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			var rawDiscountAmount = voucher.DiscountType switch
 			{
-				DiscountType.Percentage => eligibleSubtotal * (voucher.DiscountValue / 100m),
+				DiscountType.Percentage => Math.Round(eligibleSubtotal * (voucher.DiscountValue / 100m), 0, MidpointRounding.AwayFromZero),
 				DiscountType.FixedAmount => voucher.DiscountValue,
 				_ => 0m
 			};
@@ -586,6 +666,85 @@ namespace PerfumeGPT.Application.Services
 			return Math.Min(rawDiscountAmount, eligibleSubtotal);
 		}
 
+		//private async Task<(List<CartCheckoutItemDto> Items, string? Message)> ApplyAutoFlashSalesAsync(List<CartCheckoutItemDto> items)
+		//{
+		//	if (items.Count == 0)
+		//		return ([], null);
+
+		//	var variantIds = items.Select(x => x.VariantId).Distinct().ToList();
+		//	var now = DateTime.UtcNow;
+
+		//	// 1. TÌM TẤT CẢ PROMOTION ĐANG ACTIVE (Kết nối với bảng Campaign để check ngày tháng)
+		//	var activePromotions = await _unitOfWork.PromotionItems.GetAllAsync(
+		//		p => variantIds.Contains(p.TargetProductVariantId)
+		//		  && p.IsActive
+		//		  && !p.IsDeleted
+		//		  && p.Campaign.Status == CampaignStatus.Active
+		//		  && p.Campaign.StartDate <= now
+		//		  && p.Campaign.EndDate >= now
+		//		  && (!p.MaxUsage.HasValue || p.CurrentUsage < p.MaxUsage.Value), // Rào chắn số lượng
+		//		include: query => query.Include(p => p.Campaign),
+		//		asNoTracking: true);
+
+		//	if (!activePromotions.Any())
+		//		return (items.ToList(), null);
+
+		//	// Gom nhóm Promotion theo VariantId để dễ xử lý
+		//	var promoByVariant = activePromotions
+		//		.GroupBy(p => p.TargetProductVariantId)
+		//		.ToDictionary(g => g.Key, g => g.ToList());
+
+		//	var resultItems = new List<CartCheckoutItemDto>();
+		//	var messageLines = new List<string>();
+
+		//	// 2. LẶP QUA GIỎ HÀNG VÀ ÁP DỤNG "BEST DEAL"
+		//	foreach (var item in items)
+		//	{
+		//		if (promoByVariant.TryGetValue(item.VariantId, out var variantPromos))
+		//		{
+		//			// Lọc ra promotion hợp lệ (Global hoặc khớp chính xác BatchId)
+		//			var eligiblePromos = variantPromos
+		//				.Where(p => !p.BatchId.HasValue || p.BatchId == item.BatchId)
+		//				.ToList();
+
+		//			if (eligiblePromos.Count != 0)
+		//			{
+		//				// THUẬT TOÁN BEST DEAL WINS: Tính thử tiền giảm của từng promo và lấy cái lớn nhất
+		//				var bestPromo = eligiblePromos
+		//					.Select(p => new
+		//					{
+		//						Promo = p,
+		//						CalculatedDiscountPerItem = CalculateFlashSaleDiscount(item.UnitPrice, p)
+		//					})
+		//					.OrderByDescending(x => x.CalculatedDiscountPerItem)
+		//					.First();
+
+		//				if (bestPromo.CalculatedDiscountPerItem > 0)
+		//				{
+		//					// Tính tổng tiền giảm cho Dòng này (Nhân với số lượng)
+		//					var totalDiscountForLine = bestPromo.CalculatedDiscountPerItem * item.Quantity;
+		//					var newFinalTotal = item.SubTotal - totalDiscountForLine;
+
+		//					resultItems.Add(item with
+		//					{
+		//						Discount = totalDiscountForLine,
+		//						FinalTotal = newFinalTotal
+		//					});
+
+		//					messageLines.Add($"'{item.VariantName}' áp dụng {bestPromo.Promo.Campaign.Name} (Giảm {bestPromo.CalculatedDiscountPerItem:N0}/sp)");
+		//					continue; // Xong món này, nhảy sang món tiếp theo
+		//				}
+		//			}
+		//		}
+
+		//		// Nếu không có promotion nào hợp lệ, giữ nguyên giá gốc
+		//		resultItems.Add(item);
+		//	}
+
+		//	var message = messageLines.Count > 0 ? string.Join(" | ", messageLines) : null;
+		//	return (resultItems, message);
+		//}
+
 		private async Task<(List<CartCheckoutItemDto> Items, string? Message)> ApplyAutoFlashSalesAsync(List<CartCheckoutItemDto> items)
 		{
 			if (items.Count == 0)
@@ -594,7 +753,7 @@ namespace PerfumeGPT.Application.Services
 			var variantIds = items.Select(x => x.VariantId).Distinct().ToList();
 			var now = DateTime.UtcNow;
 
-			// 1. TÌM TẤT CẢ PROMOTION ĐANG ACTIVE (Kết nối với bảng Campaign để check ngày tháng)
+			// 1. TÌM PROMOTION ĐANG ACTIVE
 			var activePromotions = await _unitOfWork.PromotionItems.GetAllAsync(
 				p => variantIds.Contains(p.TargetProductVariantId)
 				  && p.IsActive
@@ -602,74 +761,116 @@ namespace PerfumeGPT.Application.Services
 				  && p.Campaign.Status == CampaignStatus.Active
 				  && p.Campaign.StartDate <= now
 				  && p.Campaign.EndDate >= now
-				  && (!p.MaxUsage.HasValue || p.CurrentUsage < p.MaxUsage.Value), // Rào chắn số lượng
+				  && (!p.MaxUsage.HasValue || p.CurrentUsage < p.MaxUsage.Value),
 				include: query => query.Include(p => p.Campaign),
 				asNoTracking: true);
 
 			if (!activePromotions.Any())
 				return (items.ToList(), null);
 
-			// Gom nhóm Promotion theo VariantId để dễ xử lý
-			var promoByVariant = activePromotions
-				.GroupBy(p => p.TargetProductVariantId)
-				.ToDictionary(g => g.Key, g => g.ToList());
+			var promoByVariant = activePromotions.GroupBy(p => p.TargetProductVariantId).ToDictionary(g => g.Key, g => g.ToList());
+
+			// 2. LẤY TỒN KHO THỰC TẾ (Để biết lô nào còn hàng mà chia)
+			var batchAvailability = await GetBatchAvailabilityAsync(activePromotions);
 
 			var resultItems = new List<CartCheckoutItemDto>();
 			var messageLines = new List<string>();
 
-			// 2. LẶP QUA GIỎ HÀNG VÀ ÁP DỤNG "BEST DEAL"
+			// 3. LẶP QUA GIỎ HÀNG VÀ XỬ LÝ PHÂN BỔ
 			foreach (var item in items)
 			{
-				if (promoByVariant.TryGetValue(item.VariantId, out var variantPromos))
+				if (!promoByVariant.TryGetValue(item.VariantId, out var variantPromos))
 				{
-					// Lọc ra promotion hợp lệ (Global hoặc khớp chính xác BatchId)
-					var eligiblePromos = variantPromos
-						.Where(p => !p.BatchId.HasValue || p.BatchId == item.BatchId)
-						.ToList();
-
-					if (eligiblePromos.Any())
-					{
-						// THUẬT TOÁN BEST DEAL WINS: Tính thử tiền giảm của từng promo và lấy cái lớn nhất
-						var bestPromo = eligiblePromos
-							.Select(p => new
-							{
-								Promo = p,
-								CalculatedDiscountPerItem = CalculateFlashSaleDiscount(item.UnitPrice, p)
-							})
-							.OrderByDescending(x => x.CalculatedDiscountPerItem)
-							.First();
-
-						if (bestPromo.CalculatedDiscountPerItem > 0)
-						{
-							// Tính tổng tiền giảm cho Dòng này (Nhân với số lượng)
-							var totalDiscountForLine = bestPromo.CalculatedDiscountPerItem * item.Quantity;
-							var newFinalTotal = item.SubTotal - totalDiscountForLine;
-
-							resultItems.Add(item with
-							{
-								Discount = totalDiscountForLine,
-								FinalTotal = newFinalTotal
-							});
-
-							messageLines.Add($"'{item.VariantName}' áp dụng {bestPromo.Promo.Campaign.Name} (Giảm {bestPromo.CalculatedDiscountPerItem:N0}/sp)");
-							continue; // Xong món này, nhảy sang món tiếp theo
-						}
-					}
+					resultItems.Add(item);
+					continue;
 				}
 
-				// Nếu không có promotion nào hợp lệ, giữ nguyên giá gốc
-				resultItems.Add(item);
+				// TRƯỜNG HỢP 1: Có Khuyến mãi Global (Không trói buộc Batch) -> Dễ nhất, áp dụng luôn
+				var globalPromos = variantPromos.Where(p => !p.BatchId.HasValue).ToList();
+				if (globalPromos.Any())
+				{
+					var bestPromo = globalPromos.OrderByDescending(p => CalculateFlashSaleDiscount(item.UnitPrice, p)).First();
+					resultItems.Add(ApplyDiscountToItem(item, bestPromo, ref messageLines));
+					continue;
+				}
+
+				// TRƯỜNG HỢP 2: Khách mua Online (BatchId = null) NHƯNG chỉ có Khuyến mãi theo Lô
+				if (!item.BatchId.HasValue)
+				{
+					// Lấy các khuyến mãi Lô và xếp hạng "Best Deal"
+					var batchPromos = variantPromos.Where(p => p.BatchId.HasValue)
+						.OrderByDescending(p => CalculateFlashSaleDiscount(item.UnitPrice, p))
+						.ToList();
+
+					int remainingQty = item.Quantity;
+
+					// Vắt kiệt số lượng từ các Lô có khuyến mãi
+					foreach (var promo in batchPromos)
+					{
+						if (remainingQty <= 0) break;
+
+						var promoBatchId = promo.BatchId!.Value;
+						if (batchAvailability.TryGetValue(promoBatchId, out var available) && available > 0)
+						{
+							var qtyToTake = Math.Min(remainingQty, available);
+
+							// Trừ tồn kho tạm thời trong RAM để vòng lặp sau không lấy lố
+							batchAvailability[promoBatchId] -= qtyToTake;
+							remainingQty -= qtyToTake;
+
+							// Tách dòng và ép gán BatchId ngay tại đây
+							var splitItem = CreateSplitItem(item, qtyToTake, promoBatchId);
+							resultItems.Add(ApplyDiscountToItem(splitItem, promo, ref messageLines));
+						}
+					}
+
+					// Nếu đã vét sạch các lô khuyến mãi mà khách đặt nhiều quá -> Phần dư giữ nguyên giá gốc
+					if (remainingQty > 0)
+					{
+						resultItems.Add(CreateSplitItem(item, remainingQty, null));
+					}
+				}
+				// TRƯỜNG HỢP 3: Mua tại POS (Đã quét mã vạch trúng Lô cụ thể)
+				else
+				{
+					var specificPromo = variantPromos.Where(p => p.BatchId == item.BatchId).ToList();
+					if (specificPromo.Any())
+					{
+						var bestPromo = specificPromo.OrderByDescending(p => CalculateFlashSaleDiscount(item.UnitPrice, p)).First();
+						resultItems.Add(ApplyDiscountToItem(item, bestPromo, ref messageLines));
+					}
+					else
+					{
+						resultItems.Add(item);
+					}
+				}
 			}
 
 			var message = messageLines.Count > 0 ? string.Join(" | ", messageLines) : null;
 			return (resultItems, message);
 		}
 
+		//  Hàm Helper để code gọn gàng (Bạn thêm hàm này vào dưới hàm CalculateFlashSaleDiscount)
+		private static CartCheckoutItemDto ApplyDiscountToItem(CartCheckoutItemDto item, PromotionItem promo, ref List<string> messageLines)
+		{
+			var discountPerItem = CalculateFlashSaleDiscount(item.UnitPrice, promo);
+			var totalDiscountForLine = discountPerItem * item.Quantity;
+			var newFinalTotal = item.SubTotal - totalDiscountForLine;
+
+			messageLines.Add($"'{item.VariantName}' áp dụng {promo.Campaign.Name} (Giảm {discountPerItem:N0}/sp)");
+
+			return item with
+			{
+				Discount = item.Discount + totalDiscountForLine,
+				FinalTotal = newFinalTotal
+			};
+		}
+
 		// Hàm Helper tính toán mức giảm cho 1 sản phẩm
 		private static decimal CalculateFlashSaleDiscount(decimal unitPrice, PromotionItem promo)
 		{
 			var rawDiscount = promo.DiscountType == DiscountType.Percentage
-				? unitPrice * (promo.DiscountValue / 100m)
+				? Math.Round(unitPrice * (promo.DiscountValue / 100m), 0, MidpointRounding.AwayFromZero)
 				: promo.DiscountValue;
 
 			// Đảm bảo không giảm lố giá gốc của sản phẩm (Vd: Sp 100k mà flash sale giảm 150k thì chỉ giảm 100k)
