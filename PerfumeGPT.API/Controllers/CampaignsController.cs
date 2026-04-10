@@ -187,6 +187,17 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpGet("{id:guid}/vouchers")]
+		[Authorize(Roles = "admin")]
+		[ProducesResponseType(typeof(BaseResponse<List<VoucherResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<VoucherResponse>>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<List<VoucherResponse>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<List<VoucherResponse>>>> GetCampaignVouchersByCampaignId([FromRoute] Guid id)
+		{
+			var response = await _campaignService.GetCampaignVouchersByCampaignIdAsync(id);
+			return HandleResponse(response);
+		}
+
 		[HttpGet("{id:guid}/vouchers/{voucherId:guid}")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<VoucherResponse>), StatusCodes.Status200OK)]
