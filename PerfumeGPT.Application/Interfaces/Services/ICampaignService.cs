@@ -22,6 +22,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<string>> DeleteCampaignItemAsync(Guid campaignId, Guid itemId);
 
 		Task<BaseResponse<string>> AddCampaignVoucherAsync(Guid campaignId, CreateCampaignVoucherRequest request);
+       Task<BaseResponse<List<VoucherResponse>>> GetCampaignVouchersByCampaignIdAsync(Guid campaignId);
 		Task<BaseResponse<VoucherResponse>> GetCampaignVoucherByIdAsync(Guid campaignId, Guid voucherId);
 		Task<BaseResponse<string>> UpdateCampaignVoucherAsync(Guid campaignId, Guid voucherId, UpdateCampaignVoucherRequest request);
 		Task<BaseResponse<string>> DeleteCampaignVoucherAsync(Guid campaignId, Guid voucherId);

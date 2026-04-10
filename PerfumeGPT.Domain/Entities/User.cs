@@ -93,6 +93,18 @@ namespace PerfumeGPT.Domain.Entities
 			FullName = fullName.Trim();
 		}
 
+		public void UpdateBasicInfo(string fullName, string phoneNumber)
+		{
+			if (string.IsNullOrWhiteSpace(fullName))
+				throw DomainException.BadRequest("Full name cannot be empty.");
+
+			if (string.IsNullOrWhiteSpace(phoneNumber))
+				throw DomainException.BadRequest("Phone number cannot be empty.");
+
+			FullName = fullName.Trim();
+			PhoneNumber = phoneNumber.Trim();
+		}
+
 		public LoyaltyTransaction EarnPoints(LoyaltyTransaction.EarnTransactionInfo info)
 		{
 			EnsureActive();

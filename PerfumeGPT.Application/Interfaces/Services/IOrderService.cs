@@ -1,6 +1,7 @@
 ﻿using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
+using PerfumeGPT.Application.DTOs.Responses.Payments;
 
 namespace PerfumeGPT.Application.Interfaces.Services
 {
@@ -20,8 +21,8 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		#endregion Address Management
 
 		#region Checkout Operations
-		Task<BaseResponse<string>> Checkout(Guid userId, CreateOrderRequest request);
-		Task<BaseResponse<string>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request);
+		Task<BaseResponse<CreatePaymentResponseDto>> Checkout(Guid userId, CreateOrderRequest request);
+		Task<BaseResponse<CreatePaymentResponseDto>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request);
 		#endregion Checkout Operations
 
 		#region Order Status Management

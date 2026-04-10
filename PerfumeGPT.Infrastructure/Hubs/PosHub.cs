@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using PerfumeGPT.Application.DTOs.Responses.Carts;
 using PerfumeGPT.Application.DTOs.Responses.Payments;
@@ -6,7 +5,7 @@ using PerfumeGPT.Application.Interfaces.ThirdParties;
 
 namespace PerfumeGPT.Infrastructure.Hubs
 {
-	[Authorize]
+	//[Authorize]
 	public class PosHub : Hub<IPosClient>
 	{
 		public async Task JoinPosSession(string sessionId)

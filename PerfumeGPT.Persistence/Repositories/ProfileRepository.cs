@@ -1,4 +1,5 @@
 ﻿using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.DTOs.Responses.Profiles;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
@@ -16,6 +17,39 @@ namespace PerfumeGPT.Persistence.Repositories
 			.Include(p => p.FamilyPreferences)
 			.Include(p => p.AttributePreferences)
 			.FirstOrDefaultAsync(p => p.UserId == userId);
+
+		public async Task<ProfileResponse?> GetProfileResponseByUserIdAsync(Guid userId)
+		=> await _context.CustomerProfiles
+			.Where(p => p.UserId == userId)
+			.Select(p => new ProfileResponse
+			{
+				DateOfBirth = p.DateOfBirth,
+				MinBudget = p.MinBudget,
+				MaxBudget = p.MaxBudget,
+				NotePreferences = p.NotePreferences
+					.Select(np => new CustomerNotePreferenceResponse
+					{
+						NoteId = np.NoteId,
+						NoteName = np.ScentNote.Name,
+						NoteType = np.NoteType
+					})
+					.ToList(),
+				FamilyPreferences = p.FamilyPreferences
+					.Select(fp => new CustomerFamilyPreferenceRespone
+					{
+						FamilyId = fp.FamilyId,
+						FamilyName = fp.Family.Name
+					})
+					.ToList(),
+				AttributePreferences = p.AttributePreferences
+					.Select(ap => new CustomerAttributePreferenceResponse
+					{
+						AttributeValueId = ap.AttributeValueId,
+						AttributeValueName = ap.AttributeValue.Value
+					})
+					.ToList()
+			})
+			.FirstOrDefaultAsync();
 
 		public async Task<List<int>> GetMissingNoteIdsAsync(IEnumerable<int> noteIds)
 		{

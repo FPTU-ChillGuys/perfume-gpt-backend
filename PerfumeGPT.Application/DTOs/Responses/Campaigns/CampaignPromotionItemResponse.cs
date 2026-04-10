@@ -10,6 +10,8 @@ namespace PerfumeGPT.Application.DTOs.Responses.Campaigns
 		public Guid? BatchId { get; init; }
 		public required string Name { get; init; }
 		public PromotionType ItemType { get; init; }
+       public DiscountType DiscountType { get; init; }
+		public decimal DiscountValue { get; init; }
 		public DateTime? StartDate { get; init; }
 		public DateTime? EndDate { get; init; }
 		public int? MaxUsage { get; init; }

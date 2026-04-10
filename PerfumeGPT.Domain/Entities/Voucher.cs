@@ -20,9 +20,11 @@ namespace PerfumeGPT.Domain.Entities
 
 		// Redemption properties
 		public int RequiredPoints { get; private set; }
+		public decimal? MaxDiscountAmount { get; private set; }
 		public decimal MinOrderValue { get; private set; }
 		public DateTime ExpiryDate { get; private set; }
 		public int? RemainingQuantity { get; private set; }
+		public int? MaxUsagePerUser { get; private set; }
 		public int? TotalQuantity { get; private set; }
 		public bool IsPublic { get; private set; }
 
@@ -43,7 +45,15 @@ namespace PerfumeGPT.Domain.Entities
 		// Factory methods
 		public static Voucher CreateRegular(VoucherRegularCreationFactor details)
 		{
-			ValidateCore(details.Code, details.DiscountValue, details.RequiredPoints, details.MinOrderValue, details.ExpiryDate, details.TotalQuantity);
+			ValidateCore(
+				details.Code,
+				details.DiscountValue,
+				details.RequiredPoints,
+				details.MaxDiscountAmount,
+				details.MinOrderValue,
+				details.ExpiryDate,
+				details.TotalQuantity,
+				details.MaxUsagePerUser);
 
 			return new Voucher
 			{
@@ -52,10 +62,12 @@ namespace PerfumeGPT.Domain.Entities
 				DiscountType = details.DiscountType,
 				ApplyType = details.ApplyType,
 				RequiredPoints = details.RequiredPoints,
+				MaxDiscountAmount = details.MaxDiscountAmount,
 				MinOrderValue = details.MinOrderValue,
 				ExpiryDate = details.ExpiryDate,
 				TotalQuantity = details.TotalQuantity,
 				RemainingQuantity = details.TotalQuantity,
+				MaxUsagePerUser = details.MaxUsagePerUser,
 				IsPublic = details.IsPublic
 			};
 		}
@@ -85,15 +97,27 @@ namespace PerfumeGPT.Domain.Entities
 				ExpiryDate = details.ExpiryDate,
 				IsPublic = true,
 				RequiredPoints = 0,
-				MinOrderValue = 0,
-				TotalQuantity = null,
-				RemainingQuantity = null
+
+				// Gán các giá trị từ details
+				MinOrderValue = details.MinOrderValue,
+				TotalQuantity = details.TotalQuantity,
+				RemainingQuantity = details.TotalQuantity,
+				MaxUsagePerUser = details.MaxUsagePerUser,
+				MaxDiscountAmount = details.MaxDiscountAmount
 			};
 		}
 
 		public void UpdateRegular(VoucherRegularUpdateFactor details)
 		{
-			ValidateCore(details.Code, details.DiscountValue, details.RequiredPoints, details.MinOrderValue, details.ExpiryDate, details.TotalQuantity);
+			ValidateCore(
+				details.Code,
+				details.DiscountValue,
+				details.RequiredPoints,
+			   details.MaxDiscountAmount,
+				details.MinOrderValue,
+				details.ExpiryDate,
+			 details.TotalQuantity,
+				details.MaxUsagePerUser);
 
 			if (details.RemainingQuantity < 0)
 				throw DomainException.BadRequest("Remaining quantity must be greater than or equal to 0.");
@@ -106,10 +130,12 @@ namespace PerfumeGPT.Domain.Entities
 			DiscountType = details.DiscountType;
 			ApplyType = details.ApplyType;
 			RequiredPoints = details.RequiredPoints;
+			MaxDiscountAmount = details.MaxDiscountAmount;
 			MinOrderValue = details.MinOrderValue;
 			ExpiryDate = details.ExpiryDate;
 			TotalQuantity = details.TotalQuantity;
 			RemainingQuantity = details.RemainingQuantity;
+			MaxUsagePerUser = details.MaxUsagePerUser;
 			IsPublic = details.IsPublic;
 		}
 
@@ -139,6 +165,8 @@ namespace PerfumeGPT.Domain.Entities
 			MinOrderValue = 0;
 			TotalQuantity = null;
 			RemainingQuantity = null;
+			MaxUsagePerUser = null;
+			MaxDiscountAmount = null;
 		}
 
 		// Business logic methods
@@ -191,9 +219,11 @@ namespace PerfumeGPT.Domain.Entities
 			string code,
 			decimal discountValue,
 			int requiredPoints,
+			decimal? maxDiscountAmount,
 			decimal minOrderValue,
 			DateTime expiryDate,
-			int totalQuantity)
+			int totalQuantity,
+			int? maxUsagePerUser)
 		{
 			if (string.IsNullOrWhiteSpace(code))
 				throw DomainException.BadRequest("Voucher code is required.");
@@ -212,6 +242,12 @@ namespace PerfumeGPT.Domain.Entities
 
 			if (totalQuantity <= 0)
 				throw DomainException.BadRequest("Total quantity must be greater than 0.");
+
+			if (maxDiscountAmount.HasValue && maxDiscountAmount.Value <= 0)
+				throw DomainException.BadRequest("Max discount amount must be greater than 0.");
+
+			if (maxUsagePerUser.HasValue && maxUsagePerUser.Value <= 0)
+				throw DomainException.BadRequest("Max usage per user must be greater than 0.");
 		}
 
 		// Records
@@ -222,9 +258,11 @@ namespace PerfumeGPT.Domain.Entities
 			public required DiscountType DiscountType { get; init; }
 			public required VoucherType ApplyType { get; init; }
 			public required int RequiredPoints { get; init; }
+			public decimal? MaxDiscountAmount { get; init; }
 			public required decimal MinOrderValue { get; init; }
 			public required DateTime ExpiryDate { get; init; }
 			public required int TotalQuantity { get; init; }
+			public int? MaxUsagePerUser { get; init; }
 			public required bool IsPublic { get; init; }
 		}
 
@@ -235,10 +273,12 @@ namespace PerfumeGPT.Domain.Entities
 			public required DiscountType DiscountType { get; init; }
 			public required VoucherType ApplyType { get; init; }
 			public required int RequiredPoints { get; init; }
+			public decimal? MaxDiscountAmount { get; init; }
 			public required decimal MinOrderValue { get; init; }
 			public required DateTime ExpiryDate { get; init; }
 			public required int TotalQuantity { get; init; }
 			public required int RemainingQuantity { get; init; }
+			public int? MaxUsagePerUser { get; init; }
 			public required bool IsPublic { get; init; }
 		}
 
@@ -251,6 +291,12 @@ namespace PerfumeGPT.Domain.Entities
 			public required PromotionType TargetItemType { get; init; }
 			public required Guid CampaignId { get; init; }
 			public required DateTime ExpiryDate { get; init; }
+
+			// Thêm các thuộc tính này
+			public decimal? MaxDiscountAmount { get; init; }
+			public required decimal MinOrderValue { get; init; }
+			public int? TotalQuantity { get; init; }
+			public int? MaxUsagePerUser { get; init; }
 		}
 	}
 }

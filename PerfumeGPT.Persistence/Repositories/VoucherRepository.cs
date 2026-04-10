@@ -40,16 +40,45 @@ namespace PerfumeGPT.Persistence.Repositories
 				   ApplyType = v.ApplyType,
 				   TargetItemType = v.TargetItemType ?? default,
 				   RequiredPoints = v.RequiredPoints,
+				   MaxDiscountAmount = v.MaxDiscountAmount,
 				   MinOrderValue = v.MinOrderValue,
 				   ExpiryDate = v.ExpiryDate,
 				   IsExpired = v.ExpiryDate < DateTime.UtcNow,
 				   TotalQuantity = v.TotalQuantity,
 				   RemainingQuantity = v.RemainingQuantity,
+				   MaxUsagePerUser = v.MaxUsagePerUser,
 				   IsPublic = v.IsPublic,
 				   CreatedAt = v.CreatedAt
 			   })
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
+
+		public async Task<List<VoucherResponse>> GetByCampaignIdAsync(Guid campaignId)
+			=> await _context.Vouchers
+				.Where(v => v.CampaignId == campaignId && !v.IsDeleted)
+				.OrderByDescending(v => v.CreatedAt)
+				.Select(v => new VoucherResponse
+				{
+					Id = v.Id,
+					Code = v.Code,
+					DiscountValue = v.DiscountValue,
+					DiscountType = v.DiscountType,
+					CampaignId = v.CampaignId,
+					ApplyType = v.ApplyType,
+					TargetItemType = v.TargetItemType ?? default,
+					RequiredPoints = v.RequiredPoints,
+					MaxDiscountAmount = v.MaxDiscountAmount,
+					MinOrderValue = v.MinOrderValue,
+					ExpiryDate = v.ExpiryDate,
+					IsExpired = v.ExpiryDate < DateTime.UtcNow,
+					TotalQuantity = v.TotalQuantity,
+					RemainingQuantity = v.RemainingQuantity,
+					MaxUsagePerUser = v.MaxUsagePerUser,
+					IsPublic = v.IsPublic,
+					CreatedAt = v.CreatedAt
+				})
+				.AsNoTracking()
+				.ToListAsync();
 
 		public async Task<(List<RedeemableVoucherResponse> Items, int TotalCount)> GetPagedRedeemableVouchersAsync(GetPagedRedeemableVouchersRequest request)
 		{
@@ -70,10 +99,12 @@ namespace PerfumeGPT.Persistence.Repositories
 				 DiscountValue = v.DiscountValue,
 				 DiscountType = v.DiscountType,
 				 RequiredPoints = v.RequiredPoints,
+				 MaxDiscountAmount = v.MaxDiscountAmount,
 				 MinOrderValue = v.MinOrderValue,
 				 ExpiryDate = v.ExpiryDate,
 				 IsExpired = v.ExpiryDate < DateTime.UtcNow,
 				 RemainingQuantity = v.RemainingQuantity,
+				 MaxUsagePerUser = v.MaxUsagePerUser,
 				 CreatedAt = v.CreatedAt
 			 })
 				.ToListAsync();

@@ -1,13 +1,14 @@
 using Microsoft.Extensions.Logging;
-using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.CartItems;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
+using PerfumeGPT.Application.DTOs.Responses.Payments;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
@@ -32,7 +33,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IContactAddressService _recipientService;
 		private readonly INotificationService _notificationService;
 		private readonly IGHNService _ghnService;
-       private readonly IBackgroundJobService _backgroundJobService;
+		private readonly IBackgroundJobService _backgroundJobService;
 		private readonly IRedisPublisherService _redisPublisher;
 		private readonly ILogger<OrderService> _logger;
 
@@ -48,7 +49,7 @@ namespace PerfumeGPT.Application.Services
 			INotificationService notificationService,
 			IContactAddressService recipientService,
 			IGHNService ghnService,
-          IBackgroundJobService backgroundJobService,
+			IBackgroundJobService backgroundJobService,
 			IRedisPublisherService redisPublisher,
 			ILogger<OrderService> logger)
 		{
@@ -63,7 +64,7 @@ namespace PerfumeGPT.Application.Services
 			_notificationService = notificationService;
 			_recipientService = recipientService;
 			_ghnService = ghnService;
-           _backgroundJobService = backgroundJobService;
+			_backgroundJobService = backgroundJobService;
 			_redisPublisher = redisPublisher;
 			_logger = logger;
 		}
@@ -160,7 +161,7 @@ namespace PerfumeGPT.Application.Services
 
 
 		#region Checkout Operations
-		public async Task<BaseResponse<string>> Checkout(Guid userId, CreateOrderRequest request)
+		public async Task<BaseResponse<CreatePaymentResponseDto>> Checkout(Guid userId, CreateOrderRequest request)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
@@ -238,12 +239,11 @@ namespace PerfumeGPT.Application.Services
 					var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(userId, null, voucher.Id, order.Id)
 						?? throw AppException.BadRequest("Failed to mark voucher as used.");
 
-					if (markVoucherResult != null)
-						order.AssignVoucher(markVoucherResult);
+					order.AssignVoucher(markVoucherResult);
 				}
 
 				// Clear cart Items
-				await _cartService.ClearCartAsync(userId, request.ItemIds);
+				await _cartService.ClearCartAsync(userId, request.ItemIds, false);
 
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, cartResponse.TotalPrice, request.Payment.Method, null);
 				await _notificationService.CreateNewOrderNotificationAsync(order.Id, cartResponse.TotalPrice);
@@ -251,11 +251,11 @@ namespace PerfumeGPT.Application.Services
 				// Publish order_created event to Redis for AI backend (email notification)
 				await _redisPublisher.PublishOrderCreatedAsync(order.Id, userId);
 
-				return BaseResponse<string>.Ok(response, "Checkout successful.");
+				return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Checkout successful.");
 			});
 		}
 
-		public async Task<BaseResponse<string>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request)
+		public async Task<BaseResponse<CreatePaymentResponseDto>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request)
 		{
 			if (request.ScannedItems == null || request.ScannedItems.Count == 0)
 				throw AppException.BadRequest("No items in the order.");
@@ -347,7 +347,7 @@ namespace PerfumeGPT.Application.Services
 				if (request.CustomerId.HasValue)
 					await _redisPublisher.PublishOrderCreatedAsync(order.Id, request.CustomerId.Value);
 
-				return BaseResponse<string>.Ok(response, "Order created. Waiting for payment confirmation.");
+				return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Order created. Waiting for payment confirmation.");
 			});
 		}
 		#endregion Checkout Operations
@@ -539,13 +539,13 @@ namespace PerfumeGPT.Application.Services
 					_unitOfWork.Payments.Update(pendingCod);
 				}
 
-                // 3. Schedule loyalty points after return window (Delivered + 10 days)
+				// 3. Schedule loyalty points after return window (Delivered + 10 days)
 				if (order.CustomerId.HasValue)
 				{
-                 int points = (int)(order.TotalAmount * 0.01m);
+					int points = (int)(order.TotalAmount * 0.01m);
 					if (points > 0)
 					{
-                       _backgroundJobService.ScheduleLoyaltyPointsGrant(_logger, order.Id, DateTime.UtcNow);
+						_backgroundJobService.ScheduleLoyaltyPointsGrant(_logger, order.Id, DateTime.UtcNow);
 					}
 				}
 

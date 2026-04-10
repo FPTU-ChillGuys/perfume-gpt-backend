@@ -76,10 +76,12 @@ namespace PerfumeGPT.Persistence.Repositories
 				 {
 					 Id = x.Id,
 					 CampaignId = x.CampaignId,
-					 ProductVariantId = x.ProductVariantId,
+					 ProductVariantId = x.TargetProductVariantId,
 					 BatchId = x.BatchId,
 					 Name = x.ProductVariant.Product.Name ?? string.Empty,
 					 ItemType = x.ItemType,
+					 DiscountType = x.DiscountType,
+					 DiscountValue = x.DiscountValue,
 					 StartDate = x.Campaign.StartDate,
 					 EndDate = x.Campaign.EndDate,
 					 MaxUsage = x.MaxUsage,

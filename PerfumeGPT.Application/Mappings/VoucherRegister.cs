@@ -17,11 +17,13 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ApplyType, src => src.ApplyType)
 				.Map(dest => dest.TargetItemType, src => src.TargetItemType)
 				.Map(dest => dest.RequiredPoints, src => src.RequiredPoints)
+              .Map(dest => dest.MaxDiscountAmount, src => src.MaxDiscountAmount)
 				.Map(dest => dest.MinOrderValue, src => src.MinOrderValue)
 				.Map(dest => dest.ExpiryDate, src => src.ExpiryDate)
 				.Map(dest => dest.IsExpired, src => src.ExpiryDate < DateTime.UtcNow)
 				.Map(dest => dest.TotalQuantity, src => src.TotalQuantity)
 				.Map(dest => dest.RemainingQuantity, src => src.RemainingQuantity)
+                .Map(dest => dest.MaxUsagePerUser, src => src.MaxUsagePerUser)
 				.Map(dest => dest.IsPublic, src => src.IsPublic)
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt);
 
@@ -44,10 +46,12 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.DiscountValue, src => src.DiscountValue)
 				.Map(dest => dest.DiscountType, src => src.DiscountType.ToString())
 				.Map(dest => dest.RequiredPoints, src => src.RequiredPoints)
+              .Map(dest => dest.MaxDiscountAmount, src => src.MaxDiscountAmount)
 				.Map(dest => dest.MinOrderValue, src => src.MinOrderValue)
 				.Map(dest => dest.ExpiryDate, src => src.ExpiryDate)
 				.Map(dest => dest.IsExpired, src => src.ExpiryDate < DateTime.UtcNow)
 				.Map(dest => dest.RemainingQuantity, src => src.RemainingQuantity)
+             .Map(dest => dest.MaxUsagePerUser, src => src.MaxUsagePerUser)
 				.Map(dest => dest.CreatedAt, src => src.CreatedAt);
 		}
 	}

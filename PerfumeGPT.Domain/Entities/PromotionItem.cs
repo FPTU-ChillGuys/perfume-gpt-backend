@@ -10,9 +10,12 @@ namespace PerfumeGPT.Domain.Entities
 		protected PromotionItem() { }
 
 		public Guid CampaignId { get; private set; }
-		public Guid ProductVariantId { get; private set; }
+		public Guid TargetProductVariantId { get; private set; }
+		public int? CategoryId { get; private set; }
 		public Guid? BatchId { get; private set; }
 		public PromotionType ItemType { get; private set; } // Clearance, NewArrival, Regular, etc.
+		public decimal DiscountValue { get; private set; }
+		public DiscountType DiscountType { get; private set; } // Percentage, FixedAmount
 		public bool IsActive { get; private set; }
 		public int? MaxUsage { get; private set; }
 		public int CurrentUsage { get; private set; }
@@ -21,6 +24,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual Campaign Campaign { get; set; } = null!;
 		public virtual ProductVariant ProductVariant { get; set; } = null!;
 		public virtual Batch? Batch { get; set; }
+		public virtual Category? Category { get; set; }
 
 		// IHasTimestamps  implementation
 		public DateTime CreatedAt { get; set; }
@@ -42,12 +46,17 @@ namespace PerfumeGPT.Domain.Entities
 			if (details.MaxUsage.HasValue && details.MaxUsage.Value <= 0)
 				throw DomainException.BadRequest("Max usage must be greater than 0.");
 
+			if (details.DiscountValue <= 0)
+				throw DomainException.BadRequest("Discount value must be greater than 0.");
+
 			return new PromotionItem
 			{
 				CampaignId = details.CampaignId,
-				ProductVariantId = details.ProductVariantId,
+				TargetProductVariantId = details.ProductVariantId,
 				BatchId = details.BatchId,
 				ItemType = details.ItemType,
+				DiscountValue = details.DiscountValue,
+				DiscountType = details.DiscountType,
 				MaxUsage = details.MaxUsage,
 				CurrentUsage = 0,
 				IsActive = details.IsActive
@@ -63,9 +72,14 @@ namespace PerfumeGPT.Domain.Entities
 			if (details.MaxUsage.HasValue && details.MaxUsage.Value <= 0)
 				throw DomainException.BadRequest("Max usage must be greater than 0.");
 
-			ProductVariantId = details.ProductVariantId;
+			if (details.DiscountValue <= 0)
+				throw DomainException.BadRequest("Discount value must be greater than 0.");
+
+			TargetProductVariantId = details.ProductVariantId;
 			BatchId = details.BatchId;
 			ItemType = details.ItemType;
+			DiscountValue = details.DiscountValue;
+			DiscountType = details.DiscountType;
 			MaxUsage = details.MaxUsage;
 			IsActive = details.IsActive;
 		}
@@ -82,6 +96,8 @@ namespace PerfumeGPT.Domain.Entities
 			public required Guid ProductVariantId { get; init; }
 			public Guid? BatchId { get; init; }
 			public required PromotionType ItemType { get; init; }
+			public required decimal DiscountValue { get; init; }
+			public required DiscountType DiscountType { get; init; }
 			public int? MaxUsage { get; init; }
 			public required bool IsActive { get; init; }
 		}
@@ -91,6 +107,8 @@ namespace PerfumeGPT.Domain.Entities
 			public required Guid ProductVariantId { get; init; }
 			public Guid? BatchId { get; init; }
 			public required PromotionType ItemType { get; init; }
+			public required decimal DiscountValue { get; init; }
+			public required DiscountType DiscountType { get; init; }
 			public int? MaxUsage { get; init; }
 			public required bool IsActive { get; init; }
 		}

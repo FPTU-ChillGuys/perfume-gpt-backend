@@ -1,5 +1,6 @@
 ﻿using MapsterMapper;
 using Microsoft.AspNetCore.Identity;
+using PerfumeGPT.Application.DTOs.Requests.Users;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Users;
 using PerfumeGPT.Application.Interfaces.Repositories;
@@ -85,6 +86,71 @@ namespace PerfumeGPT.Application.Services
 			{
 				return BaseResponse<List<StaffLookupItem>>.Fail($"Error retrieving staff lookup: {ex.Message}", ResponseErrorType.InternalError);
 			}
+		}
+
+		public async Task<BaseResponse<List<StaffManageItem>>> GetStaffForManagementAsync()
+		{
+			var staffs = await _userRepository.GetStaffForManagementAsync();
+
+			return BaseResponse<List<StaffManageItem>>.Ok(staffs, "Staff list retrieved successfully.");
+		}
+
+		public async Task<BaseResponse<string>> UpdateUserBasicInfoAsync(Guid userId, UpdateUserBasicInfoRequest request)
+		{
+			var user = await _userRepository.GetByIdAsync(userId);
+			if (user == null || user.IsDeleted)
+			{
+				return BaseResponse<string>.Fail("User not found.", ResponseErrorType.NotFound);
+			}
+
+			var phoneNumber = request.PhoneNumber.Trim();
+            var hasDuplicatePhone = await _userRepository.IsPhoneNumberInUseAsync(phoneNumber, userId);
+
+			if (hasDuplicatePhone)
+			{
+				return BaseResponse<string>.Fail("Phone number is already in use.", ResponseErrorType.BadRequest);
+			}
+
+			user.UpdateBasicInfo(request.FullName, phoneNumber);
+
+			var result = await _userManager.UpdateAsync(user);
+			if (!result.Succeeded)
+			{
+				var error = string.Join("; ", result.Errors.Select(e => e.Description));
+				return BaseResponse<string>.Fail($"Failed to update user info: {error}", ResponseErrorType.BadRequest);
+			}
+
+			return BaseResponse<string>.Ok(userId.ToString(), "User information updated successfully.");
+		}
+
+		public async Task<BaseResponse<string>> InactiveStaffAsync(Guid staffId)
+		{
+			var user = await _userRepository.GetByIdAsync(staffId);
+			if (user == null || user.IsDeleted)
+			{
+				return BaseResponse<string>.Fail("Staff not found.", ResponseErrorType.NotFound);
+			}
+
+			var isStaff = await _userManager.IsInRoleAsync(user, "staff");
+			if (!isStaff)
+			{
+				return BaseResponse<string>.Fail("User is not staff.", ResponseErrorType.BadRequest);
+			}
+
+			if (!user.IsActive)
+			{
+				return BaseResponse<string>.Fail("Staff is already inactive.", ResponseErrorType.BadRequest);
+			}
+
+			user.Deactivate();
+			var updateResult = await _userManager.UpdateAsync(user);
+			if (!updateResult.Succeeded)
+			{
+				var error = string.Join("; ", updateResult.Errors.Select(e => e.Description));
+				return BaseResponse<string>.Fail($"Failed to inactivate staff: {error}", ResponseErrorType.BadRequest);
+			}
+
+			return BaseResponse<string>.Ok(staffId.ToString(), "Staff inactivated successfully.");
 		}
 
 		public async Task<BaseResponse<string>> GetEmailByIdAsync(Guid userId)

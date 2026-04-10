@@ -51,9 +51,11 @@ namespace PerfumeGPT.Application.Services
 				DiscountType = request.DiscountType,
 				ApplyType = request.ApplyType,
 				RequiredPoints = request.RequiredPoints,
+				MaxDiscountAmount = request.MaxDiscountAmount,
 				MinOrderValue = request.MinOrderValue,
 				ExpiryDate = request.ExpiryDate,
 				TotalQuantity = request.TotalQuantity,
+				MaxUsagePerUser = request.MaxUsagePerUser,
 				IsPublic = request.IsPublic
 			});
 
@@ -89,10 +91,12 @@ namespace PerfumeGPT.Application.Services
 				DiscountType = request.DiscountType,
 				ApplyType = request.ApplyType,
 				RequiredPoints = request.RequiredPoints,
+				MaxDiscountAmount = request.MaxDiscountAmount,
 				MinOrderValue = request.MinOrderValue,
 				ExpiryDate = request.ExpiryDate,
 				TotalQuantity = request.TotalQuantity,
 				RemainingQuantity = request.RemainingQuantity,
+				MaxUsagePerUser = request.MaxUsagePerUser,
 				IsPublic = request.IsPublic
 			});
 
@@ -166,64 +170,55 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> RedeemVoucherAsync(Guid userId, RedeemVoucherRequest request)
 		{
-			try
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
+					v => v.Id == request.VoucherId && !v.IsDeleted,
+					asNoTracking: false
+				) ?? throw AppException.NotFound("Voucher not found");
+
+				voucher.EnsureNotExpired(DateTime.UtcNow);
+
+				var usageCount = await _unitOfWork.UserVouchers.GetUserVoucherUsageCountAsync(userId, request.VoucherId, request.ReceiverEmailOrPhone);
+				// Use repository method to check if user already redeemed this voucher
+				if (voucher.MaxUsagePerUser.HasValue && usageCount >= voucher.MaxUsagePerUser.Value)
 				{
-					var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
-						v => v.Id == request.VoucherId && !v.IsDeleted,
-						asNoTracking: false
-					) ?? throw AppException.NotFound("Voucher not found");
+					throw AppException.Conflict($"You have reached the maximum usage limit ({voucher.MaxUsagePerUser.Value}) for this voucher.");
+				}
 
-					voucher.EnsureNotExpired(DateTime.UtcNow);
-					voucher.EnsureInStock();
-
-					// Use repository method to check if user already redeemed this voucher
-					var hasRedeemed = await _unitOfWork.UserVouchers.HasRedeemedVoucherAsync(userId, request.VoucherId, request.ReceiverEmailOrPhone);
-					if (hasRedeemed)
-					{
-						throw AppException.Conflict("Voucher already redeemed");
-					}
-
-					// Use LoyaltyPointService to deduct points
+				// Use LoyaltyPointService to deduct points
+				if (voucher.RequiredPoints > 0)
+				{
 					await _loyaltyTransactionService.RedeemPointAsync(userId, voucher.RequiredPoints, voucher.Id, null, false);
+				}
 
-					Guid? finalOwnerId = userId;
-					if (!string.IsNullOrEmpty(request.ReceiverEmailOrPhone))
+				Guid? finalOwnerId = userId;
+				if (!string.IsNullOrEmpty(request.ReceiverEmailOrPhone))
+				{
+					var receiver = await _userService.GetByPhoneOrEmailAsync(request.ReceiverEmailOrPhone);
+					if (receiver != null) finalOwnerId = receiver.Id;
+					else
 					{
-						var receiver = await _userService.GetByPhoneOrEmailAsync(request.ReceiverEmailOrPhone);
-						if (receiver != null) finalOwnerId = receiver.Id;
-						else
-						{
-							// If receiver not found, treat as guest redemption (voucher will be associated with email/phone instead of userId)
-							finalOwnerId = null;
-						}
+						// If receiver not found, treat as guest redemption (voucher will be associated with email/phone instead of userId)
+						finalOwnerId = null;
 					}
+				}
 
-					var userVoucher = UserVoucher.CreateAvailable(
-						 finalOwnerId,
-						 request.VoucherId,
-						 request.ReceiverEmailOrPhone ?? null);
+				var userVoucher = UserVoucher.CreateAvailable(
+					 finalOwnerId,
+					 request.VoucherId,
+					 request.ReceiverEmailOrPhone ?? null);
 
-					// Decrement voucher remaining quantity
-					voucher.DecreaseRemainingQuantity();
-					_unitOfWork.Vouchers.Update(voucher);
+				// Decrement voucher remaining quantity
+				voucher.DecreaseRemainingQuantity();
+				_unitOfWork.Vouchers.Update(voucher);
 
-					await _unitOfWork.UserVouchers.AddAsync(userVoucher);
+				await _unitOfWork.UserVouchers.AddAsync(userVoucher);
 
-					// Notification logic can be added here if needed
+				// Notification logic can be added here if needed
 
-					return BaseResponse<string>.Ok(userVoucher.Id.ToString(), "Voucher redeemed successfully");
-				});
-			}
-			catch (AppException)
-			{
-				throw;
-			}
-			catch (Exception ex)
-			{
-				throw AppException.Internal($"Error redeeming voucher: {ex.Message}");
-			}
+				return BaseResponse<string>.Ok(userVoucher.Id.ToString(), "Voucher redeemed successfully");
+			});
 		}
 
 		public async Task<BaseResponse<PagedResult<UserVoucherResponse>>> GetUserVouchersAsync(Guid userId, GetPagedUserVouchersRequest request)
@@ -302,26 +297,23 @@ namespace PerfumeGPT.Application.Services
 			}
 			else
 			{
-				bool alreadyUsed = await _unitOfWork.UserVouchers.AnyAsync(uv =>
+				int currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
 					uv.VoucherId == voucher.Id &&
 					(
-						uv.IsUsed ||
+						uv.Status == UsageStatus.Used ||
 						(uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow)
 					) &&
 					(
 						(effectiveUserId.HasValue && uv.UserId == effectiveUserId.Value) ||
-						(!string.IsNullOrEmpty(emailOrPhone) && uv.GuestEmailOrPhone == emailOrPhone)
+						(!string.IsNullOrEmpty(emailOrPhone) && uv.GuestIdentifier == emailOrPhone)
 					)
 				);
 
-				if (alreadyUsed)
-				{
-					throw AppException.BadRequest("You have already used this promotion");
-				}
+				var allowedUsage = voucher.MaxUsagePerUser ?? 1;
 
-				if (voucher.RemainingQuantity.HasValue && voucher.RemainingQuantity.Value <= 0)
+				if (currentUsageCount >= allowedUsage)
 				{
-					throw AppException.BadRequest("Voucher is out of stock");
+					throw AppException.BadRequest($"You have reached the maximum usage limit ({allowedUsage}) for this promotion.");
 				}
 			}
 
@@ -336,27 +328,27 @@ namespace PerfumeGPT.Application.Services
 			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(oldUserVoucher.VoucherId)
 				?? throw AppException.NotFound("Voucher not found");
 
-			if (voucher.IsPublic)
+			bool requiresPriorOwnership = !voucher.IsPublic || voucher.RequiredPoints > 0;
+
+			if (!requiresPriorOwnership)
 			{
+				_unitOfWork.UserVouchers.Remove(oldUserVoucher);
 				voucher.IncreaseRemainingQuantity();
 				_unitOfWork.Vouchers.Update(voucher);
 			}
-
-			if (!oldUserVoucher.IsUsed && oldUserVoucher.Status == UsageStatus.Reserved)
-			{
-				oldUserVoucher.ReleaseReservation();
-			}
 			else
 			{
-				oldUserVoucher.MarkAsRefunded();
 				if (voucher.ExpiryDate > DateTime.UtcNow)
 				{
-					var refundedUserVoucher = oldUserVoucher.CreateReplacement();
-					await _unitOfWork.UserVouchers.AddAsync(refundedUserVoucher);
+					if (oldUserVoucher.IsUsed)
+						oldUserVoucher.RevertUsed();
+					else
+						oldUserVoucher.ReleaseReservation();
+
+					_unitOfWork.UserVouchers.Update(oldUserVoucher);
 				}
 			}
 
-			_unitOfWork.UserVouchers.Update(oldUserVoucher);
 			return true;
 		}
 
@@ -398,7 +390,7 @@ namespace PerfumeGPT.Application.Services
 					&& i.ItemType == voucher.TargetItemType
 					&& (i.IsActive)
 					&& (voucher.ApplyType != VoucherType.Product
-						|| (cartVariantSet != null && cartVariantSet.Contains(i.ProductVariantId))));
+						|| (cartVariantSet != null && cartVariantSet.Contains(i.TargetProductVariantId))));
 
 			if (!hasMatchingActiveItem)
 			{
@@ -443,26 +435,26 @@ namespace PerfumeGPT.Application.Services
 			}
 			else
 			{
-				// Check stock
-				if (voucher.RemainingQuantity <= 0)
-				{
-					throw AppException.BadRequest("Voucher is out of stock");
-				}
-
 				// Check duplicate usage/reservation for identified users
 				if (!isAnonymousGuest)
 				{
-					bool alreadyExists = await _unitOfWork.UserVouchers.AnyAsync(uv =>
+					int currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
 						uv.VoucherId == voucherId &&
 						(
+							uv.Status == UsageStatus.Used ||
+							(uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow)
+						) &&
+						(
 							(effectiveUserId.HasValue && uv.UserId == effectiveUserId.Value) ||
-							(!string.IsNullOrEmpty(emailOrPhone) && uv.GuestEmailOrPhone == emailOrPhone)
+							(!string.IsNullOrEmpty(emailOrPhone) && uv.GuestIdentifier == emailOrPhone)
 						)
 					);
 
-					if (alreadyExists)
+					var allowedUsage = voucher.MaxUsagePerUser ?? 1;
+
+					if (currentUsageCount >= allowedUsage)
 					{
-						throw AppException.BadRequest("You have already reserved or used this promotion");
+						throw AppException.BadRequest($"You have reached the maximum usage limit ({allowedUsage}) for this promotion");
 					}
 				}
 
@@ -487,73 +479,51 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<bool> MarkVoucherAsUsedAsync(Guid orderId)
 		{
-			var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(uv => uv.OrderId == orderId && !uv.IsUsed)
-				?? throw AppException.NotFound("User voucher not found or already used");
-			if (userVoucher.Status != UsageStatus.Reserved)
-			{
-				throw AppException.BadRequest("Voucher must be reserved before marking as used");
-			}
+			var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(uv => uv.OrderId == orderId);
 
-			userVoucher.MarkUsed(orderId);
-			_unitOfWork.UserVouchers.Update(userVoucher);
-
-			return true;
-		}
-
-		public async Task<bool> ReleaseReservedVoucherAsync(Guid orderId)
-		{
-			var userVoucher = await _unitOfWork.UserVouchers.FirstOrDefaultAsync(uv => uv.OrderId == orderId && !uv.IsUsed)
-								?? throw AppException.NotFound("Voucher not reserved or already used");
-
-			if (userVoucher.Status != UsageStatus.Reserved)
-			{
+			if (userVoucher == null)
 				return true;
-			}
 
-			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(userVoucher.VoucherId)
-				?? throw AppException.NotFound("Voucher not found");
+			if (userVoucher.Status == UsageStatus.Used)
+				return true;
 
-			if (voucher.IsPublic)
-			{
-				// Public voucher: remove the UserVoucher record and restore quantity
-				_unitOfWork.UserVouchers.Remove(userVoucher);
-				voucher.IncreaseRemainingQuantity();
-				_unitOfWork.Vouchers.Update(voucher);
-			}
-			else
-			{
-				// Private voucher: reset status to Available so user can reuse
-				userVoucher.ReleaseReservation();
-				_unitOfWork.UserVouchers.Update(userVoucher);
-			}
+			userVoucher.MarkUsed();
+			_unitOfWork.UserVouchers.Update(userVoucher);
 
 			return true;
 		}
 
 		public async Task<decimal> CalculateVoucherDiscountAsync(string voucherCode, decimal totalPrice)
 		{
-			try
-			{
-				var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode);
-				if (voucher == null)
-				{
-					return totalPrice;
-				}
-
-				var discountAmount = voucher.DiscountType switch
-				{
-					DiscountType.Percentage => totalPrice * (voucher.DiscountValue / 100m),
-					DiscountType.FixedAmount => voucher.DiscountValue,
-					_ => 0m
-				};
-
-				var finalPrice = Math.Round(totalPrice - discountAmount, 0, MidpointRounding.AwayFromZero);
-				return finalPrice < 0m ? 0m : finalPrice;
-			}
-			catch
+			// 1. Lấy dữ liệu (BỎ try-catch để nếu DB lỗi thì Controller còn biết mà văng HTTP 500)
+			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode);
+			if (voucher == null)
 			{
 				return totalPrice;
 			}
+
+			// 2. Tính toán số tiền giảm thô (Raw Discount)
+			var rawDiscountAmount = voucher.DiscountType switch
+			{
+				DiscountType.Percentage => totalPrice * (voucher.DiscountValue / 100m),
+				DiscountType.FixedAmount => voucher.DiscountValue,
+				_ => 0m
+			};
+
+			// 3. RÀO CHẮN 1: Áp dụng Trần giảm giá tối đa (Max Discount)
+			if (voucher.MaxDiscountAmount.HasValue && voucher.MaxDiscountAmount.Value > 0)
+			{
+				rawDiscountAmount = Math.Min(rawDiscountAmount, voucher.MaxDiscountAmount.Value);
+			}
+
+			// 4. RÀO CHẮN 2: Không bao giờ cho phép giảm lố giá trị đơn hàng (Ví dụ: Đơn 50k mà voucher giảm 100k)
+			var safeDiscountAmount = Math.Min(rawDiscountAmount, totalPrice);
+
+			// 5. Tính giá cuối và làm tròn ĐỒNG NHẤT với Pipeline (2 chữ số thập phân)
+			// Nếu tiền của bạn là VNĐ không có số lẻ, bạn có thể đổi số 2 thành số 0 ở ĐỒNG LOẠT tất cả các hàm.
+			var finalPrice = Math.Round(totalPrice - safeDiscountAmount, 0, MidpointRounding.AwayFromZero);
+
+			return finalPrice;
 		}
 
 		public async Task<VoucherResponse?> GetVoucherByCodeAsync(string code)
@@ -594,7 +564,7 @@ namespace PerfumeGPT.Application.Services
 				return await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
 					uv => uv.VoucherId == voucherId &&
 						  uv.UserId == null &&
-						  uv.GuestEmailOrPhone == emailOrPhone &&
+						  uv.GuestIdentifier == emailOrPhone &&
 						  !uv.IsUsed &&
 						  (requiredStatus == null || uv.Status == requiredStatus),
 					asNoTracking: false

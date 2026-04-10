@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Media;
+using PerfumeGPT.Application.DTOs.Requests.Users;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Users;
@@ -18,15 +19,18 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IUserService _userService;
 		private readonly IMediaService _mediaService;
 		private readonly IValidator<ProfileAvtarUploadRequest> _profileAvtarUploadValidator;
+		private readonly IValidator<UpdateUserBasicInfoRequest> _updateUserBasicInfoValidator;
 
 		public UsersController(
 			IUserService userService,
 			IMediaService mediaService,
-			IValidator<ProfileAvtarUploadRequest> profileAvtarUploadValidator)
+		  IValidator<ProfileAvtarUploadRequest> profileAvtarUploadValidator,
+			IValidator<UpdateUserBasicInfoRequest> updateUserBasicInfoValidator)
 		{
 			_userService = userService;
 			_mediaService = mediaService;
 			_profileAvtarUploadValidator = profileAvtarUploadValidator;
+			_updateUserBasicInfoValidator = updateUserBasicInfoValidator;
 		}
 
 		[HttpGet("me")]
@@ -37,6 +41,21 @@ namespace PerfumeGPT.API.Controllers
 		{
 			var userId = GetCurrentUserId();
 			var response = await _userService.GetUserCredentialsAsync(userId);
+			return HandleResponse(response);
+		}
+
+		[HttpPut("me")]
+		[Authorize]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		public async Task<ActionResult<BaseResponse<string>>> UpdateCurrentUserBasicInfo([FromBody] UpdateUserBasicInfoRequest request)
+		{
+			var validation = await ValidateRequestAsync(_updateUserBasicInfoValidator, request);
+			if (validation != null) return validation;
+
+			var userId = GetCurrentUserId();
+			var response = await _userService.UpdateUserBasicInfoAsync(userId, request);
 			return HandleResponse(response);
 		}
 
@@ -56,6 +75,27 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<List<StaffLookupItem>>>> GetStaffLookup()
 		{
 			var response = await _userService.GetStaffLookupAsync();
+			return HandleResponse(response);
+		}
+
+		[HttpGet("staff-manage")]
+		[Authorize(Roles = "admin")]
+		[ProducesResponseType(typeof(BaseResponse<List<StaffManageItem>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<StaffManageItem>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<List<StaffManageItem>>>> GetStaffForManagement()
+		{
+			var response = await _userService.GetStaffForManagementAsync();
+			return HandleResponse(response);
+		}
+
+		[HttpPut("staff/{staffId:guid}/inactive")]
+		[Authorize(Roles = "admin")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		public async Task<ActionResult<BaseResponse<string>>> InactiveStaff([FromRoute] Guid staffId)
+		{
+			var response = await _userService.InactiveStaffAsync(staffId);
 			return HandleResponse(response);
 		}
 

@@ -20,8 +20,8 @@ namespace PerfumeGPT.Persistence.Repositories
 			var guestVouchers = await _context.UserVouchers
 				.Where(uv =>
 					uv.UserId == null &&
-					((!string.IsNullOrEmpty(email) && uv.GuestEmailOrPhone == email) ||
-					 (!string.IsNullOrEmpty(phoneNumber) && uv.GuestEmailOrPhone == phoneNumber))
+					((!string.IsNullOrEmpty(email) && uv.GuestIdentifier == email) ||
+					 (!string.IsNullOrEmpty(phoneNumber) && uv.GuestIdentifier == phoneNumber))
 				)
 				.ToListAsync();
 
@@ -114,13 +114,15 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
-		public async Task<bool> HasRedeemedVoucherAsync(Guid userId, Guid voucherId, string? guestEmailOrPhone)
-		=> await _context.UserVouchers
+		public async Task<int> GetUserVoucherUsageCountAsync(Guid userId, Guid voucherId, string? guestIdentifier)
+		{
+			return await _context.UserVouchers
 				.AsNoTracking()
-				.AnyAsync(uv =>
+				.CountAsync(uv =>
 					(uv.UserId == userId && uv.VoucherId == voucherId) ||
-					(uv.GuestEmailOrPhone == guestEmailOrPhone && uv.VoucherId == voucherId)
+					(uv.GuestIdentifier == guestIdentifier && uv.VoucherId == voucherId)
 				);
+		}
 
 		public async Task<UserVoucher?> GetUnusedUserVoucherAsync(Guid userId, Guid voucherId)
 		{
@@ -133,30 +135,40 @@ namespace PerfumeGPT.Persistence.Repositories
 					uv.VoucherId == voucherId &&
 					!uv.IsUsed &&
 					uv.Status == UsageStatus.Available &&
-					!uv.Voucher.IsDeleted);
+					!uv.Voucher.IsDeleted &&
+					uv.Voucher.ExpiryDate > now);
 		}
 
 		public async Task<(List<AvailableVoucherResponse> Items, int TotalCount)> GetPagedAvailableVouchersAsync(Guid userId, GetPagedAvailableVouchersRequest request)
 		{
-			var query = _context.UserVouchers
-				.Where(uv =>
-					(uv.UserId == userId && uv.Status == UsageStatus.Available && !uv.IsUsed)
-					||
-					(uv.Voucher.IsPublic
-						&& uv.Voucher.ExpiryDate > DateTime.Now
-						&& !uv.Voucher.IsDeleted
-						&& uv.Voucher.RemainingQuantity > 0
-						&& !_context.UserVouchers.Any(used =>
-							used.UserId == userId && used.VoucherId == uv.VoucherId)))
-              .Select(uv => new AvailableVoucherResponse
+			var now = DateTime.UtcNow;
+
+           var ownedAvailableVouchers = _context.Vouchers
+				.Where(v => !v.IsDeleted
+					&& v.ExpiryDate > now
+					&& v.UserVouchers.Any(uv => uv.UserId == userId && uv.Status == UsageStatus.Available));
+
+			var publicFreeVouchers = _context.Vouchers
+				.Where(v => !v.IsDeleted
+					&& v.ExpiryDate > now
+					&& v.IsPublic
+					&& v.RequiredPoints == 0
+					&& (v.RemainingQuantity == null || v.RemainingQuantity > 0)
+					&& v.UserVouchers.Count(uv => uv.UserId == userId && (uv.Status == UsageStatus.Used || uv.Status == UsageStatus.Reserved)) < (v.MaxUsagePerUser ?? 1));
+
+			var query = ownedAvailableVouchers
+				.Union(publicFreeVouchers)
+				.Select(v => new AvailableVoucherResponse
 				{
-					Id = uv.Voucher.Id,
-					Code = uv.Voucher.Code,
-					DiscountValue = uv.Voucher.DiscountValue,
-					DiscountType = uv.Voucher.DiscountType,
-					MinOrderValue = uv.Voucher.MinOrderValue,
-					ExpiryDate = uv.Voucher.ExpiryDate,
-					RemainingQuantity = uv.Voucher.RemainingQuantity
+					Id = v.Id,
+					Code = v.Code,
+					DiscountValue = v.DiscountValue,
+					DiscountType = v.DiscountType,
+					MaxDiscountAmount = v.MaxDiscountAmount,
+					MinOrderValue = v.MinOrderValue,
+					ExpiryDate = v.ExpiryDate,
+					RemainingQuantity = v.RemainingQuantity,
+					MaxUsagePerUser = v.MaxUsagePerUser
 				})
 				.AsNoTracking();
 
