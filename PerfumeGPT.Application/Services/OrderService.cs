@@ -34,6 +34,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly INotificationService _notificationService;
 		private readonly IGHNService _ghnService;
 		private readonly IBackgroundJobService _backgroundJobService;
+		private readonly IRedisPublisherService _redisPublisher;
 		private readonly ILogger<OrderService> _logger;
 
 		public OrderService(
@@ -48,7 +49,8 @@ namespace PerfumeGPT.Application.Services
 			INotificationService notificationService,
 			IContactAddressService recipientService,
 			IGHNService ghnService,
-		  IBackgroundJobService backgroundJobService,
+			IBackgroundJobService backgroundJobService,
+			IRedisPublisherService redisPublisher,
 			ILogger<OrderService> logger)
 		{
 			_unitOfWork = unitOfWork;
@@ -63,6 +65,7 @@ namespace PerfumeGPT.Application.Services
 			_recipientService = recipientService;
 			_ghnService = ghnService;
 			_backgroundJobService = backgroundJobService;
+			_redisPublisher = redisPublisher;
 			_logger = logger;
 		}
 		#endregion Dependencies
@@ -245,6 +248,9 @@ namespace PerfumeGPT.Application.Services
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, cartResponse.TotalPrice, request.Payment.Method, null);
 				await _notificationService.CreateNewOrderNotificationAsync(order.Id, cartResponse.TotalPrice);
 
+				// Publish order_created event to Redis for AI backend (email notification)
+				await _redisPublisher.PublishOrderCreatedAsync(order.Id, userId);
+
 				return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Checkout successful.");
 			});
 		}
@@ -336,6 +342,10 @@ namespace PerfumeGPT.Application.Services
 
 				// 7. TẠO GIAO DỊCH THANH TOÁN (PENDING)
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, finalAmount, request.Payment.Method, request.PosSessionId);
+
+				// Publish order_created event to Redis for AI backend (email notification)
+				if (request.CustomerId.HasValue)
+					await _redisPublisher.PublishOrderCreatedAsync(order.Id, request.CustomerId.Value);
 
 				return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Order created. Waiting for payment confirmation.");
 			});
