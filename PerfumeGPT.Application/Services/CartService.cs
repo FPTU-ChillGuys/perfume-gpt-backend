@@ -87,6 +87,7 @@ namespace PerfumeGPT.Application.Services
 			decimal subtotal;
 			decimal finalAmount;
 			string? voucherMessage;
+			List<string>? warnings = null;
 			var appliedVoucherCode = request.VoucherCode;
 
 			try
@@ -104,10 +105,8 @@ namespace PerfumeGPT.Application.Services
 					request.CustomerId);
 
 				appliedVoucherCode = null;
-				var voucherErrorMessage = $"Voucher '{request.VoucherCode}' is invalid. Preview returned without voucher discount.";
-				voucherMessage = string.IsNullOrWhiteSpace(voucherMessage)
-					? voucherErrorMessage
-					: $"{voucherMessage} | {voucherErrorMessage}";
+				var voucherErrorMessage = $"Mã giảm giá '{request.VoucherCode}' không tồn tại hoặc đã hết hạn. Vui lòng thử lại.";
+				warnings = [voucherErrorMessage];
 			}
 
 			// 4. MAP SANG DTO HIỂN THỊ (Tách bạch UI)
@@ -159,7 +158,13 @@ namespace PerfumeGPT.Application.Services
 				await _signalRService.UpdateCustomerDisplayAsync(request.SessionId, customerDisplayData);
 			}
 
-			return BaseResponse<PreviewPosOrderResponse>.Ok(response, string.IsNullOrWhiteSpace(voucherMessage) ? "Order previewed successfully." : voucherMessage);
+			return new BaseResponse<PreviewPosOrderResponse>
+			{
+				Success = true,
+				Message = string.IsNullOrWhiteSpace(voucherMessage) ? "Order previewed successfully." : voucherMessage,
+				Payload = response,
+				Errors = warnings
+			};
 		}
 
 		private static bool IsVoucherSoftFailForPreview(AppException ex, string? voucherCode)
