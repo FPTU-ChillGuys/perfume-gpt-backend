@@ -83,10 +83,32 @@ namespace PerfumeGPT.Application.Services
 
 			// 3. ĐƯA VÀO CỖ MÁY TÍNH TIỀN CHUNG (Shared Pricing Engine)
 			// Bạn phải tái cấu trúc hàm BuildCheckoutPricingAsync cũ để nhận đầu vào là List<CartCheckoutItemDto>
-			var (pricedItems, subtotal, finalAmount, voucherMessage) = await CalculatePricingEngineAsync(
-				checkoutItems,
-				request.VoucherCode,
-				request.CustomerId);
+			List<CartCheckoutItemDto> pricedItems;
+			decimal subtotal;
+			decimal finalAmount;
+			string? voucherMessage;
+			var appliedVoucherCode = request.VoucherCode;
+
+			try
+			{
+				(pricedItems, subtotal, finalAmount, voucherMessage) = await CalculatePricingEngineAsync(
+					checkoutItems,
+					request.VoucherCode,
+					request.CustomerId);
+			}
+			catch (AppException ex) when (IsVoucherSoftFailForPreview(ex, request.VoucherCode))
+			{
+				(pricedItems, subtotal, finalAmount, voucherMessage) = await CalculatePricingEngineAsync(
+					checkoutItems,
+					null,
+					request.CustomerId);
+
+				appliedVoucherCode = null;
+				var voucherErrorMessage = $"Voucher '{request.VoucherCode}' is invalid. Preview returned without voucher discount.";
+				voucherMessage = string.IsNullOrWhiteSpace(voucherMessage)
+					? voucherErrorMessage
+					: $"{voucherMessage} | {voucherErrorMessage}";
+			}
 
 			// 4. MAP SANG DTO HIỂN THỊ (Tách bạch UI)
 			var responseItems = pricedItems.Select(item =>
@@ -130,13 +152,26 @@ namespace PerfumeGPT.Application.Services
 					Items = response.Items,
 					SubTotal = response.SubTotal,
 					Discount = response.Discount,
-					TotalPrice = response.TotalPrice
+					TotalPrice = response.TotalPrice,
+					VoucherCode = appliedVoucherCode,
 				};
 
 				await _signalRService.UpdateCustomerDisplayAsync(request.SessionId, customerDisplayData);
 			}
 
 			return BaseResponse<PreviewPosOrderResponse>.Ok(response, string.IsNullOrWhiteSpace(voucherMessage) ? "Order previewed successfully." : voucherMessage);
+		}
+
+		private static bool IsVoucherSoftFailForPreview(AppException ex, string? voucherCode)
+		{
+			if (string.IsNullOrWhiteSpace(voucherCode))
+				return false;
+
+			var isVoucherErrorType = ex.ErrorType is ResponseErrorType.NotFound or ResponseErrorType.BadRequest;
+			if (!isVoucherErrorType)
+				return false;
+
+			return ex.Message.Contains("voucher", StringComparison.OrdinalIgnoreCase);
 		}
 
 
@@ -156,7 +191,6 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 			}
-
 
 			return BaseResponse<string>.Ok("Cart cleared successfully");
 		}
