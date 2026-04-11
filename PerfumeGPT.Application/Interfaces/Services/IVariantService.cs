@@ -8,6 +8,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface IVariantService
 	{
 		Task<BaseResponse<PagedResult<VariantPagedItem>>> GetPagedVariantsAsync(GetPagedVariantsRequest request);
+		Task<BaseResponse<PagedResult<VariantPagedItem>>> GetPagedVariantsByCampaignIdAsync(Guid campaignId, GetPagedVariantsRequest request);
 		Task<BaseResponse<ProductVariantResponse>> GetVariantByIdAsync(Guid variantId);
 		Task<BaseResponse<List<VariantLookupItem>>> GetVariantLookupListAsync(Guid? productId = null);
 		Task<BaseResponse<BulkActionResult<string>>> CreateVariantAsync(CreateVariantRequest request);

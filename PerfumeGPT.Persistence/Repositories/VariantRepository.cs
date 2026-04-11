@@ -313,6 +313,91 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
+		public async Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsByCampaignIdAsync(
+			Guid campaignId,
+			GetPagedVariantsRequest request)
+		{
+			var now = DateTime.UtcNow;
+
+			var query = _context.ProductVariants
+				.Where(v => !v.IsDeleted && v.PromotionItems.Any(pi => !pi.IsDeleted && pi.CampaignId == campaignId));
+
+			var totalCount = await query.CountAsync();
+
+			var rawItems = await query
+				   .OrderByDescending(v => v.CreatedAt)
+				   .Skip((request.PageNumber - 1) * request.PageSize)
+				   .Take(request.PageSize)
+				  .Select(v => new
+				  {
+					  Variant = new VariantPagedItem
+					  {
+						  Id = v.Id,
+						  ProductId = v.ProductId,
+						  Barcode = v.Barcode,
+						  Sku = v.Sku,
+						  VolumeMl = v.VolumeMl,
+						  ConcentrationId = v.ConcentrationId,
+						  ConcentrationName = v.Concentration.Name,
+						  Type = v.Type,
+						  BasePrice = v.BasePrice,
+						  RetailPrice = v.RetailPrice,
+						  Status = v.Status,
+						  StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
+						  PrimaryImageUrl = v.Media
+							   .Where(m => m.IsPrimary && !m.IsDeleted)
+							   .Select(m => m.Url)
+							   .FirstOrDefault(),
+						  Attributes = v.ProductAttributes
+							   .Select(pa => new ProductAttributeResponse
+							   {
+								   AttributeId = pa.AttributeId,
+								   ValueId = pa.ValueId,
+								   Attribute = pa.Attribute.Name,
+								   Value = pa.Value.Value
+							   })
+							   .ToList()
+					  },
+					  BestPromotion = v.PromotionItems
+						   .Where(pi =>
+							   !pi.IsDeleted &&
+							   pi.CampaignId == campaignId &&
+							   pi.IsActive &&
+							   !pi.Campaign.IsDeleted &&
+							   pi.Campaign.Status == CampaignStatus.Active &&
+							   pi.Campaign.StartDate <= now &&
+							   pi.Campaign.EndDate >= now &&
+							   (!pi.MaxUsage.HasValue || pi.CurrentUsage < pi.MaxUsage.Value))
+						   .Select(pi => new
+						   {
+							   CalculatedDiscountAmount = pi.DiscountType == DiscountType.Percentage
+								   ? (v.BasePrice * pi.DiscountValue / 100m)
+								   : pi.DiscountValue
+						   })
+						   .OrderByDescending(x => x.CalculatedDiscountAmount)
+						   .FirstOrDefault()
+				  })
+				   .AsNoTracking()
+				   .ToListAsync();
+
+			var items = rawItems
+				.Select(x =>
+				{
+					var item = x.Variant;
+
+					if (x.BestPromotion == null)
+						return item;
+
+					var safeDiscount = Math.Min(x.BestPromotion.CalculatedDiscountAmount, item.BasePrice);
+					var discountedPrice = Math.Round(item.BasePrice - safeDiscount, 2, MidpointRounding.AwayFromZero);
+
+					return item with { BasePrice = discountedPrice };
+				})
+				.ToList();
+
+			return (items, totalCount);
+		}
+
 		public async Task<List<Guid>> GetExistingIdsAsync(List<Guid> ids)
 		=> await _context.ProductVariants
 		 .Where(v => !v.IsDeleted && ids.Contains(v.Id))

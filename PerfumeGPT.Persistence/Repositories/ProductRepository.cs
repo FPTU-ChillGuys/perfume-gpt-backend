@@ -34,6 +34,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			.Include(p => p.ProductFamilyMaps)
 			.Include(p => p.ProductScentMaps)
 			.Include(p => p.ProductAttributes)
+			.AsSplitQuery()
 			.FirstOrDefaultAsync();
 
 		public async Task<bool> HasActiveVariantsAsync(Guid productId)

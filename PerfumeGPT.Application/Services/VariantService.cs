@@ -159,6 +159,18 @@ namespace PerfumeGPT.Application.Services
 				"Variants retrieved successfully");
 		}
 
+		public async Task<BaseResponse<PagedResult<VariantPagedItem>>> GetPagedVariantsByCampaignIdAsync(Guid campaignId, GetPagedVariantsRequest request)
+		{
+			var campaignExists = await _unitOfWork.Campaigns.AnyAsync(c => c.Id == campaignId && !c.IsDeleted);
+			if (!campaignExists)
+				throw AppException.NotFound("Campaign not found");
+
+			var (items, totalCount) = await _unitOfWork.Variants.GetPagedVariantsByCampaignIdAsync(campaignId, request);
+			return BaseResponse<PagedResult<VariantPagedItem>>.Ok(
+				new PagedResult<VariantPagedItem>(items, request.PageNumber, request.PageSize, totalCount),
+				"Campaign variants retrieved successfully");
+		}
+
 		public async Task<BaseResponse<ProductVariantResponse>> GetVariantByIdAsync(Guid variantId)
 		{
 			var variant = await _unitOfWork.Variants.GetVariantWithDetailsAsync(variantId)

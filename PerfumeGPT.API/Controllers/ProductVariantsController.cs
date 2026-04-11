@@ -47,6 +47,16 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(result);
 		}
 
+		[HttpGet("campaigns/{campaignId:guid}")]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<VariantPagedItem>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<VariantPagedItem>>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<VariantPagedItem>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PagedResult<VariantPagedItem>>>> GetPagedVariantsByCampaignId([FromRoute] Guid campaignId, [FromQuery] GetPagedVariantsRequest request)
+		{
+			var result = await _variantService.GetPagedVariantsByCampaignIdAsync(campaignId, request);
+			return HandleResponse(result);
+		}
+
 		[HttpGet("lookup")]
 		[ProducesResponseType(typeof(BaseResponse<List<VariantLookupItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<List<VariantLookupItem>>), StatusCodes.Status500InternalServerError)]
