@@ -26,6 +26,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly MediaBulkActionHelper _mediaBulkActionHelper;
 		private readonly IOrderShippingHelper _orderShippingHelper;
 		private readonly IContactAddressService _recipientService;
+		private readonly INotificationService _notificationService;
 
 		public OrderReturnRequestService(
 			IUnitOfWork unitOfWork,
@@ -34,7 +35,8 @@ namespace PerfumeGPT.Application.Services
 			IHttpContextAccessor httpContextAccessor,
 			MediaBulkActionHelper mediaBulkActionHelper,
 			IOrderShippingHelper orderShippingHelper,
-			IContactAddressService recipientService)
+			IContactAddressService recipientService,
+			INotificationService notificationService)
 		{
 			_unitOfWork = unitOfWork;
 			_vnPayService = vnPayService;
@@ -43,6 +45,7 @@ namespace PerfumeGPT.Application.Services
 			_mediaBulkActionHelper = mediaBulkActionHelper;
 			_orderShippingHelper = orderShippingHelper;
 			_recipientService = recipientService;
+			_notificationService = notificationService;
 		}
 
 		public async Task<BaseResponse<PagedResult<OrderReturnRequestResponse>>> GetPagedReturnRequestsAsync(GetPagedReturnRequestsRequest request)
@@ -180,25 +183,33 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Ok(returnRequest.Id.ToString(), "Return request created successfully.");
 			});
 
+			if (!Guid.TryParse(response.Payload, out var createdRequestId))
+				throw AppException.Internal("Failed to parse return request ID.");
+
+			await _notificationService.SendToRoleAsync(
+				UserRole.admin,
+				"Yêu cầu trả hàng mới",
+				$"Khách hàng đã yêu cầu trả đơn #{request.OrderId}.",
+				NotificationType.Warning,
+				referenceId: createdRequestId,
+				referenceType: NotifiReferecneType.OrderReturnRequest);
+
 			if (request.TemporaryMediaIds == null || request.TemporaryMediaIds.Count == 0)
 				return response;
-
-			if (!Guid.TryParse(response.Payload, out var returnRequestId))
-				throw AppException.Internal("Failed to parse return request ID.");
 
 			var conversionResult = await _mediaBulkActionHelper.ConvertTemporaryMediaToPermanentAsync(
 				request.TemporaryMediaIds,
 				EntityType.OrderReturnRequest,
-				returnRequestId);
+			   createdRequestId);
 
 			if (conversionResult.TotalProcessed == 0)
-				return BaseResponse<string>.Ok(returnRequestId.ToString(), "Return request created successfully.");
+				return BaseResponse<string>.Ok(createdRequestId.ToString(), "Return request created successfully.");
 
 			var message = conversionResult.HasError
 				? $"Return request created successfully with {conversionResult.FailedItems.Count} proof image upload failure(s)."
 				: "Return request created successfully.";
 
-			return BaseResponse<string>.Ok(returnRequestId.ToString(), message);
+			return BaseResponse<string>.Ok(createdRequestId.ToString(), message);
 		}
 
 		public async Task<BaseResponse<string>> UpdateReturnRequestAsync(Guid customerId, Guid requestId, UpdateReturnRequestDto request)
@@ -330,6 +341,17 @@ namespace PerfumeGPT.Application.Services
 
 			if (request.IsRequestMoreInfo)
 			{
+				var userRequest = await _unitOfWork.OrderReturnRequests.GetByIdAsync(requestId)
+					  ?? throw AppException.NotFound("Return request not found.");
+
+				await _notificationService.SendToUserAsync(
+					userRequest.CustomerId,
+					"Cần bổ sung bằng chứng",
+					$"Vui lòng cập nhật thêm bằng chứng cho đơn #{userRequest.OrderId}.",
+					NotificationType.Warning,
+					referenceId: userRequest.Id,
+					referenceType: NotifiReferecneType.OrderReturnRequest);
+
 				return BaseResponse<string>.Ok("Return request requires more information from customer.");
 			}
 

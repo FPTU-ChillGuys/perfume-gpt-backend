@@ -246,7 +246,13 @@ namespace PerfumeGPT.Application.Services
 				await _cartService.ClearCartAsync(userId, request.ItemIds, false);
 
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, cartResponse.TotalPrice, request.Payment.Method, null);
-				await _notificationService.CreateNewOrderNotificationAsync(order.Id, cartResponse.TotalPrice);
+				await _notificationService.SendToRoleAsync(
+				UserRole.staff,
+				"Đơn hàng online mới",
+				$"Có đơn hàng Online #{order.Id} cần đóng gói. Tổng tiền: {cartResponse.TotalPrice:N0}.",
+				NotificationType.Info,
+				referenceId: order.Id,
+				referenceType: NotifiReferecneType.Order);
 
 				// Publish order_created event to Redis for AI backend (email notification)
 				await _redisPublisher.PublishOrderCreatedAsync(order.Id, userId);

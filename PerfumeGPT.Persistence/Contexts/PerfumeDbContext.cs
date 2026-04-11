@@ -299,6 +299,7 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasMany(u => u.Notifications)
 				.WithOne(n => n.User)
 				.HasForeignKey(n => n.UserId)
+				.IsRequired(false)
 				.OnDelete(DeleteBehavior.Restrict);
 
 			// User -> UserVouchers (1:M)
@@ -598,31 +599,6 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(lt => lt.VoucherId)
 				.OnDelete(DeleteBehavior.Cascade);
 
-			// Stock/Order/Voucher/Batch -> Notification relations
-			builder.Entity<Stock>()
-				.HasMany(s => s.Notifications)
-				.WithOne(n => n.Stock)
-				.HasForeignKey(n => n.StockId)
-				.OnDelete(DeleteBehavior.Restrict);
-
-			builder.Entity<Order>()
-				.HasMany(o => o.Notifications)
-				.WithOne(n => n.Order)
-				.HasForeignKey(n => n.OrderId)
-				.OnDelete(DeleteBehavior.Restrict);
-
-			builder.Entity<Voucher>()
-				.HasMany(v => v.Notifications)
-				.WithOne(n => n.Voucher)
-				.HasForeignKey(n => n.VoucherId)
-				.OnDelete(DeleteBehavior.Restrict);
-
-			builder.Entity<Batch>()
-				.HasMany(b => b.Notifications)
-				.WithOne(n => n.Batch)
-				.HasForeignKey(n => n.BatchId)
-				.OnDelete(DeleteBehavior.Restrict);
-
 			// Media -> Product (M:1) using ProductId
 			builder.Entity<Media>()
 				.HasOne(m => m.Product)
@@ -899,6 +875,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Order>().Property(o => o.Type).HasConversion<string>();
 			builder.Entity<ImportTicket>().Property(it => it.Status).HasConversion<string>();
 			builder.Entity<Notification>().Property(n => n.Type).HasConversion<string>();
+			builder.Entity<Notification>().Property(n => n.ReferenceType).HasConversion<string>();
 			builder.Entity<ProductVariant>().Property(pv => pv.Type).HasConversion<string>();
 			builder.Entity<ProductVariant>().Property(pv => pv.Status).HasConversion<string>();
 			builder.Entity<Voucher>().Property(v => v.DiscountType).HasConversion<string>();

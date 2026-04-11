@@ -19,10 +19,22 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			_posHubContext = posHubContext;
 		}
 
-		public async Task NotifyNewOrderToStaff(Guid orderId, decimal totalAmount, string message)
+		public async Task SendNotificationToRoleAsync(string role, object payload)
 		{
-			await _hubContext.Clients.Groups("StaffGroup", "AdminGroup")
-				 .SendAsync("ReceiveAdminNotification", new { orderId, totalAmount, message });
+			if (string.IsNullOrWhiteSpace(role) || payload is null)
+				return;
+
+			await _hubContext.Clients.Group($"Role_{role.Trim().ToLowerInvariant()}")
+             .SendAsync("ReceiveRoleNotification", payload);
+		}
+
+		public async Task SendNotificationToUserAsync(Guid userId, object payload)
+		{
+			if (userId == Guid.Empty || payload is null)
+				return;
+
+			await _hubContext.Clients.Group($"User_{userId}")
+             .SendAsync("ReceiveUserNotification", payload);
 		}
 
 		public async Task UpdateCustomerDisplayAsync(string sessionId, CartDisplayDto cartData)
