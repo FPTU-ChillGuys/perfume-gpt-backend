@@ -8,6 +8,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	public interface IProductRepository : IGenericRepository<Product>
 	{
 		Task<List<ProductLookupItem>> GetProductLookupListAsync();
+		Task<PublicProductResponse?> GetPublicProductResponseAsync(Guid productId);
 		Task<ProductResponse?> GetProductResponseAsync(Guid productId);
 		Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductListItemsAsync(GetPagedProductRequest request);
 		Task<Product?> GetProductByIdWithAttributesAsync(Guid productId);
