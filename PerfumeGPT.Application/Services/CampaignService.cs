@@ -36,6 +36,18 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		#region Campaign Management
+		public async Task<BaseResponse<List<CampaignResponse>>> GetHomeCampaignsAsync()
+		{
+			var campaigns = await _unitOfWork.Campaigns.GetHomeCampaignsAsync();
+			return BaseResponse<List<CampaignResponse>>.Ok(campaigns, "Home campaigns retrieved successfully.");
+		}
+
+		public async Task<BaseResponse<List<CampaignLookupItem>>> GetActiveCampaignLookupListAsync()
+		{
+			var campaigns = await _unitOfWork.Campaigns.GetActiveCampaignLookupListAsync();
+			return BaseResponse<List<CampaignLookupItem>>.Ok(campaigns, "Active campaign lookup list retrieved successfully.");
+		}
+
 		public async Task<BaseResponse<PagedResult<CampaignResponse>>> GetPagedCampaignsAsync(GetPagedCampaignsRequest request)
 		{
 			var (items, totalCount) = await _unitOfWork.Campaigns.GetPagedCampaignsAsync(request);

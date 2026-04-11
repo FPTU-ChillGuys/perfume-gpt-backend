@@ -57,6 +57,26 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpGet("home")]
+		[AllowAnonymous]
+		[ProducesResponseType(typeof(BaseResponse<List<CampaignResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<CampaignResponse>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<List<CampaignResponse>>>> GetHomeCampaigns()
+		{
+			var response = await _campaignService.GetHomeCampaignsAsync();
+			return HandleResponse(response);
+		}
+
+		[HttpGet("lookup/active")]
+		[AllowAnonymous]
+		[ProducesResponseType(typeof(BaseResponse<List<CampaignLookupItem>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<CampaignLookupItem>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<List<CampaignLookupItem>>>> GetActiveCampaignLookupList()
+		{
+			var response = await _campaignService.GetActiveCampaignLookupListAsync();
+			return HandleResponse(response);
+		}
+
 		[HttpGet]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<CampaignResponse>>), StatusCodes.Status200OK)]
