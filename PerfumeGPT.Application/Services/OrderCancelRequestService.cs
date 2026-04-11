@@ -24,6 +24,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IVoucherService _voucherService;
 		private readonly IGHNService _ghnService;
+		private readonly INotificationService _notificationService;
 
 		public OrderCancelRequestService(
 			IUnitOfWork unitOfWork,
@@ -32,7 +33,8 @@ namespace PerfumeGPT.Application.Services
 			IHttpContextAccessor httpContextAccessor,
 			IStockReservationService stockReservationService,
 			IVoucherService voucherService,
-			IGHNService ghnService)
+		 IGHNService ghnService,
+			INotificationService notificationService)
 		{
 			_unitOfWork = unitOfWork;
 			_vnPayService = vnPayService;
@@ -41,6 +43,7 @@ namespace PerfumeGPT.Application.Services
 			_stockReservationService = stockReservationService;
 			_voucherService = voucherService;
 			_ghnService = ghnService;
+			_notificationService = notificationService;
 		}
 		#endregion Dependencies
 
@@ -247,54 +250,64 @@ namespace PerfumeGPT.Application.Services
 				}
 			}
 
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			{
-				var freshCancelReq = await _unitOfWork.OrderCancelRequests.GetByIdAsync(requestId)
-					?? throw AppException.NotFound("Cancel request not found during transaction.");
+			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			  {
+				  var freshCancelReq = await _unitOfWork.OrderCancelRequests.GetByIdAsync(requestId)
+					  ?? throw AppException.NotFound("Cancel request not found during transaction.");
 
-				var freshOrder = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
-					?? throw AppException.NotFound("Associated order not found during transaction.");
+				  var freshOrder = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
+					  ?? throw AppException.NotFound("Associated order not found during transaction.");
 
-				freshCancelReq.Process(processedBy, request.IsApproved, request.StaffNote);
+				  freshCancelReq.Process(processedBy, request.IsApproved, request.StaffNote);
 
-				if (request.IsApproved)
-				{
-					if (freshCancelReq.IsRefundRequired && originalPayment != null)
-					{
-						freshCancelReq.MarkRefunded(refundTransactionNo);
-						freshOrder.MarkRefunded();
+				  if (request.IsApproved)
+				  {
+					  if (freshCancelReq.IsRefundRequired && originalPayment != null)
+					  {
+						  freshCancelReq.MarkRefunded(refundTransactionNo);
+						  freshOrder.MarkRefunded();
 
-						var refundPayment = PaymentTransaction.CreateRefund(
-							orderId: freshOrder.Id,
-							originalPaymentId: originalPayment.Id,
-							method: originalPayment.Method,
-							refundAmount: cancelRequest.RefundAmount ?? originalPayment.Amount
-						);
+						  var refundPayment = PaymentTransaction.CreateRefund(
+							  orderId: freshOrder.Id,
+							  originalPaymentId: originalPayment.Id,
+							  method: originalPayment.Method,
+							  refundAmount: cancelRequest.RefundAmount ?? originalPayment.Amount
+						  );
 
-						refundPayment.MarkSuccess(refundTransactionNo);
+						  refundPayment.MarkSuccess(refundTransactionNo);
 
-						await _unitOfWork.Payments.AddAsync(refundPayment);
-					}
+						  await _unitOfWork.Payments.AddAsync(refundPayment);
+					  }
 
-					freshOrder.SetStatus(OrderStatus.Cancelled);
-					_unitOfWork.Orders.Update(freshOrder);
+					  freshOrder.SetStatus(OrderStatus.Cancelled);
+					  _unitOfWork.Orders.Update(freshOrder);
 
-					if (freshOrder.ForwardShipping != null)
-					{
-						freshOrder.ForwardShipping.Cancel();
-						_unitOfWork.ShippingInfos.Update(freshOrder.ForwardShipping);
-					}
+					  if (freshOrder.ForwardShipping != null)
+					  {
+						  freshOrder.ForwardShipping.Cancel();
+						  _unitOfWork.ShippingInfos.Update(freshOrder.ForwardShipping);
+					  }
 
-					await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(freshOrder.Id);
+					  await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(freshOrder.Id);
 
-					if (freshOrder.UserVoucherId.HasValue)
-						await _voucherService.RefundVoucherForCancelledOrderAsync(freshOrder.Id);
-				}
+					  if (freshOrder.UserVoucherId.HasValue)
+						  await _voucherService.RefundVoucherForCancelledOrderAsync(freshOrder.Id);
+				  }
 
-				_unitOfWork.OrderCancelRequests.Update(freshCancelReq);
+				  _unitOfWork.OrderCancelRequests.Update(freshCancelReq);
 
-				return BaseResponse<string>.Ok(request.IsApproved ? "Cancel request approved and processed." : "Cancel request rejected.");
-			});
+				  return BaseResponse<string>.Ok(request.IsApproved ? "Cancel request approved and processed." : "Cancel request rejected.");
+			  });
+
+			await _notificationService.SendToUserAsync(
+				cancelRequest.RequestedById,
+				"Kết quả yêu cầu hủy đơn",
+				$"Yêu cầu hủy đơn #{cancelRequest.OrderId} của bạn đã được {(request.IsApproved ? "chấp thuận" : "từ chối")}.",
+				request.IsApproved ? NotificationType.Success : NotificationType.Warning,
+				referenceId: cancelRequest.Id,
+				referenceType: NotifiReferecneType.OrderCancelRequest);
+
+			return response;
 		}
 	}
 }

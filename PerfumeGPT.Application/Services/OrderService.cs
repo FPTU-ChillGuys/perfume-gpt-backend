@@ -362,7 +362,9 @@ namespace PerfumeGPT.Application.Services
 		#region Order Status Management
 		public async Task<BaseResponse<PickListResponse?>> UpdateOrderStatusToPreparingAsync(Guid orderId, Guid staffId)
 		{
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			Guid? customerIdToNotify = null;
+
+			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId)
 					?? throw AppException.NotFound("Order not found.");
@@ -392,6 +394,7 @@ namespace PerfumeGPT.Application.Services
 				order.SetStatus(OrderStatus.Preparing);
 				order.SetStaff(staffId);
 				_unitOfWork.Orders.Update(order);
+				customerIdToNotify = order.CustomerId;
 
 				// 3. LẤY PICK LIST CHẮC CHẮN 100% CÓ DATA
 				var pickListResponse = await _fulfillmentService.GetPickListAsync(order);
@@ -399,11 +402,27 @@ namespace PerfumeGPT.Application.Services
 				var orderTypeText = order.Type == OrderType.Online ? "Online" : "In-store Delivery";
 				return BaseResponse<PickListResponse?>.Ok(pickListResponse, $"Order is ready for picking ({orderTypeText}).");
 			});
+
+			if (customerIdToNotify.HasValue)
+			{
+				await _notificationService.SendToUserAsync(
+					customerIdToNotify.Value,
+					"Đơn hàng đã được xác nhận",
+					$"Đơn hàng #{orderId} của bạn đã được xác nhận và đang xử lý.",
+					NotificationType.Info,
+					referenceId: orderId,
+					referenceType: NotifiReferecneType.Order);
+			}
+
+			return response;
 		}
 
 		public async Task<BaseResponse<string>> CancelOrderByStaffAsync(Guid orderId, Guid staffId, StaffCancelOrderRequest request)
 		{
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			Guid? createdCancelRequestId = null;
+			Guid? customerIdToNotify = null;
+
+			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId)
 					?? throw AppException.NotFound("Order not found.");
@@ -433,21 +452,49 @@ namespace PerfumeGPT.Application.Services
 					cancelRequest.Order = order;
 
 					await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
+					createdCancelRequestId = cancelRequest.Id;
 					return BaseResponse<string>.Ok("Cancel request submitted successfully.");
 				}
 
 				await HandleOrderCancellationAsync(order);
 				order.SetStaff(staffId);
 				_unitOfWork.Orders.Update(order);
+				customerIdToNotify = order.CustomerId;
 
 				var orderType = order.Type == OrderType.Online ? "online" : "in-store";
 				return BaseResponse<string>.Ok($"Order cancelled successfully for {orderType} order.");
 			});
+
+			if (createdCancelRequestId.HasValue)
+			{
+				await _notificationService.SendToRoleAsync(
+					UserRole.admin,
+					"Yêu cầu hủy đơn mới từ nhân viên",
+					$"Nhân viên yêu cầu duyệt hủy đơn #{orderId}.",
+					NotificationType.Warning,
+					referenceId: createdCancelRequestId,
+					referenceType: NotifiReferecneType.OrderCancelRequest);
+			}
+
+			if (customerIdToNotify.HasValue)
+			{
+				await _notificationService.SendToUserAsync(
+					customerIdToNotify.Value,
+					"Đơn hàng đã bị hủy",
+					$"Đơn hàng #{orderId} đã bị hủy. Lý do: {request.Reason}.",
+					NotificationType.Warning,
+					referenceId: orderId,
+					referenceType: NotifiReferecneType.Order);
+			}
+
+			return response;
 		}
 
 		public async Task<BaseResponse<string>> CancelOrderAsync(Guid orderId, Guid userId, UserCancelOrderRequest request)
 		{
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			Guid? createdCancelRequestId = null;
+
+			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			   {
 				   var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(orderId)
 					   ?? throw AppException.NotFound("Order not found.");
@@ -492,9 +539,31 @@ namespace PerfumeGPT.Application.Services
 				   cancelRequest.Order = order;
 
 				   await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
+				   createdCancelRequestId = cancelRequest.Id;
 
 				   return BaseResponse<string>.Ok("Cancel request submitted successfully.");
 			   });
+
+			if (createdCancelRequestId.HasValue)
+			{
+				await _notificationService.SendToRoleAsync(
+					UserRole.admin,
+					"Yêu cầu hủy đơn mới",
+					$"Khách hàng yêu cầu hủy đơn #{orderId}.",
+					NotificationType.Warning,
+					referenceId: createdCancelRequestId,
+					referenceType: NotifiReferecneType.OrderCancelRequest);
+
+				await _notificationService.SendToRoleAsync(
+					UserRole.staff,
+					"Yêu cầu hủy đơn mới",
+					$"Khách hàng yêu cầu hủy đơn #{orderId}.",
+					NotificationType.Warning,
+					referenceId: createdCancelRequestId,
+					referenceType: NotifiReferecneType.OrderCancelRequest);
+			}
+
+			return response;
 		}
 		#endregion Order Status Management
 

@@ -194,6 +194,14 @@ namespace PerfumeGPT.Application.Services
 				referenceId: createdRequestId,
 				referenceType: NotifiReferecneType.OrderReturnRequest);
 
+			await _notificationService.SendToRoleAsync(
+				UserRole.staff,
+				"Yêu cầu trả hàng mới",
+				$"Khách hàng đã yêu cầu trả đơn #{request.OrderId}.",
+				NotificationType.Warning,
+				referenceId: createdRequestId,
+				referenceType: NotifiReferecneType.OrderReturnRequest);
+
 			if (request.TemporaryMediaIds == null || request.TemporaryMediaIds.Count == 0)
 				return response;
 
@@ -259,11 +267,45 @@ namespace PerfumeGPT.Application.Services
 				returnRequestId);
 
 			if (conversionResult.TotalProcessed == 0)
+			{
+				await _notificationService.SendToRoleAsync(
+					UserRole.admin,
+					"Khách đã bổ sung bằng chứng trả hàng",
+					$"Khách hàng đã bổ sung bằng chứng cho yêu cầu trả #{requestId}.",
+					NotificationType.Info,
+					referenceId: requestId,
+					referenceType: NotifiReferecneType.OrderReturnRequest);
+
+				await _notificationService.SendToRoleAsync(
+					UserRole.staff,
+					"Khách đã bổ sung bằng chứng trả hàng",
+					$"Khách hàng đã bổ sung bằng chứng cho yêu cầu trả #{requestId}.",
+					NotificationType.Info,
+					referenceId: requestId,
+					referenceType: NotifiReferecneType.OrderReturnRequest);
+
 				return response;
+			}
 
 			var message = conversionResult.HasError
 				? $"Return request updated with {conversionResult.FailedItems.Count} proof image/video upload failure(s)."
 				: "Return request updated and resubmitted for review.";
+
+			await _notificationService.SendToRoleAsync(
+				UserRole.admin,
+				"Khách đã bổ sung bằng chứng trả hàng",
+				$"Khách hàng đã bổ sung bằng chứng cho yêu cầu trả #{returnRequestId}.",
+				NotificationType.Info,
+				referenceId: returnRequestId,
+				referenceType: NotifiReferecneType.OrderReturnRequest);
+
+			await _notificationService.SendToRoleAsync(
+				UserRole.staff,
+				"Khách đã bổ sung bằng chứng trả hàng",
+				$"Khách hàng đã bổ sung bằng chứng cho yêu cầu trả #{returnRequestId}.",
+				NotificationType.Info,
+				referenceId: returnRequestId,
+				referenceType: NotifiReferecneType.OrderReturnRequest);
 
 			return BaseResponse<string>.Ok(returnRequestId.ToString(), message);
 		}
@@ -322,20 +364,56 @@ namespace PerfumeGPT.Application.Services
 
 					if (!shippingCreated)
 					{
+						await _notificationService.SendToUserAsync(
+							   requestForGhn.CustomerId,
+							   "Yêu cầu trả hàng đã được chấp thuận",
+							   $"Yêu cầu trả đơn #{requestForGhn.OrderId} của bạn đã được chấp thuận và đang tạo vận đơn hoàn trả.",
+							   NotificationType.Success,
+							   referenceId: requestForGhn.Id,
+							   referenceType: NotifiReferecneType.OrderReturnRequest);
+
 						return BaseResponse<string>.Ok(
 							"Return request approved locally, BUT failed to create GHN return shipping order. Please check GHN configuration and retry manually.");
 					}
 				}
 				catch (Exception ex)
 				{
+					await _notificationService.SendToUserAsync(
+						   requestForGhn.CustomerId,
+						   "Yêu cầu trả hàng đã được chấp thuận",
+						   $"Yêu cầu trả đơn #{requestForGhn.OrderId} của bạn đã được chấp thuận và đang xử lý vận chuyển hoàn trả.",
+						   NotificationType.Success,
+						   referenceId: requestForGhn.Id,
+						   referenceType: NotifiReferecneType.OrderReturnRequest);
+
 					return BaseResponse<string>.Ok(
 						$"Return request approved locally, BUT GHN API threw an error: {ex.Message}. Please retry sync manually.");
 				}
+
+				await _notificationService.SendToUserAsync(
+					requestForGhn.CustomerId,
+					"Yêu cầu trả hàng đã được chấp thuận",
+					$"Yêu cầu trả đơn #{requestForGhn.OrderId} của bạn đã được chấp thuận.",
+					NotificationType.Success,
+					referenceId: requestForGhn.Id,
+					referenceType: NotifiReferecneType.OrderReturnRequest);
+
 				return BaseResponse<string>.Ok("Return request approved for shipment and GHN order created successfully.");
 			}
 
 			if (request.IsApproved)
 			{
+				var approvedRequest = await _unitOfWork.OrderReturnRequests.GetByIdAsync(requestId)
+					  ?? throw AppException.NotFound("Return request not found.");
+
+				await _notificationService.SendToUserAsync(
+					approvedRequest.CustomerId,
+					"Yêu cầu trả hàng đã được chấp thuận",
+					$"Yêu cầu trả đơn #{approvedRequest.OrderId} của bạn đã được chấp thuận.",
+					NotificationType.Success,
+					referenceId: approvedRequest.Id,
+					referenceType: NotifiReferecneType.OrderReturnRequest);
+
 				return BaseResponse<string>.Ok("Return request approved and moved to refund processing.");
 			}
 
@@ -354,6 +432,17 @@ namespace PerfumeGPT.Application.Services
 
 				return BaseResponse<string>.Ok("Return request requires more information from customer.");
 			}
+
+			var rejectedRequest = await _unitOfWork.OrderReturnRequests.GetByIdAsync(requestId)
+				   ?? throw AppException.NotFound("Return request not found.");
+
+			await _notificationService.SendToUserAsync(
+				rejectedRequest.CustomerId,
+				"Yêu cầu trả hàng đã bị từ chối",
+				$"Yêu cầu trả đơn #{rejectedRequest.OrderId} của bạn đã bị từ chối.",
+				NotificationType.Warning,
+				referenceId: rejectedRequest.Id,
+				referenceType: NotifiReferecneType.OrderReturnRequest);
 
 			return BaseResponse<string>.Ok("Return request rejected.");
 		}
