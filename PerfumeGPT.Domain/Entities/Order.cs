@@ -28,7 +28,6 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual User? Staff { get; set; } = null!;
 		public virtual ICollection<OrderDetail> OrderDetails { get; set; } = [];
 		public virtual ICollection<StockReservation> StockReservations { get; set; } = [];
-		public virtual ICollection<Notification> Notifications { get; set; } = [];
 		public virtual ICollection<PaymentTransaction> PaymentTransactions { get; set; } = null!;
 		public virtual ICollection<LoyaltyTransaction> LoyaltyTransactions { get; set; } = null!;
 		public virtual ICollection<OrderCancelRequest> CancelRequests { get; set; } = null!;
@@ -91,12 +90,6 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			UserVoucher = userVoucher ?? throw DomainException.BadRequest("User voucher is required.");
 			UserVoucherId = userVoucher.Id;
-		}
-
-		public void AddOrderDetail(Guid variantId, int quantity, decimal unitPrice, string snapshot)
-		{
-			var orderDetail = OrderDetail.Create(variantId, quantity, unitPrice, snapshot);
-			AddOrderDetail(orderDetail);
 		}
 
 		public void AddOrderDetails(IEnumerable<OrderDetail> orderDetails)
@@ -224,6 +217,17 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			if (Type != OrderType.Online)
 				throw DomainException.BadRequest("Only online orders are supported for this operation.");
+		}
+
+		public void FulfillOrderDetail(Guid orderDetailId, Guid fulfilledBatchId)
+		{
+			if (orderDetailId == Guid.Empty)
+				throw DomainException.BadRequest("Order detail ID is required.");
+
+			var orderDetail = OrderDetails.FirstOrDefault(od => od.Id == orderDetailId)
+				?? throw DomainException.NotFound("Order detail not found in this order.");
+
+			orderDetail.Fulfill(fulfilledBatchId);
 		}
 
 		private static void ValidateTotalAmount(decimal totalAmount)

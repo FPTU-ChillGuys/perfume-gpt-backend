@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
+using PerfumeGPT.Application.DTOs.Requests.Notifications;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.Notifications;
 using PerfumeGPT.Application.Interfaces.Services;
+using System.Security.Claims;
 
 namespace PerfumeGPT.API.Controllers
 {
@@ -16,6 +19,26 @@ namespace PerfumeGPT.API.Controllers
 		public NotificationsController(INotificationService notificationService)
 		{
 			_notificationService = notificationService;
+		}
+
+		[HttpGet]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<NotificationListItemResponse>>), StatusCodes.Status200OK)]
+		public async Task<ActionResult<BaseResponse<PagedResult<NotificationListItemResponse>>>> GetPaged([FromQuery] GetPagedNotificationsRequest request)
+		{
+			var effectiveRequest = request;
+
+			if (!effectiveRequest.UserId.HasValue && string.IsNullOrWhiteSpace(effectiveRequest.TargetRole))
+			{
+               var role = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
+				effectiveRequest = effectiveRequest with
+				{
+					UserId = GetCurrentUserId(),
+					TargetRole = role
+				};
+			}
+
+			var response = await _notificationService.GetPagedAsync(effectiveRequest);
+			return HandleResponse(response);
 		}
 
 		[HttpPatch("{id:guid}/read")]

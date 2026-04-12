@@ -24,6 +24,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IVoucherService _voucherService;
 		private readonly IGHNService _ghnService;
+		private readonly INotificationService _notificationService;
 
 		public OrderCancelRequestService(
 			IUnitOfWork unitOfWork,
@@ -32,7 +33,8 @@ namespace PerfumeGPT.Application.Services
 			IHttpContextAccessor httpContextAccessor,
 			IStockReservationService stockReservationService,
 			IVoucherService voucherService,
-			IGHNService ghnService)
+		 IGHNService ghnService,
+			INotificationService notificationService)
 		{
 			_unitOfWork = unitOfWork;
 			_vnPayService = vnPayService;
@@ -41,6 +43,7 @@ namespace PerfumeGPT.Application.Services
 			_stockReservationService = stockReservationService;
 			_voucherService = voucherService;
 			_ghnService = ghnService;
+			_notificationService = notificationService;
 		}
 		#endregion Dependencies
 
@@ -126,21 +129,24 @@ namespace PerfumeGPT.Application.Services
 			{
 				if (cancelRequest.IsRefundRequired)
 				{
+					var refundMethod = request.RefundMethod
+						   ?? throw AppException.BadRequest("Refund method is required when refund is needed.");
+
 					var successfulOnlinePayments = (await _unitOfWork.Payments.GetAllAsync(
 						p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Success))
 						.OrderByDescending(p => p.CreatedAt).ToList();
 
-					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod) ?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
+					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod) ?? throw AppException.NotFound($"No successful {refundMethod} payment found for this order.");
 
 					var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext not available.");
 					var refundAmount = cancelRequest.RefundAmount ?? originalPayment.Amount;
 					var isRefundSuccess = false;
 
-					switch (request.RefundMethod)
+					switch (refundMethod)
 					{
 						case PaymentMethod.VnPay:
-							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod)
-								?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
+							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod)
+								?? throw AppException.NotFound($"No successful {refundMethod} payment found for this order.");
 
 							var refundAmountVnPay = cancelRequest.RefundAmount ?? originalPayment.Amount;
 							var vnPayResponse = await _vnPayService.RefundAsync(context, new VnPayRefundRequest
@@ -161,8 +167,8 @@ namespace PerfumeGPT.Application.Services
 							break;
 
 						case PaymentMethod.Momo:
-							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod)
-								?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
+							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod)
+								?? throw AppException.NotFound($"No successful {refundMethod} payment found for this order.");
 
 							var refundAmountMomo = cancelRequest.RefundAmount ?? originalPayment.Amount;
 							var momoResponse = await _momoService.RefundAsync(context, new MomoRefundRequest
@@ -194,7 +200,7 @@ namespace PerfumeGPT.Application.Services
 							break;
 
 						default:
-							throw AppException.BadRequest($"Refund is not supported for payment method {request.RefundMethod}.");
+							throw AppException.BadRequest($"Refund is not supported for payment method {refundMethod}.");
 					}
 
 					var finalRefundAmount = cancelRequest.RefundAmount ?? originalPayment.Amount;
@@ -204,7 +210,7 @@ namespace PerfumeGPT.Application.Services
 						var failedRefund = PaymentTransaction.CreateRefund(
 							orderId: order.Id,
 							originalPaymentId: originalPayment.Id,
-							method: request.RefundMethod,
+						   method: refundMethod,
 							refundAmount: finalRefundAmount
 						);
 
@@ -216,14 +222,14 @@ namespace PerfumeGPT.Application.Services
 						await _unitOfWork.Payments.AddAsync(failedRefund);
 						await _unitOfWork.SaveChangesAsync();
 
-						throw AppException.BadRequest($"Refund failed via {request.RefundMethod}. Cancellation aborted. Reason: {refundMessage}");
+						throw AppException.BadRequest($"Refund failed via {refundMethod}. Cancellation aborted. Reason: {refundMessage}");
 					}
 					else
 					{
 						var successRefund = PaymentTransaction.CreateRefund(
 							orderId: order.Id,
 							originalPaymentId: originalPayment.Id,
-							method: request.RefundMethod,
+						   method: refundMethod,
 							refundAmount: finalRefundAmount
 						);
 						successRefund.MarkSuccess(refundTransactionNo);
@@ -247,54 +253,64 @@ namespace PerfumeGPT.Application.Services
 				}
 			}
 
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			{
-				var freshCancelReq = await _unitOfWork.OrderCancelRequests.GetByIdAsync(requestId)
-					?? throw AppException.NotFound("Cancel request not found during transaction.");
+			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			  {
+				  var freshCancelReq = await _unitOfWork.OrderCancelRequests.GetByIdAsync(requestId)
+					  ?? throw AppException.NotFound("Cancel request not found during transaction.");
 
-				var freshOrder = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
-					?? throw AppException.NotFound("Associated order not found during transaction.");
+				  var freshOrder = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
+					  ?? throw AppException.NotFound("Associated order not found during transaction.");
 
-				freshCancelReq.Process(processedBy, request.IsApproved, request.StaffNote);
+				  freshCancelReq.Process(processedBy, request.IsApproved, request.StaffNote);
 
-				if (request.IsApproved)
-				{
-					if (freshCancelReq.IsRefundRequired && originalPayment != null)
-					{
-						freshCancelReq.MarkRefunded(refundTransactionNo);
-						freshOrder.MarkRefunded();
+				  if (request.IsApproved)
+				  {
+					  if (freshCancelReq.IsRefundRequired && originalPayment != null)
+					  {
+						  freshCancelReq.MarkRefunded(refundTransactionNo);
+						  freshOrder.MarkRefunded();
 
-						var refundPayment = PaymentTransaction.CreateRefund(
-							orderId: freshOrder.Id,
-							originalPaymentId: originalPayment.Id,
-							method: originalPayment.Method,
-							refundAmount: cancelRequest.RefundAmount ?? originalPayment.Amount
-						);
+						  var refundPayment = PaymentTransaction.CreateRefund(
+							  orderId: freshOrder.Id,
+							  originalPaymentId: originalPayment.Id,
+							  method: originalPayment.Method,
+							  refundAmount: cancelRequest.RefundAmount ?? originalPayment.Amount
+						  );
 
-						refundPayment.MarkSuccess(refundTransactionNo);
+						  refundPayment.MarkSuccess(refundTransactionNo);
 
-						await _unitOfWork.Payments.AddAsync(refundPayment);
-					}
+						  await _unitOfWork.Payments.AddAsync(refundPayment);
+					  }
 
-					freshOrder.SetStatus(OrderStatus.Cancelled);
-					_unitOfWork.Orders.Update(freshOrder);
+					  freshOrder.SetStatus(OrderStatus.Cancelled);
+					  _unitOfWork.Orders.Update(freshOrder);
 
-					if (freshOrder.ForwardShipping != null)
-					{
-						freshOrder.ForwardShipping.Cancel();
-						_unitOfWork.ShippingInfos.Update(freshOrder.ForwardShipping);
-					}
+					  if (freshOrder.ForwardShipping != null)
+					  {
+						  freshOrder.ForwardShipping.Cancel();
+						  _unitOfWork.ShippingInfos.Update(freshOrder.ForwardShipping);
+					  }
 
-					await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(freshOrder.Id);
+					  await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(freshOrder.Id);
 
-					if (freshOrder.UserVoucherId.HasValue)
-						await _voucherService.RefundVoucherForCancelledOrderAsync(freshOrder.Id);
-				}
+					  if (freshOrder.UserVoucherId.HasValue)
+						  await _voucherService.RefundVoucherForCancelledOrderAsync(freshOrder.Id);
+				  }
 
-				_unitOfWork.OrderCancelRequests.Update(freshCancelReq);
+				  _unitOfWork.OrderCancelRequests.Update(freshCancelReq);
 
-				return BaseResponse<string>.Ok(request.IsApproved ? "Cancel request approved and processed." : "Cancel request rejected.");
-			});
+				  return BaseResponse<string>.Ok(request.IsApproved ? "Cancel request approved and processed." : "Cancel request rejected.");
+			  });
+
+			await _notificationService.SendToUserAsync(
+				cancelRequest.RequestedById,
+				"Kết quả yêu cầu hủy đơn",
+				$"Yêu cầu hủy đơn #{cancelRequest.OrderId} của bạn đã được {(request.IsApproved ? "chấp thuận" : "từ chối")}.",
+				request.IsApproved ? NotificationType.Success : NotificationType.Warning,
+				referenceId: cancelRequest.Id,
+				referenceType: NotifiReferecneType.OrderCancelRequest);
+
+			return response;
 		}
 	}
 }

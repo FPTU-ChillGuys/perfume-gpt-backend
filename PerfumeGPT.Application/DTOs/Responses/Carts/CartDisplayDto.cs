@@ -9,5 +9,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Carts
 		public decimal Discount { get; init; }
 		public decimal TotalPrice { get; init; }
 		public string? PaymentUrl { get; init; }
+		public string? Message { get; init; }
+		public string? VoucherCode { get; init; }
 	}
 }

@@ -1,6 +1,5 @@
 ﻿using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Exceptions;
-using System.Text.Json.Nodes;
 
 namespace PerfumeGPT.Domain.Entities
 {
@@ -10,21 +9,33 @@ namespace PerfumeGPT.Domain.Entities
 
 		public Guid OrderId { get; private set; }
 		public Guid VariantId { get; private set; }
+		public Guid? PromotionItemId { get; private set; }
+		public Guid? FulfilledBatchId { get; private set; }
 		public int Quantity { get; private set; }
 		public decimal UnitPrice { get; private set; }
+		public decimal PromotionDiscountAmount { get; private set; }
 		public decimal ApportionedDiscount { get; private set; }
 		public string Snapshot { get; private set; } = null!;
-		public decimal FinalTotal => (UnitPrice * Quantity) - ApportionedDiscount;
+		public decimal FinalTotal => (UnitPrice * Quantity) - ApportionedDiscount - PromotionDiscountAmount;
 		public decimal RefundableUnitPrice => Quantity > 0 ? FinalTotal / Quantity : 0;
 
 		// Navigation properties
 		public virtual Order Order { get; set; } = null!;
 		public virtual ProductVariant ProductVariant { get; set; } = null!;
 		public virtual Review? Review { get; set; }
+		public virtual Batch? FulfilledBatch { get; set; } = null!;
+		public virtual PromotionItem? PromotionItem { get; set; }
 		public virtual ICollection<OrderReturnRequestDetail> ReturnRequestDetails { get; set; } = [];
 
 		// Factory methods
-		public static OrderDetail Create(Guid variantId, int quantity, decimal unitPrice, string snapshot, decimal apportionedDiscount = 0)
+		public static OrderDetail Create(
+		Guid variantId,
+		Guid? promotionItemId, // Thêm tham số này
+		int quantity,
+		decimal unitPrice,
+		string snapshot,
+		decimal apportionedVoucherDiscount = 0, // Thêm tham số này
+		decimal promotionDiscountAmount = 0)
 		{
 			if (variantId == Guid.Empty)
 				throw DomainException.BadRequest("Variant ID is required.");
@@ -35,8 +46,8 @@ namespace PerfumeGPT.Domain.Entities
 			if (unitPrice < 0)
 				throw DomainException.BadRequest("Unit price cannot be negative.");
 
-			if (apportionedDiscount < 0 || apportionedDiscount > (unitPrice * quantity))
-				throw DomainException.BadRequest("Apportioned discount cannot be negative or exceed the total line price.");
+			if (apportionedVoucherDiscount + promotionDiscountAmount > (unitPrice * quantity))
+				throw DomainException.BadRequest("Total discounts cannot exceed the total line price.");
 
 			if (string.IsNullOrWhiteSpace(snapshot))
 				throw DomainException.BadRequest("Snapshot is required.");
@@ -44,33 +55,30 @@ namespace PerfumeGPT.Domain.Entities
 			return new OrderDetail
 			{
 				VariantId = variantId,
+				PromotionItemId = promotionItemId,
 				Quantity = quantity,
 				UnitPrice = unitPrice,
-				ApportionedDiscount = apportionedDiscount,
+				ApportionedDiscount = apportionedVoucherDiscount,
+				PromotionDiscountAmount = promotionDiscountAmount,
 				Snapshot = snapshot.Trim()
 			};
 		}
 
-		public void ApplyDiscount(decimal discountAmount)
+		public void ApplyDiscounts(decimal apportionedVoucherDiscount, decimal promotionDiscountAmount)
 		{
-			if (discountAmount < 0 || discountAmount > (UnitPrice * Quantity))
-				throw DomainException.BadRequest("Invalid discount amount. It cannot be negative or exceed the total line price.");
+			if (apportionedVoucherDiscount + promotionDiscountAmount > (UnitPrice * Quantity))
+				throw DomainException.BadRequest("Total discounts cannot exceed the total line price.");
 
-			ApportionedDiscount = discountAmount;
+			ApportionedDiscount = apportionedVoucherDiscount;
+			PromotionDiscountAmount = promotionDiscountAmount;
 		}
 
-		public void UpdateBatchInfoInSnapshot(Guid newBatchId, string newBatchCode, DateTime newExpiryDate)
+		public void Fulfill(Guid actualBatchId)
 		{
-			if (string.IsNullOrWhiteSpace(Snapshot))
-				throw DomainException.BadRequest("Cannot update an empty snapshot.");
+			if (actualBatchId == Guid.Empty)
+				throw DomainException.BadRequest("Actual Batch ID is required for fulfillment.");
 
-			var snapshotNode = JsonNode.Parse(Snapshot) ?? throw DomainException.BadRequest("Failed to parse snapshot JSON.");
-
-			snapshotNode["BatchId"] = newBatchId;
-			snapshotNode["BatchCode"] = newBatchCode;
-			snapshotNode["ExpiryDate"] = newExpiryDate;
-
-			Snapshot = snapshotNode.ToJsonString();
+			FulfilledBatchId = actualBatchId;
 		}
 
 		public void UpdateQuantityAndDiscount(int newQuantity, decimal newApportionedDiscount)

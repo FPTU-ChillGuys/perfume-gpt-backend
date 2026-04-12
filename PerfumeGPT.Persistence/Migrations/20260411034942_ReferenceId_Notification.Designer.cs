@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260411034942_ReferenceId_Notification")]
+    partial class ReferenceId_Notification
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1038,17 +1041,7 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<Guid?>("FulfilledBatchId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<Guid>("OrderId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("PromotionDiscountAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid?>("PromotionItemId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Quantity")
@@ -1067,11 +1060,7 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FulfilledBatchId");
-
                     b.HasIndex("OrderId");
-
-                    b.HasIndex("PromotionItemId");
 
                     b.HasIndex("VariantId");
 
@@ -2116,9 +2105,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("IsMemberOnly")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("IsPublic")
                         .HasColumnType("bit");
 
@@ -2518,21 +2504,11 @@ namespace PerfumeGPT.Persistence.Migrations
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.OrderDetail", b =>
                 {
-                    b.HasOne("PerfumeGPT.Domain.Entities.Batch", "FulfilledBatch")
-                        .WithMany("OrderDetails")
-                        .HasForeignKey("FulfilledBatchId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("PerfumeGPT.Domain.Entities.Order", "Order")
                         .WithMany("OrderDetails")
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("PerfumeGPT.Domain.Entities.PromotionItem", "PromotionItem")
-                        .WithMany("OrderDetails")
-                        .HasForeignKey("PromotionItemId")
-                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PerfumeGPT.Domain.Entities.ProductVariant", "ProductVariant")
                         .WithMany("OrderDetails")
@@ -2540,13 +2516,9 @@ namespace PerfumeGPT.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("FulfilledBatch");
-
                     b.Navigation("Order");
 
                     b.Navigation("ProductVariant");
-
-                    b.Navigation("PromotionItem");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.OrderReturnRequest", b =>
@@ -2955,8 +2927,6 @@ namespace PerfumeGPT.Persistence.Migrations
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Batch", b =>
                 {
-                    b.Navigation("OrderDetails");
-
                     b.Navigation("Promotions");
 
                     b.Navigation("StockAdjustmentDetails");
@@ -3086,11 +3056,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("StockAdjustmentDetails");
 
                     b.Navigation("StockReservations");
-                });
-
-            modelBuilder.Entity("PerfumeGPT.Domain.Entities.PromotionItem", b =>
-                {
-                    b.Navigation("OrderDetails");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Review", b =>

@@ -16,13 +16,16 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IBatchService _batchService;
+		private readonly INotificationService _notificationService;
 
 		public StockAdjustmentService(
 			IUnitOfWork unitOfWork,
-			IBatchService batchService)
+		 IBatchService batchService,
+			INotificationService notificationService)
 		{
 			_unitOfWork = unitOfWork;
 			_batchService = batchService;
+			_notificationService = notificationService;
 		}
 		#endregion Dependencies
 
@@ -51,57 +54,70 @@ namespace PerfumeGPT.Application.Services
 
 			var totalAdjustmentQty = request.AdjustmentDetails.Sum(d => Math.Abs(d.AdjustmentQuantity));
 			bool isAutoApprove = totalAdjustmentQty <= 5; // Magic number 5 - config later
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			  {
+				  var stockAdjustment = StockAdjustment.Create(
+						   userId,
+						   request.AdjustmentDate,
+						   request.Reason,
+						   request.Note);
+
+				  foreach (var detailRequest in request.AdjustmentDetails)
+				  {
+					  var detailPayload = new StockAdjustmentDetailPayload
+					  {
+						  ProductVariantId = detailRequest.VariantId,
+						  BatchId = detailRequest.BatchId,
+						  AdjustmentQuantity = detailRequest.AdjustmentQuantity,
+						  Note = detailRequest.Note
+					  };
+
+					  if (isAutoApprove)
+					  {
+						  stockAdjustment.AddApprovedDetail(detailPayload, detailRequest.AdjustmentQuantity);
+
+						  if (detailRequest.AdjustmentQuantity > 0)
+						  {
+							  await _batchService.IncreaseBatchQuantityAsync(detailRequest.BatchId, detailRequest.AdjustmentQuantity);
+						  }
+						  else if (detailRequest.AdjustmentQuantity < 0)
+						  {
+							  await _batchService.DecreaseBatchQuantityAsync(detailRequest.BatchId, Math.Abs(detailRequest.AdjustmentQuantity));
+						  }
+					  }
+					  else
+					  {
+						  stockAdjustment.AddDetail(detailPayload);
+					  }
+				  }
+
+				  if (isAutoApprove)
+				  {
+					  stockAdjustment.UpdateStatus(StockAdjustmentStatus.InProgress);
+					  stockAdjustment.Complete(userId);
+				  }
+
+				  await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
+
+				  var message = isAutoApprove
+					  ? "Stock adjustment created and auto-approved successfully."
+					  : "Stock adjustment created and is pending for manager verification.";
+
+				  return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), message);
+			  });
+
+			if (!isAutoApprove && Guid.TryParse(response.Payload, out var stockAdjustmentId))
 			{
-				var stockAdjustment = StockAdjustment.Create(
-						 userId,
-						 request.AdjustmentDate,
-						 request.Reason,
-						 request.Note);
+				await _notificationService.SendToRoleAsync(
+					UserRole.admin,
+					"Yêu cầu điều chỉnh kho mới",
+					$"Có phiếu điều chỉnh kho #{stockAdjustmentId} cần duyệt.",
+					NotificationType.Warning,
+					referenceId: stockAdjustmentId,
+					referenceType: NotifiReferecneType.Adjustment);
+			}
 
-				foreach (var detailRequest in request.AdjustmentDetails)
-				{
-					var detailPayload = new StockAdjustmentDetailPayload
-					{
-						ProductVariantId = detailRequest.VariantId,
-						BatchId = detailRequest.BatchId,
-						AdjustmentQuantity = detailRequest.AdjustmentQuantity,
-						Note = detailRequest.Note
-					};
-
-					if (isAutoApprove)
-					{
-						stockAdjustment.AddApprovedDetail(detailPayload, detailRequest.AdjustmentQuantity);
-
-						if (detailRequest.AdjustmentQuantity > 0)
-						{
-							await _batchService.IncreaseBatchQuantityAsync(detailRequest.BatchId, detailRequest.AdjustmentQuantity);
-						}
-						else if (detailRequest.AdjustmentQuantity < 0)
-						{
-							await _batchService.DecreaseBatchQuantityAsync(detailRequest.BatchId, Math.Abs(detailRequest.AdjustmentQuantity));
-						}
-					}
-					else
-					{
-						stockAdjustment.AddDetail(detailPayload);
-					}
-				}
-
-				if (isAutoApprove)
-				{
-					stockAdjustment.UpdateStatus(StockAdjustmentStatus.InProgress);
-					stockAdjustment.Complete(userId);
-				}
-
-				await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
-
-				var message = isAutoApprove
-					? "Stock adjustment created and auto-approved successfully."
-					: "Stock adjustment created and is pending for manager verification.";
-
-				return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), message);
-			});
+			return response;
 		}
 
 		public async Task<BaseResponse<string>> VerifyStockAdjustmentAsync(Guid adjustmentId, VerifyStockAdjustmentRequest request, Guid verifiedByUserId)
@@ -136,34 +152,44 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			// Execute within transaction
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			{
-				foreach (var verifyDetail in request.AdjustmentDetails)
-				{
-					var adjustmentDetail = stockAdjustment.AdjustmentDetails.First(d => d.Id == verifyDetail.DetailId);
+			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			  {
+				  foreach (var verifyDetail in request.AdjustmentDetails)
+				  {
+					  var adjustmentDetail = stockAdjustment.AdjustmentDetails.First(d => d.Id == verifyDetail.DetailId);
 
-					// Update adjustment detail
-					adjustmentDetail.Approve(verifyDetail.ApprovedQuantity, verifyDetail.Note);
-					_unitOfWork.StockAdjustmentDetails.Update(adjustmentDetail);
+					  // Update adjustment detail
+					  adjustmentDetail.Approve(verifyDetail.ApprovedQuantity, verifyDetail.Note);
+					  _unitOfWork.StockAdjustmentDetails.Update(adjustmentDetail);
 
-					// Apply stock adjustment
-					if (verifyDetail.ApprovedQuantity > 0)
-					{
-						// Update batch quantity - this will also recalculate and update stock quantity automatically
-						await _batchService.IncreaseBatchQuantityAsync(adjustmentDetail.BatchId, verifyDetail.ApprovedQuantity);
-					}
-					else if (verifyDetail.ApprovedQuantity < 0)
-					{
-						// Update batch quantity - this will also recalculate and update stock quantity automatically
-						await _batchService.DecreaseBatchQuantityAsync(adjustmentDetail.BatchId, Math.Abs(verifyDetail.ApprovedQuantity));
-					}
-				}
+					  // Apply stock adjustment
+					  if (verifyDetail.ApprovedQuantity > 0)
+					  {
+						  // Update batch quantity - this will also recalculate and update stock quantity automatically
+						  await _batchService.IncreaseBatchQuantityAsync(adjustmentDetail.BatchId, verifyDetail.ApprovedQuantity);
+					  }
+					  else if (verifyDetail.ApprovedQuantity < 0)
+					  {
+						  // Update batch quantity - this will also recalculate and update stock quantity automatically
+						  await _batchService.DecreaseBatchQuantityAsync(adjustmentDetail.BatchId, Math.Abs(verifyDetail.ApprovedQuantity));
+					  }
+				  }
 
-				stockAdjustment.Complete(verifiedByUserId);
-				_unitOfWork.StockAdjustments.Update(stockAdjustment);
+				  stockAdjustment.Complete(verifiedByUserId);
+				  _unitOfWork.StockAdjustments.Update(stockAdjustment);
 
-				return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), "Stock adjustment verified successfully.");
-			});
+				  return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), "Stock adjustment verified successfully.");
+			  });
+
+			await _notificationService.SendToUserAsync(
+				stockAdjustment.CreatedById,
+				"Yêu cầu điều chỉnh kho đã được chấp thuận",
+				$"Yêu cầu điều chỉnh kho #{stockAdjustment.Id} của bạn đã được Admin chấp thuận.",
+				NotificationType.Success,
+				referenceId: stockAdjustment.Id,
+				referenceType: NotifiReferecneType.Adjustment);
+
+			return response;
 		}
 
 		public async Task<BaseResponse<StockAdjustmentResponse>> GetStockAdjustmentByIdAsync(Guid id)
@@ -204,6 +230,17 @@ namespace PerfumeGPT.Application.Services
 			_unitOfWork.StockAdjustments.Update(stockAdjustment);
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Failed to update stock adjustment status.");
+
+			if (request.Status == StockAdjustmentStatus.Cancelled)
+			{
+				await _notificationService.SendToUserAsync(
+					stockAdjustment.CreatedById,
+					"Yêu cầu điều chỉnh kho đã bị từ chối",
+					$"Yêu cầu điều chỉnh kho #{stockAdjustment.Id} của bạn đã bị từ chối.",
+					NotificationType.Warning,
+					referenceId: stockAdjustment.Id,
+					referenceType: NotifiReferecneType.Adjustment);
+			}
 
 			return BaseResponse<string>.Ok(id.ToString(), "Stock adjustment status updated successfully.");
 		}

@@ -13,7 +13,6 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid VoucherId { get; private set; }
 		public Guid? OrderId { get; private set; }
 		public string? GuestIdentifier { get; private set; }
-		public bool IsUsed => Status == UsageStatus.Used;
 		public UsageStatus Status { get; private set; }
 
 		// Navigation properties
@@ -31,14 +30,11 @@ namespace PerfumeGPT.Domain.Entities
 			if (voucherId == Guid.Empty)
 				throw DomainException.BadRequest("Voucher ID is required.");
 
-			if (!userId.HasValue && string.IsNullOrWhiteSpace(guestIdentifier))
-				throw DomainException.BadRequest("User ID or Guest Identifier must be provided.");
-
 			return new UserVoucher
 			{
 				UserId = userId,
 				VoucherId = voucherId,
-				GuestIdentifier = guestIdentifier,
+				GuestIdentifier = string.IsNullOrWhiteSpace(guestIdentifier) ? null : guestIdentifier.Trim(),
 				Status = UsageStatus.Available
 			};
 		}
@@ -59,7 +55,7 @@ namespace PerfumeGPT.Domain.Entities
 			if (orderId == Guid.Empty)
 				throw DomainException.BadRequest("Order ID is required.");
 
-			if (IsUsed)
+			if (Status == UsageStatus.Used)
 				throw DomainException.BadRequest("Cannot reserve a used voucher.");
 
 			if (Status != UsageStatus.Available)
@@ -93,22 +89,6 @@ namespace PerfumeGPT.Domain.Entities
 
 			OrderId = null;
 			Status = UsageStatus.Available;
-		}
-
-		public void MarkAsRefunded()
-		{
-			if (Status != UsageStatus.Used && Status != UsageStatus.Reserved)
-				throw DomainException.BadRequest("Only reserved or used vouchers can be refunded.");
-
-			Status = UsageStatus.Refunded;
-		}
-
-		public UserVoucher CreateReplacement()
-		{
-			if (Status != UsageStatus.Refunded)
-				throw DomainException.BadRequest("Can only create a replacement for a refunded voucher.");
-
-			return CreateAvailable(this.UserId, this.VoucherId, this.GuestIdentifier);
 		}
 
 		public void AssignToUser(Guid userId)

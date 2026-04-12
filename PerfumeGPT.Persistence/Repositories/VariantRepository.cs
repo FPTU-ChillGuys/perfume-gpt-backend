@@ -7,7 +7,6 @@ using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
-using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
 
 namespace PerfumeGPT.Persistence.Repositories
@@ -82,29 +81,17 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
 
-		public async Task<ProductVariantForPosResponse?> GetVariantByInfoAsync(GetVariantByInfoRequest request)
+		public async Task<ProductVariantForPosResponse?> GetVariantByInfoAsync(string keyword)
 		{
+			keyword = keyword.Trim();
+
 			var query = _context.ProductVariants
 				.Where(v => !v.IsDeleted && v.Status == VariantStatus.Active)
 				.AsQueryable();
-
-			if (!string.IsNullOrWhiteSpace(request.Barcode))
-			{
-				var barcode = request.Barcode.Trim();
-				query = query.Where(EfCollationExtensions.CollateContains<ProductVariant>(v => v.Barcode, barcode));
-			}
-
-			if (!string.IsNullOrWhiteSpace(request.Sku))
-			{
-				var sku = request.Sku.Trim().ToUpperInvariant();
-				query = query.Where(EfCollationExtensions.CollateContains<ProductVariant>(v => v.Sku, sku));
-			}
-
-			if (!string.IsNullOrWhiteSpace(request.Name))
-			{
-				var name = request.Name.Trim();
-				query = query.Where(EfCollationExtensions.CollateContains<ProductVariant>(v => v.Product.Name, name));
-			}
+			query = query.Where(v =>
+				(v.Barcode != null && v.Barcode.Contains(keyword)) ||
+				(v.Sku != null && v.Sku.Contains(keyword)) ||
+				(v.Product.Name != null && v.Product.Name.Contains(keyword)));
 
 			return await query
 				.OrderByDescending(v => v.CreatedAt)
@@ -244,22 +231,22 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var response = raw.Variant;
 
-          // Apply best promotion to calculate discounted price
+			// Apply best promotion to calculate discounted price
 			if (raw.BestPromotion != null)
 			{
 				var safeDiscount = Math.Min(raw.BestPromotion.CalculatedDiscountAmount, response.BasePrice);
-               var discountedPrice = Math.Round(response.BasePrice - safeDiscount, 2, MidpointRounding.AwayFromZero);
+				var discountedPrice = Math.Round(response.BasePrice - safeDiscount, 2, MidpointRounding.AwayFromZero);
 
 				response = response with
 				{
-                 DiscountedPrice = discountedPrice,
+					DiscountedPrice = discountedPrice,
 					CampaignName = raw.BestPromotion.CampaignName,
-                    VoucherCode = raw.AvailableVouchers.FirstOrDefault()
+					VoucherCode = raw.AvailableVouchers.FirstOrDefault()
 				};
 			}
 			else
 			{
-               response = response with
+				response = response with
 				{
 					DiscountedPrice = response.BasePrice,
 					VoucherCode = raw.AvailableVouchers.FirstOrDefault()
@@ -322,6 +309,91 @@ namespace PerfumeGPT.Persistence.Repositories
 				})
 				.AsNoTracking()
 				.ToListAsync();
+
+			return (items, totalCount);
+		}
+
+		public async Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsByCampaignIdAsync(
+			Guid campaignId,
+			GetPagedVariantsRequest request)
+		{
+			var now = DateTime.UtcNow;
+
+			var query = _context.ProductVariants
+				.Where(v => !v.IsDeleted && v.PromotionItems.Any(pi => !pi.IsDeleted && pi.CampaignId == campaignId));
+
+			var totalCount = await query.CountAsync();
+
+			var rawItems = await query
+				   .OrderByDescending(v => v.CreatedAt)
+				   .Skip((request.PageNumber - 1) * request.PageSize)
+				   .Take(request.PageSize)
+				  .Select(v => new
+				  {
+					  Variant = new VariantPagedItem
+					  {
+						  Id = v.Id,
+						  ProductId = v.ProductId,
+						  Barcode = v.Barcode,
+						  Sku = v.Sku,
+						  VolumeMl = v.VolumeMl,
+						  ConcentrationId = v.ConcentrationId,
+						  ConcentrationName = v.Concentration.Name,
+						  Type = v.Type,
+						  BasePrice = v.BasePrice,
+						  RetailPrice = v.RetailPrice,
+						  Status = v.Status,
+						  StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
+						  PrimaryImageUrl = v.Media
+							   .Where(m => m.IsPrimary && !m.IsDeleted)
+							   .Select(m => m.Url)
+							   .FirstOrDefault(),
+						  Attributes = v.ProductAttributes
+							   .Select(pa => new ProductAttributeResponse
+							   {
+								   AttributeId = pa.AttributeId,
+								   ValueId = pa.ValueId,
+								   Attribute = pa.Attribute.Name,
+								   Value = pa.Value.Value
+							   })
+							   .ToList()
+					  },
+					  BestPromotion = v.PromotionItems
+						   .Where(pi =>
+							   !pi.IsDeleted &&
+							   pi.CampaignId == campaignId &&
+							   pi.IsActive &&
+							   !pi.Campaign.IsDeleted &&
+							   pi.Campaign.Status == CampaignStatus.Active &&
+							   pi.Campaign.StartDate <= now &&
+							   pi.Campaign.EndDate >= now &&
+							   (!pi.MaxUsage.HasValue || pi.CurrentUsage < pi.MaxUsage.Value))
+						   .Select(pi => new
+						   {
+							   CalculatedDiscountAmount = pi.DiscountType == DiscountType.Percentage
+								   ? (v.BasePrice * pi.DiscountValue / 100m)
+								   : pi.DiscountValue
+						   })
+						   .OrderByDescending(x => x.CalculatedDiscountAmount)
+						   .FirstOrDefault()
+				  })
+				   .AsNoTracking()
+				   .ToListAsync();
+
+			var items = rawItems
+				.Select(x =>
+				{
+					var item = x.Variant;
+
+					if (x.BestPromotion == null)
+						return item;
+
+					var safeDiscount = Math.Min(x.BestPromotion.CalculatedDiscountAmount, item.BasePrice);
+					var discountedPrice = Math.Round(item.BasePrice - safeDiscount, 2, MidpointRounding.AwayFromZero);
+
+					return item with { BasePrice = discountedPrice };
+				})
+				.ToList();
 
 			return (items, totalCount);
 		}

@@ -1,6 +1,4 @@
-using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.AI;
 using Microsoft.SemanticKernel;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Media;
@@ -12,7 +10,6 @@ using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
-using System.Text;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -37,6 +34,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			.Include(p => p.ProductFamilyMaps)
 			.Include(p => p.ProductScentMaps)
 			.Include(p => p.ProductAttributes)
+			.AsSplitQuery()
 			.FirstOrDefaultAsync();
 
 		public async Task<bool> HasActiveVariantsAsync(Guid productId)
@@ -152,7 +150,27 @@ namespace PerfumeGPT.Persistence.Repositories
 									})
 									.ToList()
 							},
-							ActiveVoucher = v.PromotionItems
+							BestPromotion = v.PromotionItems
+								.Where(pi =>
+									!pi.IsDeleted &&
+									pi.IsActive &&
+									!pi.Campaign.IsDeleted &&
+									pi.Campaign.Status == CampaignStatus.Active &&
+									pi.Campaign.StartDate <= now &&
+								 pi.Campaign.EndDate >= now &&
+									(!pi.MaxUsage.HasValue || pi.CurrentUsage < pi.MaxUsage.Value))
+								.Select(pi => new
+								{
+									CampaignName = pi.Campaign.Name,
+									DiscountType = pi.DiscountType,
+									DiscountValue = pi.DiscountValue,
+									CalculatedDiscountAmount = pi.DiscountType == DiscountType.Percentage
+										? (v.BasePrice * pi.DiscountValue / 100m)
+										: pi.DiscountValue
+								})
+								.OrderByDescending(x => x.CalculatedDiscountAmount)
+								.FirstOrDefault(),
+							AvailableVouchers = v.PromotionItems
 								.Where(pi =>
 									!pi.IsDeleted &&
 									pi.IsActive &&
@@ -161,22 +179,14 @@ namespace PerfumeGPT.Persistence.Repositories
 									pi.Campaign.StartDate <= now &&
 									pi.Campaign.EndDate >= now)
 								.OrderByDescending(pi => pi.CreatedAt)
-								.SelectMany(pi => pi.Campaign.Vouchers
-									.Where(voucher =>
-										!voucher.IsDeleted &&
-										voucher.ExpiryDate >= now &&
-										voucher.ApplyType == VoucherType.Product &&
-										(voucher.RemainingQuantity == null || voucher.RemainingQuantity > 0) &&
-										(!voucher.TargetItemType.HasValue || voucher.TargetItemType == pi.ItemType))
-									.Select(voucher => new
-									{
-										CampaignName = pi.Campaign.Name,
-										voucher.Code,
-										voucher.DiscountType,
-										voucher.DiscountValue
-									}))
-								.OrderByDescending(x => x.DiscountValue)
-								.FirstOrDefault()
+								.SelectMany(pi => pi.Campaign.Vouchers)
+								.Where(voucher =>
+									!voucher.IsDeleted &&
+									voucher.ExpiryDate >= now &&
+									(voucher.RemainingQuantity == null || voucher.RemainingQuantity > 0))
+								.Select(voucher => voucher.Code)
+								.Distinct()
+							   .ToList()
 						})
 						.ToList(),
 					OlfactoryFamilies = p.ProductFamilyMaps
@@ -206,17 +216,25 @@ namespace PerfumeGPT.Persistence.Repositories
 				{
 					var variant = x.Variant;
 
-					if (x.ActiveVoucher != null)
+					if (x.BestPromotion != null)
 					{
-						var discounted = x.ActiveVoucher.DiscountType == DiscountType.Percentage
-							? variant.BasePrice * (1 - x.ActiveVoucher.DiscountValue / 100m)
-							: variant.BasePrice - x.ActiveVoucher.DiscountValue;
+						var safeDiscount = Math.Min(x.BestPromotion.CalculatedDiscountAmount, variant.BasePrice);
+						var discountedPrice = Math.Round(variant.BasePrice - safeDiscount, 2, MidpointRounding.AwayFromZero);
 
 						variant = variant with
 						{
-							CampaignName = x.ActiveVoucher.CampaignName,
-							VoucherCode = x.ActiveVoucher.Code,
-							DiscountedPrice = discounted < 0 ? 0 : discounted
+							DiscountedPrice = discountedPrice,
+							CampaignName = x.BestPromotion.CampaignName,
+							VoucherCode = x.AvailableVouchers.FirstOrDefault()
+						};
+					}
+
+					else
+					{
+						variant = variant with
+						{
+							DiscountedPrice = variant.BasePrice,
+							VoucherCode = x.AvailableVouchers.FirstOrDefault()
 						};
 					}
 
@@ -242,6 +260,157 @@ namespace PerfumeGPT.Persistence.Repositories
 				Attributes = raw.Attributes,
 				OlfactoryFamilies = raw.OlfactoryFamilies,
 				ScentNotes = raw.ScentNotes
+			};
+		}
+
+		public async Task<PublicProductResponse?> GetPublicProductResponseAsync(Guid productId)
+		{
+			var now = DateTime.UtcNow;
+
+			var raw = await _context.Products
+				.AsNoTracking()
+				.Where(p => !p.IsDeleted && p.Id == productId)
+				.Select(p => new
+				{
+					p.Id,
+					p.Name,
+					p.Gender,
+					p.Origin,
+					p.ReleaseYear,
+					BrandName = p.Brand.Name,
+					CategoryName = p.Category.Name,
+					p.Description,
+					Media = p.Media
+						.Where(m => !m.IsDeleted)
+						.Select(m => new MediaResponse
+						{
+							Id = m.Id,
+							Url = m.Url,
+							AltText = m.AltText,
+							IsPrimary = m.IsPrimary,
+							DisplayOrder = m.DisplayOrder,
+							MimeType = m.MimeType,
+							FileSize = m.FileSize
+						})
+						.ToList(),
+					Variants = p.Variants
+						.Where(v => !v.IsDeleted)
+						.Select(v => new
+						{
+							Variant = new PublicProductVariantResponse
+							{
+								Id = v.Id,
+								Sku = v.Sku,
+								VolumeMl = v.VolumeMl,
+								ConcentrationName = v.Concentration.Name,
+								Type = v.Type,
+								BasePrice = v.BasePrice,
+								RetailPrice = v.RetailPrice,
+								StockQuantity = v.Stock != null
+									? v.Stock.TotalQuantity - v.Stock.ReservedQuantity
+									: 0,
+								ProductName = p.Name,
+								Media = v.Media
+									.Where(m => !m.IsDeleted)
+									.OrderBy(m => m.DisplayOrder)
+									.Select(m => new MediaResponse
+									{
+										Id = m.Id,
+										Url = m.Url,
+										AltText = m.AltText,
+										IsPrimary = m.IsPrimary,
+										DisplayOrder = m.DisplayOrder,
+										MimeType = m.MimeType,
+										FileSize = m.FileSize
+									})
+									.ToList()
+							},
+							BestPromotion = v.PromotionItems
+								.Where(pi =>
+									!pi.IsDeleted &&
+									pi.IsActive &&
+									!pi.Campaign.IsDeleted &&
+									pi.Campaign.Status == CampaignStatus.Active &&
+									pi.Campaign.StartDate <= now &&
+									pi.Campaign.EndDate >= now &&
+									(!pi.MaxUsage.HasValue || pi.CurrentUsage < pi.MaxUsage.Value))
+								.Select(pi => new
+								{
+									CampaignName = pi.Campaign.Name,
+									CalculatedDiscountAmount = pi.DiscountType == DiscountType.Percentage
+										? (v.BasePrice * pi.DiscountValue / 100m)
+										: pi.DiscountValue
+								})
+								.OrderByDescending(x => x.CalculatedDiscountAmount)
+								.FirstOrDefault(),
+							AvailableVouchers = v.PromotionItems
+								.Where(pi =>
+									!pi.IsDeleted &&
+									pi.IsActive &&
+									!pi.Campaign.IsDeleted &&
+									pi.Campaign.Status == CampaignStatus.Active &&
+									pi.Campaign.StartDate <= now &&
+									pi.Campaign.EndDate >= now)
+								.OrderByDescending(pi => pi.CreatedAt)
+								.SelectMany(pi => pi.Campaign.Vouchers)
+								.Where(voucher =>
+									!voucher.IsDeleted &&
+									voucher.ExpiryDate >= now &&
+									(voucher.RemainingQuantity == null || voucher.RemainingQuantity > 0))
+								.Select(voucher => voucher.Code)
+								.Distinct()
+								.ToList()
+						})
+						.ToList()
+				})
+				.AsSplitQuery()
+				.FirstOrDefaultAsync();
+
+			if (raw == null)
+				return null;
+
+			var variants = raw.Variants
+				.Select(x =>
+				{
+					var variant = x.Variant;
+
+					if (x.BestPromotion != null)
+					{
+						var safeDiscount = Math.Min(x.BestPromotion.CalculatedDiscountAmount, variant.BasePrice);
+						var discountedPrice = Math.Round(variant.BasePrice - safeDiscount, 2, MidpointRounding.AwayFromZero);
+
+						variant = variant with
+						{
+							DiscountedPrice = discountedPrice,
+							CampaignName = x.BestPromotion.CampaignName,
+							VoucherCode = x.AvailableVouchers.FirstOrDefault()
+						};
+					}
+					else
+					{
+						variant = variant with
+						{
+							DiscountedPrice = variant.BasePrice,
+							VoucherCode = x.AvailableVouchers.FirstOrDefault()
+						};
+					}
+
+					return variant;
+				})
+				.ToList();
+
+			return new PublicProductResponse
+			{
+				Id = raw.Id,
+				Name = raw.Name,
+				Gender = raw.Gender,
+				Origin = raw.Origin,
+				ReleaseYear = raw.ReleaseYear,
+				BrandName = raw.BrandName,
+				CategoryName = raw.CategoryName,
+				Description = raw.Description,
+				Media = raw.Media,
+				Variants = variants
 			};
 		}
 

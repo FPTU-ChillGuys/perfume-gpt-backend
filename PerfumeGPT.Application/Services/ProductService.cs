@@ -162,11 +162,22 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		public async Task<BaseResponse<ProductResponse>> GetProductAsync(Guid productId)
+		   => await GetAdminProductAsync(productId);
+
+		public async Task<BaseResponse<ProductResponse>> GetAdminProductAsync(Guid productId)
 		{
 			var response = await _unitOfWork.Products.GetProductResponseAsync(productId)
 				?? throw AppException.NotFound("Product not found");
 
 			return BaseResponse<ProductResponse>.Ok(response, "Product retrieved successfully");
+		}
+
+		public async Task<BaseResponse<PublicProductResponse>> GetPublicProductAsync(Guid productId)
+		{
+			var response = await _unitOfWork.Products.GetPublicProductResponseAsync(productId)
+				?? throw AppException.NotFound("Product not found");
+
+			return BaseResponse<PublicProductResponse>.Ok(response, "Product details retrieved successfully");
 		}
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetProductsAsync(GetPagedProductRequest request)

@@ -74,12 +74,23 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpGet("{productId:guid}")]
+		[ProducesResponseType(typeof(BaseResponse<PublicProductResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PublicProductResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<PublicProductResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PublicProductResponse>>> GetProduct([FromRoute] Guid productId)
+		{
+			var response = await _productService.GetPublicProductAsync(productId);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("/api/admin/products/{productId:guid}")]
+		[Authorize(Roles = "admin,staff")]
 		[ProducesResponseType(typeof(BaseResponse<ProductResponse>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<ProductResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<ProductResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<ProductResponse>>> GetProduct([FromRoute] Guid productId)
+		public async Task<ActionResult<BaseResponse<ProductResponse>>> GetAdminProduct([FromRoute] Guid productId)
 		{
-			var response = await _productService.GetProductAsync(productId);
+			var response = await _productService.GetAdminProductAsync(productId);
 			return HandleResponse(response);
 		}
 

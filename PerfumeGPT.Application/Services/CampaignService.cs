@@ -36,6 +36,18 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		#region Campaign Management
+		public async Task<BaseResponse<List<CampaignResponse>>> GetHomeCampaignsAsync()
+		{
+			var campaigns = await _unitOfWork.Campaigns.GetHomeCampaignsAsync();
+			return BaseResponse<List<CampaignResponse>>.Ok(campaigns, "Home campaigns retrieved successfully.");
+		}
+
+		public async Task<BaseResponse<List<CampaignLookupItem>>> GetActiveCampaignLookupListAsync()
+		{
+			var campaigns = await _unitOfWork.Campaigns.GetActiveCampaignLookupListAsync();
+			return BaseResponse<List<CampaignLookupItem>>.Ok(campaigns, "Active campaign lookup list retrieved successfully.");
+		}
+
 		public async Task<BaseResponse<PagedResult<CampaignResponse>>> GetPagedCampaignsAsync(GetPagedCampaignsRequest request)
 		{
 			var (items, totalCount) = await _unitOfWork.Campaigns.GetPagedCampaignsAsync(request);
@@ -165,7 +177,7 @@ namespace PerfumeGPT.Application.Services
 
 			foreach (var voucher in vouchersToRemove)
 			{
-				if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucher.Id && !uv.IsUsed))
+				if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucher.Id && uv.Status == UsageStatus.Used))
 					throw AppException.BadRequest($"Cannot remove voucher '{voucher.Code}' because it has already been redeemed.");
 			}
 
@@ -336,7 +348,7 @@ namespace PerfumeGPT.Application.Services
 
 			var voucher = campaign.Vouchers.FirstOrDefault(v => v.Id == voucherId && !v.IsDeleted) ?? throw AppException.NotFound("Campaign voucher not found.");
 
-			if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && !uv.IsUsed))
+			if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && uv.Status == UsageStatus.Used))
 			{
 				throw AppException.BadRequest("Cannot delete voucher that has been redeemed by users");
 			}

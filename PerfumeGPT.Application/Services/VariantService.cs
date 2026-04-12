@@ -159,6 +159,18 @@ namespace PerfumeGPT.Application.Services
 				"Variants retrieved successfully");
 		}
 
+		public async Task<BaseResponse<PagedResult<VariantPagedItem>>> GetPagedVariantsByCampaignIdAsync(Guid campaignId, GetPagedVariantsRequest request)
+		{
+			var campaignExists = await _unitOfWork.Campaigns.AnyAsync(c => c.Id == campaignId && !c.IsDeleted);
+			if (!campaignExists)
+				throw AppException.NotFound("Campaign not found");
+
+			var (items, totalCount) = await _unitOfWork.Variants.GetPagedVariantsByCampaignIdAsync(campaignId, request);
+			return BaseResponse<PagedResult<VariantPagedItem>>.Ok(
+				new PagedResult<VariantPagedItem>(items, request.PageNumber, request.PageSize, totalCount),
+				"Campaign variants retrieved successfully");
+		}
+
 		public async Task<BaseResponse<ProductVariantResponse>> GetVariantByIdAsync(Guid variantId)
 		{
 			var variant = await _unitOfWork.Variants.GetVariantWithDetailsAsync(variantId)
@@ -177,16 +189,14 @@ namespace PerfumeGPT.Application.Services
 				lookupItems, "Variant lookup list retrieved successfully");
 		}
 
-		public async Task<BaseResponse<ProductVariantForPosResponse>> GetVariantByInfoAsync(GetVariantByInfoRequest request)
+		public async Task<BaseResponse<ProductVariantForPosResponse>> GetVariantByInfoAsync(string keyword)
 		{
-			if (string.IsNullOrWhiteSpace(request.Barcode)
-				&& string.IsNullOrWhiteSpace(request.Sku)
-				&& string.IsNullOrWhiteSpace(request.Name))
+			if (string.IsNullOrWhiteSpace(keyword))
 			{
 				throw AppException.BadRequest("At least one search criteria is required: barcode, sku, or name.");
 			}
 
-			var variant = await _unitOfWork.Variants.GetVariantByInfoAsync(request)
+			var variant = await _unitOfWork.Variants.GetVariantByInfoAsync(keyword)
 				?? throw AppException.NotFound("Variant not found");
 
 			return BaseResponse<ProductVariantForPosResponse>.Ok(

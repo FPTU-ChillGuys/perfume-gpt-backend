@@ -56,7 +56,8 @@ namespace PerfumeGPT.Application.Services
 				ExpiryDate = request.ExpiryDate,
 				TotalQuantity = request.TotalQuantity,
 				MaxUsagePerUser = request.MaxUsagePerUser,
-				IsPublic = request.IsPublic
+				IsPublic = request.IsPublic,
+				IsMemberOnly = request.IsMemberOnly
 			});
 
 			await _unitOfWork.Vouchers.AddAsync(voucher);
@@ -97,7 +98,8 @@ namespace PerfumeGPT.Application.Services
 				TotalQuantity = request.TotalQuantity,
 				RemainingQuantity = request.RemainingQuantity,
 				MaxUsagePerUser = request.MaxUsagePerUser,
-				IsPublic = request.IsPublic
+				IsPublic = request.IsPublic,
+				IsMemberOnly = request.IsMemberOnly
 			});
 
 			_unitOfWork.Vouchers.Update(voucher);
@@ -115,7 +117,7 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.NotFound("Voucher not found");
 			}
 
-			if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && !uv.IsUsed))
+			if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && uv.Status == UsageStatus.Used))
 			{
 				throw AppException.BadRequest("Cannot delete voucher that has been redeemed by users");
 			}
@@ -278,6 +280,11 @@ namespace PerfumeGPT.Application.Services
 			// 4. Determine user type and effective userId
 			var (effectiveUserId, isGuest, isAnonymousGuest) = await ResolveEffectiveUserAsync(userId, emailOrPhone);
 
+			if (voucher.IsMemberOnly && !userId.HasValue)
+			{
+				throw AppException.BadRequest("Mã giảm giá này chỉ dành cho Khách hàng Thành viên. Vui lòng đăng ký tài khoản.");
+			}
+
 			// 5. Check ownership and usage strategy
 			var requiredPoints = voucher.RequiredPoints ?? 0;
 			bool requiresPriorOwnership = !voucher.IsPublic || requiredPoints > 0;
@@ -295,7 +302,7 @@ namespace PerfumeGPT.Application.Services
 							   ? "You must redeem this voucher with points before using it"
 							   : "You do not own this private voucher");
 			}
-			else
+			else if (voucher.IsMemberOnly)
 			{
 				int currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
 					uv.VoucherId == voucher.Id &&
@@ -303,10 +310,8 @@ namespace PerfumeGPT.Application.Services
 						uv.Status == UsageStatus.Used ||
 						(uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow)
 					) &&
-					(
-						(effectiveUserId.HasValue && uv.UserId == effectiveUserId.Value) ||
-						(!string.IsNullOrEmpty(emailOrPhone) && uv.GuestIdentifier == emailOrPhone)
-					)
+				   effectiveUserId.HasValue &&
+					uv.UserId == effectiveUserId.Value
 				);
 
 				var allowedUsage = voucher.MaxUsagePerUser ?? 1;
@@ -340,7 +345,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				if (voucher.ExpiryDate > DateTime.UtcNow)
 				{
-					if (oldUserVoucher.IsUsed)
+					if (oldUserVoucher.Status == UsageStatus.Used)
 						oldUserVoucher.RevertUsed();
 					else
 						oldUserVoucher.ReleaseReservation();
@@ -409,6 +414,8 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.NotFound("Voucher not found");
 			}
 
+			voucher.EnsureMemberEligible(userId);
+
 			var (effectiveUserId, isGuest, isAnonymousGuest) = await ResolveEffectiveUserAsync(userId, emailOrPhone);
 			UserVoucher actionedUserVoucher = null!;
 
@@ -435,19 +442,21 @@ namespace PerfumeGPT.Application.Services
 			}
 			else
 			{
-				// Check duplicate usage/reservation for identified users
-				if (!isAnonymousGuest)
+				if (voucher.IsMemberOnly)
 				{
+					if (!effectiveUserId.HasValue)
+					{
+						throw AppException.BadRequest("Mã giảm giá này chỉ dành cho Khách hàng Thành viên. Vui lòng đăng ký tài khoản.");
+					}
+
 					int currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
 						uv.VoucherId == voucherId &&
 						(
 							uv.Status == UsageStatus.Used ||
 							(uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow)
 						) &&
-						(
-							(effectiveUserId.HasValue && uv.UserId == effectiveUserId.Value) ||
-							(!string.IsNullOrEmpty(emailOrPhone) && uv.GuestIdentifier == emailOrPhone)
-						)
+					   effectiveUserId.HasValue &&
+						uv.UserId == effectiveUserId.Value
 					);
 
 					var allowedUsage = voucher.MaxUsagePerUser ?? 1;
@@ -463,7 +472,7 @@ namespace PerfumeGPT.Application.Services
 					   effectiveUserId,
 					   voucherId,
 					   orderId,
-					   isAnonymousGuest ? null : emailOrPhone);
+					voucher.IsMemberOnly ? null : (isAnonymousGuest ? null : emailOrPhone));
 
 				await _unitOfWork.UserVouchers.AddAsync(publicUserVoucher);
 
@@ -505,7 +514,7 @@ namespace PerfumeGPT.Application.Services
 			// 2. Tính toán số tiền giảm thô (Raw Discount)
 			var rawDiscountAmount = voucher.DiscountType switch
 			{
-				DiscountType.Percentage => totalPrice * (voucher.DiscountValue / 100m),
+				DiscountType.Percentage => Math.Round(totalPrice * (voucher.DiscountValue / 100m), 0, MidpointRounding.AwayFromZero),
 				DiscountType.FixedAmount => voucher.DiscountValue,
 				_ => 0m
 			};
@@ -565,7 +574,7 @@ namespace PerfumeGPT.Application.Services
 					uv => uv.VoucherId == voucherId &&
 						  uv.UserId == null &&
 						  uv.GuestIdentifier == emailOrPhone &&
-						  !uv.IsUsed &&
+					   uv.Status != UsageStatus.Used &&
 						  (requiredStatus == null || uv.Status == requiredStatus),
 					asNoTracking: false
 				);
@@ -575,7 +584,7 @@ namespace PerfumeGPT.Application.Services
 				return await _unitOfWork.UserVouchers.FirstOrDefaultAsync(
 					uv => uv.VoucherId == voucherId &&
 						  uv.UserId == effectiveUserId!.Value &&
-						  !uv.IsUsed &&
+					   uv.Status != UsageStatus.Used &&
 						  (requiredStatus == null || uv.Status == requiredStatus),
 					asNoTracking: false
 				);

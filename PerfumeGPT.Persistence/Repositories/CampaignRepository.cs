@@ -3,6 +3,7 @@ using PerfumeGPT.Application.DTOs.Requests.Campaigns;
 using PerfumeGPT.Application.DTOs.Responses.Campaigns;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
@@ -12,6 +13,49 @@ namespace PerfumeGPT.Persistence.Repositories
 	public class CampaignRepository : GenericRepository<Campaign>, ICampaignRepository
 	{
 		public CampaignRepository(PerfumeDbContext context) : base(context) { }
+
+		public async Task<List<CampaignResponse>> GetHomeCampaignsAsync()
+		{
+			var now = DateTime.UtcNow;
+
+			return await _context.Campaigns
+				.AsNoTracking()
+				.Where(x => !x.IsDeleted
+					&& x.Status == CampaignStatus.Active
+					&& x.StartDate <= now
+					&& x.EndDate >= now)
+				.OrderByDescending(x => x.StartDate)
+				.Select(x => new CampaignResponse
+				{
+					Id = x.Id,
+					Name = x.Name,
+					Description = x.Description,
+					StartDate = x.StartDate,
+					EndDate = x.EndDate,
+					Type = x.Type,
+					Status = x.Status
+				})
+				.ToListAsync();
+		}
+
+		public async Task<List<CampaignLookupItem>> GetActiveCampaignLookupListAsync()
+		{
+			var now = DateTime.UtcNow;
+
+			return await _context.Campaigns
+				.AsNoTracking()
+				.Where(x => !x.IsDeleted
+					&& x.Status == CampaignStatus.Active
+					&& x.StartDate <= now
+					&& x.EndDate >= now)
+				.OrderBy(x => x.Name)
+				.Select(x => new CampaignLookupItem
+				{
+					Id = x.Id,
+					Name = x.Name
+				})
+				.ToListAsync();
+		}
 
 		public async Task<(List<CampaignResponse> Items, int TotalCount)> GetPagedCampaignsAsync(GetPagedCampaignsRequest request)
 		{

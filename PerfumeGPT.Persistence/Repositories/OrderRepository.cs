@@ -103,8 +103,13 @@ namespace PerfumeGPT.Persistence.Repositories
 						 : null,
 					 Quantity = od.Quantity,
 					 UnitPrice = od.UnitPrice,
-					 RefunablePrice = ((od.UnitPrice * od.Quantity) - od.ApportionedDiscount) / od.Quantity,
-					 Total = od.UnitPrice * od.Quantity - od.ApportionedDiscount,
+					 // Lấy Tổng tiền gốc - Tiền giảm Flash Sale - Tiền gánh Voucher
+					 Total = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
+
+					 // Lấy cái Total vừa tính ở trên chia đều cho số lượng
+					 RefunablePrice = od.Quantity > 0
+						? ((od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount) / od.Quantity
+						: 0m,
 				 }).ToList(),
 				 PaymentTransactions = o.PaymentTransactions
 				 .Select(pt => new PaymentInfoResponse
@@ -339,8 +344,13 @@ namespace PerfumeGPT.Persistence.Repositories
 					 : null,
 				 Quantity = od.Quantity,
 				 UnitPrice = od.UnitPrice,
-				 RefunablePrice = ((od.UnitPrice * od.Quantity) - od.ApportionedDiscount) / od.Quantity,
-				 Total = od.UnitPrice * od.Quantity - od.ApportionedDiscount,
+				 // Lấy Tổng tiền gốc - Tiền giảm Flash Sale - Tiền gánh Voucher
+				 Total = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
+
+				 // Lấy cái Total vừa tính ở trên chia đều cho số lượng
+				 RefunablePrice = od.Quantity > 0
+					? ((od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount) / od.Quantity
+					: 0m,
 				 ReservedBatches = o.StockReservations
 					 .Where(sr => sr.VariantId == od.VariantId)
 					 .Select(sr => new ReservedBatchResponse

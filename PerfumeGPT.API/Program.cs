@@ -193,14 +193,28 @@ internal sealed class EnumSchemaTransformer : IOpenApiSchemaTransformer
 {
 	public Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
 	{
-		if (context.JsonTypeInfo.Type.IsEnum)
+		var type = context.JsonTypeInfo.Type;
+
+		// Lấy kiểu thực sự bên trong Nullable (nếu có)
+		var underlyingType = Nullable.GetUnderlyingType(type) ?? type;
+
+		if (underlyingType.IsEnum)
 		{
-			schema.Type = JsonSchemaType.String;
+			// Nếu là nullable thì schema type phải bao gồm cả Null
+			bool isNullable = type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
+
+			schema.Type = isNullable
+				? JsonSchemaType.String | JsonSchemaType.Null
+				: JsonSchemaType.String;
+
 			schema.Format = null;
-			schema.Enum = new JsonArray(context.JsonTypeInfo.Type.GetEnumNames()
+
+			// Lấy tên các giá trị của Enum thực sự (underlyingType)
+			schema.Enum = new JsonArray(underlyingType.GetEnumNames()
 				.Select(name => JsonValue.Create(name)!)
 				.ToArray())!;
 		}
+
 		return Task.CompletedTask;
 	}
 }

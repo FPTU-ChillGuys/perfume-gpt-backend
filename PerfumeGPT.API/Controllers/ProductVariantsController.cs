@@ -47,6 +47,16 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(result);
 		}
 
+		[HttpGet("campaigns/{campaignId:guid}")]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<VariantPagedItem>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<VariantPagedItem>>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<PagedResult<VariantPagedItem>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<PagedResult<VariantPagedItem>>>> GetPagedVariantsByCampaignId([FromRoute] Guid campaignId, [FromQuery] GetPagedVariantsRequest request)
+		{
+			var result = await _variantService.GetPagedVariantsByCampaignIdAsync(campaignId, request);
+			return HandleResponse(result);
+		}
+
 		[HttpGet("lookup")]
 		[ProducesResponseType(typeof(BaseResponse<List<VariantLookupItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<List<VariantLookupItem>>), StatusCodes.Status500InternalServerError)]
@@ -71,9 +81,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<ProductVariantForPosResponse>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<ProductVariantForPosResponse>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<ProductVariantForPosResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<ProductVariantForPosResponse>>> GetVariantByInfo([FromQuery] GetVariantByInfoRequest request)
+		public async Task<ActionResult<BaseResponse<ProductVariantForPosResponse>>> GetVariantByInfo([FromQuery] string keyword)
 		{
-			var result = await _variantService.GetVariantByInfoAsync(request);
+			var result = await _variantService.GetVariantByInfoAsync(keyword);
 			return HandleResponse(result);
 		}
 

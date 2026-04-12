@@ -22,15 +22,18 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IBatchService _batchService;
 		private readonly ExcelTemplateGenerator _excelTemplateGenerator;
+		private readonly INotificationService _notificationService;
 
 		public ImportTicketService(
 			IUnitOfWork unitOfWork,
 			IBatchService batchService,
-			ExcelTemplateGenerator excelTemplateGenerator)
+			ExcelTemplateGenerator excelTemplateGenerator,
+			INotificationService notificationService)
 		{
 			_unitOfWork = unitOfWork;
 			_batchService = batchService;
 			_excelTemplateGenerator = excelTemplateGenerator;
+			_notificationService = notificationService;
 		}
 		#endregion Dependencies
 
@@ -42,29 +45,44 @@ namespace PerfumeGPT.Application.Services
 			ValidateVariantDuplicates(variantIds);
 			await ValidateVariantsExistAsync(variantIds);
 
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			  {
+				  var itemInfos = request.ImportDetails
+					  .Select(d => new ImportItemInfo(d.VariantId, d.ExpectedQuantity, d.UnitPrice))
+					  .ToList();
+
+				  var totalCost = request.ImportDetails.Sum(d => d.ExpectedQuantity * d.UnitPrice);
+
+				  var header = new ImportHeader(
+					  request.SupplierId,
+					  request.ExpectedArrivalDate,
+					  totalCost);
+
+				  var importTicket = ImportTicket.Create(userId, header);
+
+				  foreach (var info in itemInfos)
+				  {
+					  importTicket.AddDetail(ImportDetail.Create(info));
+				  }
+
+				  await _unitOfWork.ImportTickets.AddAsync(importTicket);
+				  return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Import ticket created successfully.");
+			  });
+
+			if (response.Success)
 			{
-				var itemInfos = request.ImportDetails
-					.Select(d => new ImportItemInfo(d.VariantId, d.ExpectedQuantity, d.UnitPrice))
-					.ToList();
+				_ = Guid.TryParse(response.Payload, out Guid importTicketId);
 
-				var totalCost = request.ImportDetails.Sum(d => d.ExpectedQuantity * d.UnitPrice);
+				await _notificationService.SendToRoleAsync(
+					UserRole.staff,
+					"Lệnh nhập kho mới",
+					$"Có lô hàng mới #{response.Payload} sắp giao đến, vui lòng chuẩn bị nhận.",
+					NotificationType.Info,
+					referenceId: importTicketId == Guid.Empty ? null : importTicketId,
+					referenceType: NotifiReferecneType.ImportTicket);
+			}
 
-				var header = new ImportHeader(
-					request.SupplierId,
-					request.ExpectedArrivalDate,
-					totalCost);
-
-				var importTicket = ImportTicket.Create(userId, header);
-
-				foreach (var info in itemInfos)
-				{
-					importTicket.AddDetail(ImportDetail.Create(info));
-				}
-
-				await _unitOfWork.ImportTickets.AddAsync(importTicket);
-				return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Import ticket created successfully.");
-			});
+			return response;
 		}
 
 		public async Task<BaseResponse<CreateImportTicketRequest>> UploadImportTicketFromExcelAsync(UploadImportTicketFromExcelRequest request)

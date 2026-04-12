@@ -4,7 +4,6 @@
 	{
 		Available = 1,
 		Reserved,
-		Used,
-		Refunded
+		Used
 	}
 }

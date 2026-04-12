@@ -48,6 +48,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				   RemainingQuantity = v.RemainingQuantity,
 				   MaxUsagePerUser = v.MaxUsagePerUser,
 				   IsPublic = v.IsPublic,
+                 IsMemberOnly = v.IsMemberOnly,
 				   CreatedAt = v.CreatedAt
 			   })
 				.AsNoTracking()
@@ -75,6 +76,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					RemainingQuantity = v.RemainingQuantity,
 					MaxUsagePerUser = v.MaxUsagePerUser,
 					IsPublic = v.IsPublic,
+                 IsMemberOnly = v.IsMemberOnly,
 					CreatedAt = v.CreatedAt
 				})
 				.AsNoTracking()
