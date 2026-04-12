@@ -17,5 +17,6 @@ namespace PerfumeGPT.Application.DTOs.Requests.Vouchers
 		public int RemainingQuantity { get; init; }
      public int? MaxUsagePerUser { get; init; }
 		public bool IsPublic { get; init; }
+       public bool IsMemberOnly { get; init; }
 	}
 }

@@ -27,6 +27,7 @@ namespace PerfumeGPT.Domain.Entities
 		public int? MaxUsagePerUser { get; private set; }
 		public int? TotalQuantity { get; private set; }
 		public bool IsPublic { get; private set; }
+		public bool IsMemberOnly { get; private set; }
 
 		// Navigation properties
 		public virtual Campaign? Campaign { get; set; }
@@ -67,7 +68,8 @@ namespace PerfumeGPT.Domain.Entities
 				TotalQuantity = details.TotalQuantity,
 				RemainingQuantity = details.TotalQuantity,
 				MaxUsagePerUser = details.MaxUsagePerUser,
-				IsPublic = details.IsPublic
+				IsPublic = details.IsPublic,
+				IsMemberOnly = details.IsMemberOnly
 			};
 		}
 
@@ -102,7 +104,8 @@ namespace PerfumeGPT.Domain.Entities
 				TotalQuantity = details.TotalQuantity,
 				RemainingQuantity = details.TotalQuantity,
 				MaxUsagePerUser = details.MaxUsagePerUser,
-				MaxDiscountAmount = details.MaxDiscountAmount
+				MaxDiscountAmount = details.MaxDiscountAmount,
+				IsMemberOnly = details.IsMemberOnly
 			};
 		}
 
@@ -136,6 +139,7 @@ namespace PerfumeGPT.Domain.Entities
 			RemainingQuantity = details.RemainingQuantity;
 			MaxUsagePerUser = details.MaxUsagePerUser;
 			IsPublic = details.IsPublic;
+			IsMemberOnly = details.IsMemberOnly;
 		}
 
 		public void UpdateCampaign(VoucherCampaignConfigFactor details)
@@ -166,6 +170,7 @@ namespace PerfumeGPT.Domain.Entities
 			RemainingQuantity = details.TotalQuantity;
 			MaxUsagePerUser = details.MaxUsagePerUser;
 			MaxDiscountAmount = details.MaxDiscountAmount;
+			IsMemberOnly = details.IsMemberOnly;
 		}
 
 		// Business logic methods
@@ -185,6 +190,12 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			if (RemainingQuantity.HasValue && RemainingQuantity.Value <= 0)
 				throw DomainException.BadRequest("Voucher is out of stock");
+		}
+
+		public void EnsureMemberEligible(Guid? userId)
+		{
+			if (IsMemberOnly && !userId.HasValue)
+				throw DomainException.BadRequest("Mã giảm giá này chỉ dành cho Khách hàng Thành viên. Vui lòng đăng ký tài khoản.");
 		}
 
 		public void DecreaseRemainingQuantity(int quantity = 1)
@@ -263,6 +274,7 @@ namespace PerfumeGPT.Domain.Entities
 			public required int TotalQuantity { get; init; }
 			public int? MaxUsagePerUser { get; init; }
 			public required bool IsPublic { get; init; }
+			public bool IsMemberOnly { get; init; }
 		}
 
 		public sealed record VoucherRegularUpdateFactor
@@ -279,6 +291,7 @@ namespace PerfumeGPT.Domain.Entities
 			public required int RemainingQuantity { get; init; }
 			public int? MaxUsagePerUser { get; init; }
 			public required bool IsPublic { get; init; }
+			public bool IsMemberOnly { get; init; }
 		}
 
 		public sealed record VoucherCampaignConfigFactor
@@ -296,6 +309,7 @@ namespace PerfumeGPT.Domain.Entities
 			public required decimal MinOrderValue { get; init; }
 			public int? TotalQuantity { get; init; }
 			public int? MaxUsagePerUser { get; init; }
+			public bool IsMemberOnly { get; init; }
 		}
 	}
 }

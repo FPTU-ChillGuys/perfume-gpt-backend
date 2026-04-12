@@ -498,6 +498,20 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(p => p.BatchId)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			// Promotion -> OrderDetail (1:M)
+			builder.Entity<PromotionItem>()
+				.HasMany(p => p.OrderDetails)
+				.WithOne(od => od.PromotionItem)
+				.HasForeignKey(od => od.PromotionItemId)
+				.OnDelete(DeleteBehavior.Restrict);
+
+			// Batch -> OrderDetail (1:M)
+			builder.Entity<Batch>()
+				.HasMany(b => b.OrderDetails)
+			 .WithOne(od => od.FulfilledBatch)
+				.HasForeignKey(od => od.FulfilledBatchId)
+				.OnDelete(DeleteBehavior.Restrict);
+
 			// Batch -> StockAdjustmentDetail (1:M)
 			builder.Entity<Batch>()
 				.HasMany(b => b.StockAdjustmentDetails)
@@ -832,6 +846,19 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasIndex(tm => tm.UploadedByUserId);
 
 			// Configure decimal precision/scale to avoid default truncation warnings
+			foreach (var entityType in builder.Model.GetEntityTypes())
+			{
+				foreach (var property in entityType.GetProperties()
+					.Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
+				{
+					if (property.GetPrecision() is null)
+					{
+						property.SetPrecision(18);
+						property.SetScale(2);
+					}
+				}
+			}
+
 			builder.Entity<CustomerProfile>().Property(cp => cp.MinBudget).HasPrecision(18, 2);
 			builder.Entity<CustomerProfile>().Property(cp => cp.MaxBudget).HasPrecision(18, 2);
 
@@ -841,6 +868,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Order>().Property(o => o.TotalAmount).HasPrecision(18, 2);
 			builder.Entity<OrderDetail>().Property(od => od.UnitPrice).HasPrecision(18, 2);
 			builder.Entity<OrderDetail>().Property(od => od.ApportionedDiscount).HasPrecision(18, 2);
+			builder.Entity<OrderDetail>().Property(od => od.PromotionDiscountAmount).HasPrecision(18, 2);
 
 			builder.Entity<PaymentTransaction>().Property(pt => pt.Amount).HasPrecision(18, 2);
 			builder.Entity<ProductVariant>().Property(pv => pv.BasePrice).HasPrecision(18, 2);

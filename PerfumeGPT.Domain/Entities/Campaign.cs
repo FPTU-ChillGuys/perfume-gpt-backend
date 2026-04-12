@@ -107,7 +107,8 @@ namespace PerfumeGPT.Domain.Entities
 				MaxDiscountAmount = details.MaxDiscountAmount,
 				MinOrderValue = details.MinOrderValue,
 				TotalQuantity = details.TotalQuantity,
-				MaxUsagePerUser = details.MaxUsagePerUser
+				MaxUsagePerUser = details.MaxUsagePerUser,
+				IsMemberOnly = details.IsMemberOnly
 			});
 
 			Vouchers.Add(voucher);
@@ -158,7 +159,8 @@ namespace PerfumeGPT.Domain.Entities
 				MaxDiscountAmount = details.MaxDiscountAmount,
 				MinOrderValue = details.MinOrderValue,
 				TotalQuantity = details.TotalQuantity,
-				MaxUsagePerUser = details.MaxUsagePerUser
+				MaxUsagePerUser = details.MaxUsagePerUser,
+				IsMemberOnly = details.IsMemberOnly
 			});
 		}
 
@@ -270,7 +272,8 @@ namespace PerfumeGPT.Domain.Entities
 						MaxDiscountAmount = req.MaxDiscountAmount,
 						MinOrderValue = req.MinOrderValue,
 						TotalQuantity = req.TotalQuantity,
-						MaxUsagePerUser = req.MaxUsagePerUser
+						MaxUsagePerUser = req.MaxUsagePerUser,
+						IsMemberOnly = req.IsMemberOnly
 					});
 				}
 				else
@@ -285,7 +288,8 @@ namespace PerfumeGPT.Domain.Entities
 						MaxDiscountAmount = req.MaxDiscountAmount,
 						MinOrderValue = req.MinOrderValue,
 						TotalQuantity = req.TotalQuantity,
-						MaxUsagePerUser = req.MaxUsagePerUser
+						MaxUsagePerUser = req.MaxUsagePerUser,
+						IsMemberOnly = req.IsMemberOnly
 					});
 				}
 			}
@@ -336,6 +340,7 @@ namespace PerfumeGPT.Domain.Entities
 			public required decimal MinOrderValue { get; init; }
 			public int? TotalQuantity { get; init; }
 			public int? MaxUsagePerUser { get; init; }
+			public bool IsMemberOnly { get; init; }
 		}
 
 		public sealed record CampaignCreationFactor
@@ -378,6 +383,7 @@ namespace PerfumeGPT.Domain.Entities
 			public required decimal MinOrderValue { get; init; }
 			public int? TotalQuantity { get; init; }
 			public int? MaxUsagePerUser { get; init; }
+			public bool IsMemberOnly { get; init; }
 		}
 	}
 }

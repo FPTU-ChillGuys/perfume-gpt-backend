@@ -25,6 +25,7 @@ namespace PerfumeGPT.Domain.Entities
 		// Navigation properties
 		public virtual ProductVariant ProductVariant { get; set; } = null!;
 		public virtual ImportDetail ImportDetail { get; set; } = null!;
+		public virtual ICollection<OrderDetail> OrderDetails { get; set; } = [];
 		public virtual ICollection<StockAdjustmentDetail> StockAdjustmentDetails { get; set; } = [];
 		public virtual ICollection<StockReservation> StockReservations { get; set; } = [];
 		public virtual ICollection<PromotionItem> Promotions { get; set; } = [];

@@ -188,16 +188,12 @@ namespace PerfumeGPT.Application.Services
 				.Select(item => (item.VariantId, item.Quantity))
 				.ToList();
 
-				var pricedItems = cartResponse.Items
-				   .Select(item => (item.VariantId, item.BatchId, item.Quantity, item.Discount, (decimal?)item.FinalTotal))
-					.ToList();
-
 				// Set payment expiration
 				var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
 
 				// Create order and populate details through aggregate methods
 				var order = Order.CreateOnline(userId, cartResponse.TotalPrice, paymentExpiresAt);
-				await _orderDetailsFactory.CreateOrderDetailsAsync(order, pricedItems, cartResponse.TotalPrice);
+				await _orderDetailsFactory.CreateOrderDetailsAsync(order, cartResponse.Items.ToList());
 
 				// Validate voucher if provided (with subtotal + cart variant context)
 				VoucherResponse? voucher = null;
@@ -221,7 +217,19 @@ namespace PerfumeGPT.Application.Services
 				if (Math.Abs(latestTotalResponse.Payload.TotalPrice - cartResponse.TotalPrice) > 0.0001m)
 					throw AppException.Conflict("Discount no longer matches what you saw. Please refresh cart total and checkout again.");
 
-				// Persist order
+				var promoUsageList = cartResponse.Items
+					.Where(x => x.AppliedPromotionItemId.HasValue)
+					.GroupBy(x => x.AppliedPromotionItemId!.Value)
+					.Select(g => new { PromoId = g.Key, Qty = g.Sum(i => i.DiscountedQuantity) })
+					.ToList();
+
+				foreach (var usage in promoUsageList)
+				{
+					var promo = await _unitOfWork.PromotionItems.GetByIdAsync(usage.PromoId) ?? throw AppException.BadRequest("Promotion not found for applied promotion item.");
+					promo.IncreaseCurrentUsage(usage.Qty);
+					_unitOfWork.PromotionItems.Update(promo);
+				}
+
 				await _unitOfWork.Orders.AddAsync(order);
 
 				// Setup shipping if not pickup
@@ -279,21 +287,25 @@ namespace PerfumeGPT.Application.Services
 				// 2. TRUY VẤN DATABASE & KHÓA BATCH_ID
 				foreach (var scan in groupedScans)
 				{
-					var variant = await _unitOfWork.Variants.GetByBarcodeAsync(scan.Barcode)
+					var variantResponse = await _unitOfWork.Variants.GetByBarcodeAsync(scan.Barcode)
 						?? throw AppException.NotFound($"Variant with barcode {scan.Barcode} not found.");
 
-					var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b => b.BatchCode == scan.BatchCode && b.VariantId == variant.Id)
-						?? throw AppException.NotFound($"Batch {scan.BatchCode} not found for product {variant.Sku}.");
+					// Ép kiểu nếu GetByBarcodeAsync trả về DTO
+					var variantId = variantResponse.Id;
+					var variantBasePrice = variantResponse.BasePrice;
 
-					var subTotal = variant.BasePrice * scan.Quantity;
+					var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b => b.BatchCode == scan.BatchCode && b.VariantId == variantId)
+						?? throw AppException.NotFound($"Batch {scan.BatchCode} not found for product {variantResponse.Sku}.");
+
+					var subTotal = variantBasePrice * scan.Quantity;
 
 					checkoutItems.Add(new CartCheckoutItemDto
 					{
-						VariantId = variant.Id,
-						BatchId = batch.Id, // BẮT BUỘC CÓ BATCH ID
-						VariantName = $"{variant.Sku} - {variant.VolumeMl}ml",
+						VariantId = variantId,
+						BatchId = batch.Id, // BẮT BUỘC CÓ BATCH ID VÌ ĐÃ CẦM HÀNG TRÊN TAY
+						VariantName = $"{variantResponse.Sku} - {variantResponse.VolumeMl}ml",
 						Quantity = scan.Quantity,
-						UnitPrice = variant.BasePrice,
+						UnitPrice = variantBasePrice,
 						SubTotal = subTotal,
 						Discount = 0m,
 						FinalTotal = subTotal,
@@ -301,7 +313,7 @@ namespace PerfumeGPT.Application.Services
 					});
 				}
 
-				// 3. TÍNH TIỀN CHUNG
+				// 3. TÍNH TIỀN CHUNG (PRICING ENGINE)
 				var (pricedItems, subtotal, finalAmount, voucherMessage) = await _cartService.CalculatePricingEngineAsync(
 					checkoutItems,
 					request.VoucherCode,
@@ -313,17 +325,36 @@ namespace PerfumeGPT.Application.Services
 				// 4. TẠO ĐƠN HÀNG CHỜ (PENDING)
 				var order = Order.CreateOffline(request.CustomerId, staffId, finalAmount);
 
-				var factoryItems = pricedItems
-					.Select(item => (item.VariantId, item.BatchId, item.Quantity, item.Discount, (decimal?)item.FinalTotal))
+				// CẬP NHẬT QUAN TRỌNG: Truyền pricedItems vào Factory
+				await _orderDetailsFactory.CreateOrderDetailsAsync(order, pricedItems);
+
+				// 5. CẬP NHẬT QUOTA PROMOTION (Flash Sale / Xả kho)
+				var promoUsageList = pricedItems
+					.Where(x => x.AppliedPromotionItemId.HasValue)
+					.GroupBy(x => x.AppliedPromotionItemId!.Value)
+					.Select(g => new { PromoId = g.Key, Qty = g.Sum(i => i.DiscountedQuantity) })
 					.ToList();
 
-				await _orderDetailsFactory.CreateOrderDetailsAsync(order, factoryItems, finalAmount);
+				foreach (var usage in promoUsageList)
+				{
+					var promo = await _unitOfWork.PromotionItems.GetByIdAsync(usage.PromoId) ?? throw AppException.BadRequest("Promotion not found for applied promotion item.");
+					promo.IncreaseCurrentUsage(usage.Qty);
+					_unitOfWork.PromotionItems.Update(promo);
+				}
+
 				await _unitOfWork.Orders.AddAsync(order);
 
-				// 5. XỬ LÝ VOUCHER
+				// 6. XỬ LÝ VOUCHER AN TOÀN
 				if (!string.IsNullOrEmpty(request.VoucherCode))
 				{
-					var voucher = await _voucherService.GetVoucherByCodeAsync(request.VoucherCode);
+					// Kiểm tra tính hợp lệ chặt chẽ giống Online
+					var voucher = await ValidateAndGetVoucherAsync(
+						request.VoucherCode,
+						request.CustomerId,
+						request.Recipient?.ContactPhoneNumber,
+						subtotal,
+						pricedItems.Select(x => x.VariantId));
+
 					if (voucher != null)
 					{
 						var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(
@@ -333,12 +364,13 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 
+				// 7. GIAO HÀNG (Nếu không lấy tại cửa hàng)
 				if (!request.IsPickupInStore && request.Recipient != null)
 				{
 					await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, request.CustomerId, null);
 				}
 
-				// 6. GIỮ KHO CHÍNH XÁC THEO LÔ (EXACT BATCH RESERVATION)
+				// 8. GIỮ KHO CHÍNH XÁC THEO LÔ (EXACT BATCH RESERVATION)
 				var posReservationItems = pricedItems
 					.GroupBy(x => new { x.VariantId, x.BatchId })
 					.Select(g => (VariantId: g.Key.VariantId, BatchId: g.Key.BatchId!.Value, Quantity: g.Sum(x => x.Quantity)))
@@ -346,10 +378,10 @@ namespace PerfumeGPT.Application.Services
 
 				await _stockReservationService.ReserveExactBatchStockForOrderAsync(order.Id, posReservationItems, null);
 
-				// 7. TẠO GIAO DỊCH THANH TOÁN (PENDING)
+				// 9. TẠO GIAO DỊCH THANH TOÁN (PENDING)
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, finalAmount, request.Payment.Method, request.PosSessionId);
 
-				// Publish order_created event to Redis for AI backend (email notification)
+				// Publish event
 				if (request.CustomerId.HasValue)
 					await _redisPublisher.PublishOrderCreatedAsync(order.Id, request.CustomerId.Value);
 
@@ -652,12 +684,38 @@ namespace PerfumeGPT.Application.Services
 
 		private async Task HandleOrderCancellationAsync(Order order)
 		{
+			var orderWithDetails = order.OrderDetails.Count > 0
+				  ? order
+				  : await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(order.Id)
+					  ?? throw AppException.NotFound("Order not found.");
+
+			var promoUsageList = orderWithDetails.OrderDetails
+				.Where(x => x.PromotionItemId.HasValue)
+				.GroupBy(x => x.PromotionItemId!.Value)
+				.Select(g => new { PromoId = g.Key, Qty = g.Sum(i => i.Quantity) })
+				.ToList();
+
+			foreach (var usage in promoUsageList)
+			{
+				var promo = await _unitOfWork.PromotionItems.GetByIdAsync(usage.PromoId)
+					?? throw AppException.BadRequest("Promotion not found for applied promotion item.");
+
+				promo.DecreaseCurrentUsage(usage.Qty);
+				_unitOfWork.PromotionItems.Update(promo);
+			}
+
 			if (!string.IsNullOrWhiteSpace(order.ForwardShipping?.TrackingNumber))
 			{
 				await _ghnService.CancelOrderAsync(new CancelOrderRequest
 				{
 					TrackingNumbers = [order.ForwardShipping.TrackingNumber]
 				});
+			}
+
+			foreach (var payment in orderWithDetails.PaymentTransactions.Where(p => p.IsPending()))
+			{
+				payment.MarkCancelled("Order was cancelled.");
+				_unitOfWork.Payments.Update(payment);
 			}
 
 			order.SetStatus(OrderStatus.Cancelled);
@@ -669,11 +727,11 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		private async Task<VoucherResponse> ValidateAndGetVoucherAsync(
-			  string voucherCode,
-			  Guid userId,
-			  string? phoneNumber,
-			  decimal totalPrice,
-			  IEnumerable<Guid>? cartVariantIds = null)
+				 string voucherCode,
+			   Guid? userId,
+				 string? phoneNumber,
+				 decimal totalPrice,
+				 IEnumerable<Guid>? cartVariantIds = null)
 		{
 			// Get voucher details
 			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode)

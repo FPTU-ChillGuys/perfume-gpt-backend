@@ -25,6 +25,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ProductVariant ProductVariant { get; set; } = null!;
 		public virtual Batch? Batch { get; set; }
 		public virtual Category? Category { get; set; }
+		public virtual ICollection<OrderDetail> OrderDetails { get; set; } = [];
 
 		// IHasTimestamps  implementation
 		public DateTime CreatedAt { get; set; }
@@ -87,6 +88,25 @@ namespace PerfumeGPT.Domain.Entities
 		public void SetActive(bool isActive)
 		{
 			IsActive = isActive;
+		}
+
+		public void IncreaseCurrentUsage(int quantity)
+		{
+			if (quantity <= 0)
+				throw DomainException.BadRequest("Usage quantity must be greater than 0.");
+
+			if (MaxUsage.HasValue && CurrentUsage + quantity > MaxUsage.Value)
+				throw DomainException.Conflict("Promotion usage limit has been reached.");
+
+			CurrentUsage += quantity;
+		}
+
+		public void DecreaseCurrentUsage(int quantity)
+		{
+			if (quantity <= 0)
+				throw DomainException.BadRequest("Usage quantity must be greater than 0.");
+
+			CurrentUsage = Math.Max(0, CurrentUsage - quantity);
 		}
 
 		// Records
