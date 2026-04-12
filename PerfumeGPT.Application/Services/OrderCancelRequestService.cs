@@ -129,21 +129,24 @@ namespace PerfumeGPT.Application.Services
 			{
 				if (cancelRequest.IsRefundRequired)
 				{
+					var refundMethod = request.RefundMethod
+						   ?? throw AppException.BadRequest("Refund method is required when refund is needed.");
+
 					var successfulOnlinePayments = (await _unitOfWork.Payments.GetAllAsync(
 						p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Success))
 						.OrderByDescending(p => p.CreatedAt).ToList();
 
-					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod) ?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
+					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod) ?? throw AppException.NotFound($"No successful {refundMethod} payment found for this order.");
 
 					var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext not available.");
 					var refundAmount = cancelRequest.RefundAmount ?? originalPayment.Amount;
 					var isRefundSuccess = false;
 
-					switch (request.RefundMethod)
+					switch (refundMethod)
 					{
 						case PaymentMethod.VnPay:
-							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod)
-								?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
+							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod)
+								?? throw AppException.NotFound($"No successful {refundMethod} payment found for this order.");
 
 							var refundAmountVnPay = cancelRequest.RefundAmount ?? originalPayment.Amount;
 							var vnPayResponse = await _vnPayService.RefundAsync(context, new VnPayRefundRequest
@@ -164,8 +167,8 @@ namespace PerfumeGPT.Application.Services
 							break;
 
 						case PaymentMethod.Momo:
-							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod)
-								?? throw AppException.NotFound($"No successful {request.RefundMethod} payment found for this order.");
+							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod)
+								?? throw AppException.NotFound($"No successful {refundMethod} payment found for this order.");
 
 							var refundAmountMomo = cancelRequest.RefundAmount ?? originalPayment.Amount;
 							var momoResponse = await _momoService.RefundAsync(context, new MomoRefundRequest
@@ -197,7 +200,7 @@ namespace PerfumeGPT.Application.Services
 							break;
 
 						default:
-							throw AppException.BadRequest($"Refund is not supported for payment method {request.RefundMethod}.");
+							throw AppException.BadRequest($"Refund is not supported for payment method {refundMethod}.");
 					}
 
 					var finalRefundAmount = cancelRequest.RefundAmount ?? originalPayment.Amount;
@@ -207,7 +210,7 @@ namespace PerfumeGPT.Application.Services
 						var failedRefund = PaymentTransaction.CreateRefund(
 							orderId: order.Id,
 							originalPaymentId: originalPayment.Id,
-							method: request.RefundMethod,
+						   method: refundMethod,
 							refundAmount: finalRefundAmount
 						);
 
@@ -219,14 +222,14 @@ namespace PerfumeGPT.Application.Services
 						await _unitOfWork.Payments.AddAsync(failedRefund);
 						await _unitOfWork.SaveChangesAsync();
 
-						throw AppException.BadRequest($"Refund failed via {request.RefundMethod}. Cancellation aborted. Reason: {refundMessage}");
+						throw AppException.BadRequest($"Refund failed via {refundMethod}. Cancellation aborted. Reason: {refundMessage}");
 					}
 					else
 					{
 						var successRefund = PaymentTransaction.CreateRefund(
 							orderId: order.Id,
 							originalPaymentId: originalPayment.Id,
-							method: request.RefundMethod,
+						   method: refundMethod,
 							refundAmount: finalRefundAmount
 						);
 						successRefund.MarkSuccess(refundTransactionNo);
