@@ -137,6 +137,8 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> MarkAllAsReadAsync(Guid userId)
 		{
 			await _unitOfWork.Notifications.MarkAllAsReadAsync(userId);
+			await _unitOfWork.SaveChangesAsync();
+
 			return BaseResponse<string>.Ok("All notifications were marked as read.");
 		}
 	}

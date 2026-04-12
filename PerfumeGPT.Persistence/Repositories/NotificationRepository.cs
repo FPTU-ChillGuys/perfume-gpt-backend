@@ -68,9 +68,15 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<bool> MarkAllAsReadAsync(Guid userId)
 		{
-			var updatedRows = await _context.Notifications
-				.Where(n => n.UserId == userId && !n.IsRead)
-				.ExecuteUpdateAsync(s => s.SetProperty(n => n.IsRead, true));
+			var unreadNotifications = await _context.Notifications
+				  .Where(n => n.UserId == userId && !n.IsRead)
+				  .ToListAsync();
+
+			if (unreadNotifications.Count == 0)
+				return false;
+
+			foreach (var notification in unreadNotifications)
+				notification.MarkAsRead();
 
 			return true;
 		}
