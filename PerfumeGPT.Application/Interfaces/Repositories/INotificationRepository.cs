@@ -8,6 +8,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	public interface INotificationRepository : IGenericRepository<Notification>
 	{
 		Task<(List<NotificationListItemResponse> Items, int TotalCount)> GetPagedAsync(GetPagedNotificationsRequest request);
-		Task<bool> MarkAllAsReadAsync(Guid userId);
+		Task<(bool Exists, bool Allowed, bool Changed)> MarkAsReadAsync(Guid notificationId, Guid userId, string? targetRole);
+		Task<bool> MarkAllAsReadAsync(Guid userId, string? targetRole);
 	}
 }

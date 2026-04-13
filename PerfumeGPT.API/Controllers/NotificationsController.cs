@@ -26,16 +26,30 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<PagedResult<NotificationListItemResponse>>>> GetPaged([FromQuery] GetPagedNotificationsRequest request)
 		{
 			var effectiveRequest = request;
+			var currentUserId = GetCurrentUserId();
+			var currentRole = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
 
-			if (!effectiveRequest.UserId.HasValue && string.IsNullOrWhiteSpace(effectiveRequest.TargetRole))
+			Guid? effectiveUserId = effectiveRequest.UserId;
+			var effectiveRole = effectiveRequest.TargetRole;
+
+			if (!effectiveUserId.HasValue || effectiveUserId.Value == Guid.Empty)
 			{
-               var role = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
-				effectiveRequest = effectiveRequest with
-				{
-					UserId = GetCurrentUserId(),
-					TargetRole = role
-				};
+				effectiveUserId = currentUserId == Guid.Empty ? null : currentUserId;
 			}
+
+			if (string.IsNullOrWhiteSpace(effectiveRole)
+				&& effectiveUserId.HasValue
+				&& currentUserId != Guid.Empty
+				&& effectiveUserId.Value == currentUserId)
+			{
+				effectiveRole = currentRole;
+			}
+
+			effectiveRequest = effectiveRequest with
+			{
+				UserId = effectiveUserId,
+				TargetRole = effectiveRole
+			};
 
 			var response = await _notificationService.GetPagedAsync(effectiveRequest);
 			return HandleResponse(response);
@@ -47,7 +61,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> MarkAsRead([FromRoute] Guid id)
 		{
-			var response = await _notificationService.MarkAsReadAsync(id);
+			var userId = GetCurrentUserId();
+			var role = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
+			var response = await _notificationService.MarkAsReadAsync(id, userId, role);
 			return HandleResponse(response);
 		}
 
@@ -57,7 +73,8 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<string>>> MarkAllAsRead()
 		{
 			var userId = GetCurrentUserId();
-			var response = await _notificationService.MarkAllAsReadAsync(userId);
+			var role = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
+			var response = await _notificationService.MarkAllAsReadAsync(userId, role);
 			return HandleResponse(response);
 		}
 	}

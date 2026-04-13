@@ -181,6 +181,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<Order> Orders { get; set; }
 		public DbSet<OrderDetail> OrderDetails { get; set; }
 		public DbSet<Notification> Notifications { get; set; }
+		public DbSet<UserNotificationRead> UserNotificationReads { get; set; }
 		public DbSet<CartItem> CartItems { get; set; }
 		public DbSet<PaymentTransaction> PaymentTransactions { get; set; }
 		public DbSet<Receipt> Receipts { get; set; }
@@ -301,6 +302,21 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(n => n.UserId)
 				.IsRequired(false)
 				.OnDelete(DeleteBehavior.Restrict);
+
+			builder.Entity<UserNotificationRead>()
+				.HasKey(unr => new { unr.UserId, unr.NotificationId });
+
+			builder.Entity<UserNotificationRead>()
+				.HasOne(unr => unr.User)
+				.WithMany(u => u.NotificationReadStates)
+				.HasForeignKey(unr => unr.UserId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			builder.Entity<UserNotificationRead>()
+				.HasOne(unr => unr.Notification)
+				.WithMany(n => n.UserReadStates)
+				.HasForeignKey(unr => unr.NotificationId)
+				.OnDelete(DeleteBehavior.Cascade);
 
 			// User -> UserVouchers (1:M)
 			builder.Entity<User>()
