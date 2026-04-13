@@ -2,7 +2,6 @@
 
 services:
   perfumegptapi:
-    image: perfumegptapi
     build:
       context: .
       dockerfile: PerfumeGPT.API/Dockerfile
