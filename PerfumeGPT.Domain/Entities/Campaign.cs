@@ -187,6 +187,9 @@ namespace PerfumeGPT.Domain.Entities
 			var voucher = Vouchers.FirstOrDefault(x => x.Id == voucherId)
 				?? throw DomainException.NotFound("Campaign voucher not found.");
 
+			voucher.IsDeleted = true;
+			voucher.DeletedAt ??= DateTime.UtcNow;
+
 			Vouchers.Remove(voucher);
 		}
 

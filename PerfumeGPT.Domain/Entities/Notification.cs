@@ -21,6 +21,7 @@ namespace PerfumeGPT.Domain.Entities
 
 		// Navigation properties
 		public virtual User? User { get; set; }
+		public virtual ICollection<UserNotificationRead> UserReadStates { get; set; } = [];
 
 		// IHasCreatedAt implementation
 		public DateTime CreatedAt { get; set; }

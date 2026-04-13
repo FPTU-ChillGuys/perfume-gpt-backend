@@ -102,25 +102,41 @@ namespace PerfumeGPT.Application.Services
 			});
 		}
 
-		public async Task<BaseResponse<string>> MarkAsReadAsync(Guid id)
+		public async Task<BaseResponse<string>> MarkAsReadAsync(Guid id, Guid userId, string? targetRole)
 		{
-			var notification = await _unitOfWork.Notifications.GetByIdAsync(id);
-			if (notification == null)
+			if (userId == Guid.Empty)
+			{
+				return BaseResponse<string>.Fail("User ID is required.", ResponseErrorType.BadRequest);
+			}
+
+			var (exists, allowed, changed) = await _unitOfWork.Notifications.MarkAsReadAsync(id, userId, targetRole);
+
+			if (!exists)
 			{
 				return BaseResponse<string>.Fail("Notification not found.", ResponseErrorType.NotFound);
 			}
 
-			notification.MarkAsRead();
-			_unitOfWork.Notifications.Update(notification);
+			if (!allowed)
+			{
+				return BaseResponse<string>.Fail("You do not have permission to mark this notification as read.", ResponseErrorType.Forbidden);
+			}
 
-			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to mark notification as read.");
+			if (changed)
+			{
+				var saved = await _unitOfWork.SaveChangesAsync();
+				if (!saved) throw AppException.Internal("Failed to mark notification as read.");
+			}
 
 			return BaseResponse<string>.Ok(id.ToString(), "Notification marked as read.");
 		}
 
 		public async Task<BaseResponse<PagedResult<NotificationListItemResponse>>> GetPagedAsync(GetPagedNotificationsRequest request)
 		{
+			if (request.UserId.HasValue && request.UserId.Value == Guid.Empty)
+			{
+				return BaseResponse<PagedResult<NotificationListItemResponse>>.Fail("User ID is invalid.", ResponseErrorType.BadRequest);
+			}
+
 			var (items, totalCount) = await _unitOfWork.Notifications.GetPagedAsync(request);
 
 			var pagedResult = new PagedResult<NotificationListItemResponse>(
@@ -134,9 +150,21 @@ namespace PerfumeGPT.Application.Services
 				"Notifications retrieved successfully.");
 		}
 
-		public async Task<BaseResponse<string>> MarkAllAsReadAsync(Guid userId)
+		public async Task<BaseResponse<string>> MarkAllAsReadAsync(Guid userId, string? targetRole)
 		{
-			await _unitOfWork.Notifications.MarkAllAsReadAsync(userId);
+			if (userId == Guid.Empty)
+			{
+				return BaseResponse<string>.Fail("User ID is required.", ResponseErrorType.BadRequest);
+			}
+
+			var hasChanges = await _unitOfWork.Notifications.MarkAllAsReadAsync(userId, targetRole);
+
+			if (hasChanges)
+			{
+				var saved = await _unitOfWork.SaveChangesAsync();
+				if (!saved) throw AppException.Internal("Failed to mark all notifications as read.");
+			}
+
 			return BaseResponse<string>.Ok("All notifications were marked as read.");
 		}
 	}
