@@ -76,7 +76,10 @@ namespace PerfumeGPT.Persistence.Repositories
 				return false;
 
 			foreach (var notification in unreadNotifications)
+			{
 				notification.MarkAsRead();
+				_context.Notifications.Update(notification);
+			}
 
 			return true;
 		}

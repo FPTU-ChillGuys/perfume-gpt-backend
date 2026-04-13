@@ -139,7 +139,6 @@ namespace PerfumeGPT.Application.Services
 			await _unitOfWork.Notifications.MarkAllAsReadAsync(userId);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to mark all notifications as read.");
 
 			return BaseResponse<string>.Ok("All notifications were marked as read.");
 		}
