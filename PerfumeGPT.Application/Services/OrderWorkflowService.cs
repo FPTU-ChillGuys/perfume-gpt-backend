@@ -1,10 +1,12 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using static PerfumeGPT.Domain.Entities.OrderCancelRequest;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -97,27 +99,46 @@ namespace PerfumeGPT.Application.Services
 					// Nhập lại hàng vào kho (Restock) vì nó đã bị trừ lúc Fulfill
 					await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(order.Id);
 
-					//if (order.PaymentStatus == PaymentStatus.Paid)
-					//{
-					//	var hasPendingRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(r => r.OrderId == order.Id && r.Status == CancelRequestStatus.Pending);
-					//	if (!hasPendingRequest)
-					//	{
-					//		var payload = new CancelRequestPayload
-					//		{
-					//			Reason = "Giao hàng thất bại (Khách không nhận/GHN hoàn hàng).",
-					//			IsRefundRequired = true,
-					//			RefundAmount = order.TotalAmount,
-					//			StaffNote = "Hệ thống tự động tạo yêu cầu hoàn tiền do sự cố giao vận."
-					//		};
+					if (order.PaymentStatus == PaymentStatus.Paid)
+					{
+						var hasPendingRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(r => r.OrderId == order.Id && r.Status == CancelRequestStatus.Pending);
+						if (!hasPendingRequest)
+						{
+							var payload = new CancelRequestPayload
+							{
+								Reason = CancelOrderReason.Other,
+								IsRefundRequired = true,
+								RefundAmount = order.TotalAmount,
+								StaffNote = "Hệ thống tự động tạo yêu cầu hoàn tiền do sự cố giao vận."
+							};
 
-					//		// Tạo Request dưới danh nghĩa Customer (hoặc tạo một System Admin ID riêng)
-					//		var cancelReq = OrderCancelRequest.Create(order.Id, order.CustomerId ?? Guid.Empty, payload);
-					//		await _unitOfWork.OrderCancelRequests.AddAsync(cancelReq);
-					//	}
-					//}
+							// Tạo Request dưới danh nghĩa Customer (hoặc tạo một System Admin ID riêng)
+							var cancelReq = OrderCancelRequest.Create(order.Id, order.CustomerId ?? Guid.Empty, payload);
+							await _unitOfWork.OrderCancelRequests.AddAsync(cancelReq);
+						}
+					}
 					break;
 
 				case ShippingStatus.Cancelled:
+					if (order.Status is OrderStatus.Delivered or OrderStatus.Returning)
+					{
+						var returnRequest = await _unitOfWork.OrderReturnRequests.FirstOrDefaultAsync(
+						  r => r.OrderId == order.Id
+								&& r.ReturnShippingId.HasValue
+								&& r.Status == ReturnRequestStatus.ApprovedForReturn,
+							include: q => q.Include(r => r.ReturnShipping!));
+
+						if (returnRequest != null)
+						{
+							returnRequest.CancelBySystemWhenReturnPickupFailed("GHN không thể lấy hàng hoàn từ khách. Yêu cầu trả hàng đã bị hủy.");
+							_unitOfWork.OrderReturnRequests.Update(returnRequest);
+
+							returnRequest.ReturnShipping!.Cancel();
+							_unitOfWork.ShippingInfos.Update(returnRequest.ReturnShipping);
+						}
+						break;
+					}
+
 					// Kịch bản: GHN làm mất hàng, hoặc xe tới lấy mà không có hàng nên GHN huỷ vận đơn
 					if (order.Status != OrderStatus.Cancelled)
 					{
@@ -133,23 +154,23 @@ namespace PerfumeGPT.Application.Services
 						await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(order.Id);
 						await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
 
-						//if (order.PaymentStatus == PaymentStatus.Paid)
-						//{
-						//	var hasPendingRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(r => r.OrderId == order.Id && r.Status == CancelRequestStatus.Pending);
-						//	if (!hasPendingRequest)
-						//	{
-						//		var payload = new CancelRequestPayload
-						//		{
-						//			Reason = "Đơn vị giao vận huỷ đơn (Thất lạc/Hư hỏng).",
-						//			IsRefundRequired = true,
-						//			RefundAmount = order.TotalAmount,
-						//			StaffNote = "Hệ thống tự động tạo yêu cầu hoàn tiền do GHN huỷ vận đơn."
-						//		};
+						if (order.PaymentStatus == PaymentStatus.Paid)
+						{
+							var hasPendingRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(r => r.OrderId == order.Id && r.Status == CancelRequestStatus.Pending);
+							if (!hasPendingRequest)
+							{
+								var payload = new CancelRequestPayload
+								{
+									Reason = CancelOrderReason.Other,
+									IsRefundRequired = true,
+									RefundAmount = order.TotalAmount,
+									StaffNote = "Hệ thống tự động tạo yêu cầu hoàn tiền do GHN huỷ vận đơn."
+								};
 
-						//		var cancelReq = OrderCancelRequest.Create(order.Id, order.CustomerId ?? Guid.Empty, payload);
-						//		await _unitOfWork.OrderCancelRequests.AddAsync(cancelReq);
-						//	}
-						//}
+								var cancelReq = OrderCancelRequest.Create(order.Id, order.CustomerId ?? Guid.Empty, payload);
+								await _unitOfWork.OrderCancelRequests.AddAsync(cancelReq);
+							}
+						}
 					}
 					break;
 			}

@@ -38,18 +38,21 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				height = request.Height,
 				weight = request.Weight,
 				insurance_value = 0,
-				//items = new[]
-				//{
-				//	new
-				//	{
-				//		name = "ItemA",
-				//		quantity = 1,
-				//		length = 200,
-				//		width = 200,
-				//		height = 200,
-				//		weight = 1000
-				//	}
-				//}
+				items = request.Items?.Select(item => new
+				{
+					name = item.Name,
+					code = item.Code,
+					quantity = item.Quantity,
+					price = item.Price,
+					length = item.Length,
+					width = item.Width,
+					height = item.Height,
+					weight = item.Weight,
+					category = item.Category != null ? new
+					{
+						level1 = item.Category.Level1
+					} : null
+				}).ToList()
 			};
 
 			using var requestMessage = new HttpRequestMessage(HttpMethod.Post, calculateFeeUrl);

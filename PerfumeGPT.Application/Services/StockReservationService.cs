@@ -181,14 +181,14 @@ namespace PerfumeGPT.Application.Services
 
 					if (reservation.Status == ReservationStatus.Reserved)
 					{
-						// 💥 TRƯỜNG HỢP 1: ĐƠN CHƯA ĐÓNG GÓI -> Chỉ cần nhả số lượng giữ (Release)
+						// TRƯỜNG HỢP 1: ĐƠN CHƯA ĐÓNG GÓI -> Chỉ cần nhả số lượng giữ (Release)
 						stock?.ReleaseReservation(reservation.ReservedQuantity);
 						batch.Release(reservation.ReservedQuantity);
 					}
 					else if (reservation.Status == ReservationStatus.Committed)
 					{
-						// 💥 TRƯỜNG HỢP 2: ĐƠN ĐÃ FULFILL -> Đã bị trừ vật lý -> Phải cộng lại (Increase/Restock)
-						if (stock != null) stock.Increase(reservation.ReservedQuantity);
+						// TRƯỜNG HỢP 2: ĐƠN ĐÃ FULFILL -> Đã bị trừ vật lý -> Phải cộng lại (Increase/Restock)
+						stock?.Increase(reservation.ReservedQuantity);
 						batch.IncreaseQuantity(reservation.ReservedQuantity);
 					}
 

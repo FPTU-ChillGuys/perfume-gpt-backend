@@ -16,10 +16,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<ReceiptResponse>> GetMyInvoiceAsync(Guid orderId, Guid userId);
 		#endregion Query Operations
 
-		#region Address Management
-		Task<BaseResponse<string>> UpdateOrderAddressAsync(Guid orderId, Guid userId, UpdateOrderAddressRequest request);
-		#endregion Address Management
-
 		#region Checkout Operations
 		Task<BaseResponse<CreatePaymentResponseDto>> Checkout(Guid userId, CreateOrderRequest request);
 		Task<BaseResponse<CreatePaymentResponseDto>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request);
