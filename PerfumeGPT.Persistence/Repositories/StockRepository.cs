@@ -41,8 +41,12 @@ namespace PerfumeGPT.Persistence.Repositories
 			var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
 				?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
 
+			var variant = await _context.ProductVariants.FirstOrDefaultAsync(v => v.Id == variantId)
+				?? throw AppException.NotFound($"Variant {variantId} not found.");
+
 			// 3. Sync quantity
 			stock.SyncQuantity(totalQuantity);
+			variant.ApplyStockPolicy(stock.TotalQuantity);
 		}
 
 		public async Task<(IEnumerable<StockResponse> Stocks, int TotalCount)> GetPagedInventoryAsync(GetPagedInventoryRequest request)

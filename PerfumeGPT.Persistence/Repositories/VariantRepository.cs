@@ -76,6 +76,7 @@ namespace PerfumeGPT.Persistence.Repositories
 							Attribute = pa.Attribute.Name,
 							Value = pa.Value.Value
 						}).ToList()
+						.ToList()
 				})
 				.AsSplitQuery()
 				.AsNoTracking()
@@ -125,6 +126,12 @@ namespace PerfumeGPT.Persistence.Repositories
 			.Include(v => v.ProductAttributes)
 			.FirstOrDefaultAsync();
 
+		public async Task<ProductVariant?> GetByIdWithSuppliersAsync(Guid variantId)
+		=> await _context.ProductVariants
+			.Where(v => !v.IsDeleted && v.Id == variantId)
+			.Include(v => v.Suppliers)
+			.FirstOrDefaultAsync();
+
 		public async Task<List<ProductVariant>> GetVariantsWithDetailsByIdsAsync(IEnumerable<Guid> variantIds)
 		=> await _context.ProductVariants
 				.Where(v => !v.IsDeleted && variantIds.Contains(v.Id))
@@ -139,6 +146,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var raw = await _context.ProductVariants
 		.AsNoTracking()
+		.AsSplitQuery()
 		.Where(v => !v.IsDeleted && v.Id == variantId)
 		.Select(v => new
 		{
@@ -181,6 +189,18 @@ namespace PerfumeGPT.Persistence.Repositories
 								Attribute = pa.Attribute.Name,
 								Value = pa.Value.Value
 							})
+						   .ToList(),
+				Suppliers = v.Suppliers
+							.OrderByDescending(s => s.IsPrimary)
+							.ThenBy(s => s.Supplier.Name)
+							.Select(s => new VariantSupplierResponse
+							{
+								SupplierId = s.SupplierId,
+								SupplierName = s.Supplier.Name,
+								NegotiatedPrice = s.NegotiatedPrice,
+								EstimatedLeadTimeDays = s.EstimatedLeadTimeDays,
+								IsPrimary = s.IsPrimary
+							})
 							.ToList()
 			},
 
@@ -217,11 +237,10 @@ namespace PerfumeGPT.Persistence.Repositories
 							pi.Campaign.Status == CampaignStatus.Active &&
 							pi.Campaign.StartDate <= now &&
 							pi.Campaign.EndDate >= now)
-						.OrderByDescending(pi => pi.CreatedAt)
 						.SelectMany(pi => pi.Campaign.Vouchers)
 				.Where(voucher => !voucher.IsDeleted && voucher.ExpiryDate >= now && (voucher.RemainingQuantity == null || voucher.RemainingQuantity > 0))
-				.Select(voucher => voucher.Code)
-				.Distinct()
+                .GroupBy(voucher => voucher.Code)
+				.Select(g => g.Key)
 				.ToList()
 		})
 		.FirstOrDefaultAsync();

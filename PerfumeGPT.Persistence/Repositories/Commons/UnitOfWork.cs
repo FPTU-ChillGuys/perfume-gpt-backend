@@ -20,6 +20,7 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 		public IProfileRepository Profiles => GetRepo(ctx => new ProfileRepository(ctx));
 		public IOlfactoryFamilyRepository OlfactoryFamilies => GetRepo(ctx => new OlfactoryFamilyRepository(ctx));
 		public ICampaignRepository Campaigns => GetRepo(ctx => new CampaignRepository(ctx));
+		public IBannerRepository Banners => GetRepo(ctx => new BannerRepository(ctx));
 		public IPromotionItemRepository PromotionItems => GetRepo(ctx => new PromotionItemRepository(ctx));
 		public IBrandRepository Brands => GetRepo(ctx => new BrandRepository(ctx));
 		public IAttributeRepository Attributes => GetRepo(ctx => new AttributeRepository(ctx));

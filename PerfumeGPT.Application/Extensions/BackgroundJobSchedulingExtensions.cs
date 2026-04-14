@@ -39,6 +39,28 @@ namespace PerfumeGPT.Application.Extensions
 				   campaignId);
 		}
 
+		public static bool ScheduleBannerStart(this IBackgroundJobService backgroundJobService, ILogger logger, Guid bannerId, DateTime startDate)
+		{
+			return TrySchedule<IBannerStartAppService>(
+				backgroundJobService,
+				logger,
+				x => x.MarkBannerAsStartedAsync(bannerId),
+				startDate,
+				"Unable to schedule banner start job for banner {BannerId}.",
+				bannerId);
+		}
+
+		public static bool ScheduleBannerEnd(this IBackgroundJobService backgroundJobService, ILogger logger, Guid bannerId, DateTime endDate)
+		{
+			return TrySchedule<IBannerEndAppService>(
+				backgroundJobService,
+				logger,
+				x => x.MarkBannerAsEndedAsync(bannerId),
+				endDate,
+				"Unable to schedule banner end job for banner {BannerId}.",
+				bannerId);
+		}
+
 		public static bool ScheduleLoyaltyPointsGrant(this IBackgroundJobService backgroundJobService, ILogger logger, Guid orderId, DateTime deliveredAtUtc)
 		{
 			var normalizedDeliveredAt = deliveredAtUtc.Kind == DateTimeKind.Unspecified

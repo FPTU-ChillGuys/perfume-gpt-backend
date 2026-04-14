@@ -218,6 +218,22 @@ namespace PerfumeGPT.Application.Services
 			return await UploadTemporaryMediaBulkAsync(userId, imageRequests);
 		}
 
+		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadBannerTemporaryMediaAsync(
+			Guid? userId, BannerUploadMediaRequest request)
+		{
+			var imageRequests = request.Images
+				.Select((file, i) => new ImageUploadItem
+				{
+					File = file,
+					EntityType = EntityType.Banner,
+					DisplayOrder = i,
+					IsPrimary = i == 0,
+					AltText = null
+				}).ToList();
+
+			return await UploadTemporaryMediaBulkAsync(userId, imageRequests);
+		}
+
 		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadProductTemporaryMediaAsync(
 		Guid? userId, ProductUploadMediaRequest request)
 		{
@@ -253,7 +269,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadOrderReturnRequestTemporaryMediaAsync(
 			Guid? userId, OrderReturnRequestUploadMediaRequest request)
 		{
-          var mediaRequests = new List<ImageUploadItem>();
+			var mediaRequests = new List<ImageUploadItem>();
 
 			if (request.Images != null)
 			{
@@ -375,6 +391,7 @@ namespace PerfumeGPT.Application.Services
 			EntityType.ProductVariant => "ProductVariants",
 			EntityType.User => "ProfileAvatars",
 			EntityType.Review => "Reviews",
+			EntityType.Banner => "Banners",
 			EntityType.OrderReturnRequest => "OrderReturnRequests",
 			_ => "Products"
 		};

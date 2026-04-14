@@ -13,6 +13,9 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<List<VariantLookupItem>>> GetVariantLookupListAsync(Guid? productId = null);
 		Task<BaseResponse<BulkActionResult<string>>> CreateVariantAsync(CreateVariantRequest request);
 		Task<BaseResponse<BulkActionResult<string>>> UpdateVariantAsync(Guid variantId, UpdateVariantRequest request);
+		Task<BaseResponse<string>> AddSupplierAsync(Guid variantId, CreateVariantSupplierRequest request);
+		Task<BaseResponse<string>> UpdateSupplierAsync(Guid variantId, int supplierId, UpdateVariantSupplierRequest request);
+		Task<BaseResponse<string>> RemoveSupplierAsync(Guid variantId, int supplierId);
 		Task<BaseResponse<string>> DeleteVariantAsync(Guid variantId);
 		Task<BaseResponse<ProductVariantForPosResponse>> GetVariantByInfoAsync(string keyword);
 		Task<BaseResponse<List<MediaResponse>>> GetVariantImagesAsync(Guid variantId);

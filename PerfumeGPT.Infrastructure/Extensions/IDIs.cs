@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.SemanticKernel;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -102,11 +101,15 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			services.AddScoped<InvoiceEmailJob>();
 			services.AddScoped<CampaignStartJob>();
 			services.AddScoped<CampaignEndJob>();
+			services.AddScoped<BannerStartJob>();
+			services.AddScoped<BannerEndJob>();
 			services.AddScoped<LoyaltyPointsGrantJob>();
 			services.AddScoped<IBackgroundJobService, HangfireBackgroundJobService>();
 			services.AddScoped<IInvoiceAppService, InvoiceEmailJob>();
 			services.AddScoped<ICampaignStartAppService, CampaignStartJob>();
 			services.AddScoped<ICampaignEndAppService, CampaignEndJob>();
+			services.AddScoped<IBannerStartAppService, BannerStartJob>();
+			services.AddScoped<IBannerEndAppService, BannerEndJob>();
 			services.AddScoped<ILoyaltyPointsAppService, LoyaltyPointsGrantJob>();
 			services.AddHostedService<StartupJobScheduler>();
 

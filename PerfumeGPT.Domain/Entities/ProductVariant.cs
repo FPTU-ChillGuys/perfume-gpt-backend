@@ -20,6 +20,7 @@ namespace PerfumeGPT.Domain.Entities
 		public decimal BasePrice { get; private set; }
 		public decimal? RetailPrice { get; private set; }
 		public VariantStatus Status { get; private set; }
+		public ReplenishmentPolicy RestockPolicy { get; private set; }
 
 		// Navigation properties
 		public virtual Product Product { get; set; } = null!;
@@ -34,6 +35,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<Media> Media { get; set; } = [];
 		public virtual ICollection<ProductAttribute> ProductAttributes { get; set; } = [];
 		public virtual ICollection<PromotionItem> PromotionItems { get; set; } = [];
+		public virtual ICollection<VariantSupplier> Suppliers { get; private set; } = [];
 
 		// ISoftDelete implementation
 		public bool IsDeleted { get; set; }
@@ -63,7 +65,8 @@ namespace PerfumeGPT.Domain.Entities
 				Longevity = payload.Longevity,
 				BasePrice = payload.BasePrice,
 				RetailPrice = payload.RetailPrice,
-				Status = payload.Status
+				Status = payload.Status,
+				RestockPolicy = payload.RestockPolicy
 			};
 		}
 
@@ -117,6 +120,15 @@ namespace PerfumeGPT.Domain.Entities
 			}
 
 			if (payload.Status.HasValue) Status = payload.Status.Value;
+			if (payload.RestockPolicy.HasValue) RestockPolicy = payload.RestockPolicy.Value;
+		}
+
+		public void ApplyStockPolicy(int totalQuantity)
+		{
+			if (RestockPolicy == ReplenishmentPolicy.DoNotRestock && totalQuantity <= 0)
+			{
+				Status = VariantStatus.Discontinued;
+			}
 		}
 
 		public void EnsureNotDeleted()
@@ -174,6 +186,70 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("Retail price must be greater than 0.");
 		}
 
+		// 1. Thêm Nhà cung cấp (Độc lập)
+		public void AddSupplier(int supplierId, decimal negotiatedPrice, int leadTimeDays, bool isPrimary = false)
+		{
+			Suppliers ??= [];
+
+			// Check đơn giản ngay trong RAM (vì list này rất nhỏ)
+			if (Suppliers.Any(s => s.SupplierId == supplierId))
+				throw DomainException.BadRequest("Nhà cung cấp này đã tồn tại cho sản phẩm.");
+
+			var newSupplier = new VariantSupplier
+			{
+				ProductVariantId = this.Id,
+				SupplierId = supplierId,
+				NegotiatedPrice = negotiatedPrice,
+				EstimatedLeadTimeDays = leadTimeDays,
+				IsPrimary = isPrimary || Suppliers.Count == 0 // Thằng đầu tiên auto là Primary
+			};
+
+			if (newSupplier.IsPrimary)
+			{
+				ClearCurrentPrimarySupplier();
+			}
+
+			Suppliers.Add(newSupplier);
+		}
+
+		// 2. Cập nhật Giá nhập (Độc lập)
+		public void UpdateSupplier(int supplierId, decimal newPrice, int leadTimeDays, bool isPrimary)
+		{
+			var supplier = Suppliers.FirstOrDefault(s => s.SupplierId == supplierId)
+				?? throw DomainException.NotFound("Không tìm thấy nhà cung cấp này.");
+
+			supplier.UpdatePriceAndLeadTime(newPrice, leadTimeDays);
+
+			if (isPrimary && !supplier.IsPrimary)
+			{
+				ClearCurrentPrimarySupplier();
+				supplier.IsPrimary = true;
+			}
+		}
+
+		// 3. Xóa Nhà cung cấp (Độc lập)
+		public void RemoveSupplier(int supplierId)
+		{
+			var supplier = Suppliers.FirstOrDefault(s => s.SupplierId == supplierId)
+				?? throw DomainException.NotFound("Không tìm thấy nhà cung cấp này.");
+
+			Suppliers.Remove(supplier);
+
+			// Nếu xóa trúng thằng Primary, tự động lấy thằng đầu tiên làm Primary mới
+			if (supplier.IsPrimary && Suppliers.Any())
+			{
+				Suppliers.First().IsPrimary = true;
+			}
+		}
+
+		private void ClearCurrentPrimarySupplier()
+		{
+			foreach (var s in Suppliers.Where(x => x.IsPrimary))
+			{
+				s.IsPrimary = false;
+			}
+		}
+
 		// Records
 		public record VariantPayload
 		{
@@ -187,6 +263,7 @@ namespace PerfumeGPT.Domain.Entities
 			public required decimal BasePrice { get; init; }
 			public decimal? RetailPrice { get; init; }
 			public VariantStatus Status { get; init; } = VariantStatus.Active;
+			public ReplenishmentPolicy RestockPolicy { get; init; } = ReplenishmentPolicy.AutoRestock;
 		}
 
 		public record UpdateVariantPayload
@@ -201,6 +278,7 @@ namespace PerfumeGPT.Domain.Entities
 			public decimal? BasePrice { get; init; }
 			public decimal? RetailPrice { get; init; }
 			public VariantStatus? Status { get; init; }
+			public ReplenishmentPolicy? RestockPolicy { get; init; }
 		}
 	}
 }

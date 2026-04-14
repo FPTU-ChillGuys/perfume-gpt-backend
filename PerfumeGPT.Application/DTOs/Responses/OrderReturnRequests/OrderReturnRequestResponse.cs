@@ -22,6 +22,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 		public ReturnRequestStatus Status { get; init; }
 
 		public decimal RequestedRefundAmount { get; init; }
+		public decimal RefundedShippingFee { get; init; }
 		public decimal? ApprovedRefundAmount { get; init; }
 		public bool IsRefunded { get; init; }
 		public bool IsRefundOnly { get; init; }
@@ -58,6 +59,9 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 		public Guid VariantId { get; init; }
 		public int RequestedQuantity { get; init; }
 		public decimal UnitPrice { get; init; }
+		public decimal CampaignDiscount { get; init; }
+		public decimal CampaignPrice { get; init; }
+		public decimal VoucherDiscount { get; init; }
 		public decimal RefundableAmount { get; init; }
 	}
 }

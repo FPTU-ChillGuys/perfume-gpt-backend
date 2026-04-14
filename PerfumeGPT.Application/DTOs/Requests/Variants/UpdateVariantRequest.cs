@@ -13,6 +13,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Variants
 		public decimal BasePrice { get; init; }
 		public decimal? RetailPrice { get; init; }
 		public VariantStatus Status { get; init; }
+		public ReplenishmentPolicy RestockPolicy { get; init; }
 		public int Sillage { get; init; }
 		public int Longevity { get; init; }
 

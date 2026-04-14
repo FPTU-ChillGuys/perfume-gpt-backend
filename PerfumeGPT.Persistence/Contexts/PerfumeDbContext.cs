@@ -209,6 +209,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<ImportTicket> ImportTickets { get; set; }
 		public DbSet<ImportDetail> ImportDetails { get; set; }
 		public DbSet<Supplier> Suppliers { get; set; }
+		public DbSet<VariantSupplier> VariantSuppliers { get; set; }
 		public DbSet<Product> Products { get; set; }
 		public DbSet<ProductVariant> ProductVariants { get; set; }
 		public DbSet<Attribute> Attributes { get; set; }
@@ -250,6 +251,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<OrderReturnRequestDetail> OrderReturnRequestDetails { get; set; }
 		public DbSet<PromotionItem> Promotions { get; set; }
 		public DbSet<Campaign> Campaigns { get; set; }
+		public DbSet<Banner> Banners { get; set; }
 		public DbSet<SystemPolicy> SystemPolicies { get; set; }
 
 		protected override void OnModelCreating(ModelBuilder builder)
@@ -408,6 +410,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(it => it.SupplierId)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			// Supplier -> VariantSuppliers (1:M)
+			builder.Entity<Supplier>()
+				.HasMany(s => s.VariantSuppliers)
+				.WithOne(vs => vs.Supplier)
+				.HasForeignKey(vs => vs.SupplierId)
+				.OnDelete(DeleteBehavior.Restrict);
+
 			// ImportTicket -> Import_Detail (1:M)
 			builder.Entity<ImportTicket>()
 				.HasMany(it => it.ImportDetails)
@@ -536,6 +545,17 @@ namespace PerfumeGPT.Persistence.Contexts
 				.WithOne(d => d.ProductVariant)
 				.HasForeignKey(d => d.ProductVariantId)
 				.OnDelete(DeleteBehavior.Restrict);
+
+			// Variant -> VariantSuppliers (1:M)
+			builder.Entity<ProductVariant>()
+				.HasMany(v => v.Suppliers)
+				.WithOne(vs => vs.ProductVariant)
+				.HasForeignKey(vs => vs.ProductVariantId)
+				.OnDelete(DeleteBehavior.Cascade);
+
+			builder.Entity<VariantSupplier>()
+				.HasIndex(vs => new { vs.ProductVariantId, vs.SupplierId })
+				.IsUnique();
 
 			// Variant -> StockAdjustmentDetail (1:M)
 			builder.Entity<ProductVariant>()

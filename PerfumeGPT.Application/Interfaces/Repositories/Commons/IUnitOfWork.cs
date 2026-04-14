@@ -8,6 +8,7 @@
 		IProfileRepository Profiles { get; }
 		IOlfactoryFamilyRepository OlfactoryFamilies { get; }
 		ICampaignRepository Campaigns { get; }
+		IBannerRepository Banners { get; }
 		IConcentrationRepository Concentrations { get; }
 		ICategoryRepository Categories { get; }
 		IProductRepository Products { get; }

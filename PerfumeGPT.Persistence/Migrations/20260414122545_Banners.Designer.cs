@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260414122545_Banners")]
+    partial class Banners
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1546,10 +1549,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("RestockPolicy")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<decimal?>("RetailPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -2280,44 +2279,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasIndex("VoucherId");
 
                     b.ToTable("UserVouchers");
-                });
-
-            modelBuilder.Entity("PerfumeGPT.Domain.Entities.VariantSupplier", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("EstimatedLeadTimeDays")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsPrimary")
-                        .HasColumnType("bit");
-
-                    b.Property<decimal>("NegotiatedPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid>("ProductVariantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("SupplierId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SupplierId");
-
-                    b.HasIndex("ProductVariantId", "SupplierId")
-                        .IsUnique();
-
-                    b.ToTable("VariantSuppliers");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Voucher", b =>
@@ -3189,25 +3150,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("Voucher");
                 });
 
-            modelBuilder.Entity("PerfumeGPT.Domain.Entities.VariantSupplier", b =>
-                {
-                    b.HasOne("PerfumeGPT.Domain.Entities.ProductVariant", "ProductVariant")
-                        .WithMany("Suppliers")
-                        .HasForeignKey("ProductVariantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PerfumeGPT.Domain.Entities.Supplier", "Supplier")
-                        .WithMany("VariantSuppliers")
-                        .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ProductVariant");
-
-                    b.Navigation("Supplier");
-                });
-
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Voucher", b =>
                 {
                     b.HasOne("PerfumeGPT.Domain.Entities.Campaign", "Campaign")
@@ -3370,8 +3312,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("StockAdjustmentDetails");
 
                     b.Navigation("StockReservations");
-
-                    b.Navigation("Suppliers");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.PromotionItem", b =>
@@ -3404,8 +3344,6 @@ namespace PerfumeGPT.Persistence.Migrations
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Supplier", b =>
                 {
                     b.Navigation("ImportTickets");
-
-                    b.Navigation("VariantSuppliers");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.User", b =>
