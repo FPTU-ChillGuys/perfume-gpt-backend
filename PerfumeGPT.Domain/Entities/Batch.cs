@@ -1,5 +1,7 @@
 ﻿using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
+using PerfumeGPT.Domain.Enums;
+using PerfumeGPT.Domain.Events.Inventories;
 using PerfumeGPT.Domain.Exceptions;
 using System.ComponentModel.DataAnnotations;
 
@@ -62,26 +64,53 @@ namespace PerfumeGPT.Domain.Entities
 		}
 
 		// Business logic methods
+		// 1. Giữ nguyên các hàm check Logic cũ
 		public bool CanIncreaseQuantity(int quantity)
 			=> quantity > 0 && RemainingQuantity + quantity <= ImportQuantity;
 
 		public bool CanDecreaseQuantity(int quantity)
 			=> quantity > 0 && RemainingQuantity >= quantity;
 
-		public void IncreaseQuantity(int quantity)
+		// 2. Viết lại hàm Tăng kho (Ép buộc phải có Context để Ghi Log)
+		public void IncreaseQuantity(int quantity, StockTransactionType type, Guid referenceId, Guid? actorId, string? reason = null)
 		{
 			if (!CanIncreaseQuantity(quantity))
-				throw DomainException.BadRequest(
-					$"Cannot increase quantity beyond import quantity of {ImportQuantity}.");
+				throw DomainException.BadRequest($"Cannot increase quantity beyond import quantity of {ImportQuantity}.");
+
 			RemainingQuantity += quantity;
+
+			//  Bắn sự kiện Ghi Log ngay tại đây!
+			AddDomainEvent(new PhysicalStockChangedDomainEvent(
+				this.VariantId,
+				this.Id,
+				quantity, // Số dương
+				this.RemainingQuantity,
+				type,
+				referenceId,
+				reason,
+				actorId
+			));
 		}
 
-		public void DecreaseQuantity(int quantity)
+		// 3. Viết lại hàm Giảm kho (Ép buộc phải có Context để Ghi Log)
+		public void DecreaseQuantity(int quantity, StockTransactionType type, Guid referenceId, Guid? actorId, string? reason = null)
 		{
 			if (!CanDecreaseQuantity(quantity))
-				throw DomainException.BadRequest(
-					"Cannot decrease batch quantity below zero.");
+				throw DomainException.BadRequest("Cannot decrease batch quantity below zero.");
+
 			RemainingQuantity -= quantity;
+
+			//  Bắn sự kiện Ghi Log ngay tại đây!
+			AddDomainEvent(new PhysicalStockChangedDomainEvent(
+				this.VariantId,
+				this.Id,
+				-quantity, // Số âm vì là xuất kho
+				this.RemainingQuantity,
+				type,
+				referenceId,
+				reason,
+				actorId
+			));
 		}
 
 		public void Reserve(int quantity)

@@ -149,7 +149,12 @@ namespace PerfumeGPT.Application.Services
 
 					// Do the same for Batch: release reservation and decrease quantity
 					batch.Release(reservation.ReservedQuantity);
-					batch.DecreaseQuantity(reservation.ReservedQuantity);
+					batch.DecreaseQuantity(
+						 reservation.ReservedQuantity,
+						 StockTransactionType.Sales,
+						 orderId,
+						 null,
+						 $"Committed reserved stock for order {orderId}.");
 
 					_unitOfWork.Batches.Update(batch);
 
@@ -184,18 +189,24 @@ namespace PerfumeGPT.Application.Services
 						// TRƯỜNG HỢP 1: ĐƠN CHƯA ĐÓNG GÓI -> Chỉ cần nhả số lượng giữ (Release)
 						stock?.ReleaseReservation(reservation.ReservedQuantity);
 						batch.Release(reservation.ReservedQuantity);
+						reservation.Release();
 					}
 					else if (reservation.Status == ReservationStatus.Committed)
 					{
 						// TRƯỜNG HỢP 2: ĐƠN ĐÃ FULFILL -> Đã bị trừ vật lý -> Phải cộng lại (Increase/Restock)
 						stock?.Increase(reservation.ReservedQuantity);
-						batch.IncreaseQuantity(reservation.ReservedQuantity);
+						batch.IncreaseQuantity(
+							 reservation.ReservedQuantity,
+							 StockTransactionType.Adjustment,
+							 orderId,
+							 null,
+							 $"Restocked committed reservation due to order cancellation {orderId}.");
+						reservation.Restock();
 					}
 
 					_unitOfWork.Batches.Update(batch);
 
 					// Đánh dấu phiếu này đã được giải phóng
-					reservation.Release();
 					_unitOfWork.StockReservations.Update(reservation);
 				}
 

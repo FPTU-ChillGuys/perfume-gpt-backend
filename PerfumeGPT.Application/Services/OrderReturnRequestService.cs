@@ -494,7 +494,7 @@ namespace PerfumeGPT.Application.Services
 					 request.InspectionNote);
 
 				var order = returnRequest.Order;
-               var refundableOrderAmount = await GetRefundableOrderAmountAsync(order.Id, order.TotalAmount, IsFullOrderReturn(returnRequest));
+				var refundableOrderAmount = await GetRefundableOrderAmountAsync(order.Id, order.TotalAmount, IsFullOrderReturn(returnRequest));
 				var isFullyRefunded = request.ApprovedRefundAmount >= refundableOrderAmount;
 
 				if (isFullyRefunded)
@@ -545,8 +545,8 @@ namespace PerfumeGPT.Application.Services
 						var quantityToRestock = returnDetail.RequestedQuantity;
 						if (quantityToRestock <= 0) continue;
 
-                      _ = await _unitOfWork.Batches.GetByIdAsync(batchId)
-							?? throw AppException.NotFound($"Batch {batchId} found in snapshot does not exist in database.");
+						_ = await _unitOfWork.Batches.GetByIdAsync(batchId)
+							  ?? throw AppException.NotFound($"Batch {batchId} found in snapshot does not exist in database.");
 
 						// Ghi log nhập kho (Stock Adjustment)
 						var detailPayload = new StockAdjustmentDetailPayload
@@ -554,7 +554,7 @@ namespace PerfumeGPT.Application.Services
 							ProductVariantId = orderDetail.VariantId,
 							BatchId = batchId,
 							AdjustmentQuantity = quantityToRestock,
-                            Note = $"Return request {returnRequest.Id}: moved to defective/holding inventory"
+							Note = $"Return request {returnRequest.Id}: moved to defective/holding inventory"
 						};
 
 						stockAdjustment.AddApprovedDetail(detailPayload, approvedQuantity: quantityToRestock);
@@ -588,9 +588,9 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> ProcessRefundAsync(Guid financeAdminId, Guid requestId, ProcessRefundRequest request)
 		{
-          var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithOrderDetailsAsync(requestId)
-				?? throw AppException.NotFound("Return request not found.");
-            var refundableOrderAmount = await GetRefundableOrderAmountAsync(returnRequest.OrderId, returnRequest.Order.TotalAmount, IsFullOrderReturn(returnRequest));
+			var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithOrderDetailsAsync(requestId)
+				  ?? throw AppException.NotFound("Return request not found.");
+			var refundableOrderAmount = await GetRefundableOrderAmountAsync(returnRequest.OrderId, returnRequest.Order.TotalAmount, IsFullOrderReturn(returnRequest));
 
 			if (returnRequest.Status != ReturnRequestStatus.ReadyForRefund)
 				throw AppException.BadRequest("Return request is not ready for refund.");
@@ -699,8 +699,8 @@ namespace PerfumeGPT.Application.Services
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-             var freshReturnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithOrderDetailsAsync(requestId)
-					?? throw AppException.NotFound("Return request not found during transaction.");
+				var freshReturnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithOrderDetailsAsync(requestId)
+					   ?? throw AppException.NotFound("Return request not found during transaction.");
 
 				if (freshReturnRequest.Status != ReturnRequestStatus.ReadyForRefund)
 					throw AppException.BadRequest("Return request status changed and is no longer refundable.");
@@ -758,7 +758,7 @@ namespace PerfumeGPT.Application.Services
 			});
 		}
 
-       private static bool IsFullOrderReturn(Dictionary<Guid, OrderDetail> orderDetailsById, IEnumerable<ReturnItemDto> returnItems)
+		private static bool IsFullOrderReturn(Dictionary<Guid, OrderDetail> orderDetailsById, IEnumerable<ReturnItemDto> returnItems)
 		{
 			var requestedByOrderDetailId = returnItems
 				.GroupBy(x => x.OrderDetailId)
@@ -783,7 +783,7 @@ namespace PerfumeGPT.Application.Services
 
 		private async Task<decimal> GetRefundableOrderAmountAsync(Guid orderId, decimal orderTotalAmount, bool includeShippingFee)
 		{
-           if (includeShippingFee)
+			if (includeShippingFee)
 				return Math.Max(0m, orderTotalAmount);
 
 			var forwardShipping = await _unitOfWork.ShippingInfos.GetByOrderIdAsync(orderId);

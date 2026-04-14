@@ -19,6 +19,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		// Calculation methods
 		Task IncreaseBatchQuantityAsync(Guid batchId, int quantity);
 		Task DecreaseBatchQuantityAsync(Guid batchId, int quantity);
-		Task<bool> DeductBatchesByVariantIdAsync(Guid variantId, int quantity);
+		//Task<bool> DeductBatchesByVariantIdAsync(Guid variantId, int quantity, Guid referenceId);
 	}
 }

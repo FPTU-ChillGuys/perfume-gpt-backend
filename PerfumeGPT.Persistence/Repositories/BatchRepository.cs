@@ -142,33 +142,43 @@ namespace PerfumeGPT.Persistence.Repositories
 			.Select(b => (Guid?)b.VariantId)
 			.FirstOrDefaultAsync();
 
-		public async Task<bool> DeductBatchesByVariantIdAsync(Guid variantId, int quantity)
-		{
-			var now = DateTime.UtcNow;
-			var availableBatches = await _context.Batches
-				.Where(b => b.VariantId == variantId
-					&& b.ExpiryDate > now
-					&& (b.RemainingQuantity - b.ReservedQuantity) > 0)
-				.OrderBy(b => b.ExpiryDate)
-				.ToListAsync();
+		//public async Task<bool> DeductBatchesByVariantIdAsync(Guid variantId, int quantity, Guid referenceId)
+		//{
+		//	if (referenceId == Guid.Empty)
+		//	{
+		//		return false;
+		//	}
 
-			var totalAvailable = availableBatches.Sum(b => b.AvailableInBatch);
-			if (totalAvailable < quantity)
-			{
-				return false;
-			}
+		//	var now = DateTime.UtcNow;
+		//	var availableBatches = await _context.Batches
+		//		.Where(b => b.VariantId == variantId
+		//			&& b.ExpiryDate > now
+		//			&& (b.RemainingQuantity - b.ReservedQuantity) > 0)
+		//		.OrderBy(b => b.ExpiryDate)
+		//		.ToListAsync();
 
-			var remainingToDeduct = quantity;
-			foreach (var batch in availableBatches)
-			{
-				if (remainingToDeduct <= 0) break;
+		//	var totalAvailable = availableBatches.Sum(b => b.AvailableInBatch);
+		//	if (totalAvailable < quantity)
+		//	{
+		//		return false;
+		//	}
 
-				var deductAmount = Math.Min(batch.AvailableInBatch, remainingToDeduct);
-				batch.DecreaseQuantity(deductAmount);
-				remainingToDeduct -= deductAmount;
-			}
-			return true;
-		}
+		//	var remainingToDeduct = quantity;
+		//	foreach (var batch in availableBatches)
+		//	{
+		//		if (remainingToDeduct <= 0) break;
+
+		//		var deductAmount = Math.Min(batch.AvailableInBatch, remainingToDeduct);
+		//		batch.DecreaseQuantity(
+		//			 deductAmount,
+		//			 StockTransactionType.Sales,
+		//		   referenceId,
+		//			 null,
+		//		  $"Deducted by variant-level stock deduction for reference {referenceId}.");
+		//		remainingToDeduct -= deductAmount;
+		//	}
+		//	return true;
+		//}
 
 		public async Task<List<Batch>> GetBatchesByIds(List<Guid> ids)
 		{

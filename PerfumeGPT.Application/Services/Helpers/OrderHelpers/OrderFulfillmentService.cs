@@ -284,7 +284,12 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 				// Step 2: Giải phóng Reservation & Trừ hàng hỏng khỏi Lô cũ
 				damagedBatch.Release(quantityToSwap);
-				damagedBatch.DecreaseQuantity(quantityToSwap);
+				damagedBatch.DecreaseQuantity(
+					  quantityToSwap,
+					  StockTransactionType.Adjustment,
+					  orderId,
+					  staffId,
+					  request.DamageNote ?? $"Damaged stock swapped for order {order.Code}.");
 				_unitOfWork.Batches.Update(damagedBatch);
 
 				if (quantityToSwap == damagedReservation.ReservedQuantity)
@@ -325,7 +330,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 								(od.FulfilledBatchId == null || od.FulfilledBatchId == damagedBatch.Id))
 					.ToList();
 
-                int remainingToFulfill = quantityToSwap;
+				int remainingToFulfill = quantityToSwap;
 				int allocationIndex = 0;
 				int currentRepQtyRemaining = replacementAllocations[allocationIndex].Quantity;
 				var currentRepBatch = replacementAllocations[allocationIndex].Batch;
@@ -355,7 +360,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					if (currentRepQtyRemaining > 0)
 					{
 						// Gọi hàm Fulfill để ghi đè lô xuất kho thực tế lên dòng OrderDetail này
-                     order.FulfillOrderDetail(od.Id, currentRepBatch.Id);
+						order.FulfillOrderDetail(od.Id, currentRepBatch.Id);
 
 						// Trừ dần số lượng cần xử lý (Giả định mỗi dòng OrderDetail = 1 số lượng để đơn giản hóa luồng, 
 						// hoặc bạn phải lặp dựa trên od.Quantity nếu OrderDetail gom nhiều số lượng vào 1 dòng)
@@ -386,12 +391,12 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 				_unitOfWork.Stocks.Update(stock);
 
-              if (primaryNewReservation is null || primaryReplacementBatch is null)
+				if (primaryNewReservation is null || primaryReplacementBatch is null)
 					throw AppException.Internal("Database inconsistency: Replacement reservation was not created.");
 
 				return new SwapDamagedStockResponse
 				{
-                    NewReservationId = primaryNewReservation.Id,
+					NewReservationId = primaryNewReservation.Id,
 					NewBatchId = primaryReplacementBatch.Id,
 					NewBatchCode = primaryReplacementBatch.BatchCode,
 					NewLocation = primaryReplacementBatch.ImportDetail?.Note,
