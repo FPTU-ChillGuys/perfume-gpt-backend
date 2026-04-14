@@ -131,6 +131,8 @@ namespace PerfumeGPT.Application.Services
 			{
 				var variantId = group.Key;
 				var totalQuantityToCommit = group.Sum(r => r.ReservedQuantity);
+				var variant = await _unitOfWork.Variants.GetByIdAsync(variantId)
+					?? throw AppException.NotFound($"Variant {variantId} not found.");
 
 				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
 					?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
@@ -140,8 +142,10 @@ namespace PerfumeGPT.Application.Services
 
 				// 2. Decrease real quantity in Stock
 				stock.Decrease(totalQuantityToCommit);
+				variant.ApplyStockPolicy(stock.TotalQuantity);
 
 				_unitOfWork.Stocks.Update(stock);
+				_unitOfWork.Variants.Update(variant);
 
 				foreach (var reservation in group)
 				{

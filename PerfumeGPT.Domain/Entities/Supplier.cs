@@ -15,6 +15,7 @@ namespace PerfumeGPT.Domain.Entities
 
 		// Navigation property
 		public virtual ICollection<ImportTicket> ImportTickets { get; set; } = [];
+		public virtual ICollection<VariantSupplier> VariantSuppliers { get; set; } = [];
 
 		// Factory methods
 		public static Supplier Create(SupplierPayload payload)

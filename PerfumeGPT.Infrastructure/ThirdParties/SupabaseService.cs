@@ -5,6 +5,7 @@ using PerfumeGPT.Infrastructure.Extensions;
 using Supabase;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace PerfumeGPT.Infrastructure.ThirdParties
 {
@@ -148,10 +149,43 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			}
 
 			var errorBody = await response.Content.ReadAsStringAsync();
+
+			// Supabase may return HTTP 400 with payload statusCode=409 for duplicate bucket.
+			if (response.StatusCode == HttpStatusCode.BadRequest
+				&& !string.IsNullOrWhiteSpace(errorBody)
+				&& IsDuplicateResourceError(errorBody))
+			{
+				return;
+			}
+
 			_logger.LogWarning("Could not create or verify bucket '{BucketName}'. Status: {StatusCode}. Response: {ResponseBody}",
 				bucketName,
 				response.StatusCode,
 				errorBody);
+		}
+
+		private static bool IsDuplicateResourceError(string errorBody)
+		{
+			try
+			{
+				using var document = JsonDocument.Parse(errorBody);
+				var root = document.RootElement;
+
+				var statusCode = root.TryGetProperty("statusCode", out var statusCodeElement)
+					? statusCodeElement.GetString()
+					: null;
+
+				var error = root.TryGetProperty("error", out var errorElement)
+					? errorElement.GetString()
+					: null;
+
+				return string.Equals(statusCode, "409", StringComparison.OrdinalIgnoreCase)
+					|| string.Equals(error, "Duplicate", StringComparison.OrdinalIgnoreCase);
+			}
+			catch
+			{
+				return false;
+			}
 		}
 
 		private async Task EnsureInitializedAsync() => await _initializeTask;

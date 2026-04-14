@@ -81,6 +81,60 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
 		}
 
+		public async Task<BaseResponse<string>> AddSupplierAsync(Guid variantId, CreateVariantSupplierRequest request)
+		{
+			var variant = await _unitOfWork.Variants.GetByIdWithSuppliersAsync(variantId)
+				?? throw AppException.NotFound("Variant not found");
+
+			variant.EnsureNotDeleted();
+
+			var supplierExists = await _unitOfWork.Suppliers.AnyAsync(s => s.Id == request.SupplierId);
+			if (!supplierExists)
+				throw AppException.NotFound("Supplier not found");
+
+			variant.AddSupplier(
+				request.SupplierId,
+				request.NegotiatedPrice,
+				request.EstimatedLeadTimeDays,
+				request.IsPrimary);
+
+			_unitOfWork.Variants.Update(variant);
+			var saved = await _unitOfWork.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to add supplier to variant");
+
+			return BaseResponse<string>.Ok(variantId.ToString(), "Variant supplier added successfully");
+		}
+
+		public async Task<BaseResponse<string>> UpdateSupplierAsync(Guid variantId, int supplierId, UpdateVariantSupplierRequest request)
+		{
+			var variant = await _unitOfWork.Variants.GetByIdWithSuppliersAsync(variantId)
+				?? throw AppException.NotFound("Variant not found");
+
+			variant.EnsureNotDeleted();
+			variant.UpdateSupplier(supplierId, request.NegotiatedPrice, request.EstimatedLeadTimeDays, request.IsPrimary);
+
+			_unitOfWork.Variants.Update(variant);
+			var saved = await _unitOfWork.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to update variant supplier");
+
+			return BaseResponse<string>.Ok(variantId.ToString(), "Variant supplier updated successfully");
+		}
+
+		public async Task<BaseResponse<string>> RemoveSupplierAsync(Guid variantId, int supplierId)
+		{
+			var variant = await _unitOfWork.Variants.GetByIdWithSuppliersAsync(variantId)
+				?? throw AppException.NotFound("Variant not found");
+
+			variant.EnsureNotDeleted();
+			variant.RemoveSupplier(supplierId);
+
+			_unitOfWork.Variants.Update(variant);
+			var saved = await _unitOfWork.SaveChangesAsync();
+			if (!saved) throw AppException.Internal("Failed to remove variant supplier");
+
+			return BaseResponse<string>.Ok(variantId.ToString(), "Variant supplier removed successfully");
+		}
+
 		public async Task<BaseResponse<BulkActionResult<string>>> UpdateVariantAsync(Guid variantId, UpdateVariantRequest request)
 		{
 			var variant = await _unitOfWork.Variants.GetByIdAsync(variantId)

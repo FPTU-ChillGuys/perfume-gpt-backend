@@ -34,6 +34,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 
 		// Attributes
 		public List<ProductAttributeResponse>? Attributes { get; init; }
+		public List<VariantSupplierResponse>? Suppliers { get; init; }
 	}
 }
 

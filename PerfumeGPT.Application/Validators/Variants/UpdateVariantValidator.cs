@@ -16,6 +16,8 @@ namespace PerfumeGPT.Application.Validators.Variants
 				.GreaterThan(0).WithMessage("ConcentrationId must be a positive integer.");
 			RuleFor(x => x.BasePrice)
 				.GreaterThanOrEqualTo(0).WithMessage("BasePrice must be greater than or equal to 0.");
+			RuleFor(x => x.RestockPolicy)
+				 .IsInEnum().WithMessage("RestockPolicy is invalid.");
 		}
 	}
 }
