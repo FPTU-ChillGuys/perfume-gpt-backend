@@ -1,8 +1,10 @@
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 5141
+EXPOSE 7011
 
-ENV ASPNETCORE_URLS=http://+:5141
+ENV ASPNETCORE_URLS=http://+:5141;https://+:7011
+ENV ASPNETCORE_ENVIRONMENT=Development
 
 USER app
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
