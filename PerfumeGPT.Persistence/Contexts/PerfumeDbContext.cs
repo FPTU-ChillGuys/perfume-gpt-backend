@@ -250,6 +250,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<OrderReturnRequestDetail> OrderReturnRequestDetails { get; set; }
 		public DbSet<PromotionItem> Promotions { get; set; }
 		public DbSet<Campaign> Campaigns { get; set; }
+		public DbSet<Banner> Banners { get; set; }
 		public DbSet<SystemPolicy> SystemPolicies { get; set; }
 
 		protected override void OnModelCreating(ModelBuilder builder)

@@ -18,8 +18,9 @@ namespace PerfumeGPT.Application.Services.Helpers
 		[
 			EntityType.Review,
 			EntityType.Product,
-		   EntityType.ProductVariant,
-			EntityType.OrderReturnRequest
+			EntityType.ProductVariant,
+			EntityType.OrderReturnRequest,
+			EntityType.Banner
 		];
 
 		public MediaBulkActionHelper(IUnitOfWork unitOfWork, ISupabaseService supabaseService)
@@ -139,6 +140,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 			EntityType.ProductVariant => "ProductVariants",
 			EntityType.User => "ProfileAvatars",
 			EntityType.Review => "Reviews",
+			EntityType.Banner => "Banners",
 			EntityType.OrderReturnRequest => "OrderReturnRequests",
 			_ => "Products"
 		};
