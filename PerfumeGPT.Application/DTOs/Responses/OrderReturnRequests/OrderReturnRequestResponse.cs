@@ -60,6 +60,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 		public int RequestedQuantity { get; init; }
 		public decimal UnitPrice { get; init; }
 		public decimal CampaignDiscount { get; init; }
+		public decimal CampaignPrice { get; init; }
 		public decimal VoucherDiscount { get; init; }
 		public decimal RefundableAmount { get; init; }
 	}

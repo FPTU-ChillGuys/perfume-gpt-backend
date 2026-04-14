@@ -184,6 +184,9 @@ namespace PerfumeGPT.Persistence.Repositories
 							CampaignDiscount = d.OrderDetail.Quantity > 0
 								? (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) * d.RequestedQuantity
 								: 0m,
+							CampaignPrice = d.OrderDetail.Quantity > 0
+								? (d.OrderDetail.UnitPrice - (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity)) * d.RequestedQuantity
+								: 0m,
 							VoucherDiscount = d.OrderDetail.Quantity > 0
 								? (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity) * d.RequestedQuantity
 								: 0m,
@@ -259,6 +262,10 @@ namespace PerfumeGPT.Persistence.Repositories
 							UnitPrice = d.OrderDetail.UnitPrice,
 							CampaignDiscount = d.OrderDetail.Quantity > 0
 								? (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) * d.RequestedQuantity
+								: 0m,
+							// Giá thực bán sau khi trừ Campaign
+							CampaignPrice = d.OrderDetail.Quantity > 0
+								? (d.OrderDetail.UnitPrice - (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity)) * d.RequestedQuantity
 								: 0m,
 							VoucherDiscount = d.OrderDetail.Quantity > 0
 								? (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity) * d.RequestedQuantity
