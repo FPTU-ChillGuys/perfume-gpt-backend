@@ -7,3 +7,5 @@ services:
       dockerfile: PerfumeGPT.API/Dockerfile
     ports:
       - 5141:5141
+    env_file:
+      - .env 
