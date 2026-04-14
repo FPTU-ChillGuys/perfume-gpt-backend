@@ -26,21 +26,76 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			_contactAddressService = contactAddressService;
 		}
 
-		public async Task SetupShippingInfoAsync(Order order, ContactAddressInformation? contactAddressRequest, Guid? customerId, Guid? savedAddressId)
+     public async Task SetupShippingInfoAsync(Order order, ContactAddressInformation? contactAddressRequest, Guid? customerId, Guid? savedAddressId, decimal? shippingFee = null)
 		{
 			// 1. Create contact address
 			var contactAddress = await _contactAddressService.CreateContactAddressAsync(contactAddressRequest, savedAddressId, customerId);
 			order.AttachContactAddress(contactAddress.Id);
 			// 2. Get lead time
 			var EstimatedDeliveryDate = await GetLeadTimeAsync(contactAddress.DistrictId, contactAddress.WardCode);
+            var resolvedShippingFee = shippingFee ?? await CalculateShippingFeeAsync(order, contactAddress);
 
 			// 3. Create shipping info
-			var shippingInfo = ShippingInfo.Create(CarrierName.GHN, ShippingType.Forward, 0, EstimatedDeliveryDate);
+          var shippingInfo = ShippingInfo.Create(CarrierName.GHN, ShippingType.Forward, resolvedShippingFee, EstimatedDeliveryDate);
 
 			await _unitOfWork.ShippingInfos.AddAsync(shippingInfo);
 
 			order.AttachForwardShipping(shippingInfo.Id);
 			order.ForwardShipping = shippingInfo;
+		}
+
+		private async Task<decimal> CalculateShippingFeeAsync(Order order, ContactAddress contactAddress)
+		{
+			if (order.OrderDetails == null || order.OrderDetails.Count == 0)
+				return 0m;
+
+			var variantIds = order.OrderDetails.Select(x => x.VariantId).Distinct().ToList();
+			var variants = await _unitOfWork.Variants.GetVariantsWithDetailsByIdsAsync(variantIds);
+			var variantById = variants.ToDictionary(x => x.Id, x => x);
+
+			int totalWeight = 0;
+			int maxLength = 0;
+			int maxWidth = 0;
+			int totalHeight = 0;
+
+			var shippingItems = new List<ShippingOrderItem>();
+			foreach (var item in order.OrderDetails)
+			{
+				var variant = variantById.GetValueOrDefault(item.VariantId);
+				var itemWeight = Math.Max(1, variant?.VolumeMl ?? 100);
+
+				totalWeight += item.Quantity * itemWeight;
+				maxLength = Math.Max(maxLength, 15);
+				maxWidth = Math.Max(maxWidth, 10);
+				totalHeight += item.Quantity * 10;
+
+				shippingItems.Add(new ShippingOrderItem
+				{
+					Name = ExtractProductNameFromSnapshot(item.Snapshot) ?? "Nước hoa cao cấp",
+					Code = variant?.Barcode,
+					Quantity = item.Quantity,
+					Price = (int)Math.Round(item.UnitPrice, MidpointRounding.AwayFromZero),
+					Length = 15,
+					Width = 10,
+					Height = 10,
+					Weight = itemWeight,
+					Category = new ShippingOrderItemCategory { Level1 = "Mỹ phẩm" }
+				});
+			}
+
+			var shippingFeeRequest = new CalculateShippingFeeRequest
+			{
+				ToDistrictId = contactAddress.DistrictId,
+				ToWardCode = contactAddress.WardCode,
+				Length = Math.Max(15, maxLength),
+				Width = Math.Max(10, maxWidth),
+				Height = Math.Max(10, totalHeight),
+				Weight = Math.Max(100, totalWeight),
+				Items = shippingItems
+			};
+
+			var shippingFeeResponse = await _ghnService.CalculateShippingFeeAsync(shippingFeeRequest);
+			return shippingFeeResponse?.Data?.Total ?? 0m;
 		}
 
 		public async Task<DateTime?> GetLeadTimeAsync(int districtId, string wardCode)

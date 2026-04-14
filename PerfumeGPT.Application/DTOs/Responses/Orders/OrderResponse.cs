@@ -15,8 +15,12 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public OrderStatus Status { get; init; }
 		public PaymentStatus PaymentStatus { get; init; }
 		public decimal TotalAmount { get; init; }
+		public decimal SubTotal { get; init; }
+		public decimal ShippingFee { get; init; }
 		public Guid? VoucherId { get; init; }
 		public string? VoucherCode { get; init; }
+		public VoucherType? VoucherType { get; init; }
+		public decimal VoucherDiscountTotal { get; init; }
 		public DateTime? PaymentExpiresAt { get; init; }
 		public DateTime? PaidAt { get; init; }
 		public DateTime CreatedAt { get; init; }
@@ -75,6 +79,10 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public string? ImageUrl { get; init; }
 		public int Quantity { get; init; }
 		public decimal UnitPrice { get; init; }
+		public decimal CampaignDiscount { get; init; }
+		public decimal CampaignPrice { get; init; }
+		public decimal VoucherDiscount { get; init; }
+		public decimal ItemTotal { get; init; }
 		public decimal RefunablePrice { get; init; }
 		public decimal Total { get; init; }
 		public required List<ReservedBatchResponse> ReservedBatches { get; init; }

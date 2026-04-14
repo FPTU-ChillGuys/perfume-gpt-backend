@@ -236,11 +236,13 @@ namespace PerfumeGPT.Application.Services
 				};
 			}
 
+			var shippingFee = await CalculateShippingFeeAsync(userId, request, items);
+
 			var response = new CartCheckoutResponse
 			{
 				Items = items,
-				ShippingFee = 0m,
-				TotalPrice = finalAmount
+				ShippingFee = shippingFee,
+				TotalPrice = finalAmount + shippingFee
 			};
 
 			return response;

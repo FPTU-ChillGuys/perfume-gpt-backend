@@ -38,5 +38,6 @@
 		ILoyaltyTransactionRepository LoyaltyTransactions { get; }
 		IOrderCancelRequestRepository OrderCancelRequests { get; }
 		IOrderReturnRequestRepository OrderReturnRequests { get; }
+		ISystemPolicyRepository SystemPolicyRepository { get; }
 	}
 }

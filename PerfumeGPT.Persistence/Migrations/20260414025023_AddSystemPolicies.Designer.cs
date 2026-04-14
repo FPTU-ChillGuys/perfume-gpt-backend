@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260414025023_AddSystemPolicies")]
+    partial class AddSystemPolicies
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1840,23 +1843,17 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasColumnType("nvarchar(100)")
                         .HasColumnName("PolicyCode");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("HtmlContent")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("LastUpdated")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -1866,15 +1863,15 @@ namespace PerfumeGPT.Persistence.Migrations
                         new
                         {
                             Id = "USAGE_STORAGE",
-                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             HtmlContent = "<ul><li>Cách sử dụng được PerfumeGPT...</li></ul>",
+                            LastUpdated = new DateTime(2026, 4, 13, 10, 0, 0, 0, DateTimeKind.Utc),
                             Title = "Sử dụng và bảo quản"
                         },
                         new
                         {
                             Id = "SHIPPING_RETURN",
-                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             HtmlContent = "<p>Chính sách freeship...</p>",
+                            LastUpdated = new DateTime(2026, 4, 13, 10, 0, 0, 0, DateTimeKind.Utc),
                             Title = "Vận chuyển và đổi trả"
                         });
                 });

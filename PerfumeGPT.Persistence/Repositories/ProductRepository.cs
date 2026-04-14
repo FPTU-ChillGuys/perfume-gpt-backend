@@ -623,7 +623,6 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
-
 		public async Task<(List<ProductListItem> Items, int TotalCount)> GetNewArrivalProductsAsync(GetPagedProductRequest request)
 		{
 			var now = DateTime.UtcNow;
@@ -701,9 +700,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetCampaignProductsAsync(
-		Guid campaignId,
-		GetPagedProductRequest request)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetCampaignProductsAsync(Guid campaignId, GetPagedProductRequest request)
 		{
 			var now = DateTime.UtcNow;
 
@@ -909,8 +906,6 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
 
-
-
 		public async Task<List<ProductDailySaleFigureResponse>> GetProductDailySaleFiguresAsync(DateOnly date)
 		{
 			var startDate = date.ToDateTime(TimeOnly.MinValue);
@@ -939,34 +934,6 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			return dailyFigures.Where(df => df.DailySaleFigures.Any(v => v.QuantitySold > 0)).ToList();
 		}
-
-
-
-		#region Private Methods
-		private IQueryable<Product> BuildFullProductDetailsQuery()
-		{
-			return _context.Products
-				.Include(p => p.Brand)
-				.Include(p => p.Category)
-				.Include(p => p.ProductAttributes)
-					.ThenInclude(pa => pa.Attribute)
-				.Include(p => p.ProductAttributes)
-					.ThenInclude(pa => pa.Value)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.Concentration)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.ProductAttributes)
-						.ThenInclude(pa => pa.Attribute)
-				.Include(p => p.Variants.Where(v => !v.IsDeleted))
-					.ThenInclude(v => v.ProductAttributes)
-						.ThenInclude(pa => pa.Value)
-				.AsSplitQuery();
-		}
-
-
-
-
-		#endregion Private Methods
 	}
 }
 
