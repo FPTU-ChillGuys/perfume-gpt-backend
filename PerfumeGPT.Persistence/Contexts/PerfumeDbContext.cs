@@ -207,6 +207,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<OrderReturnRequestDetail> OrderReturnRequestDetails { get; set; }
 		public DbSet<PromotionItem> Promotions { get; set; }
 		public DbSet<Campaign> Campaigns { get; set; }
+		public DbSet<SystemPolicy> SystemPolicies { get; set; }
 
 		protected override void OnModelCreating(ModelBuilder builder)
 		{
@@ -946,6 +947,24 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<OrderReturnRequest>().Property(orr => orr.Reason).HasConversion<string>();
 			builder.Entity<ShippingInfo>().Property(s => s.Type).HasConversion<string>();
 
+			builder.Entity<SystemPolicy>()
+				.ToTable("SystemPolicies");
+
+			builder.Entity<SystemPolicy>()
+				.Property(sp => sp.Id)
+				.HasColumnName("PolicyCode")
+				.HasMaxLength(100);
+
+			builder.Entity<SystemPolicy>()
+				.Property(sp => sp.Title)
+				.HasMaxLength(255)
+				.IsRequired();
+
+			builder.Entity<SystemPolicy>()
+				.Property(sp => sp.HtmlContent)
+				.HasColumnType("nvarchar(max)")
+				.IsRequired();
+
 			// Configure NVarchar for string properties to avoid default max length issues
 			builder.Entity<Product>().Property(p => p.Description)
 				.HasColumnType("nvarchar(max)");
@@ -964,6 +983,8 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<User>().HasData(PerfumeDbContextSeed.SeedingUsers());
 			// Seed user roles
 			builder.Entity<IdentityUserRole<Guid>>().HasData(PerfumeDbContextSeed.SeedingUserRoles());
+           // Seed system policies
+			builder.Entity<SystemPolicy>().HasData(PerfumeDbContextSeed.SeedingSystemPolicies());
 		}
 
 		internal class PassThroughEncryptionProvider : IEncryptionProvider

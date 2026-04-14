@@ -106,5 +106,20 @@ namespace PerfumeGPT.Persistence.Contexts
 				}
 			};
 		}
+
+		public static ICollection<SystemPolicy> SeedingSystemPolicies()
+		{
+			return new List<SystemPolicy>
+			{
+				SystemPolicy.Create(
+					"USAGE_STORAGE",
+					"Sử dụng và bảo quản",
+					"<ul><li>Cách sử dụng được PerfumeGPT...</li></ul>"),
+				SystemPolicy.Create(
+					"SHIPPING_RETURN",
+					"Vận chuyển và đổi trả",
+					"<p>Chính sách freeship...</p>"),
+			};
+		}
 	}
 }
