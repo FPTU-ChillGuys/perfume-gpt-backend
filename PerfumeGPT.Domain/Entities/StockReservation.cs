@@ -56,6 +56,14 @@ namespace PerfumeGPT.Domain.Entities
 			Status = ReservationStatus.Released;
 		}
 
+		public void Restock()
+		{
+			if (Status != ReservationStatus.Committed)
+				throw DomainException.Conflict($"Cannot restock reservation. Current status is {Status}.");
+
+			Status = ReservationStatus.Released;
+		}
+
 		public void DecreaseQuantity(int quantity)
 		{
 			if (quantity <= 0 || quantity > ReservedQuantity)

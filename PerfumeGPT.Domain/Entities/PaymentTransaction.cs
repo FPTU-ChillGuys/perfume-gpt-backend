@@ -1,6 +1,7 @@
 ﻿using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Enums;
+using PerfumeGPT.Domain.Events.Payments;
 using PerfumeGPT.Domain.Exceptions;
 
 namespace PerfumeGPT.Domain.Entities
@@ -42,6 +43,7 @@ namespace PerfumeGPT.Domain.Entities
 
 			return new PaymentTransaction
 			{
+				Id = Guid.NewGuid(),
 				OrderId = orderId,
 				Method = method,
 				Amount = amount,
@@ -64,6 +66,7 @@ namespace PerfumeGPT.Domain.Entities
 
 			return new PaymentTransaction
 			{
+				Id = Guid.NewGuid(),
 				OrderId = orderId,
 				OriginalPaymentId = originalPaymentId,
 				Method = method,
@@ -92,6 +95,8 @@ namespace PerfumeGPT.Domain.Entities
 			{
 				GatewayTransactionNo = gatewayTransactionNo;
 			}
+
+			AddDomainEvent(new PaymentSuccessDomainEvent(OrderId, Id));
 		}
 
 		public void MarkFailed(string? reason = null, string? gatewayTransactionNo = null)
@@ -122,6 +127,7 @@ namespace PerfumeGPT.Domain.Entities
 
 			return new PaymentTransaction
 			{
+				Id = Guid.NewGuid(),
 				OrderId = OrderId,
 				Method = method,
 				Amount = Amount,

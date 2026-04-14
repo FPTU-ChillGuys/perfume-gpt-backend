@@ -32,6 +32,9 @@ namespace PerfumeGPT.Application.Extensions
 			// FluentValidation - registers all validators found in the assembly
 			services.AddValidatorsFromAssembly(assembly);
 
+			// MediatR - registers all request/notification handlers in application assembly
+			services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(assembly));
+
 			return services;
 		}
 

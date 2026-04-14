@@ -5,6 +5,7 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 using MapsterMapper;
 
 namespace PerfumeGPT.Application.Services
@@ -54,21 +55,26 @@ namespace PerfumeGPT.Application.Services
 			return totalAvailable >= requiredQuantity;
 		}
 
-		public async Task<bool> DeductBatchesByVariantIdAsync(Guid variantId, int quantity)
-		{
-			if (quantity <= 0)
-			{
-				throw AppException.BadRequest("Quantity must be greater than 0.");
-			}
+		//public async Task<bool> DeductBatchesByVariantIdAsync(Guid variantId, int quantity, Guid referenceId)
+		//{
+		//	if (quantity <= 0)
+		//	{
+		//		throw AppException.BadRequest("Quantity must be greater than 0.");
+		//	}
 
-			var result = await _unitOfWork.Batches.DeductBatchesByVariantIdAsync(variantId, quantity);
-			if (result)
-			{
-				await _unitOfWork.Stocks.UpdateStockAsync(variantId);
-			}
+		//	if (referenceId == Guid.Empty)
+		//	{
+		//		throw AppException.BadRequest("Reference ID is required.");
+		//	}
 
-			return result;
-		}
+		//	var result = await _unitOfWork.Batches.DeductBatchesByVariantIdAsync(variantId, quantity, referenceId);
+		//	if (result)
+		//	{
+		//		await _unitOfWork.Stocks.UpdateStockAsync(variantId);
+		//	}
+
+		//	return result;
+		//}
 
 		public async Task<BaseResponse<PagedResult<BatchDetailResponse>>> GetBatchesAsync(GetBatchesRequest request)
 		{
@@ -106,7 +112,12 @@ namespace PerfumeGPT.Application.Services
 			var batch = await _unitOfWork.Batches.GetByIdAsync(batchId)
 				?? throw AppException.NotFound($"Batch {batchId} not found");
 
-			batch.IncreaseQuantity(quantity);
+			batch.IncreaseQuantity(
+				 quantity,
+				 StockTransactionType.Adjustment,
+				 batchId,
+				 null,
+				 $"Manual batch increase for batch {batchId}.");
 			_unitOfWork.Batches.Update(batch);
 
 			var variantId = await _unitOfWork.Batches.GetVariantIdByBatchIdAsync(batchId);
@@ -126,7 +137,12 @@ namespace PerfumeGPT.Application.Services
 			var batch = await _unitOfWork.Batches.GetByIdAsync(batchId)
 				?? throw AppException.NotFound($"Batch {batchId} not found");
 
-			batch.DecreaseQuantity(quantity);
+			batch.DecreaseQuantity(
+				 quantity,
+				 StockTransactionType.Adjustment,
+				 batchId,
+				 null,
+				 $"Manual batch decrease for batch {batchId}.");
 			_unitOfWork.Batches.Update(batch);
 
 			var variantId = await _unitOfWork.Batches.GetVariantIdByBatchIdAsync(batchId);

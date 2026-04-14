@@ -1,11 +1,14 @@
+using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Commons.Audits;
+using PerfumeGPT.Domain.Commons.Events;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Converters;
 using System.Security.Claims;
@@ -18,14 +21,17 @@ namespace PerfumeGPT.Persistence.Contexts
 		private readonly IHttpContextAccessor? _httpContextAccessor;
 		private readonly IAuditScope? _auditScope;
 		private readonly IEncryptionProvider? _encryptionProvider;
+		private readonly IPublisher? _publisher;
 
 		public PerfumeDbContext(
 			  DbContextOptions<PerfumeDbContext> options,
+		   IPublisher? publisher = null,
 			  IHttpContextAccessor? httpContextAccessor = null,
 			  IAuditScope? auditScope = null,
 			  IEncryptionProvider? encryptionProvider = null)
 			  : base(options)
 		{
+			_publisher = publisher;
 			_httpContextAccessor = httpContextAccessor;
 			_auditScope = auditScope;
 			_encryptionProvider = encryptionProvider;
@@ -149,16 +155,51 @@ namespace PerfumeGPT.Persistence.Contexts
 			return base.SaveChanges(acceptAllChangesOnSuccess);
 		}
 
-		public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+		public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
 		{
 			ApplyAuditRules();
-			return base.SaveChangesAsync(cancellationToken);
+			await DispatchDomainEventsAsync(cancellationToken);
+			return await base.SaveChangesAsync(cancellationToken);
 		}
 
-		public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+		public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
 		{
 			ApplyAuditRules();
-			return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+			await DispatchDomainEventsAsync(cancellationToken);
+			return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+		}
+
+		private async Task DispatchDomainEventsAsync(CancellationToken cancellationToken)
+		{
+			if (_publisher is null)
+			{
+				return;
+			}
+
+			var domainEntities = ChangeTracker
+				.Entries<IHasDomainEvents>()
+				.Where(entry => entry.Entity.DomainEvents.Count > 0)
+				.Select(entry => entry.Entity)
+				.ToList();
+
+			if (domainEntities.Count == 0)
+			{
+				return;
+			}
+
+			var domainEvents = domainEntities
+				.SelectMany(entity => entity.DomainEvents)
+				.ToList();
+
+			foreach (var entity in domainEntities)
+			{
+				entity.ClearDomainEvents();
+			}
+
+			foreach (var domainEvent in domainEvents)
+			{
+				await _publisher.Publish(domainEvent, cancellationToken);
+			}
 		}
 
 		// DbSets
@@ -178,6 +219,8 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<Concentration> Concentrations { get; set; }
 		public DbSet<Batch> Batches { get; set; }
 		public DbSet<Stock> Stocks { get; set; }
+		public DbSet<CashFlowLedger> CashFlowLedgers { get; set; }
+		public DbSet<InventoryLedger> InventoryLedgers { get; set; }
 		public DbSet<Order> Orders { get; set; }
 		public DbSet<OrderDetail> OrderDetails { get; set; }
 		public DbSet<Notification> Notifications { get; set; }
@@ -862,90 +905,30 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<TemporaryMedia>()
 				.HasIndex(tm => tm.UploadedByUserId);
 
-			// Configure decimal precision/scale to avoid default truncation warnings
+			// Decimal precision
 			foreach (var entityType in builder.Model.GetEntityTypes())
 			{
-				foreach (var property in entityType.GetProperties()
-					.Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
+				foreach (var property in entityType.GetProperties())
 				{
-					if (property.GetPrecision() is null)
+					// Decimal
+					if ((property.ClrType == typeof(decimal) || property.ClrType == typeof(decimal?))
+						&& property.GetPrecision() is null)
 					{
 						property.SetPrecision(18);
 						property.SetScale(2);
 					}
+
+					// Enum / string
+					var clrType = property.ClrType;
+					var underlyingType = Nullable.GetUnderlyingType(clrType) ?? clrType;
+					if (underlyingType.IsEnum)
+					{
+						var converterType = typeof(EnumToStringConverter<>).MakeGenericType(underlyingType);
+						var converter = (ValueConverter)Activator.CreateInstance(converterType)!;
+						property.SetValueConverter(converter);
+					}
 				}
 			}
-
-			builder.Entity<CustomerProfile>().Property(cp => cp.MinBudget).HasPrecision(18, 2);
-			builder.Entity<CustomerProfile>().Property(cp => cp.MaxBudget).HasPrecision(18, 2);
-
-			builder.Entity<ImportTicket>().Property(it => it.TotalCost).HasPrecision(18, 2);
-			builder.Entity<ImportDetail>().Property(d => d.UnitPrice).HasPrecision(18, 2);
-
-			builder.Entity<Order>().Property(o => o.TotalAmount).HasPrecision(18, 2);
-			builder.Entity<OrderDetail>().Property(od => od.UnitPrice).HasPrecision(18, 2);
-			builder.Entity<OrderDetail>().Property(od => od.ApportionedDiscount).HasPrecision(18, 2);
-			builder.Entity<OrderDetail>().Property(od => od.PromotionDiscountAmount).HasPrecision(18, 2);
-
-			builder.Entity<PaymentTransaction>().Property(pt => pt.Amount).HasPrecision(18, 2);
-			builder.Entity<ProductVariant>().Property(pv => pv.BasePrice).HasPrecision(18, 2);
-			builder.Entity<ProductVariant>().Property(pv => pv.RetailPrice).HasPrecision(18, 2);
-			builder.Entity<ShippingInfo>().Property(s => s.ShippingFee).HasPrecision(18, 2);
-
-			builder.Entity<Voucher>().Property(v => v.DiscountValue).HasPrecision(18, 2);
-			builder.Entity<Voucher>().Property(v => v.MinOrderValue).HasPrecision(18, 2);
-			builder.Entity<Voucher>().Property(v => v.MaxDiscountAmount).HasPrecision(18, 2);
-
-			builder.Entity<PromotionItem>().Property(pi => pi.DiscountValue).HasPrecision(18, 2);
-
-			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.RefundAmount).HasPrecision(18, 2);
-			builder.Entity<OrderReturnRequest>().Property(orr => orr.RequestedRefundAmount).HasPrecision(18, 2);
-			builder.Entity<OrderReturnRequest>().Property(orr => orr.ApprovedRefundAmount).HasPrecision(18, 2);
-
-			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.RefundBankName).HasConversion(encryptionConverter);
-			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.RefundAccountNumber).HasConversion(encryptionConverter);
-			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.RefundAccountName).HasConversion(encryptionConverter);
-
-			builder.Entity<OrderReturnRequest>().Property(orr => orr.RefundBankName).HasConversion(encryptionConverter);
-			builder.Entity<OrderReturnRequest>().Property(orr => orr.RefundAccountNumber).HasConversion(encryptionConverter);
-			builder.Entity<OrderReturnRequest>().Property(orr => orr.RefundAccountName).HasConversion(encryptionConverter);
-
-			// Configure enum to string conversions
-			builder.Entity<PaymentTransaction>().Property(pt => pt.TransactionStatus).HasConversion<string>();
-			builder.Entity<PaymentTransaction>().Property(pt => pt.TransactionType).HasConversion<string>();
-			builder.Entity<PaymentTransaction>().Property(pt => pt.Method).HasConversion<string>();
-			builder.Entity<ShippingInfo>().Property(s => s.Status).HasConversion<string>();
-			builder.Entity<Order>().Property(o => o.Status).HasConversion<string>();
-			builder.Entity<Order>().Property(o => o.PaymentStatus).HasConversion<string>();
-			builder.Entity<Order>().Property(o => o.Type).HasConversion<string>();
-			builder.Entity<ImportTicket>().Property(it => it.Status).HasConversion<string>();
-			builder.Entity<Notification>().Property(n => n.Type).HasConversion<string>();
-			builder.Entity<Notification>().Property(n => n.ReferenceType).HasConversion<string>();
-			builder.Entity<ProductVariant>().Property(pv => pv.Type).HasConversion<string>();
-			builder.Entity<ProductVariant>().Property(pv => pv.Status).HasConversion<string>();
-			builder.Entity<Voucher>().Property(v => v.DiscountType).HasConversion<string>();
-			builder.Entity<Voucher>().Property(v => v.ApplyType).HasConversion<string>();
-			builder.Entity<Voucher>().Property(v => v.TargetItemType).HasConversion<string>();
-			builder.Entity<UserVoucher>().Property(uv => uv.Status).HasConversion<string>();
-			builder.Entity<ShippingInfo>().Property(s => s.CarrierName).HasConversion<string>();
-			builder.Entity<Media>().Property(m => m.EntityType).HasConversion<string>();
-			builder.Entity<StockAdjustment>().Property(sa => sa.Status).HasConversion<string>();
-			builder.Entity<StockAdjustment>().Property(sa => sa.Reason).HasConversion<string>();
-			builder.Entity<StockReservation>().Property(sr => sr.Status).HasConversion<string>();
-			builder.Entity<Product>().Property(p => p.Gender).HasConversion<string>();
-			builder.Entity<ProductNoteMap>().Property(s => s.NoteType).HasConversion<string>();
-			builder.Entity<LoyaltyTransaction>().Property(lt => lt.TransactionType).HasConversion<string>();
-			builder.Entity<Stock>().Property(s => s.Status).HasConversion<string>();
-			builder.Entity<OrderReturnRequest>().Property(orr => orr.Status).HasConversion<string>();
-			builder.Entity<PromotionItem>().Property(p => p.ItemType).HasConversion<string>();
-			builder.Entity<PromotionItem>().Property(p => p.DiscountType).HasConversion<string>();
-			builder.Entity<Campaign>().Property(p => p.Status).HasConversion<string>();
-			builder.Entity<Campaign>().Property(p => p.Type).HasConversion<string>();
-			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.Status).HasConversion<string>();
-			builder.Entity<OrderCancelRequest>().Property(ocr => ocr.Reason).HasConversion<string>();
-			builder.Entity<OrderReturnRequest>().Property(orr => orr.Status).HasConversion<string>();
-			builder.Entity<OrderReturnRequest>().Property(orr => orr.Reason).HasConversion<string>();
-			builder.Entity<ShippingInfo>().Property(s => s.Type).HasConversion<string>();
 
 			builder.Entity<SystemPolicy>()
 				.ToTable("SystemPolicies");
@@ -983,7 +966,7 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<User>().HasData(PerfumeDbContextSeed.SeedingUsers());
 			// Seed user roles
 			builder.Entity<IdentityUserRole<Guid>>().HasData(PerfumeDbContextSeed.SeedingUserRoles());
-           // Seed system policies
+			// Seed system policies
 			builder.Entity<SystemPolicy>().HasData(PerfumeDbContextSeed.SeedingSystemPolicies());
 		}
 
