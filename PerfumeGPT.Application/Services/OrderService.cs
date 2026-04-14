@@ -211,7 +211,7 @@ namespace PerfumeGPT.Application.Services
 				// Setup shipping if not pickup
 				if (request.DeliveryMethod == DeliveryMethod.Delivery)
 				{
-					await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, userId, request.SavedAddressId);
+                 await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, userId, request.SavedAddressId, cartResponse.ShippingFee);
 				}
 
 				// Reserve stock
