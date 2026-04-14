@@ -500,6 +500,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				RecipientAddress = recipientAddress,
 				Items = order.OrderDetails.Select(MapToReceiptItem).ToList(),
 				Subtotal = subtotal,
+                ShippingFee = shippingFee,
 				Discount = discount,
 				Tax = 0,
 				Total = order.TotalAmount,

@@ -263,6 +263,19 @@ namespace PerfumeGPT.Domain.Entities
 			Status = ReturnRequestStatus.Rejected;
 		}
 
+		public void CancelBySystemWhenReturnPickupFailed(string? note = null)
+		{
+			if (Status != ReturnRequestStatus.ApprovedForReturn)
+				throw DomainException.BadRequest("Only approved return requests can be cancelled due to return pickup failure.");
+
+			if (!string.IsNullOrWhiteSpace(note))
+			{
+				StaffNote = note?.Trim();
+			}
+
+			Status = ReturnRequestStatus.Rejected;
+		}
+
 		public void MarkRefunded(string? transactionReference = null)
 		{
 			if (Status != ReturnRequestStatus.ReadyForRefund)

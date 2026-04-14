@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
+using PerfumeGPT.Application.DTOs.Requests.GHNs;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.CartItems;
 using PerfumeGPT.Application.DTOs.Responses.Carts;
@@ -19,15 +20,18 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IVoucherService _voucherService;
 		private readonly ISignalRService _signalRService;
+		private readonly IGHNService _ghnService;
 
 		public CartService(
 			IUnitOfWork unitOfWork,
 		 IVoucherService voucherService,
-			ISignalRService signalRService)
+		 ISignalRService signalRService,
+			IGHNService ghnService)
 		{
 			_unitOfWork = unitOfWork;
 			_voucherService = voucherService;
 			_signalRService = signalRService;
+			_ghnService = ghnService;
 		}
 		#endregion Dependencies
 
@@ -145,6 +149,7 @@ namespace PerfumeGPT.Application.Services
 			var response = new PreviewPosOrderResponse
 			{
 				Items = responseItems,
+				ShippingFee = 0m,
 
 				// Tổng của đơn hàng giữ nguyên logic cũ, rất chuẩn xác:
 				SubTotal = subtotal, // Đây là tổng tiền sau khi đã trừ Promotion của các Items
@@ -152,12 +157,22 @@ namespace PerfumeGPT.Application.Services
 				TotalPrice = finalAmount
 			};
 
+			var shippingRequest = new GetCartTotalRequest
+			{
+				Recipient = request.Recipient
+			};
+
+			var shippingFee = await CalculateShippingFeeAsync(Guid.Empty, shippingRequest, pricedItems);
+			response.ShippingFee = shippingFee;
+			response.TotalPrice += shippingFee;
+
 			if (!string.IsNullOrWhiteSpace(request.SessionId))
 			{
 				var customerDisplayData = new CartDisplayDto
 				{
 					Items = response.Items,
 					SubTotal = response.SubTotal,
+					ShippingFee = response.ShippingFee,
 					Discount = response.Discount,
 					TotalPrice = response.TotalPrice,
 					VoucherCode = appliedVoucherCode,
@@ -286,7 +301,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, GetCartTotalRequest request)
 		{
-			var (items, engineSubtotal, finalAmount, voucherMessage) = await BuildCheckoutPricingAsync(userId, request);
+			var (items, _, finalAmount, voucherMessage) = await BuildCheckoutPricingAsync(userId, request);
 
 			if (items.Count == 0)
 			{
@@ -310,13 +325,14 @@ namespace PerfumeGPT.Application.Services
 
 			// 3. Discount hiển thị = Tiền Voucher (Sẽ ra đúng 100.000)
 			var voucherDiscount = items.Sum(x => x.ApportionedVoucherDiscount);
+			var shippingFee = await CalculateShippingFeeAsync(userId, request, items);
 
 			var response = new GetCartTotalResponse
 			{
 				Subtotal = subTotalAfterPromo,
-				ShippingFee = 0m, // Logic phí ship của bạn
+				ShippingFee = shippingFee,
 				Discount = voucherDiscount,
-				TotalPrice = finalAmount
+				TotalPrice = finalAmount + shippingFee
 			};
 
 			return BaseResponse<GetCartTotalResponse>.Ok(
@@ -324,6 +340,84 @@ namespace PerfumeGPT.Application.Services
 				 string.IsNullOrWhiteSpace(voucherMessage)
 					 ? "Cart total calculated successfully"
 					 : voucherMessage);
+		}
+
+		private async Task<decimal> CalculateShippingFeeAsync(Guid userId, GetCartTotalRequest request, List<CartCheckoutItemDto> items)
+		{
+			var destination = await ResolveShippingDestinationAsync(userId, request);
+			if (destination == null)
+				return 0m;
+
+			var variantIds = items.Select(x => x.VariantId).Distinct().ToList();
+			var variants = await _unitOfWork.Variants.GetVariantsWithDetailsByIdsAsync(variantIds);
+			var variantById = variants.ToDictionary(x => x.Id, x => x);
+
+			int totalWeight = 0;
+			int maxLength = 0;
+			int maxWidth = 0;
+			int totalHeight = 0;
+
+			var shippingItems = new List<ShippingOrderItem>();
+			foreach (var item in items)
+			{
+				var variant = variantById.GetValueOrDefault(item.VariantId);
+				var itemWeight = Math.Max(1, variant?.VolumeMl ?? 100);
+
+				totalWeight += item.Quantity * itemWeight;
+				maxLength = Math.Max(maxLength, 15);
+				maxWidth = Math.Max(maxWidth, 10);
+				totalHeight += item.Quantity * 10;
+
+				shippingItems.Add(new ShippingOrderItem
+				{
+					Name = item.VariantName,
+					Code = variant?.Barcode,
+					Quantity = item.Quantity,
+					Price = (int)Math.Round(item.UnitPrice, MidpointRounding.AwayFromZero),
+					Length = 15,
+					Width = 10,
+					Height = 10,
+					Weight = itemWeight,
+					Category = new ShippingOrderItemCategory { Level1 = "Mỹ phẩm" }
+				});
+			}
+
+			var shippingFeeRequest = new CalculateShippingFeeRequest
+			{
+				ToDistrictId = destination.Value.DistrictId,
+				ToWardCode = destination.Value.WardCode,
+				Length = Math.Max(15, maxLength),
+				Width = Math.Max(10, maxWidth),
+				Height = Math.Max(10, totalHeight),
+				Weight = Math.Max(100, totalWeight),
+				Items = shippingItems
+			};
+
+			var shippingFeeResponse = await _ghnService.CalculateShippingFeeAsync(shippingFeeRequest);
+			return shippingFeeResponse?.Data?.Total ?? 0m;
+		}
+
+		private async Task<(int DistrictId, string WardCode)?> ResolveShippingDestinationAsync(Guid userId, GetCartTotalRequest request)
+		{
+			if (request.SavedAddressId.HasValue)
+			{
+				var savedAddress = await _unitOfWork.Addresses.GetUserAddressById(userId, request.SavedAddressId.Value)
+					?? throw AppException.NotFound("Saved address not found.");
+
+				if (savedAddress.DistrictId <= 0 || string.IsNullOrWhiteSpace(savedAddress.WardCode))
+					return null;
+
+				return (savedAddress.DistrictId, savedAddress.WardCode);
+			}
+
+			if (request.Recipient != null
+				&& request.Recipient.DistrictId > 0
+				&& !string.IsNullOrWhiteSpace(request.Recipient.WardCode))
+			{
+				return (request.Recipient.DistrictId, request.Recipient.WardCode);
+			}
+
+			return null;
 		}
 
 		public async Task<(List<CartCheckoutItemDto> Items, decimal Subtotal, decimal FinalAmount, string? Message)> CalculatePricingEngineAsync(

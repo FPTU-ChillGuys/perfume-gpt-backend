@@ -8,5 +8,6 @@
 		public int Width { get; init; }
 		public int Height { get; init; }
 		public int Weight { get; init; }
+       public List<ShippingOrderItem>? Items { get; init; }
 	}
 }

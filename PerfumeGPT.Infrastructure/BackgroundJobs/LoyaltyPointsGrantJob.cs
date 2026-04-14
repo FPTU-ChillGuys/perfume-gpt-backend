@@ -43,7 +43,15 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 				return;
 			}
 
-			int points = (int)(order.TotalAmount / 1000m);
+			var shippingFee = order.ForwardShipping?.ShippingFee;
+			if (!shippingFee.HasValue)
+			{
+				var shippingInfo = await _unitOfWork.ShippingInfos.GetByOrderIdAsync(order.Id);
+				shippingFee = shippingInfo?.ShippingFee;
+			}
+
+			var loyaltyBaseAmount = Math.Max(0m, order.TotalAmount - (shippingFee ?? 0m));
+			int points = (int)(loyaltyBaseAmount / 1000m);
 			if (points <= 0)
 			{
 				return;

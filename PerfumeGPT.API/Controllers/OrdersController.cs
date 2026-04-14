@@ -219,23 +219,6 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _orderService.CancelOrderAsync(orderId, userId, request);
 			return HandleResponse(response);
 		}
-
-		[HttpPut("{orderId:guid}/address")]
-		[Authorize(Roles = "user")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UpdateOrderAddress([FromRoute] Guid orderId, [FromBody] UpdateOrderAddressRequest request)
-		{
-			var validation = await ValidateRequestAsync(_updateOrderAddressValidator, request);
-			if (validation != null) return validation;
-
-			var userId = GetCurrentUserId();
-			var response = await _orderService.UpdateOrderAddressAsync(orderId, userId, request);
-			return HandleResponse(response);
-		}
 		#endregion Order Status Management
 
 

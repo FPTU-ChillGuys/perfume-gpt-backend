@@ -43,6 +43,26 @@ namespace PerfumeGPT.Persistence.Repositories
 			var totalPaymentAmount = await query
 				.Where(pt => pt.TransactionType == TransactionType.Payment && pt.TransactionStatus == TransactionStatus.Success)
 				.SumAsync(pt => (decimal?)pt.Amount) ?? 0m;
+
+			var successfulPaidOrderIdsQuery = query
+				.Where(pt => pt.TransactionType == TransactionType.Payment && pt.TransactionStatus == TransactionStatus.Success)
+				.Select(pt => pt.OrderId)
+				.Distinct();
+
+			var totalShippingFeeDeductedPerOrder = await _context.Orders
+				.AsNoTracking()
+				.Where(o => successfulPaidOrderIdsQuery.Contains(o.Id))
+				.SumAsync(o => (decimal?)(o.ForwardShipping != null ? o.ForwardShipping.ShippingFee : 0m)) ?? 0m;
+
+			var totalReturnShippingFeeDeducted = await _context.OrderReturnRequests
+				.AsNoTracking()
+				.Where(r => successfulPaidOrderIdsQuery.Contains(r.OrderId))
+				.SumAsync(r => (decimal?)(r.ReturnShipping != null ? r.ReturnShipping.ShippingFee : 0m)) ?? 0m;
+
+			totalShippingFeeDeductedPerOrder += totalReturnShippingFeeDeducted;
+
+			var totalPaymentAmountExcludingShipping = Math.Max(0m, totalPaymentAmount - totalShippingFeeDeductedPerOrder);
+
 			var totalRefundAmount = await query
 				.Where(pt => pt.TransactionType == TransactionType.Refund)
 				.SumAsync(pt => (decimal?)Math.Abs(pt.Amount)) ?? 0m;
@@ -85,6 +105,8 @@ namespace PerfumeGPT.Persistence.Repositories
 				FailedTransactionsCount = failedTransactionsCount,
 				CancelledTransactionsCount = cancelledTransactionsCount,
 				TotalPaymentAmount = totalPaymentAmount,
+               TotalShippingFeeDeductedPerOrder = totalShippingFeeDeductedPerOrder,
+				TotalPaymentAmountExcludingShipping = totalPaymentAmountExcludingShipping,
 				TotalRefundAmount = totalRefundAmount
 			};
 

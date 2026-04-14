@@ -65,11 +65,6 @@ namespace PerfumeGPT.Application.Services
 				await Task.Delay(200);
 			}
 
-			if (updatedCount > 0)
-			{
-				await _unitOfWork.SaveChangesAsync();
-			}
-
 			return BaseResponse<string>.Ok($"Shipping status sync completed. Updated {updatedCount} record(s).");
 		}
 
@@ -122,9 +117,14 @@ namespace PerfumeGPT.Application.Services
 						{
 							order.SetStatus(OrderStatus.Returning);
 						}
+						else if (targetStatus.Value == ShippingStatus.Cancelled)
+						{
+							await _orderWorkflowService.ProcessShippingStatusChangeAsync(order, targetStatus.Value, shippingInfo.ShippedDate);
+						}
 					}
 
 					_unitOfWork.ShippingInfos.Update(shippingInfo);
+					await _unitOfWork.SaveChangesAsync();
 
 					return true;
 				}

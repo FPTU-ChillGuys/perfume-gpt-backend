@@ -212,7 +212,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				Width = maxWidth,
 				Height = totalHeight,
 				ServiceTypeId = 2,
-				PaymentTypeId = isReturn ? 2 : 1,
+				PaymentTypeId = isReturn ? 1 : 2,
 				RequiredNote = "KHONGCHOXEMHANG",
 				InsuranceValue = (int)Math.Min(orderWithDetails.TotalAmount, 5000000),
 			};

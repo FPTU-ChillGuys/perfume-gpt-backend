@@ -121,6 +121,7 @@ namespace PerfumeGPT.Application.Services
 			string? refundTransactionNo = null;
 			string? refundMessage = null;
 			PaymentTransaction? originalPayment = null;
+			decimal? finalRefundAmount = null;
 
 			var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
 				?? throw AppException.NotFound("Associated order not found.");
@@ -139,7 +140,7 @@ namespace PerfumeGPT.Application.Services
 					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod) ?? throw AppException.NotFound($"No successful {refundMethod} payment found for this order.");
 
 					var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext not available.");
-					var refundAmount = cancelRequest.RefundAmount ?? originalPayment.Amount;
+					var refundAmount = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
 					var isRefundSuccess = false;
 
 					switch (refundMethod)
@@ -148,7 +149,7 @@ namespace PerfumeGPT.Application.Services
 							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod)
 								?? throw AppException.NotFound($"No successful {refundMethod} payment found for this order.");
 
-							var refundAmountVnPay = cancelRequest.RefundAmount ?? originalPayment.Amount;
+							var refundAmountVnPay = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
 							var vnPayResponse = await _vnPayService.RefundAsync(context, new VnPayRefundRequest
 							{
 								OrderId = order.Id,
@@ -170,7 +171,7 @@ namespace PerfumeGPT.Application.Services
 							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod)
 								?? throw AppException.NotFound($"No successful {refundMethod} payment found for this order.");
 
-							var refundAmountMomo = cancelRequest.RefundAmount ?? originalPayment.Amount;
+							var refundAmountMomo = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
 							var momoResponse = await _momoService.RefundAsync(context, new MomoRefundRequest
 							{
 								OrderId = order.Id,
@@ -203,7 +204,7 @@ namespace PerfumeGPT.Application.Services
 							throw AppException.BadRequest($"Refund is not supported for payment method {refundMethod}.");
 					}
 
-					var finalRefundAmount = cancelRequest.RefundAmount ?? originalPayment.Amount;
+					finalRefundAmount = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
 
 					if (!isRefundSuccess)
 					{
@@ -211,7 +212,7 @@ namespace PerfumeGPT.Application.Services
 							orderId: order.Id,
 							originalPaymentId: originalPayment.Id,
 						   method: refundMethod,
-							refundAmount: finalRefundAmount
+						 refundAmount: finalRefundAmount.Value
 						);
 
 						failedRefund.MarkFailed(
@@ -223,17 +224,6 @@ namespace PerfumeGPT.Application.Services
 						await _unitOfWork.SaveChangesAsync();
 
 						throw AppException.BadRequest($"Refund failed via {refundMethod}. Cancellation aborted. Reason: {refundMessage}");
-					}
-					else
-					{
-						var successRefund = PaymentTransaction.CreateRefund(
-							orderId: order.Id,
-							originalPaymentId: originalPayment.Id,
-						   method: refundMethod,
-							refundAmount: finalRefundAmount
-						);
-						successRefund.MarkSuccess(refundTransactionNo);
-						await _unitOfWork.Payments.AddAsync(successRefund);
 					}
 				}
 
@@ -274,7 +264,7 @@ namespace PerfumeGPT.Application.Services
 							  orderId: freshOrder.Id,
 							  originalPaymentId: originalPayment.Id,
 							  method: originalPayment.Method,
-							  refundAmount: cancelRequest.RefundAmount ?? originalPayment.Amount
+							  refundAmount: finalRefundAmount ?? ResolveRefundAmount(freshCancelReq, freshOrder, originalPayment.Amount)
 						  );
 
 						  refundPayment.MarkSuccess(refundTransactionNo);
@@ -311,6 +301,32 @@ namespace PerfumeGPT.Application.Services
 				referenceType: NotifiReferecneType.OrderCancelRequest);
 
 			return response;
+		}
+
+		private static decimal ResolveRefundAmount(OrderCancelRequest cancelRequest, Order order, decimal originalPaymentAmount)
+		{
+			if (IsAutoLogisticsFailureCancellation(cancelRequest, order))
+			{
+				var shippingFee = order.ForwardShipping?.ShippingFee ?? 0m;
+				var penaltyShipping = shippingFee * 1.5m;
+				return Math.Max(0m, order.TotalAmount - penaltyShipping);
+			}
+
+			return cancelRequest.RefundAmount ?? originalPaymentAmount;
+		}
+
+		private static bool IsAutoLogisticsFailureCancellation(OrderCancelRequest cancelRequest, Order order)
+		{
+			if (!cancelRequest.IsRefundRequired)
+				return false;
+
+			if (order.ForwardShipping == null)
+				return false;
+
+			var isShippingFailureStatus = order.Status is OrderStatus.Returned or OrderStatus.Cancelled;
+			var isShippingFailureCarrierStatus = order.ForwardShipping.Status is ShippingStatus.Returned or ShippingStatus.Cancelled;
+
+			return isShippingFailureStatus && isShippingFailureCarrierStatus;
 		}
 	}
 }

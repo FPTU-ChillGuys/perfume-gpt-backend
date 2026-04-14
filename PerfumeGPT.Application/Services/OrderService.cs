@@ -70,30 +70,6 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
-		public async Task<BaseResponse<string>> UpdateOrderAddressAsync(Guid orderId, Guid userId, UpdateOrderAddressRequest request)
-		{
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			   {
-				   // 1. Load order with related data
-				   var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId)
-					   ?? throw AppException.NotFound("Order not found.");
-
-				   order.EnsureAddressUpdatable();
-
-				   // 2. Get existing recipient or create new one
-				   if (order.ContactAddress == null)
-				   {
-					   await _shippingHelper.SetupShippingInfoAsync(order, request.RecipientInformation, userId, request.SavedAddressId);
-					   return BaseResponse<string>.Ok("Order address updated successfully.");
-				   }
-
-				   // 3. Update existing recipient
-				   var updateResult = await _recipientService.UpdateContactAddressAsync(order.ContactAddress, request.RecipientInformation, request.SavedAddressId, userId);
-
-				   return BaseResponse<string>.Ok("Order address updated successfully.");
-			   });
-		}
-
 		#region Query Operations
 		public async Task<BaseResponse<OrderResponse>> GetOrderByCodeAsync(string orderCode)
 		{
