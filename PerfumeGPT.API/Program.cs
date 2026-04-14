@@ -1,7 +1,6 @@
 using Hangfire;
 using MicroElements.AspNetCore.OpenApi.FluentValidation;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.EntityFrameworkCore;
@@ -110,12 +109,6 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 	// options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
 });
 
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
-{
-    options.ForwardedHeaders =
-        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-});
-
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -126,8 +119,6 @@ if (app.Environment.IsDevelopment())
 	app.MapOpenApi();
 	app.MapScalarApiReference();
 }
-
-app.UseForwardedHeaders();
 
 //app.UseCors("AllowConfiguredOrigins");
 app.UseCors("AllowAllForDev");
