@@ -52,6 +52,13 @@ namespace PerfumeGPT.Persistence.Repositories
 					InspectionNote = r.InspectionNote,
 					Status = r.Status,
 					RequestedRefundAmount = r.RequestedRefundAmount,
+					RefundedShippingFee = r.RequestedRefundAmount > r.ReturnDetails.Sum(d => d.OrderDetail.Quantity > 0
+						  ? (d.OrderDetail.UnitPrice - (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) - (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity)) * d.RequestedQuantity
+						  : 0m)
+						? r.RequestedRefundAmount - r.ReturnDetails.Sum(d => d.OrderDetail.Quantity > 0
+							? (d.OrderDetail.UnitPrice - (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) - (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity)) * d.RequestedQuantity
+							: 0m)
+						: 0m,
 					ApprovedRefundAmount = r.ApprovedRefundAmount,
 					IsRefunded = r.IsRefunded,
 					IsRefundOnly = r.IsRefundOnly,
@@ -81,9 +88,15 @@ namespace PerfumeGPT.Persistence.Repositories
 							VariantId = d.OrderDetail.VariantId,
 							RequestedQuantity = d.RequestedQuantity,
 							UnitPrice = d.OrderDetail.UnitPrice,
+							CampaignDiscount = d.OrderDetail.Quantity > 0
+								? (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) * d.RequestedQuantity
+								: 0m,
+							VoucherDiscount = d.OrderDetail.Quantity > 0
+								? (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity) * d.RequestedQuantity
+								: 0m,
 							RefundableAmount = d.OrderDetail.Quantity > 0
-								? (d.OrderDetail.FinalTotal / d.OrderDetail.Quantity) * d.RequestedQuantity
-								: 0
+							 ? (d.OrderDetail.UnitPrice - (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) - (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity)) * d.RequestedQuantity
+								: 0m
 						})
 						.ToList(),
 					CreatedAt = r.CreatedAt,
@@ -132,6 +145,13 @@ namespace PerfumeGPT.Persistence.Repositories
 					InspectionNote = r.InspectionNote,
 					Status = r.Status,
 					RequestedRefundAmount = r.RequestedRefundAmount,
+					RefundedShippingFee = r.RequestedRefundAmount > r.ReturnDetails.Sum(d => d.OrderDetail.Quantity > 0
+						  ? (d.OrderDetail.UnitPrice - (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) - (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity)) * d.RequestedQuantity
+						  : 0m)
+						? r.RequestedRefundAmount - r.ReturnDetails.Sum(d => d.OrderDetail.Quantity > 0
+							? (d.OrderDetail.UnitPrice - (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) - (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity)) * d.RequestedQuantity
+							: 0m)
+						: 0m,
 					ApprovedRefundAmount = r.ApprovedRefundAmount,
 					IsRefunded = r.IsRefunded,
 					IsRefundOnly = r.IsRefundOnly,
@@ -161,9 +181,15 @@ namespace PerfumeGPT.Persistence.Repositories
 							VariantId = d.OrderDetail.VariantId,
 							RequestedQuantity = d.RequestedQuantity,
 							UnitPrice = d.OrderDetail.UnitPrice,
+							CampaignDiscount = d.OrderDetail.Quantity > 0
+								? (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) * d.RequestedQuantity
+								: 0m,
+							VoucherDiscount = d.OrderDetail.Quantity > 0
+								? (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity) * d.RequestedQuantity
+								: 0m,
 							RefundableAmount = d.OrderDetail.Quantity > 0
-								? (d.OrderDetail.FinalTotal / d.OrderDetail.Quantity) * d.RequestedQuantity
-								: 0
+							 ? (d.OrderDetail.UnitPrice - (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) - (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity)) * d.RequestedQuantity
+								: 0m
 						})
 						.ToList(),
 					CreatedAt = r.CreatedAt,
@@ -195,6 +221,13 @@ namespace PerfumeGPT.Persistence.Repositories
 					InspectionNote = r.InspectionNote,
 					Status = r.Status,
 					RequestedRefundAmount = r.RequestedRefundAmount,
+					RefundedShippingFee = r.RequestedRefundAmount > r.ReturnDetails.Sum(d => d.OrderDetail.Quantity > 0
+						  ? (d.OrderDetail.UnitPrice - (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) - (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity)) * d.RequestedQuantity
+						  : 0m)
+						? r.RequestedRefundAmount - r.ReturnDetails.Sum(d => d.OrderDetail.Quantity > 0
+							? (d.OrderDetail.UnitPrice - (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) - (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity)) * d.RequestedQuantity
+							: 0m)
+						: 0m,
 					ApprovedRefundAmount = r.ApprovedRefundAmount,
 					IsRefunded = r.IsRefunded,
 					IsRefundOnly = r.IsRefundOnly,
@@ -223,7 +256,16 @@ namespace PerfumeGPT.Persistence.Repositories
 							OrderDetailId = d.OrderDetailId,
 							VariantId = d.OrderDetail.VariantId,
 							RequestedQuantity = d.RequestedQuantity,
-							UnitPrice = d.OrderDetail.UnitPrice
+							UnitPrice = d.OrderDetail.UnitPrice,
+							CampaignDiscount = d.OrderDetail.Quantity > 0
+								? (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) * d.RequestedQuantity
+								: 0m,
+							VoucherDiscount = d.OrderDetail.Quantity > 0
+								? (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity) * d.RequestedQuantity
+								: 0m,
+							RefundableAmount = d.OrderDetail.Quantity > 0
+								? (d.OrderDetail.UnitPrice - (d.OrderDetail.PromotionDiscountAmount / d.OrderDetail.Quantity) - (d.OrderDetail.ApportionedDiscount / d.OrderDetail.Quantity)) * d.RequestedQuantity
+								: 0m
 						})
 						.ToList(),
 					ProofImages = r.ProofImages
