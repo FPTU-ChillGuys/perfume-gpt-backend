@@ -126,12 +126,6 @@ namespace PerfumeGPT.Persistence.Repositories
 			.Include(v => v.ProductAttributes)
 			.FirstOrDefaultAsync();
 
-		public async Task<ProductVariant?> GetByIdWithSuppliersAsync(Guid variantId)
-		=> await _context.ProductVariants
-			.Where(v => !v.IsDeleted && v.Id == variantId)
-			.Include(v => v.Suppliers)
-			.FirstOrDefaultAsync();
-
 		public async Task<List<ProductVariant>> GetVariantsWithDetailsByIdsAsync(IEnumerable<Guid> variantIds)
 		=> await _context.ProductVariants
 				.Where(v => !v.IsDeleted && variantIds.Contains(v.Id))
@@ -190,7 +184,8 @@ namespace PerfumeGPT.Persistence.Repositories
 								Value = pa.Value.Value
 							})
 						   .ToList(),
-				Suppliers = v.Suppliers
+				Suppliers = _context.VariantSuppliers
+							.Where(s => s.ProductVariantId == v.Id)
 							.OrderByDescending(s => s.IsPrimary)
 							.ThenBy(s => s.Supplier.Name)
 							.Select(s => new VariantSupplierResponse
@@ -239,7 +234,7 @@ namespace PerfumeGPT.Persistence.Repositories
 							pi.Campaign.EndDate >= now)
 						.SelectMany(pi => pi.Campaign.Vouchers)
 				.Where(voucher => !voucher.IsDeleted && voucher.ExpiryDate >= now && (voucher.RemainingQuantity == null || voucher.RemainingQuantity > 0))
-                .GroupBy(voucher => voucher.Code)
+				.GroupBy(voucher => voucher.Code)
 				.Select(g => g.Key)
 				.ToList()
 		})

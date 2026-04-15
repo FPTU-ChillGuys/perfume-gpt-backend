@@ -30,6 +30,7 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 		public IPaymentRepository Payments => GetRepo(ctx => new PaymentRepository(ctx));
 		public ICartItemRepository CartItems => GetRepo(ctx => new CartItemRepository(ctx));
 		public IVariantRepository Variants => GetRepo(ctx => new VariantRepository(ctx));
+		public IVariantSupplierRepository VariantSuppliers => GetRepo(ctx => new VariantSupplierRepository(ctx));
 		public IStockRepository Stocks => GetRepo(ctx => new StockRepository(ctx));
 		public IImportTicketRepository ImportTickets => GetRepo(ctx => new ImportTicketRepository(ctx));
 		public IImportDetailRepository ImportDetails => GetRepo(ctx => new ImportDetailRepository(ctx));

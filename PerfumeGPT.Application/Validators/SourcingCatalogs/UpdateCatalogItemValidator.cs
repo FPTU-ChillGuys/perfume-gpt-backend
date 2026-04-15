@@ -1,11 +1,11 @@
 using FluentValidation;
-using PerfumeGPT.Application.DTOs.Requests.Variants;
+using PerfumeGPT.Application.DTOs.Requests.SourcingCatalogs;
 
-namespace PerfumeGPT.Application.Validators.Variants
+namespace PerfumeGPT.Application.Validators.SourcingCatalogs
 {
-	public class UpdateVariantSupplierValidator : AbstractValidator<UpdateVariantSupplierRequest>
+	public class UpdateCatalogItemValidator : AbstractValidator<UpdateCatalogItemRequest>
 	{
-		public UpdateVariantSupplierValidator()
+		public UpdateCatalogItemValidator()
 		{
 			RuleFor(x => x.NegotiatedPrice)
 				.GreaterThan(0).WithMessage("NegotiatedPrice must be greater than 0.");

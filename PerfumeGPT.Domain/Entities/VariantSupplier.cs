@@ -6,18 +6,18 @@ namespace PerfumeGPT.Domain.Entities
 {
 	public class VariantSupplier : BaseEntity<Guid>, IHasTimestamps
 	{
-		internal VariantSupplier() { }
-		public Guid ProductVariantId { get; internal set; }
-		public int SupplierId { get; internal set; }
+		private VariantSupplier() { }
+		public Guid ProductVariantId { get; private set; }
+		public int SupplierId { get; private set; }
 
 		// Giá nhập ĐÃ THƯƠNG LƯỢNG hiện tại (AI sẽ lấy giá này)
-		public decimal NegotiatedPrice { get; internal set; }
+		public decimal NegotiatedPrice { get; private set; }
 
 		// Nếu 1 sản phẩm có nhiều nhà cung cấp, AI sẽ ưu tiên chọn nhà cung cấp Primary
-		public bool IsPrimary { get; internal set; }
+		public bool IsPrimary { get; private set; }
 
 		// Có thể thêm LeadTime (Số ngày giao hàng dự kiến) để AI tính toán ExpectedArrivalDate
-		public int EstimatedLeadTimeDays { get; internal set; }
+		public int EstimatedLeadTimeDays { get; private set; }
 
 		// Navigation Properties
 		public virtual ProductVariant ProductVariant { get; set; } = null!;
@@ -27,17 +27,43 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime CreatedAt { get; set; }
 		public DateTime? UpdatedAt { get; set; }
 
-		// Business Logic
-		internal void UpdatePriceAndLeadTime(decimal newPrice, int leadTimeDays)
+		public static VariantSupplier Create(Guid productVariantId, int supplierId, decimal negotiatedPrice, int leadTimeDays, bool isPrimary)
 		{
-			if (newPrice <= 0) throw new DomainException("Price must be positive.");
-			if (leadTimeDays < 0) throw new DomainException("Lead time cannot be negative.");
+			if (productVariantId == Guid.Empty)
+				throw DomainException.BadRequest("Product variant is required.");
+
+			if (supplierId <= 0)
+				throw DomainException.BadRequest("Supplier is required.");
+
+			if (negotiatedPrice <= 0)
+				throw DomainException.BadRequest("Price must be positive.");
+
+			if (leadTimeDays < 0)
+				throw DomainException.BadRequest("Lead time cannot be negative.");
+
+			return new VariantSupplier
+			{
+				ProductVariantId = productVariantId,
+				SupplierId = supplierId,
+				NegotiatedPrice = negotiatedPrice,
+				EstimatedLeadTimeDays = leadTimeDays,
+				IsPrimary = isPrimary
+			};
+		}
+
+		public void UpdatePricing(decimal newPrice, int leadTimeDays)
+		{
+			if (newPrice <= 0)
+				throw DomainException.BadRequest("Price must be positive.");
+
+			if (leadTimeDays < 0)
+				throw DomainException.BadRequest("Lead time cannot be negative.");
 
 			NegotiatedPrice = newPrice;
 			EstimatedLeadTimeDays = leadTimeDays;
 		}
 
-		internal void SetAsPrimary() => IsPrimary = true;
-		internal void RemovePrimary() => IsPrimary = false;
+		public void SetAsPrimary() => IsPrimary = true;
+		public void RemovePrimary() => IsPrimary = false;
 	}
 }

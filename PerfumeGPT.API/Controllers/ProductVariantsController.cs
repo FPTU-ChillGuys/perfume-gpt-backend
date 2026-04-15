@@ -20,8 +20,6 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IMediaService _mediaService;
 		private readonly IValidator<CreateVariantRequest> _createVariantValidator;
 		private readonly IValidator<UpdateVariantRequest> _updateVariantValidator;
-		private readonly IValidator<CreateVariantSupplierRequest> _createVariantSupplierValidator;
-		private readonly IValidator<UpdateVariantSupplierRequest> _updateVariantSupplierValidator;
 		private readonly IValidator<VariantUploadMediaRequest> _variantUploadValidator;
 
 		public ProductVariantsController(
@@ -29,16 +27,12 @@ namespace PerfumeGPT.API.Controllers
 			IMediaService mediaService,
 			IValidator<CreateVariantRequest> createVariantValidator,
 			IValidator<UpdateVariantRequest> updateVariantValidator,
-		   IValidator<CreateVariantSupplierRequest> createVariantSupplierValidator,
-			IValidator<UpdateVariantSupplierRequest> updateVariantSupplierValidator,
 			IValidator<VariantUploadMediaRequest> variantUploadValidator)
 		{
 			_variantService = variantService;
 			_mediaService = mediaService;
 			_createVariantValidator = createVariantValidator;
 			_updateVariantValidator = updateVariantValidator;
-			_createVariantSupplierValidator = createVariantSupplierValidator;
-			_updateVariantSupplierValidator = updateVariantSupplierValidator;
 			_variantUploadValidator = variantUploadValidator;
 		}
 
@@ -66,7 +60,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("lookup")]
 		[ProducesResponseType(typeof(BaseResponse<List<VariantLookupItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<List<VariantLookupItem>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<List<VariantLookupItem>>>> GetVariantLookupList([FromQuery] Guid? productId = null)
+		public async Task<ActionResult<BaseResponse<List<VariantLookupItem>>>> GetVariantLookupList([FromQuery] Guid? productId = null, [FromQuery] Guid? supplierId = null)
 		{
 			var result = await _variantService.GetVariantLookupListAsync(productId);
 			return HandleResponse(result);
@@ -117,51 +111,6 @@ namespace PerfumeGPT.API.Controllers
 			if (validation != null) return validation;
 
 			var result = await _variantService.UpdateVariantAsync(variantId, request);
-			return HandleResponse(result);
-		}
-
-		[HttpPost("{variantId:guid}/suppliers")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> AddVariantSupplier(
-			[FromRoute] Guid variantId,
-			[FromBody] CreateVariantSupplierRequest request)
-		{
-			var validation = await ValidateRequestAsync(_createVariantSupplierValidator, request);
-			if (validation != null) return validation;
-
-			var result = await _variantService.AddSupplierAsync(variantId, request);
-			return HandleResponse(result);
-		}
-
-		[HttpPut("{variantId:guid}/suppliers/{supplierId:int}")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> UpdateVariantSupplier(
-			[FromRoute] Guid variantId,
-			[FromRoute] int supplierId,
-			[FromBody] UpdateVariantSupplierRequest request)
-		{
-			var validation = await ValidateRequestAsync(_updateVariantSupplierValidator, request);
-			if (validation != null) return validation;
-
-			var result = await _variantService.UpdateSupplierAsync(variantId, supplierId, request);
-			return HandleResponse(result);
-		}
-
-		[HttpDelete("{variantId:guid}/suppliers/{supplierId:int}")]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> RemoveVariantSupplier(
-			[FromRoute] Guid variantId,
-			[FromRoute] int supplierId)
-		{
-			var result = await _variantService.RemoveSupplierAsync(variantId, supplierId);
 			return HandleResponse(result);
 		}
 

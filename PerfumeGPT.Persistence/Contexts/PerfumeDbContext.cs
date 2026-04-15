@@ -410,10 +410,10 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(it => it.SupplierId)
 				.OnDelete(DeleteBehavior.Restrict);
 
-			// Supplier -> VariantSuppliers (1:M)
-			builder.Entity<Supplier>()
-				.HasMany(s => s.VariantSuppliers)
-				.WithOne(vs => vs.Supplier)
+			// VariantSupplier -> Supplier (M:1)
+			builder.Entity<VariantSupplier>()
+				.HasOne(vs => vs.Supplier)
+				.WithMany()
 				.HasForeignKey(vs => vs.SupplierId)
 				.OnDelete(DeleteBehavior.Restrict);
 
@@ -546,12 +546,12 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(d => d.ProductVariantId)
 				.OnDelete(DeleteBehavior.Restrict);
 
-			// Variant -> VariantSuppliers (1:M)
-			builder.Entity<ProductVariant>()
-				.HasMany(v => v.Suppliers)
-				.WithOne(vs => vs.ProductVariant)
+			// VariantSupplier -> ProductVariant (M:1)
+			builder.Entity<VariantSupplier>()
+				.HasOne(vs => vs.ProductVariant)
+				.WithMany()
 				.HasForeignKey(vs => vs.ProductVariantId)
-				.OnDelete(DeleteBehavior.Cascade);
+				.OnDelete(DeleteBehavior.Restrict);
 
 			builder.Entity<VariantSupplier>()
 				.HasIndex(vs => new { vs.ProductVariantId, vs.SupplierId })

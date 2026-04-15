@@ -21,6 +21,7 @@
 		IOrderRepository Orders { get; }
 		ICartItemRepository CartItems { get; }
 		IVariantRepository Variants { get; }
+        IVariantSupplierRepository VariantSuppliers { get; }
 		IStockRepository Stocks { get; }
 		IImportTicketRepository ImportTickets { get; }
 		IImportDetailRepository ImportDetails { get; }
