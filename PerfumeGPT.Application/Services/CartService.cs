@@ -771,12 +771,17 @@ namespace PerfumeGPT.Application.Services
 
 		private async Task<Dictionary<Guid, List<PromotionItem>>> GetActivePromotionsByVariantAsync(Guid campaignId, PromotionType itemType, List<Guid> variantIds)
 		{
+			var now = DateTime.UtcNow;
+
 			var promotionItems = await _unitOfWork.PromotionItems.GetAllAsync(
 				i => i.CampaignId == campaignId
 				  && !i.IsDeleted
 				  && i.ItemType == itemType
 				  && variantIds.Contains(i.TargetProductVariantId)
 				  && i.IsActive
+				 && i.Campaign.Status == CampaignStatus.Active
+				  && i.Campaign.StartDate <= now
+				  && i.Campaign.EndDate >= now
 				  && (!i.MaxUsage.HasValue || i.CurrentUsage < i.MaxUsage.Value),
 				asNoTracking: true);
 
