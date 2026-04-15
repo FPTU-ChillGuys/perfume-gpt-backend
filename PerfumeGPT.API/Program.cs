@@ -66,11 +66,18 @@ builder.Services.AddControllers();
 builder.Services.AddFluentValidationRulesToOpenApi();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+var openApiServerUrl = builder.Configuration["OpenAPI:ServerUrl"];
 builder.Services.AddOpenApi(options =>
 {
 	options.AddFluentValidationRules();
 	options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
 	options.AddSchemaTransformer<EnumSchemaTransformer>();
+
+	// Set custom server URL from configuration (for Cloudflare Tunnel)
+	if (!string.IsNullOrWhiteSpace(openApiServerUrl))
+	{
+		options.AddDocumentTransformer(new ServerUrlTransformer(openApiServerUrl));
+	}
 
 	TypeTransformer.MapType<decimal>(new OpenApiSchema { Type = JsonSchemaType.Number, Format = "decimal" });
 	TypeTransformer.MapType<decimal?>(new OpenApiSchema { Type = JsonSchemaType.Number | JsonSchemaType.Null, Format = "decimal" });
@@ -151,6 +158,16 @@ void ApplyMigration()
 	if (_db.Database.GetPendingMigrations().Any())
 	{
 		_db.Database.Migrate();
+	}
+}
+
+internal sealed class ServerUrlTransformer(string serverUrl) : IOpenApiDocumentTransformer
+{
+	public Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
+	{
+		// Set the server URL to use HTTPS from Cloudflare Tunnel
+		document.Servers = [new OpenApiServer { Url = serverUrl }];
+		return Task.CompletedTask;
 	}
 }
 
