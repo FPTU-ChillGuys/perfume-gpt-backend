@@ -50,8 +50,9 @@ namespace PerfumeGPT.Domain.Entities
 			if (dto.ExpiryDate <= DateTime.UtcNow)
 				throw DomainException.BadRequest("Expiry date must be in the future.");
 
-			return new Batch
+			var batch = new Batch
 			{
+				Id = Guid.NewGuid(),
 				VariantId = dto.VariantId,
 				ImportDetailId = dto.ImportDetailId,
 				BatchCode = dto.BatchCode.Trim(),
@@ -61,6 +62,19 @@ namespace PerfumeGPT.Domain.Entities
 				RemainingQuantity = dto.Quantity,
 				ReservedQuantity = 0
 			};
+
+			batch.AddDomainEvent(new PhysicalStockChangedDomainEvent(
+				batch.VariantId,
+				batch.Id,
+				batch.ImportQuantity,
+				batch.RemainingQuantity,
+				StockTransactionType.Import,
+				batch.ImportDetailId,
+				$"Import batch {batch.BatchCode} created with quantity {batch.ImportQuantity}.",
+				null
+			));
+
+			return batch;
 		}
 
 		// Business logic methods
