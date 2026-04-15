@@ -65,5 +65,13 @@ namespace PerfumeGPT.Infrastructure.Hubs
 
 			await Clients.OthersInGroup(sessionId).PaymentLinkUpdated(paymentData);
 		}
+
+		public async Task NotifyOrderDelivered(string sessionId, string orderCode)
+		{
+			if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(orderCode))
+				throw new HubException("Invalid session or order code.");
+
+			await Clients.OthersInGroup(sessionId).OrderDelivered(orderCode);
+		}
 	}
 }

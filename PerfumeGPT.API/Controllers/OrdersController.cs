@@ -1,12 +1,15 @@
 ﻿using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Payments;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
+using PerfumeGPT.Infrastructure.Hubs;
 
 namespace PerfumeGPT.API.Controllers
 {
@@ -23,6 +26,7 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<UserCancelOrderRequest> _cancelOrderValidator;
 		private readonly IValidator<FulfillOrderRequest> _fulfillOrderValidator;
 		private readonly IValidator<SwapDamagedStockRequest> _swapDamagedStockValidator;
+		private readonly IHubContext<PosHub, IPosClient> _posHubContext;
 
 		public OrdersController(
 			IOrderService orderService,
@@ -33,7 +37,8 @@ namespace PerfumeGPT.API.Controllers
 			IValidator<StaffCancelOrderRequest> staffCancelOrderValidator,
 			IValidator<UserCancelOrderRequest> cancelOrderValidator,
 			IValidator<FulfillOrderRequest> fulfillOrderValidator,
-			IValidator<SwapDamagedStockRequest> swapDamagedStockValidator)
+          IValidator<SwapDamagedStockRequest> swapDamagedStockValidator,
+			IHubContext<PosHub, IPosClient> posHubContext)
 		{
 			_orderService = orderService;
 			_updateOrderAddressValidator = updateOrderAddressValidator;
@@ -44,6 +49,7 @@ namespace PerfumeGPT.API.Controllers
 			_cancelOrderValidator = cancelOrderValidator;
 			_fulfillOrderValidator = fulfillOrderValidator;
 			_swapDamagedStockValidator = swapDamagedStockValidator;
+           _posHubContext = posHubContext;
 		}
 
 		#region User Query Operations
@@ -258,10 +264,21 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> DeliverOrderToInStoreCustomer([FromRoute] Guid orderId)
+       public async Task<ActionResult<BaseResponse<string>>> DeliverOrderToInStoreCustomer([FromRoute] Guid orderId, [FromBody] DeliverInStoreRequest request)
 		{
 			var staffId = GetCurrentUserId();
 			var response = await _orderService.DeliverOrderToInStoreCustomerAsync(orderId, staffId);
+
+			if (response.Success && !string.IsNullOrWhiteSpace(request.PosSessionId))
+			{
+				var orderResponse = await _orderService.GetOrderByIdAsync(orderId);
+				if (orderResponse.Success && orderResponse.Payload != null)
+				{
+					await _posHubContext.Clients.Group(request.PosSessionId)
+						.OrderDelivered(orderResponse.Payload.Code);
+				}
+			}
+
 			return HandleResponse(response);
 		}
 

@@ -1,12 +1,15 @@
 ﻿using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Requests.Payments;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Payments;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
+using PerfumeGPT.Infrastructure.Hubs;
 
 namespace PerfumeGPT.API.Controllers
 {
@@ -18,17 +21,20 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IConfiguration _configuration;
 		private readonly IValidator<ConfirmPaymentRequest> _confirmPaymentValidator;
 		private readonly ILogger<PaymentsController> _logger;
+		private readonly IHubContext<PosHub, IPosClient> _posHubContext;
 
 		public PaymentsController(
 			IPaymentService paymentService,
 			IConfiguration configuration,
 			ILogger<PaymentsController> logger,
-			IValidator<ConfirmPaymentRequest> confirmPaymentValidator)
+          IValidator<ConfirmPaymentRequest> confirmPaymentValidator,
+			IHubContext<PosHub, IPosClient> posHubContext)
 		{
 			_paymentService = paymentService;
 			_configuration = configuration;
 			_logger = logger;
 			_confirmPaymentValidator = confirmPaymentValidator;
+           _posHubContext = posHubContext;
 		}
 
 		[HttpGet("momo-return")]
@@ -199,6 +205,19 @@ namespace PerfumeGPT.API.Controllers
 			if (validation != null) return validation;
 
 			var response = await _paymentService.UpdatePaymentStatusAsync(paymentId, request);
+
+			if (response.Success && request.IsSuccess && !string.IsNullOrWhiteSpace(request.PosSessionId))
+			{
+				await _posHubContext.Clients.Group(request.PosSessionId)
+					.PaymentCompleted(new PosPaymentCompletedDto
+					{
+						OrderId = Guid.Empty,
+						PaymentId = paymentId,
+						Status = "Success",
+						Message = "Thanh toán thành công"
+					});
+			}
+
 			return HandleResponse(response);
 		}
 

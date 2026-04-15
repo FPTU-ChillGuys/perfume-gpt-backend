@@ -14,6 +14,12 @@ namespace PerfumeGPT.Application.Validators.Payments
 				RuleFor(x => x.FailureReason)
 					.NotEmpty().WithMessage("Failure reason must be provided when payment is not successful.");
 			});
+
+			When(x => x.IsSuccess, () =>
+			{
+				RuleFor(x => x.PosSessionId)
+					.NotEmpty().WithMessage("POS session ID must be provided when payment is successful.");
+			});
 		}
 	}
 }

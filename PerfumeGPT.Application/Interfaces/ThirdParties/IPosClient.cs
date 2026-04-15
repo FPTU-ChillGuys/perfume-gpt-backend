@@ -10,5 +10,6 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		Task PaymentCompleted(PosPaymentCompletedDto paymentData);
 		Task PaymentFailed(PosPaymentCompletedDto paymentData);
 		Task PaymentLinkUpdated(PosPaymentLinkDto paymentData);
+       Task OrderDelivered(string orderCode);
 	}
 }

@@ -4,5 +4,6 @@
 	{
 		public bool IsSuccess { get; init; }
 		public string? FailureReason { get; init; }
+       public string? PosSessionId { get; init; }
 	}
 }
