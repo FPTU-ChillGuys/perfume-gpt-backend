@@ -60,9 +60,9 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("lookup")]
 		[ProducesResponseType(typeof(BaseResponse<List<VariantLookupItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<List<VariantLookupItem>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<List<VariantLookupItem>>>> GetVariantLookupList([FromQuery] Guid? productId = null, [FromQuery] Guid? supplierId = null)
+        public async Task<ActionResult<BaseResponse<List<VariantLookupItem>>>> GetVariantLookupList([FromQuery] Guid? productId = null, [FromQuery] int? supplierId = null)
 		{
-			var result = await _variantService.GetVariantLookupListAsync(productId);
+            var result = await _variantService.GetVariantLookupListAsync(productId, supplierId);
 			return HandleResponse(result);
 		}
 

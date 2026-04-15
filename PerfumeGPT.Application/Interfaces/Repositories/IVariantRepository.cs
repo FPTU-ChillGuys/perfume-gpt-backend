@@ -7,7 +7,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 {
 	public interface IVariantRepository : IGenericRepository<ProductVariant>
 	{
-		Task<List<VariantLookupItem>> GetLookupList(Guid? productId = null);
+        Task<List<VariantLookupItem>> GetLookupList(Guid? productId = null, int? supplierId = null);
 		Task<ProductVariantResponse?> GetByBarcodeAsync(string barcode);
 		Task<ProductVariantForPosResponse?> GetVariantByInfoAsync(string keyword);
 		Task<ProductVariant?> GetBySkuAsync(string sku);

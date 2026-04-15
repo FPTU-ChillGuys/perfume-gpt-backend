@@ -182,9 +182,9 @@ namespace PerfumeGPT.Application.Services
 		public async Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId)
 			=> await _unitOfWork.Variants.GetVariantForCreateOrderAsync(variantId);
 
-		public async Task<BaseResponse<List<VariantLookupItem>>> GetVariantLookupListAsync(Guid? productId = null)
+      public async Task<BaseResponse<List<VariantLookupItem>>> GetVariantLookupListAsync(Guid? productId = null, int? supplierId = null)
 		{
-			var lookupItems = await _unitOfWork.Variants.GetLookupList(productId);
+          var lookupItems = await _unitOfWork.Variants.GetLookupList(productId, supplierId);
 			return BaseResponse<List<VariantLookupItem>>.Ok(
 				lookupItems, "Variant lookup list retrieved successfully");
 		}
