@@ -71,14 +71,46 @@ namespace PerfumeGPT.Application.Services
 		#endregion Dependencies
 
 		#region Query Operations
-		public async Task<BaseResponse<OrderResponse>> GetOrderByCodeAsync(string orderCode)
+		//public async Task<BaseResponse<OrderResponse>> GetOrderByCodeAsync(string orderCode)
+		//{
+		//	var order = await _unitOfWork.Orders.GetOrderWithFullDetailsByCodeAsync(orderCode);
+		//	if (order == null)
+		//	{
+		//		return BaseResponse<OrderResponse>.Fail("Order not found or does not belong to user.", ResponseErrorType.NotFound);
+		//	}
+		//	return BaseResponse<OrderResponse>.Ok(order, "Order retrieved successfully.");
+		//}
+
+		public async Task<BaseResponse<OrderResponse>> GetOrderForPosPickupAsync(string orderCode)
 		{
-			var order = await _unitOfWork.Orders.GetOrderWithFullDetailsByCodeAsync(orderCode);
+			if (string.IsNullOrWhiteSpace(orderCode))
+			{
+				return BaseResponse<OrderResponse>.Fail("Mã đơn hàng là bắt buộc.", ResponseErrorType.BadRequest);
+			}
+
+			var order = await _unitOfWork.Orders.GetOrderWithFullDetailsByCodeAsync(orderCode.Trim());
 			if (order == null)
 			{
-				return BaseResponse<OrderResponse>.Fail("Order not found or does not belong to user.", ResponseErrorType.NotFound);
+				return BaseResponse<OrderResponse>.Fail("Không tìm thấy đơn hàng.", ResponseErrorType.NotFound);
 			}
-			return BaseResponse<OrderResponse>.Ok(order, "Order retrieved successfully.");
+
+			var isStorePickupOrder = order.Type == OrderType.Online && order.ShippingInfo == null;
+			if (!isStorePickupOrder)
+			{
+				return BaseResponse<OrderResponse>.Fail("Đây không phải đơn nhận tại cửa hàng.", ResponseErrorType.BadRequest);
+			}
+
+			if (order.Status != OrderStatus.ReadyToPick)
+			{
+				return BaseResponse<OrderResponse>.Fail($"Đơn hàng đang ở trạng thái {order.Status}. Vui lòng soạn hàng trước khi giao.", ResponseErrorType.BadRequest);
+			}
+
+			if (order.PaymentTransactions == null || order.PaymentTransactions.Count == 0 || order.PaymentTransactions[0].Id == Guid.Empty)
+			{
+				return BaseResponse<OrderResponse>.Fail("Đơn hàng thiếu thông tin thanh toán để xử lý tại quầy.", ResponseErrorType.BadRequest);
+			}
+
+			return BaseResponse<OrderResponse>.Ok(order, "Lookup order successfully.");
 		}
 
 		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersAsync(GetPagedOrdersRequest request)

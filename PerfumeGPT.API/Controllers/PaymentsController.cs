@@ -27,14 +27,14 @@ namespace PerfumeGPT.API.Controllers
 			IPaymentService paymentService,
 			IConfiguration configuration,
 			ILogger<PaymentsController> logger,
-          IValidator<ConfirmPaymentRequest> confirmPaymentValidator,
+			IValidator<ConfirmPaymentRequest> confirmPaymentValidator,
 			IHubContext<PosHub, IPosClient> posHubContext)
 		{
 			_paymentService = paymentService;
 			_configuration = configuration;
 			_logger = logger;
 			_confirmPaymentValidator = confirmPaymentValidator;
-           _posHubContext = posHubContext;
+			_posHubContext = posHubContext;
 		}
 
 		[HttpGet("momo-return")]

@@ -18,7 +18,6 @@ namespace PerfumeGPT.API.Controllers
 	public class OrdersController : BaseApiController
 	{
 		private readonly IOrderService _orderService;
-		private readonly IValidator<UpdateOrderAddressRequest> _updateOrderAddressValidator;
 		private readonly IValidator<GetPagedOrdersRequest> _pagedOrdersValidator;
 		private readonly IValidator<CreateOrderRequest> _checkoutValidator;
 		private readonly IValidator<CreateInStoreOrderRequest> _checkoutInStoreValidator;
@@ -30,18 +29,16 @@ namespace PerfumeGPT.API.Controllers
 
 		public OrdersController(
 			IOrderService orderService,
-			IValidator<UpdateOrderAddressRequest> updateOrderAddressValidator,
 			IValidator<GetPagedOrdersRequest> pagedOrdersValidator,
 			IValidator<CreateOrderRequest> checkoutValidator,
 			IValidator<CreateInStoreOrderRequest> checkoutInStoreValidator,
 			IValidator<StaffCancelOrderRequest> staffCancelOrderValidator,
 			IValidator<UserCancelOrderRequest> cancelOrderValidator,
 			IValidator<FulfillOrderRequest> fulfillOrderValidator,
-          IValidator<SwapDamagedStockRequest> swapDamagedStockValidator,
+		  IValidator<SwapDamagedStockRequest> swapDamagedStockValidator,
 			IHubContext<PosHub, IPosClient> posHubContext)
 		{
 			_orderService = orderService;
-			_updateOrderAddressValidator = updateOrderAddressValidator;
 			_pagedOrdersValidator = pagedOrdersValidator;
 			_checkoutValidator = checkoutValidator;
 			_checkoutInStoreValidator = checkoutInStoreValidator;
@@ -49,7 +46,7 @@ namespace PerfumeGPT.API.Controllers
 			_cancelOrderValidator = cancelOrderValidator;
 			_fulfillOrderValidator = fulfillOrderValidator;
 			_swapDamagedStockValidator = swapDamagedStockValidator;
-           _posHubContext = posHubContext;
+			_posHubContext = posHubContext;
 		}
 
 		#region User Query Operations
@@ -81,16 +78,16 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpGet("order-code")]
-		[Authorize(Roles = "user")]
-		[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<UserOrderResponse>>> GetOrderByCode([FromQuery] string orderCode)
-		{
-			var response = await _orderService.GetOrderByCodeAsync(orderCode);
-			return HandleResponse(response);
-		}
+		//[HttpGet("order-code")]
+		//[Authorize(Roles = "user")]
+		//[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status200OK)]
+		//[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status404NotFound)]
+		//[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status500InternalServerError)]
+		//public async Task<ActionResult<BaseResponse<UserOrderResponse>>> GetOrderByCode([FromQuery] string orderCode)
+		//{
+		//	var response = await _orderService.GetOrderByCodeAsync(orderCode);
+		//	return HandleResponse(response);
+		//}
 
 		[HttpGet("my-orders/{orderId:guid}/invoice")]
 		[Authorize(Roles = "user")]
@@ -115,6 +112,18 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<PagedResult<OrderListItem>>>> GetOrders([FromQuery] GetPagedOrdersRequest request)
 		{
 			var response = await _orderService.GetOrdersAsync(request);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("order-code/{code}")]
+		[Authorize(Roles = "staff")]
+		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status400BadRequest)]
+		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status404NotFound)]
+		[ProducesResponseType(typeof(BaseResponse<OrderResponse>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<OrderResponse>>> GetOrderForPosPickup([FromRoute] string code)
+		{
+			var response = await _orderService.GetOrderForPosPickupAsync(code);
 			return HandleResponse(response);
 		}
 
@@ -264,7 +273,7 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-       public async Task<ActionResult<BaseResponse<string>>> DeliverOrderToInStoreCustomer([FromRoute] Guid orderId, [FromBody] DeliverInStoreRequest request)
+		public async Task<ActionResult<BaseResponse<string>>> DeliverOrderToInStoreCustomer([FromRoute] Guid orderId, [FromBody] DeliverInStoreRequest request)
 		{
 			var staffId = GetCurrentUserId();
 			var response = await _orderService.DeliverOrderToInStoreCustomerAsync(orderId, staffId);

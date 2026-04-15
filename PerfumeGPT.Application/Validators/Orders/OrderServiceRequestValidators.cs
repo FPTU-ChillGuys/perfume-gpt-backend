@@ -5,22 +5,6 @@ using PerfumeGPT.Application.Validators.ContactAddresses;
 
 namespace PerfumeGPT.Application.Validators.Orders
 {
-	public class UpdateOrderAddressRequestValidator : AbstractValidator<UpdateOrderAddressRequest>
-	{
-		public UpdateOrderAddressRequestValidator()
-		{
-			RuleFor(x => x)
-				.Must(x => x.SavedAddressId.HasValue || x.RecipientInformation != null)
-				.WithMessage("Either saved address ID or recipient information must be provided.");
-
-			When(x => x.RecipientInformation != null, () =>
-			{
-				RuleFor(x => x.RecipientInformation!)
-					.SetValidator(new ContactAddressInformationValidator());
-			});
-		}
-	}
-
 	public class GetPagedOrdersRequestValidator : AbstractValidator<GetPagedOrdersRequest>
 	{
 		public GetPagedOrdersRequestValidator()

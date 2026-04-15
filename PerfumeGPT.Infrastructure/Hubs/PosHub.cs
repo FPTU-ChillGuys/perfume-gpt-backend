@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using PerfumeGPT.Application.DTOs.Responses.Carts;
+using PerfumeGPT.Application.DTOs.Responses.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Payments;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 
@@ -39,6 +40,15 @@ namespace PerfumeGPT.Infrastructure.Hubs
 
 			await Clients.OthersInGroup(sessionId).UpdateCustomerDisplay(cartData);
 		}
+
+		public async Task SyncOnlineOrderToCustomerDisplay(string sessionId, OrderResponse orderData)
+		{
+			if (string.IsNullOrWhiteSpace(sessionId) || orderData == null)
+				throw new HubException("Invalid session or order data.");
+
+			await Clients.OthersInGroup(sessionId).ReceiveOnlineOrder(orderData);
+		}
+
 
 		public async Task NotifyPaymentSuccess(string sessionId, PosPaymentCompletedDto paymentData)
 		{
