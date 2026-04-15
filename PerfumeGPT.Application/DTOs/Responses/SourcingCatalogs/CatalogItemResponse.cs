@@ -7,6 +7,8 @@ namespace PerfumeGPT.Application.DTOs.Responses.SourcingCatalogs
 		public int SupplierId { get; init; }
 		public required string SupplierName { get; init; }
 		public required string VariantSku { get; init; }
+		public required string VariantName { get; init; }
+		public string? PrimaryImageUrl { get; init; }
 		public decimal NegotiatedPrice { get; init; }
 		public int EstimatedLeadTimeDays { get; init; }
 		public bool IsPrimary { get; init; }

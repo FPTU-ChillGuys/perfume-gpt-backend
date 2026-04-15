@@ -26,6 +26,11 @@ namespace PerfumeGPT.Persistence.Repositories
 				SupplierId = vs.SupplierId,
 				SupplierName = vs.Supplier.Name,
 				VariantSku = vs.ProductVariant.Sku,
+				VariantName = $"{vs.ProductVariant.Product.Name} - {vs.ProductVariant.VolumeMl}ml - {vs.ProductVariant.Concentration.Name}",
+				PrimaryImageUrl = vs.ProductVariant.Media
+					.Where(m => m.IsPrimary && !m.IsDeleted)
+					.Select(m => m.Url)
+					.FirstOrDefault(),
 				NegotiatedPrice = vs.NegotiatedPrice,
 				EstimatedLeadTimeDays = vs.EstimatedLeadTimeDays,
 				IsPrimary = vs.IsPrimary,
