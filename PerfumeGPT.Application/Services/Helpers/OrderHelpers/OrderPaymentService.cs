@@ -70,7 +70,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					OrderId = order.Id,
 					OrderCode = order.Code,
 					PaymentId = payment.Id,
-					Amount = (int)amount
+                    Amount = (int)amount,
+					PosSessionId = posSessionId
 				};
 
 				var checkoutResponse = await _momoService.CreatePaymentUrlAsync(httpContext, momoRequest);
@@ -88,7 +89,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					OrderId = order.Id,
 					OrderCode = order.Code,
 					PaymentId = payment.Id,
-					Amount = (int)amount
+                    Amount = (int)amount,
+					PosSessionId = posSessionId
 				};
 
 				var checkoutResponse = await _payOsService.CreatePaymentUrlAsync(payOsRequest);

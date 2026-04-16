@@ -65,6 +65,8 @@ namespace PerfumeGPT.API.Controllers
 					Request.Query,
 					result.OrderId,
 					result.PaymentId,
+					result.OrderCode,
+					result.PosSessionId,
 					failureMessage);
 
 				return Redirect(redirectUrl);
@@ -102,6 +104,8 @@ namespace PerfumeGPT.API.Controllers
 					Request.Query,
 					result.OrderId,
 					result.PaymentId,
+					result.OrderCode,
+					result.PosSessionId,
 					failureMessage);
 				return Redirect(redirectUrl);
 			}
@@ -128,6 +132,8 @@ namespace PerfumeGPT.API.Controllers
 					Request.Query,
 					result.OrderId,
 					result.PaymentId,
+					result.OrderCode,
+					result.PosSessionId,
 					"PayOS payment was cancelled.");
 
 				return Redirect(redirectUrl);
@@ -172,6 +178,8 @@ namespace PerfumeGPT.API.Controllers
 					Request.Query,
 					result.OrderId,
 					result.PaymentId,
+					result.OrderCode,
+					result.PosSessionId,
 					failureMessage);
 
 				return Redirect(redirectUrl);
@@ -231,7 +239,15 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		private static string BuildVnPayRedirectUrl(string baseUrl, string status, IQueryCollection vnpayQuery, Guid? orderId = null, Guid? paymentId = null, string? errorMessage = null)
+		private static string BuildVnPayRedirectUrl(
+			  string baseUrl,
+			  string status,
+			  IQueryCollection vnpayQuery,
+			  Guid? orderId = null,
+			  Guid? paymentId = null,
+			  string? orderCode = null,
+			  string? posSessionId = null,
+			  string? errorMessage = null)
 		{
 			// Parameters to forward to frontend
 			var paramsToForward = new[]
@@ -268,6 +284,16 @@ namespace PerfumeGPT.API.Controllers
 				queryParams.Add($"paymentId={paymentId.Value}");
 			}
 
+			if (!string.IsNullOrWhiteSpace(orderCode))
+			{
+				queryParams.Add($"orderCode={Uri.EscapeDataString(orderCode)}");
+			}
+
+			if (!string.IsNullOrWhiteSpace(posSessionId))
+			{
+				queryParams.Add($"sessionId={Uri.EscapeDataString(posSessionId)}");
+			}
+
 			// Add error message for failure
 			if (!string.IsNullOrWhiteSpace(errorMessage))
 			{
@@ -278,7 +304,15 @@ namespace PerfumeGPT.API.Controllers
 			return $"{baseUrl}/payment/{status}{queryString}";
 		}
 
-		private static string BuildMomoRedirectUrl(string baseUrl, string status, IQueryCollection momoQuery, Guid? orderId = null, Guid? paymentId = null, string? errorMessage = null)
+		private static string BuildMomoRedirectUrl(
+			string baseUrl,
+			string status,
+			IQueryCollection momoQuery,
+			Guid? orderId = null,
+			Guid? paymentId = null,
+			string? orderCode = null,
+			string? posSessionId = null,
+			string? errorMessage = null)
 		{
 			var paramsToForward = new[]
 			{
@@ -310,6 +344,16 @@ namespace PerfumeGPT.API.Controllers
 				queryParams.Add($"paymentId={paymentId.Value}");
 			}
 
+			if (!string.IsNullOrWhiteSpace(orderCode))
+			{
+				queryParams.Add($"orderCode={Uri.EscapeDataString(orderCode)}");
+			}
+
+			if (!string.IsNullOrWhiteSpace(posSessionId))
+			{
+				queryParams.Add($"sessionId={Uri.EscapeDataString(posSessionId)}");
+			}
+
 			if (!string.IsNullOrWhiteSpace(errorMessage))
 			{
 				queryParams.Add($"error={Uri.EscapeDataString(errorMessage)}");
@@ -320,20 +364,21 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		private static string BuildPayOsRedirectUrl(
-			 string baseUrl,
-			 string status,
-			 IQueryCollection payOsQuery,
-			 Guid? orderId = null,
-			 Guid? paymentId = null,
-			 string? errorMessage = null)
+			string baseUrl,
+			string status,
+			IQueryCollection payOsQuery,
+			Guid? orderId = null,
+			Guid? paymentId = null,
+			string? orderCode = null,
+			string? posSessionId = null,
+			string? errorMessage = null)
 		{
 			var paramsToForward = new[]
 			{
 				"code",
 				"id",
 				"cancel",
-				"status",
-				"orderCode"
+				"status"
 			};
 
 			var queryParams = new List<string>();
@@ -354,6 +399,16 @@ namespace PerfumeGPT.API.Controllers
 			if (paymentId.HasValue && paymentId.Value != Guid.Empty)
 			{
 				queryParams.Add($"paymentId={paymentId.Value}");
+			}
+
+			if (!string.IsNullOrWhiteSpace(orderCode))
+			{
+				queryParams.Add($"orderCode={Uri.EscapeDataString(orderCode)}");
+			}
+
+			if (!string.IsNullOrWhiteSpace(posSessionId))
+			{
+				queryParams.Add($"sessionId={Uri.EscapeDataString(posSessionId)}");
 			}
 
 			if (!string.IsNullOrWhiteSpace(errorMessage))

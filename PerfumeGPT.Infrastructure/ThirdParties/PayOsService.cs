@@ -49,6 +49,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			returnUrl = AppendQueryParam(returnUrl, "paymentId", request.PaymentId.ToString());
 			cancelUrl = AppendQueryParam(cancelUrl, "paymentId", request.PaymentId.ToString());
+			if (!string.IsNullOrWhiteSpace(request.PosSessionId))
+			{
+				returnUrl = AppendQueryParam(returnUrl, "posSessionId", request.PosSessionId);
+				cancelUrl = AppendQueryParam(cancelUrl, "posSessionId", request.PosSessionId);
+			}
 
 			var payOsClient = new PayOSClient(clientId, apiKey, checksumKey);
 			var orderCode = ResolveOrderCode(request.OrderCode, request.PaymentId);
@@ -104,6 +109,24 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 					? amountValue
 					: 0m;
 
+				var description = root.TryGetProperty("description", out var descriptionElement)
+					? descriptionElement.GetString()
+					: null;
+
+				var returnUrl = root.TryGetProperty("returnUrl", out var returnUrlElement)
+					? returnUrlElement.GetString()
+					: null;
+
+				var cancelUrl = root.TryGetProperty("cancelUrl", out var cancelUrlElement)
+					? cancelUrlElement.GetString()
+					: null;
+
+				var extractedOrderCode = ExtractOrderCode(description) ?? resolvedOrderCode.ToString();
+				var posSessionId = ExtractQueryParam(returnUrl, "posSessionId")
+					?? ExtractQueryParam(returnUrl, "sessionId")
+					?? ExtractQueryParam(cancelUrl, "posSessionId")
+					?? ExtractQueryParam(cancelUrl, "sessionId");
+
 				var isPaid = string.Equals(status, "PAID", StringComparison.OrdinalIgnoreCase);
 
 				return new PayOsPaymentInfoResponse
@@ -111,6 +134,8 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 					IsSuccess = true,
 					IsPaid = isPaid,
 					OrderCode = resolvedOrderCode,
+                    ExtractedOrderCode = extractedOrderCode,
+					PosSessionId = posSessionId,
 					Amount = amount,
 					Status = status,
 					PaymentLinkId = paymentLinkId
@@ -123,9 +148,76 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 					IsSuccess = false,
 					IsPaid = false,
 					OrderCode = resolvedOrderCode,
+                    ExtractedOrderCode = resolvedOrderCode.ToString(),
 					Message = ex.Message
 				};
 			}
+		}
+
+		private static string? ExtractOrderCode(string? source)
+		{
+			if (string.IsNullOrWhiteSpace(source))
+			{
+				return null;
+			}
+
+			const string prefix = "DH ";
+			var startIndex = source.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+			if (startIndex < 0)
+			{
+				return null;
+			}
+
+			var valueStart = startIndex + prefix.Length;
+			if (valueStart >= source.Length)
+			{
+				return null;
+			}
+
+			var value = source[valueStart..].Trim();
+			return string.IsNullOrWhiteSpace(value) ? null : value;
+		}
+
+		private static string? ExtractQueryParam(string? url, string key)
+		{
+			if (string.IsNullOrWhiteSpace(url))
+			{
+				return null;
+			}
+
+			var queryIndex = url.IndexOf('?');
+			if (queryIndex < 0 || queryIndex == url.Length - 1)
+			{
+				return null;
+			}
+
+			var queryPart = url[(queryIndex + 1)..];
+			var hashIndex = queryPart.IndexOf('#');
+			if (hashIndex >= 0)
+			{
+				queryPart = queryPart[..hashIndex];
+			}
+
+			foreach (var pair in queryPart.Split('&', StringSplitOptions.RemoveEmptyEntries))
+			{
+				var parts = pair.Split('=', 2);
+				var paramKey = Uri.UnescapeDataString(parts[0]);
+
+				if (!string.Equals(paramKey, key, StringComparison.OrdinalIgnoreCase))
+				{
+					continue;
+				}
+
+				if (parts.Length < 2)
+				{
+					return null;
+				}
+
+				var value = Uri.UnescapeDataString(parts[1]);
+				return string.IsNullOrWhiteSpace(value) ? null : value;
+			}
+
+			return null;
 		}
 
 		private static long ResolveOrderCode(string orderCode, Guid paymentId)

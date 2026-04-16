@@ -67,8 +67,13 @@ namespace PerfumeGPT.Application.Services
 			var orderCode = queryParameters.TryGetValue("orderCode", out var orderCodeValue)
 				? orderCodeValue.ToString()
 				: string.Empty;
+			var callbackPosSessionId = queryParameters.TryGetValue("posSessionId", out var queryPosSessionId)
+				? queryPosSessionId.ToString()
+				: (queryParameters.TryGetValue("sessionId", out var querySessionId) ? querySessionId.ToString() : null);
 
 			var payOsInfo = await _payOsService.GetPaymentInfoAsync(orderCode, payment.Id);
+			var extractedOrderCode = payOsInfo.ExtractedOrderCode ?? payOsInfo.OrderCode.ToString();
+			var extractedPosSessionId = payOsInfo.PosSessionId ?? callbackPosSessionId;
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
@@ -79,6 +84,8 @@ namespace PerfumeGPT.Application.Services
 				{
 					PaymentId = latestPayment.Id,
 					OrderId = latestPayment.OrderId,
+					OrderCode = extractedOrderCode,
+					PosSessionId = extractedPosSessionId,
 					IsSuccess = false
 				};
 
@@ -117,11 +124,11 @@ namespace PerfumeGPT.Application.Services
 
 				if (payOsInfo.IsPaid)
 				{
-					await CompleteSuccessfulPayment(latestPayment, order, payOsInfo.PaymentLinkId);
+					await CompleteSuccessfulPayment(latestPayment, order, payOsInfo.PaymentLinkId, extractedPosSessionId);
 					return payload with { IsSuccess = true };
 				}
 
-				await HandleFailedPayment(latestPayment, order, $"PayOS payment status: {payOsInfo.Status ?? "UNKNOWN"}", payOsInfo.PaymentLinkId);
+				await HandleFailedPayment(latestPayment, order, $"PayOS payment status: {payOsInfo.Status ?? "UNKNOWN"}", payOsInfo.PaymentLinkId, extractedPosSessionId);
 				return payload;
 			});
 		}
@@ -219,6 +226,8 @@ namespace PerfumeGPT.Application.Services
 		public async Task<MomoReturnResponse> ProcessMomoReturnAsync(IQueryCollection queryParameters)
 		{
 			var momoResponse = _momoService.GetPaymentResponseAsync(queryParameters);
+			var orderCode = momoResponse.OrderCode;
+			var posSessionId = momoResponse.PosSessionId;
 			if (momoResponse.PaymentId == Guid.Empty)
 			{
 				throw AppException.BadRequest("MoMo payment failed");
@@ -233,6 +242,8 @@ namespace PerfumeGPT.Application.Services
 				{
 					PaymentId = payment.Id,
 					OrderId = payment.OrderId,
+					OrderCode = orderCode,
+					PosSessionId = posSessionId,
 					IsSuccess = momoResponse.IsSuccess
 				};
 
@@ -251,11 +262,11 @@ namespace PerfumeGPT.Application.Services
 
 				if (momoResponse.IsSuccess)
 				{
-					await CompleteSuccessfulPayment(payment, order, momoResponse.TransactionNo);
+					await CompleteSuccessfulPayment(payment, order, momoResponse.TransactionNo, posSessionId);
 					return payload;
 				}
 
-				await HandleFailedPayment(payment, order, momoResponse.Message, momoResponse.TransactionNo);
+				await HandleFailedPayment(payment, order, momoResponse.Message, momoResponse.TransactionNo, posSessionId);
 				return payload;
 			});
 		}
@@ -266,7 +277,8 @@ namespace PerfumeGPT.Application.Services
 			try
 			{
 				var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "VNPay payment failed");
-				var posSessionId = ResolvePosSessionIdFromVnPayReturn(queryParameters, vnPayResponse.PaymentInfo);
+				var orderCode = vnPayResponse.OrderCode;
+				var posSessionId = vnPayResponse.PosSessionId;
 
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
@@ -277,6 +289,8 @@ namespace PerfumeGPT.Application.Services
 					{
 						PaymentId = payment.Id,
 						OrderId = payment.OrderId,
+						OrderCode = orderCode ?? string.Empty,
+						PosSessionId = posSessionId,
 						IsSuccess = vnPayResponse.IsSuccess
 					};
 
@@ -308,22 +322,22 @@ namespace PerfumeGPT.Application.Services
 				_logger.LogWarning(ex, "Giao dịch đã được xử lý bởi một luồng khác (Khả năng cao là IPN Webhook). Bỏ qua lỗi cập nhật.");
 
 				var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "VNPay payment failed");
+				var fallbackOrderCode = vnPayResponse.OrderCode;
+				var fallbackPosSessionId = vnPayResponse.PosSessionId;
 				var latestPayment = await _unitOfWork.Payments.FirstOrDefaultAsync(p => p.Id == vnPayResponse.PaymentId);
 
-				if (latestPayment == null)
-				{
-					throw AppException.NotFound("Payment record not found.");
-				}
-
-				return new VnPayReturnResponse
-				{
-					PaymentId = latestPayment.Id,
-					OrderId = latestPayment.OrderId,
-					IsSuccess = latestPayment.TransactionStatus == TransactionStatus.Success
-				};
+				return latestPayment == null
+					? throw AppException.NotFound("Payment record not found.")
+					: new VnPayReturnResponse
+					{
+						PaymentId = latestPayment.Id,
+						OrderId = latestPayment.OrderId,
+						OrderCode = fallbackOrderCode,
+						PosSessionId = fallbackPosSessionId,
+						IsSuccess = latestPayment.TransactionStatus == TransactionStatus.Success
+					};
 			}
 		}
-
 
 		private VnPaymentResponse GetValidatedVnPayResponse(IQueryCollection queryParameters, string invalidMessage)
 		{
@@ -339,8 +353,6 @@ namespace PerfumeGPT.Application.Services
 		// private methods
 		private async Task<BaseResponse<string>> ProcessPaymentRetryAsync(Guid paymentId, PaymentInformation? newMethod = null, string? posSessionId = null)
 		{
-			posSessionId ??= ResolvePosSessionId();
-
 			var currentPayment = await _unitOfWork.Payments.GetByIdAsync(paymentId)
 				  ?? throw AppException.NotFound("Payment record not found.");
 
@@ -507,7 +519,7 @@ namespace PerfumeGPT.Application.Services
 					throw AppException.BadRequest("Payment amount mismatch.");
 				}
 
-				await CompleteSuccessfulPayment(latestPayment, order, paymentInfo.PaymentLinkId);
+				await CompleteSuccessfulPayment(latestPayment, order, paymentInfo.PaymentLinkId, paymentInfo.PosSessionId);
 				return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Order was already paid successfully.");
 			});
 		}
@@ -588,11 +600,7 @@ namespace PerfumeGPT.Application.Services
 			});
 		}
 
-		private async Task<BaseResponse<bool>> CompleteSuccessfulPayment(
-			   PaymentTransaction payment,
-			   Order order,
-			   string? transactionNo = null,
-			   string? posSessionId = null)
+		private async Task<BaseResponse<bool>> CompleteSuccessfulPayment(PaymentTransaction payment, Order order, string? transactionNo = null, string? posSessionId = null)
 		{
 			payment.MarkSuccess(transactionNo);
 			order.MarkPaid(DateTime.UtcNow);
@@ -623,7 +631,6 @@ namespace PerfumeGPT.Application.Services
 
 			_backgroundJobService.EnqueueInvoiceEmail(_logger, order.Id);
 
-			posSessionId ??= ResolvePosSessionId();
 			if (!string.IsNullOrWhiteSpace(posSessionId))
 			{
 				var successMessage = payment.Method == PaymentMethod.VnPay
@@ -649,82 +656,6 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<bool>.Ok(true, "Payment processed successfully.");
 		}
 
-		private static string? ResolvePosSessionIdFromVnPayReturn(IQueryCollection queryParameters, string? paymentInfo)
-		{
-			if (queryParameters.TryGetValue("vnp_OrderInfo", out var orderInfoValue))
-			{
-				var sessionIdFromQuery = ExtractPosSessionId(orderInfoValue.ToString());
-				if (!string.IsNullOrWhiteSpace(sessionIdFromQuery))
-				{
-					return sessionIdFromQuery;
-				}
-			}
-
-			return ExtractPosSessionId(paymentInfo);
-		}
-
-		private static string? ExtractPosSessionId(string? source)
-		{
-			if (string.IsNullOrWhiteSpace(source))
-			{
-				return null;
-			}
-
-			const string marker = "PosSessionId:";
-			var markerIndex = source.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
-			if (markerIndex < 0)
-			{
-				return null;
-			}
-
-			var valueStart = markerIndex + marker.Length;
-			if (valueStart >= source.Length)
-			{
-				return null;
-			}
-
-			var tail = source[valueStart..].Trim();
-			if (string.IsNullOrWhiteSpace(tail))
-			{
-				return null;
-			}
-
-			var dotIndex = tail.IndexOf('.');
-			var rawValue = dotIndex >= 0 ? tail[..dotIndex] : tail;
-			var sessionId = rawValue.Trim();
-
-			return string.IsNullOrWhiteSpace(sessionId) ? null : sessionId;
-		}
-
-		private string? ResolvePosSessionId()
-		{
-			var httpContext = _httpContextAccessor.HttpContext;
-			if (httpContext == null)
-			{
-				return null;
-			}
-
-			if (httpContext.Request.Query.TryGetValue("sessionId", out var querySessionId))
-			{
-				var value = querySessionId.ToString();
-				if (!string.IsNullOrWhiteSpace(value))
-				{
-					return value;
-				}
-			}
-
-			if (httpContext.Request.Query.TryGetValue("posSessionId", out var legacyQuerySessionId))
-			{
-				var value = legacyQuerySessionId.ToString();
-				if (!string.IsNullOrWhiteSpace(value))
-				{
-					return value;
-				}
-			}
-
-			return null;
-		}
-
 		private async Task<BaseResponse<bool>> HandleFailedPayment(
 			PaymentTransaction payment,
 			Order order,
@@ -738,7 +669,6 @@ namespace PerfumeGPT.Application.Services
 			_unitOfWork.Payments.Update(payment);
 			_unitOfWork.Orders.Update(order);
 
-			posSessionId ??= ResolvePosSessionId();
 			if (!string.IsNullOrWhiteSpace(posSessionId))
 			{
 				var failedMessage = string.IsNullOrWhiteSpace(reason)
@@ -795,7 +725,8 @@ namespace PerfumeGPT.Application.Services
 						OrderId = order.Id,
 						OrderCode = order.Code,
 						PaymentId = payment.Id,
-						Amount = (int)payment.Amount
+						Amount = (int)payment.Amount,
+						PosSessionId = posSessionId
 					};
 
 					var momoUrlResponse = await _momoService.CreatePaymentUrlAsync(momoHttpContext, momoRequest);
@@ -807,7 +738,8 @@ namespace PerfumeGPT.Application.Services
 						OrderId = order.Id,
 						OrderCode = order.Code,
 						PaymentId = payment.Id,
-						Amount = (int)payment.Amount
+						Amount = (int)payment.Amount,
+						PosSessionId = posSessionId
 					};
 
 					var payOsUrlResponse = await _payOsService.CreatePaymentUrlAsync(payOsRequest);

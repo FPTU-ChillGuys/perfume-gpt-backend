@@ -6,5 +6,6 @@ namespace PerfumeGPT.Application.DTOs.Requests.PayOs
 		public required string OrderCode { get; init; }
 		public Guid PaymentId { get; init; }
 		public int Amount { get; init; }
+		public string? PosSessionId { get; init; }
 	}
 }

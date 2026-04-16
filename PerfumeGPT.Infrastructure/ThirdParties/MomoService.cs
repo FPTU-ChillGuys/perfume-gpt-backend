@@ -49,7 +49,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			var orderId = request.PaymentId.ToString();
 			var requestId = request.PaymentId.ToString("N");
-			var orderInfo = $"{request.OrderCode}";
+			var orderInfo = $"Thanh toan don hang: {request.OrderCode}.";
+			if (!string.IsNullOrWhiteSpace(request.PosSessionId))
+			{
+				orderInfo += $" PosSessionId: {request.PosSessionId}.";
+			}
 			var amountLong = (long)request.Amount;
 			var extraData = Convert.ToBase64String(Encoding.UTF8.GetBytes(request.OrderId.ToString()));
 
@@ -147,6 +151,8 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			}
 
 			var success = string.Equals(resultCode, "0", StringComparison.OrdinalIgnoreCase);
+			var extractedOrderCode = ExtractOrderCode(orderInfo);
+			var extractedPosSessionId = ExtractPosSessionId(orderInfo);
 
 			return new MomoPaymentResponse
 			{
@@ -154,9 +160,71 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				Message = success ? "Payment successful" : message,
 				PaymentId = paymentId,
 				ResultCode = resultCode,
+                OrderCode = extractedOrderCode,
+				PosSessionId = extractedPosSessionId,
 				TransactionNo = transId,
 				Amount = decimal.TryParse(amountRaw, out var amount) ? amount : 0
 			};
+		}
+
+		private static string? ExtractOrderCode(string? source)
+		{
+			if (string.IsNullOrWhiteSpace(source))
+			{
+				return null;
+			}
+
+			const string prefix = "Thanh toan don hang:";
+			var startIndex = source.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+			if (startIndex < 0)
+			{
+				return null;
+			}
+
+			var valueStart = startIndex + prefix.Length;
+			if (valueStart >= source.Length)
+			{
+				return null;
+			}
+
+			var dotIndex = source.IndexOf('.', valueStart);
+			var rawValue = dotIndex >= 0 ? source[valueStart..dotIndex] : source[valueStart..];
+			var orderCode = rawValue.Trim();
+
+			return string.IsNullOrWhiteSpace(orderCode) ? null : orderCode;
+		}
+
+		private static string? ExtractPosSessionId(string? source)
+		{
+			if (string.IsNullOrWhiteSpace(source))
+			{
+				return null;
+			}
+
+			const string marker = "PosSessionId:";
+			var markerIndex = source.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+			if (markerIndex < 0)
+			{
+				return null;
+			}
+
+			var valueStart = markerIndex + marker.Length;
+			if (valueStart >= source.Length)
+			{
+				return null;
+			}
+
+			var tail = source[valueStart..].Trim();
+			if (string.IsNullOrWhiteSpace(tail))
+			{
+				return null;
+			}
+
+			var dotIndex = tail.IndexOf('.');
+			var rawValue = dotIndex >= 0 ? tail[..dotIndex] : tail;
+			var sessionId = rawValue.Trim();
+
+			return string.IsNullOrWhiteSpace(sessionId) ? null : sessionId;
 		}
 
 		public async Task<MomoQueryResponse> QueryTransactionAsync(MomoQueryRequest request)

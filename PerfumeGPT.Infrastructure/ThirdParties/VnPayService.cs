@@ -111,6 +111,8 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			var vnp_ResponseCode = vnpay.GetResponseData("vnp_ResponseCode");
 			var vnp_OrderInfo = vnpay.GetResponseData("vnp_OrderInfo");
 			var rawAmountStr = vnpay.GetResponseData("vnp_Amount");
+			var orderCode = ExtractOrderCode(vnp_OrderInfo);
+			var posSessionId = ExtractPosSessionId(vnp_OrderInfo);
 
 			// consider success only if signature is valid and response code is "00"
 			var success = checkSignature && string.Equals(vnp_ResponseCode, "00", StringComparison.OrdinalIgnoreCase);
@@ -122,9 +124,71 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				PaymentId = txnRef,
 				TransactionNo = vnp_TranNo,
 				PaymentInfo = vnp_OrderInfo,
+                OrderCode = orderCode,
+				PosSessionId = posSessionId,
 				ResponseCode = vnp_ResponseCode,
 				Amount = decimal.TryParse(rawAmountStr, out var amt) ? amt / 100 : 0m
 			};
+		}
+
+		private static string? ExtractOrderCode(string? source)
+		{
+			if (string.IsNullOrWhiteSpace(source))
+			{
+				return null;
+			}
+
+			const string prefix = "Thanh toan don hang:";
+			var startIndex = source.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+			if (startIndex < 0)
+			{
+				return null;
+			}
+
+			var valueStart = startIndex + prefix.Length;
+			if (valueStart >= source.Length)
+			{
+				return null;
+			}
+
+			var dotIndex = source.IndexOf('.', valueStart);
+			var rawValue = dotIndex >= 0 ? source[valueStart..dotIndex] : source[valueStart..];
+			var orderCode = rawValue.Trim();
+
+			return string.IsNullOrWhiteSpace(orderCode) ? null : orderCode;
+		}
+
+		private static string? ExtractPosSessionId(string? source)
+		{
+			if (string.IsNullOrWhiteSpace(source))
+			{
+				return null;
+			}
+
+			const string marker = "PosSessionId:";
+			var markerIndex = source.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+			if (markerIndex < 0)
+			{
+				return null;
+			}
+
+			var valueStart = markerIndex + marker.Length;
+			if (valueStart >= source.Length)
+			{
+				return null;
+			}
+
+			var tail = source[valueStart..].Trim();
+			if (string.IsNullOrWhiteSpace(tail))
+			{
+				return null;
+			}
+
+			var dotIndex = tail.IndexOf('.');
+			var rawValue = dotIndex >= 0 ? tail[..dotIndex] : tail;
+			var sessionId = rawValue.Trim();
+
+			return string.IsNullOrWhiteSpace(sessionId) ? null : sessionId;
 		}
 
 		public async Task<VnPayQueryResponse> QueryTransactionAsync(HttpContext context, VnPayQueryRequest request)
