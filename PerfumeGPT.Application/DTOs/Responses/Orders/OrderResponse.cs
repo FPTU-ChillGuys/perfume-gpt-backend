@@ -9,6 +9,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public Guid? CustomerId { get; init; }
 		public string? CustomerName { get; init; }
 		public string? CustomerEmail { get; init; }
+		public string? CustomerPhoneNumber { get; init; }
 		public Guid? StaffId { get; init; }
 		public string? StaffName { get; init; }
 		public OrderType Type { get; init; }

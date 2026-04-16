@@ -30,7 +30,6 @@ namespace PerfumeGPT.Application.Services
 		private readonly IOrderDetailsFactory _orderDetailsFactory;
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IOrderFulfillmentService _fulfillmentService;
-		private readonly IContactAddressService _recipientService;
 		private readonly INotificationService _notificationService;
 		private readonly IGHNService _ghnService;
 		private readonly IBackgroundJobService _backgroundJobService;
@@ -47,7 +46,6 @@ namespace PerfumeGPT.Application.Services
 			IStockReservationService stockReservationService,
 			IOrderFulfillmentService fulfillmentService,
 			INotificationService notificationService,
-			IContactAddressService recipientService,
 			IGHNService ghnService,
 			IBackgroundJobService backgroundJobService,
 			IRedisPublisherService redisPublisher,
@@ -62,7 +60,6 @@ namespace PerfumeGPT.Application.Services
 			_stockReservationService = stockReservationService;
 			_fulfillmentService = fulfillmentService;
 			_notificationService = notificationService;
-			_recipientService = recipientService;
 			_ghnService = ghnService;
 			_backgroundJobService = backgroundJobService;
 			_redisPublisher = redisPublisher;
@@ -71,16 +68,6 @@ namespace PerfumeGPT.Application.Services
 		#endregion Dependencies
 
 		#region Query Operations
-		//public async Task<BaseResponse<OrderResponse>> GetOrderByCodeAsync(string orderCode)
-		//{
-		//	var order = await _unitOfWork.Orders.GetOrderWithFullDetailsByCodeAsync(orderCode);
-		//	if (order == null)
-		//	{
-		//		return BaseResponse<OrderResponse>.Fail("Order not found or does not belong to user.", ResponseErrorType.NotFound);
-		//	}
-		//	return BaseResponse<OrderResponse>.Ok(order, "Order retrieved successfully.");
-		//}
-
 		public async Task<BaseResponse<OrderResponse>> GetOrderForPosPickupAsync(string orderCode)
 		{
 			if (string.IsNullOrWhiteSpace(orderCode))
@@ -171,6 +158,14 @@ namespace PerfumeGPT.Application.Services
 		#region Checkout Operations
 		public async Task<BaseResponse<CreatePaymentResponseDto>> Checkout(Guid userId, CreateOrderRequest request)
 		{
+			var customer = await _unitOfWork.Users.GetByIdAsync(userId) ??
+				throw AppException.NotFound("User not found.");
+
+			// Chặn luồng nếu vi phạm chính sách
+			if ((request.Payment.Method == PaymentMethod.CashOnDelivery || request.Payment.Method == PaymentMethod.CashInStore) && !customer.IsEligibleForCod(DateTime.UtcNow))
+			{
+				throw AppException.BadRequest("Tài khoản của bạn đã vi phạm chính sách nhận hàng quá số lần quy định. Vui lòng chọn hình thức thanh toán trả trước (VNPay/MoMo) để tiếp tục mua sắm.");
+			}
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				// Get cart with items
@@ -496,7 +491,7 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<string>.Ok("Cancel request submitted successfully.");
 				}
 
-				await HandleOrderCancellationAsync(order);
+				await HandleOrderCancellationAsync(order, request.Reason);
 				order.SetStaff(staffId);
 				_unitOfWork.Orders.Update(order);
 				customerIdToNotify = order.CustomerId;
@@ -553,7 +548,7 @@ namespace PerfumeGPT.Application.Services
 				   // Pending + Unpaid => auto cancel immediately
 				   if (order.Status == OrderStatus.Pending && !isRefundRequired)
 				   {
-					   await HandleOrderCancellationAsync(order);
+					   await HandleOrderCancellationAsync(order, request.Reason);
 					   _unitOfWork.Orders.Update(order);
 
 					   return BaseResponse<string>.Ok("Order cancelled successfully.");
@@ -690,7 +685,7 @@ namespace PerfumeGPT.Application.Services
 			};
 		}
 
-		private async Task HandleOrderCancellationAsync(Order order)
+		private async Task HandleOrderCancellationAsync(Order order, CancelOrderReason cancelReason)
 		{
 			var orderWithDetails = order.OrderDetails.Count > 0
 				  ? order
@@ -720,13 +715,20 @@ namespace PerfumeGPT.Application.Services
 				});
 			}
 
+			if (order.Status == OrderStatus.ReadyToPick && orderWithDetails.PaymentTransactions.Any(p => p.Method == PaymentMethod.CashInStore))
+			{
+				order.CancelCashInStore(cancelReason);
+			}
+			else
+			{
+				order.SetStatus(OrderStatus.Cancelled);
+			}
+
 			foreach (var payment in orderWithDetails.PaymentTransactions.Where(p => p.IsPending()))
 			{
 				payment.MarkCancelled("Order was cancelled.");
 				_unitOfWork.Payments.Update(payment);
 			}
-
-			order.SetStatus(OrderStatus.Cancelled);
 
 			// Gọi hàm mới nâng cấp
 			await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(order.Id);

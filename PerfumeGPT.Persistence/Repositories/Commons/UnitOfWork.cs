@@ -1,5 +1,7 @@
-﻿using PerfumeGPT.Application.Interfaces.Repositories;
+﻿using Microsoft.AspNetCore.Identity;
+using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
+using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
 using Microsoft.SemanticKernel;
 
@@ -8,12 +10,15 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 	public class UnitOfWork : BaseUnitOfWork, IUnitOfWork
 	{
 		private readonly Kernel _kernel;
+		private readonly UserManager<User> _userManager;
 
-		public UnitOfWork(PerfumeDbContext context, Kernel kernel) : base(context)
+		public UnitOfWork(PerfumeDbContext context, Kernel kernel, UserManager<User> userManager) : base(context)
 		{
 			_kernel = kernel;
+			_userManager = userManager;
 		}
 
+		public IUserRepository Users => GetRepo(ctx => new UserRepository(ctx, _userManager));
 		public INotificationRepository Notifications => GetRepo(ctx => new NotificationRepository(ctx));
 		public IScentNoteRepository ScentNotes => GetRepo(ctx => new ScentNoteRepository(ctx));
 		public IReviewRepository Reviews => GetRepo(ctx => new ReviewRepository(ctx));

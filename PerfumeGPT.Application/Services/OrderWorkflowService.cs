@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Logging;
-using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -32,7 +31,7 @@ namespace PerfumeGPT.Application.Services
 			_voucherService = voucherService;
 		}
 
-		public async Task ProcessShippingStatusChangeAsync(Order order, ShippingStatus newShippingStatus, DateTime? deliveredAtUtc = null)
+		public async Task ProcessForwardShippingStatusAsync(Order order, ShippingStatus newShippingStatus, DateTime? deliveredAtUtc = null)
 		{
 			switch (newShippingStatus)
 			{
@@ -43,18 +42,14 @@ namespace PerfumeGPT.Application.Services
 
 				case ShippingStatus.Delivered:
 					if (order.Status == OrderStatus.ReadyToPick)
-						order.SetStatus(OrderStatus.Delivering); // Tua nhanh nếu rớt webhook Delivering
+						order.SetStatus(OrderStatus.Delivering); // Tua nhanh nếu rớt webhook
 
 					if (order.Status != OrderStatus.Delivered)
 						order.SetStatus(OrderStatus.Delivered);
 
-					// Chỉ MarkPaid nếu đơn chưa thanh toán (COD)
 					if (order.PaymentStatus != PaymentStatus.Paid)
-					{
 						order.MarkPaid(DateTime.UtcNow);
-					}
 
-					// Chốt giao dịch COD thành Success
 					var pendingCod = order.PaymentTransactions?.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
 					if (pendingCod != null)
 					{
@@ -75,20 +70,16 @@ namespace PerfumeGPT.Application.Services
 
 				case ShippingStatus.Returning:
 					if (order.Status == OrderStatus.ReadyToPick || order.Status == OrderStatus.Delivering)
-					{
 						order.SetStatus(OrderStatus.Returning);
-					}
 					break;
 
 				case ShippingStatus.Returned:
-					// Tua nhanh qua trạng thái Returning nếu rớt Webhook
 					if (order.Status == OrderStatus.ReadyToPick || order.Status == OrderStatus.Delivering)
 						order.SetStatus(OrderStatus.Returning);
 
 					if (order.Status != OrderStatus.Returned)
-						order.SetStatus(OrderStatus.Returned);
+						order.MarkReturnedByPartner(); // Hàm này đã có Domain Event phạt user boom hàng
 
-					// Huỷ khoản nợ COD (Khách không nhận, không thu được tiền)
 					var failedCod = order.PaymentTransactions?.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
 					if (failedCod != null)
 					{
@@ -96,7 +87,6 @@ namespace PerfumeGPT.Application.Services
 						_unitOfWork.Payments.Update(failedCod);
 					}
 
-					// Nhập lại hàng vào kho (Restock) vì nó đã bị trừ lúc Fulfill
 					await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(order.Id);
 
 					if (order.PaymentStatus == PaymentStatus.Paid)
@@ -111,8 +101,6 @@ namespace PerfumeGPT.Application.Services
 								RefundAmount = order.TotalAmount,
 								StaffNote = "Hệ thống tự động tạo yêu cầu hoàn tiền do sự cố giao vận."
 							};
-
-							// Tạo Request dưới danh nghĩa Customer (hoặc tạo một System Admin ID riêng)
 							var cancelReq = OrderCancelRequest.Create(order.Id, order.CustomerId ?? Guid.Empty, payload);
 							await _unitOfWork.OrderCancelRequests.AddAsync(cancelReq);
 						}
@@ -120,26 +108,8 @@ namespace PerfumeGPT.Application.Services
 					break;
 
 				case ShippingStatus.Cancelled:
-					if (order.Status is OrderStatus.Delivered or OrderStatus.Returning)
-					{
-						var returnRequest = await _unitOfWork.OrderReturnRequests.FirstOrDefaultAsync(
-						  r => r.OrderId == order.Id
-								&& r.ReturnShippingId.HasValue
-								&& r.Status == ReturnRequestStatus.ApprovedForReturn,
-							include: q => q.Include(r => r.ReturnShipping!));
-
-						if (returnRequest != null)
-						{
-							returnRequest.CancelBySystemWhenReturnPickupFailed("GHN không thể lấy hàng hoàn từ khách. Yêu cầu trả hàng đã bị hủy.");
-							_unitOfWork.OrderReturnRequests.Update(returnRequest);
-
-							returnRequest.ReturnShipping!.Cancel();
-							_unitOfWork.ShippingInfos.Update(returnRequest.ReturnShipping);
-						}
-						break;
-					}
-
-					// Kịch bản: GHN làm mất hàng, hoặc xe tới lấy mà không có hàng nên GHN huỷ vận đơn
+					// Kịch bản: GHN làm mất hàng, hoặc lấy hàng thất bại ở Chiều Đi
+					// KHÔNG CÒN logic check ReturnRequest ở đây nữa!
 					if (order.Status != OrderStatus.Cancelled)
 					{
 						order.SetStatus(OrderStatus.Cancelled);
@@ -166,7 +136,6 @@ namespace PerfumeGPT.Application.Services
 									RefundAmount = order.TotalAmount,
 									StaffNote = "Hệ thống tự động tạo yêu cầu hoàn tiền do GHN huỷ vận đơn."
 								};
-
 								var cancelReq = OrderCancelRequest.Create(order.Id, order.CustomerId ?? Guid.Empty, payload);
 								await _unitOfWork.OrderCancelRequests.AddAsync(cancelReq);
 							}

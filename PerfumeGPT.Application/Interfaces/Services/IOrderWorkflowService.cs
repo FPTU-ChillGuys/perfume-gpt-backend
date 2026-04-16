@@ -5,6 +5,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 {
 	public interface IOrderWorkflowService
 	{
-		Task ProcessShippingStatusChangeAsync(Order order, ShippingStatus newShippingStatus, DateTime? deliveredAtUtc = null);
+		// Đổi tên hàm cho rõ nghĩa
+		Task ProcessForwardShippingStatusAsync(Order order, ShippingStatus newShippingStatus, DateTime? deliveredAtUtc = null);
 	}
 }

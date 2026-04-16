@@ -15,15 +15,17 @@ namespace PerfumeGPT.Application.Services
 	{
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IOrderWorkflowService _orderWorkflowService;
+		private readonly IReturnWorkflowService _returnWorkflowService;
 		private readonly IGHNService _ghnService;
 		private readonly ILogger<ShippingService> _logger;
 
-		public ShippingService(IUnitOfWork unitOfWork, IGHNService ghnService, ILogger<ShippingService> logger, IOrderWorkflowService orderWorkflowService)
+		public ShippingService(IUnitOfWork unitOfWork, IGHNService ghnService, ILogger<ShippingService> logger, IOrderWorkflowService orderWorkflowService, IReturnWorkflowService returnWorkflowService)
 		{
 			_unitOfWork = unitOfWork;
 			_ghnService = ghnService;
 			_logger = logger;
 			_orderWorkflowService = orderWorkflowService;
+			_returnWorkflowService = returnWorkflowService;
 		}
 
 		public async Task<BaseResponse<PagedResult<ShippingInfoListItem>>> GetPagedShippingInfosByUserIdAsync(Guid userId, GetPagedShippingsRequest request)
@@ -85,44 +87,44 @@ namespace PerfumeGPT.Application.Services
 
 				if (TryApplyShippingStatus(shippingInfo, targetStatus.Value))
 				{
+					// 1. TÌM CHIỀU ĐI (FORWARD)
 					var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
 						  o => o.ForwardShippingId == shippingInfo.Id,
 						  include: q => q.Include(o => o.PaymentTransactions));
+
 					if (order != null)
 					{
 						orderId = order.Id;
-						await _orderWorkflowService.ProcessShippingStatusChangeAsync(order, targetStatus.Value, shippingInfo.ShippedDate);
+						// Gọi tới OrderWorkflow
+						await _orderWorkflowService.ProcessForwardShippingStatusAsync(order, targetStatus.Value, shippingInfo.ShippedDate);
 					}
 					else
 					{
-						var returnRequest = await _unitOfWork.OrderReturnRequests.FirstOrDefaultAsync(r => r.ReturnShippingId == shippingInfo.Id);
-						if (returnRequest == null)
+						// 2. TÌM CHIỀU VỀ (RETURN)
+						var returnRequest = await _unitOfWork.OrderReturnRequests.FirstOrDefaultAsync(
+							r => r.ReturnShippingId == shippingInfo.Id,
+							include: q => q.Include(r => r.ReturnShipping!)); // Nhớ include ReturnShipping
+
+						if (returnRequest != null)
 						{
+							returnRequestId = returnRequest.Id;
+							// LOAD ORDER CỦA YÊU CẦU TRẢ HÀNG NÀY LÊN
+							var returnOrder = await _unitOfWork.Orders.FirstOrDefaultAsync(o => o.Id == returnRequest.OrderId);
+
+							if (returnOrder != null)
+							{
+								// Truyền cả Order và ReturnRequest vào Workflow
+								await _returnWorkflowService.ProcessReturnShippingStatusAsync(returnOrder, returnRequest, targetStatus.Value);
+							}
+						}
+						else
+						{
+							// Tracking này không thuộc về hệ thống (Rác)
 							return false;
-						}
-
-						returnRequestId = returnRequest.Id;
-
-						order = await _unitOfWork.Orders.FirstOrDefaultAsync(
-							o => o.Id == returnRequest.OrderId,
-							include: q => q.Include(o => o.PaymentTransactions));
-						if (order == null)
-						{
-							return false;
-						}
-
-						orderId = order.Id;
-
-						if (targetStatus.Value == ShippingStatus.Delivering && order.Status == OrderStatus.Delivered)
-						{
-							order.SetStatus(OrderStatus.Returning);
-						}
-						else if (targetStatus.Value == ShippingStatus.Cancelled)
-						{
-							await _orderWorkflowService.ProcessShippingStatusChangeAsync(order, targetStatus.Value, shippingInfo.ShippedDate);
 						}
 					}
 
+					// Lưu trạng thái chung của ShippingInfo
 					_unitOfWork.ShippingInfos.Update(shippingInfo);
 					await _unitOfWork.SaveChangesAsync();
 

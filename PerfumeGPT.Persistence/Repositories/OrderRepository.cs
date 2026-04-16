@@ -137,6 +137,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			 CustomerId = o.CustomerId,
 			 CustomerName = o.Customer != null ? o.Customer.FullName : null,
 			 CustomerEmail = o.Customer != null ? o.Customer.Email : null,
+			 CustomerPhoneNumber = o.Customer != null ? o.Customer.PhoneNumber : null,
 			 StaffId = o.StaffId,
 			 StaffName = o.Staff != null ? o.Staff.FullName : null,
 			 Type = o.Type,
@@ -226,6 +227,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			 CustomerId = o.CustomerId,
 			 CustomerName = o.Customer != null ? o.Customer.FullName : null,
 			 CustomerEmail = o.Customer != null ? o.Customer.Email : null,
+			 CustomerPhoneNumber = o.Customer != null ? o.Customer.PhoneNumber : null,
 			 StaffId = o.StaffId,
 			 StaffName = o.Staff != null ? o.Staff.FullName : null,
 			 Type = o.Type,
@@ -432,7 +434,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<Order?> GetOrderForCancellationAsync(Guid orderId)
 			=> await _context.Orders
-			   .Include(o => o.ForwardShipping)
+				.Include(o => o.ForwardShipping)
 				.FirstOrDefaultAsync(o => o.Id == orderId);
 
 		public async Task<Order?> GetOrderForMarkUsedVoucherAsync(Guid orderId)
@@ -475,8 +477,8 @@ namespace PerfumeGPT.Persistence.Repositories
 			var query = _context.Orders
 				.Include(o => o.Customer)
 				.Include(o => o.Staff)
-			  .Include(o => o.ContactAddress)
-			   .Include(o => o.ForwardShipping)
+				.Include(o => o.ContactAddress)
+				.Include(o => o.ForwardShipping)
 				.Include(o => o.PaymentTransactions)
 				.Include(o => o.OrderDetails)
 					.ThenInclude(od => od.ProductVariant)

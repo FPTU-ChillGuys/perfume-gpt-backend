@@ -35,7 +35,7 @@ namespace PerfumeGPT.API.Controllers
 			IValidator<StaffCancelOrderRequest> staffCancelOrderValidator,
 			IValidator<UserCancelOrderRequest> cancelOrderValidator,
 			IValidator<FulfillOrderRequest> fulfillOrderValidator,
-		  IValidator<SwapDamagedStockRequest> swapDamagedStockValidator,
+			IValidator<SwapDamagedStockRequest> swapDamagedStockValidator,
 			IHubContext<PosHub, IPosClient> posHubContext)
 		{
 			_orderService = orderService;
@@ -77,17 +77,6 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _orderService.GetUserOrderByIdAsync(orderId, userId);
 			return HandleResponse(response);
 		}
-
-		//[HttpGet("order-code")]
-		//[Authorize(Roles = "user")]
-		//[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status200OK)]
-		//[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status404NotFound)]
-		//[ProducesResponseType(typeof(BaseResponse<UserOrderResponse>), StatusCodes.Status500InternalServerError)]
-		//public async Task<ActionResult<BaseResponse<UserOrderResponse>>> GetOrderByCode([FromQuery] string orderCode)
-		//{
-		//	var response = await _orderService.GetOrderByCodeAsync(orderCode);
-		//	return HandleResponse(response);
-		//}
 
 		[HttpGet("my-orders/{orderId:guid}/invoice")]
 		[Authorize(Roles = "user")]

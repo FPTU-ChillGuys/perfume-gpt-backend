@@ -11,6 +11,8 @@ namespace PerfumeGPT.Domain.Entities
 		public string FullName { get; private set; } = string.Empty;
 		public int PointBalance { get; private set; } = 0;
 		public bool IsActive { get; private set; } = true;
+		public int DeliveryRefusalCount { get; private set; }
+		public DateTime? CodBlockedUntil { get; private set; }
 
 		// Navigation properties
 		public virtual CustomerProfile? CustomerProfile { get; set; }
@@ -148,6 +150,33 @@ namespace PerfumeGPT.Domain.Entities
 			PointBalance += transaction.PointsChanged;
 
 			return transaction;
+		}
+
+		public void RecordDeliveryRefusal(DateTime nowUtc)
+		{
+			DeliveryRefusalCount++;
+
+			// Nếu boom 5 lần -> Cấm COD 30 ngày
+			if (DeliveryRefusalCount >= 5)
+			{
+				CodBlockedUntil = nowUtc.AddDays(30);
+			}
+			// Nếu boom 3 lần -> Cấm COD 7 ngày
+			else if (DeliveryRefusalCount >= 3)
+			{
+				CodBlockedUntil = nowUtc.AddDays(7);
+			}
+		}
+
+		public bool IsEligibleForCod(DateTime nowUtc)
+		{
+			// Vẫn đang trong thời gian phạt
+			if (CodBlockedUntil.HasValue && CodBlockedUntil.Value > nowUtc)
+			{
+				return false;
+			}
+
+			return true;
 		}
 
 		// Record

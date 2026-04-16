@@ -154,6 +154,29 @@ namespace PerfumeGPT.Domain.Entities
 			Status = newStatus;
 		}
 
+		public void MarkReturnedByPartner()
+		{
+			SetStatus(OrderStatus.Returned);
+			if (CustomerId.HasValue)
+			{
+				AddDomainEvent(new Events.OrderRefusedDomainEvent(CustomerId.Value, Id));
+			}
+		}
+
+		public void CancelCashInStore(CancelOrderReason cancelReason)
+		{
+			if (Status != OrderStatus.ReadyToPick)
+				throw DomainException.BadRequest("Only ReadyToPick CashInStore orders can be cancelled with penalty.");
+
+			SetStatus(OrderStatus.Cancelled);
+
+			// Chỉ phạt nếu lý do là khách không đến
+			if (CustomerId.HasValue && cancelReason == CancelOrderReason.SuspectedFraud)
+			{
+				AddDomainEvent(new Events.OrderRefusedDomainEvent(CustomerId.Value, Id));
+			}
+		}
+
 		public void AttachForwardShipping(Guid shippingInfoId)
 		{
 			if (shippingInfoId == Guid.Empty)
