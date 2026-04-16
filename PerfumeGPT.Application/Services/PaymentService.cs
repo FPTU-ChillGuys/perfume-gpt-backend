@@ -394,8 +394,8 @@ namespace PerfumeGPT.Application.Services
 				var order = await _unitOfWork.Orders.GetByIdAsync(payment.OrderId)
 					 ?? throw AppException.NotFound("Order not found.");
 
-				if (order.Status != OrderStatus.Pending)
-					throw AppException.BadRequest($"Cannot change payment method or retry because the order is already being processed (Current status: {order.Status}).");
+				//if (order.Status != OrderStatus.Pending)
+				//	throw AppException.BadRequest($"Cannot change payment method or retry because the order is already being processed (Current status: {order.Status}).");
 
 				if (order.PaymentExpiresAt.HasValue && order.PaymentExpiresAt.Value < DateTime.UtcNow)
 				{

@@ -232,8 +232,12 @@ namespace PerfumeGPT.Persistence.Repositories
 			 Status = o.Status,
 			 PaymentStatus = o.PaymentStatus,
 			 TotalAmount = o.TotalAmount,
+			 SubTotal = o.OrderDetails.Sum(od => (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount),
+			 ShippingFee = o.ForwardShipping != null ? o.ForwardShipping.ShippingFee : 0m,
 			 VoucherId = o.UserVoucherId,
 			 VoucherCode = o.UserVoucher != null ? o.UserVoucher.Voucher.Code : null,
+			 VoucherType = o.UserVoucher != null ? o.UserVoucher.Voucher.ApplyType : null,
+			 VoucherDiscountTotal = o.OrderDetails.Sum(od => od.ApportionedDiscount),
 			 PaymentExpiresAt = o.PaymentExpiresAt,
 			 PaidAt = o.PaidAt,
 			 CreatedAt = o.CreatedAt,
@@ -279,7 +283,14 @@ namespace PerfumeGPT.Persistence.Repositories
 					 : null,
 				 Quantity = od.Quantity,
 				 UnitPrice = od.UnitPrice,
-				 Total = od.UnitPrice * od.Quantity - od.ApportionedDiscount,
+				 CampaignDiscount = od.PromotionDiscountAmount,
+				 CampaignPrice = od.Quantity > 0
+					? od.UnitPrice - (od.PromotionDiscountAmount / od.Quantity)
+					: od.UnitPrice,
+				 VoucherDiscount = od.ApportionedDiscount,
+				 ItemTotal = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount,
+				 RefunablePrice = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
+				 Total = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
 				 ReservedBatches = o.StockReservations
 					 .Where(sr => sr.VariantId == od.VariantId)
 					 .Select(sr => new ReservedBatchResponse

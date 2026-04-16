@@ -1,5 +1,4 @@
 using PerfumeGPT.Application.DTOs.Responses.Carts;
-using PerfumeGPT.Application.DTOs.Responses.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Payments;
 
 namespace PerfumeGPT.Application.Interfaces.ThirdParties
@@ -12,6 +11,6 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		Task PaymentFailed(PosPaymentCompletedDto paymentData);
 		Task PaymentLinkUpdated(PosPaymentLinkDto paymentData);
 		Task OrderDelivered(string orderCode);
-		Task ReceiveOnlineOrder(OrderResponse orderData);
+		Task ReceiveOnlineOrder(object orderData);
 	}
 }
