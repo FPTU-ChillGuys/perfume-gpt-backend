@@ -13,7 +13,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<UserOrderResponse?> GetUserOrderWithFullDetailsAsync(Guid orderId, Guid userId);
 		Task<ReceiptResponse?> GetInvoiceAsync(Guid orderId);
 		Task<ReceiptResponse?> GetUserInvoiceAsync(Guid orderId, Guid userId);
-		Task<(string CustomerEmail, ReceiptResponse Invoice)?> GetOnlineOrderInvoiceEmailPayloadAsync(Guid orderId);
+		Task<(string CustomerEmail, ReceiptResponse Invoice, string OrderCode)?> GetOnlineOrderInvoiceEmailPayloadAsync(Guid orderId);
 		Task<Order?> GetOrderForStatusUpdateAsync(Guid orderId);
 		Task<Order?> GetOrderForCancellationAsync(Guid orderId);
 		Task<Order?> GetOrderForMarkUsedVoucherAsync(Guid orderId);

@@ -4,7 +4,7 @@ using PerfumeGPT.Application.Interfaces.ThirdParties.BackgroundJobs;
 
 namespace PerfumeGPT.Infrastructure.BackgroundJobs
 {
-    public class InvoiceEmailJob : IInvoiceAppService
+	public class InvoiceEmailJob : IInvoiceAppService
 	{
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IEmailService _emailService;
@@ -28,13 +28,13 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 				return;
 			}
 
-			var (customerEmail, invoice) = payload.Value;
+			var (customerEmail, invoice, orderCode) = payload.Value;
 			if (string.IsNullOrWhiteSpace(customerEmail))
 			{
 				return;
 			}
 
-			var subject = $"PerfumeGPT Invoice - Order {invoice.OrderId}";
+			var subject = $"Hóa đơn PerfumeGPT - Đơn hàng {orderCode}";
 			var body = _emailTemplateService.GetInvoiceTemplate(invoice);
 			await _emailService.SendEmailAsync(customerEmail, subject, body);
 		}

@@ -404,7 +404,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			return order == null ? null : MapToReceiptResponse(order);
 		}
 
-		public async Task<(string CustomerEmail, ReceiptResponse Invoice)?> GetOnlineOrderInvoiceEmailPayloadAsync(Guid orderId)
+		public async Task<(string CustomerEmail, ReceiptResponse Invoice, string OrderCode)?> GetOnlineOrderInvoiceEmailPayloadAsync(Guid orderId)
 		{
 			var order = await GetOrderForInvoiceAsync(orderId);
 			if (order == null || order.Type != OrderType.Online || order.PaymentStatus != PaymentStatus.Paid)
@@ -418,7 +418,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 
 			var invoice = MapToReceiptResponse(order);
-			return (order.Customer.Email!, invoice);
+			return (order.Customer.Email!, invoice, order.Code);
 		}
 
 		public async Task<Order?> GetOrderForStatusUpdateAsync(Guid orderId)

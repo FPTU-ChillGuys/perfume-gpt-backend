@@ -44,7 +44,7 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 					return;
 				}
 
-				var subject = $"[PerfumeGPT] Low stock alert ({lowStockItems.Count} variants)";
+				var subject = $"[PerfumeGPT] Cảnh báo tồn kho thấp ({lowStockItems.Count} phân loại)";
 				var body = _emailTemplateService.GetLowStockAlertTemplate(lowStockItems, DateTime.UtcNow);
 
 				foreach (var adminEmail in adminEmails)

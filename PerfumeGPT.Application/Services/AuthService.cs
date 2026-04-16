@@ -115,7 +115,7 @@ namespace PerfumeGPT.Application.Services
 			var emailContent = _templateService.GetRegisterTemplate(
 				request.FullName ?? request.Email, verifyUrl);
 
-			await _emailService.SendEmailAsync(request.Email!, "Email Confirmation", emailContent);
+			await _emailService.SendEmailAsync(request.Email!, "[PerfumeGPT] Xác nhận địa chỉ email", emailContent);
 			return BaseResponse<string>.Ok(token, "User registered successfully. Please check your email to verify!");
 		}
 
@@ -198,7 +198,7 @@ namespace PerfumeGPT.Application.Services
 			var callback = QueryHelpers.AddQueryString(request.ClientUri, param);
 			var emailContent = _templateService.GetForgotPasswordTemplate(user.UserName ?? "User", callback);
 
-			await _emailService.SendEmailAsync(user.Email!, "Reset Password", emailContent);
+			await _emailService.SendEmailAsync(user.Email!, "[PerfumeGPT] Yêu cầu đặt lại mật khẩu", emailContent);
 			return BaseResponse<string>.Ok(token);
 		}
 
