@@ -18,21 +18,21 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IMapper _mapper;
 		private readonly ISupabaseService _supabaseService;
-      private readonly IBackgroundJobService _backgroundJobService;
+		private readonly IBackgroundJobService _backgroundJobService;
 		private readonly ILogger<BannerService> _logger;
 		private const string BannerBucketName = "Banners";
 
-      public BannerService(
-			IUnitOfWork unitOfWork,
-			IMapper mapper,
-			ISupabaseService supabaseService,
-			IBackgroundJobService backgroundJobService,
-			ILogger<BannerService> logger)
+		public BannerService(
+			  IUnitOfWork unitOfWork,
+			  IMapper mapper,
+			  ISupabaseService supabaseService,
+			  IBackgroundJobService backgroundJobService,
+			  ILogger<BannerService> logger)
 		{
 			_unitOfWork = unitOfWork;
 			_mapper = mapper;
 			_supabaseService = supabaseService;
-           _backgroundJobService = backgroundJobService;
+			_backgroundJobService = backgroundJobService;
 			_logger = logger;
 		}
 
@@ -85,10 +85,7 @@ namespace PerfumeGPT.Application.Services
 
 			banner.UpdateSchedule(request.StartDate, request.EndDate);
 			banner.SetActiveStatus(request.IsActive);
-			banner.ChangeOrder(request.DisplayOrder);
-
-			await _unitOfWork.Banners.AddAsync(banner);
-
+			await HandleDisplayOrderAsync(banner, request.DisplayOrder);
 			if (temporaryDesktopImage != null)
 			{
 				_unitOfWork.TemporaryMedia.Remove(temporaryDesktopImage);
@@ -148,7 +145,7 @@ namespace PerfumeGPT.Application.Services
 				request.AltText ?? temporaryDesktopImage?.AltText ?? temporaryMobileImage?.AltText);
 
 			banner.ChangePosition(request.Position);
-			banner.ChangeOrder(request.DisplayOrder);
+			await HandleDisplayOrderAsync(banner, request.DisplayOrder);
 			banner.UpdateSchedule(request.StartDate, request.EndDate);
 			banner.UpdateLink(request.LinkType, request.LinkTarget);
 			banner.SetActiveStatus(request.IsActive);
@@ -206,6 +203,42 @@ namespace PerfumeGPT.Application.Services
 			{
 				_backgroundJobService.ScheduleBannerEnd(_logger, banner.Id, banner.EndDate.Value);
 			}
+		}
+
+		private async Task HandleDisplayOrderAsync(Banner banner, int requestedOrder)
+		{
+         var existingBanners = (await _unitOfWork.Banners.GetAllAsync(
+				filter: b => b.Position == banner.Position && b.Id != banner.Id,
+				orderBy: q => q.OrderBy(b => b.DisplayOrder)))
+				.ToList();
+
+			var maxOrder = existingBanners.Count == 0 ? 0 : existingBanners.Max(b => b.DisplayOrder);
+
+          if (requestedOrder <= 0)
+			{
+				banner.ChangeOrder(maxOrder + 1);
+				return;
+			}
+
+			var normalizedOrder = Math.Min(requestedOrder, maxOrder + 1);
+
+          var isCollision = existingBanners.Any(b => b.DisplayOrder == normalizedOrder);
+
+			if (isCollision)
+			{
+				var bannersToShift = existingBanners
+                   .Where(b => b.DisplayOrder >= normalizedOrder)
+					.OrderBy(b => b.DisplayOrder)
+					.ToList();
+
+				foreach (var b in bannersToShift)
+				{
+					b.ChangeOrder(b.DisplayOrder + 1);
+					_unitOfWork.Banners.Update(b);
+				}
+			}
+
+          banner.ChangeOrder(normalizedOrder);
 		}
 	}
 }

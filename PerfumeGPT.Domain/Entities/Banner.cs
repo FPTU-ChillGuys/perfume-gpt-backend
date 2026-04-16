@@ -93,7 +93,14 @@ namespace PerfumeGPT.Domain.Entities
 			EndDate = endDate;
 		}
 
-		public void ChangeOrder(int newOrder) => DisplayOrder = newOrder;
+		public void ChangeOrder(int newOrder)
+		{
+			if (newOrder < 0)
+				throw DomainException.BadRequest("Display order cannot be negative.");
+
+			DisplayOrder = newOrder;
+		}
+
 		public void ChangePosition(BannerPosition position) => Position = position;
 		public void SetActiveStatus(bool isActive) => IsActive = isActive;
 
