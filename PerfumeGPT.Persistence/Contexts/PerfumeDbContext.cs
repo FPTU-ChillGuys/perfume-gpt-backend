@@ -24,12 +24,12 @@ namespace PerfumeGPT.Persistence.Contexts
 		private readonly IPublisher? _publisher;
 
 		public PerfumeDbContext(
-			  DbContextOptions<PerfumeDbContext> options,
-		   IPublisher? publisher = null,
-			  IHttpContextAccessor? httpContextAccessor = null,
-			  IAuditScope? auditScope = null,
-			  IEncryptionProvider? encryptionProvider = null)
-			  : base(options)
+			DbContextOptions<PerfumeDbContext> options,
+			IPublisher? publisher = null,
+			IHttpContextAccessor? httpContextAccessor = null,
+			IAuditScope? auditScope = null,
+			IEncryptionProvider? encryptionProvider = null)
+			: base(options)
 		{
 			_publisher = publisher;
 			_httpContextAccessor = httpContextAccessor;

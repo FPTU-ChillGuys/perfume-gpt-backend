@@ -105,7 +105,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				FailedTransactionsCount = failedTransactionsCount,
 				CancelledTransactionsCount = cancelledTransactionsCount,
 				TotalPaymentAmount = totalPaymentAmount,
-               TotalShippingFeeDeductedPerOrder = totalShippingFeeDeductedPerOrder,
+				TotalShippingFeeDeductedPerOrder = totalShippingFeeDeductedPerOrder,
 				TotalPaymentAmountExcludingShipping = totalPaymentAmountExcludingShipping,
 				TotalRefundAmount = totalRefundAmount
 			};

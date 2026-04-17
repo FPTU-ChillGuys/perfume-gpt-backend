@@ -35,10 +35,6 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.ProvinceId, src => src.ProvinceId)
 				.Map(dest => dest.ProvinceName, src => src.City)
 				.Map(dest => dest.FullAddress, src => src.Street + ", " + src.Ward + ", " + src.District + ", " + src.City);
-
-			config.NewConfig<ContactAddressInformation, ContactAddress.ContactAddressPayload>()
-				.Map(dest => dest.ContactName, src => src.ContactName)
-				.Map(dest => dest.ContactPhoneNumber, src => src.ContactPhoneNumber);
 		}
 	}
 }

@@ -24,7 +24,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			IUnitOfWork unitOfWork,
 			IVnPayService vnPayService,
 			IMomoService momoService,
-		   IPayOsService payOsService,
+			IPayOsService payOsService,
 			IHttpContextAccessor httpContextAccessor)
 		{
 			_unitOfWork = unitOfWork;

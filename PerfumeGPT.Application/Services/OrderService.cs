@@ -67,6 +67,8 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
+
+
 		#region Query Operations
 		public async Task<BaseResponse<OrderResponse>> GetOrderForPosPickupAsync(string orderCode)
 		{
@@ -97,7 +99,7 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<OrderResponse>.Fail("Đơn hàng thiếu thông tin thanh toán để xử lý tại quầy.", ResponseErrorType.BadRequest);
 			}
 
-         return BaseResponse<OrderResponse>.Ok(order, "Tra cứu đơn hàng thành công.");
+			return BaseResponse<OrderResponse>.Ok(order, "Tra cứu đơn hàng thành công.");
 		}
 
 		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersAsync(GetPagedOrdersRequest request)
@@ -110,25 +112,26 @@ namespace PerfumeGPT.Application.Services
 				request.PageSize,
 				totalCount);
 
-          return BaseResponse<PagedResult<OrderListItem>>.Ok(pagedResult, "Lấy danh sách đơn hàng thành công.");
+			return BaseResponse<PagedResult<OrderListItem>>.Ok(pagedResult, "Lấy danh sách đơn hàng thành công.");
 		}
 
 		public async Task<BaseResponse<OrderResponse>> GetOrderByIdAsync(Guid orderId)
 		{
 			var order = await _unitOfWork.Orders.GetOrderWithFullDetailsAsync(orderId)
-                 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
-          return BaseResponse<OrderResponse>.Ok(order, "Lấy thông tin đơn hàng thành công.");
+			return BaseResponse<OrderResponse>.Ok(order, "Lấy thông tin đơn hàng thành công.");
 		}
 
 		public async Task<BaseResponse<ReceiptResponse>> GetInvoiceAsync(Guid orderId)
 		{
 			var invoice = await _unitOfWork.Orders.GetInvoiceAsync(orderId)
-             ?? throw AppException.NotFound("Không tìm thấy hóa đơn đơn hàng.");
+			 ?? throw AppException.NotFound("Không tìm thấy hóa đơn đơn hàng.");
 
-          return BaseResponse<ReceiptResponse>.Ok(invoice, "Lấy hóa đơn đơn hàng thành công.");
+			return BaseResponse<ReceiptResponse>.Ok(invoice, "Lấy hóa đơn đơn hàng thành công.");
 		}
 		#endregion Query Operations
+
 
 
 		#region User Query Operations
@@ -137,9 +140,9 @@ namespace PerfumeGPT.Application.Services
 			var order = await _unitOfWork.Orders.GetUserOrderWithFullDetailsAsync(orderId, userId);
 			if (order == null)
 			{
-             return BaseResponse<UserOrderResponse>.Fail("Không tìm thấy đơn hàng hoặc đơn hàng không thuộc về người dùng.", ResponseErrorType.NotFound);
+				return BaseResponse<UserOrderResponse>.Fail("Không tìm thấy đơn hàng hoặc đơn hàng không thuộc về người dùng.", ResponseErrorType.NotFound);
 			}
-          return BaseResponse<UserOrderResponse>.Ok(order, "Lấy thông tin đơn hàng thành công.");
+			return BaseResponse<UserOrderResponse>.Ok(order, "Lấy thông tin đơn hàng thành công.");
 		}
 
 		public async Task<BaseResponse<ReceiptResponse>> GetMyInvoiceAsync(Guid orderId, Guid userId)
@@ -147,19 +150,20 @@ namespace PerfumeGPT.Application.Services
 			var invoice = await _unitOfWork.Orders.GetUserInvoiceAsync(orderId, userId);
 			if (invoice == null)
 			{
-               return BaseResponse<ReceiptResponse>.Fail("Không tìm thấy hóa đơn hoặc hóa đơn không thuộc về người dùng.", ResponseErrorType.NotFound);
+				return BaseResponse<ReceiptResponse>.Fail("Không tìm thấy hóa đơn hoặc hóa đơn không thuộc về người dùng.", ResponseErrorType.NotFound);
 			}
 
-          return BaseResponse<ReceiptResponse>.Ok(invoice, "Lấy hóa đơn đơn hàng thành công.");
+			return BaseResponse<ReceiptResponse>.Ok(invoice, "Lấy hóa đơn đơn hàng thành công.");
 		}
 		#endregion User Query Operations
+
 
 
 		#region Checkout Operations
 		public async Task<BaseResponse<CreatePaymentResponseDto>> Checkout(Guid userId, CreateOrderRequest request)
 		{
 			var customer = await _unitOfWork.Users.GetByIdAsync(userId) ??
-             throw AppException.NotFound("Không tìm thấy người dùng.");
+			 throw AppException.NotFound("Không tìm thấy người dùng.");
 
 			// Chặn luồng nếu vi phạm chính sách
 			if ((request.Payment.Method == PaymentMethod.CashOnDelivery || request.Payment.Method == PaymentMethod.CashInStore) && !customer.IsEligibleForCod(DateTime.UtcNow))
@@ -178,13 +182,13 @@ namespace PerfumeGPT.Application.Services
 				};
 
 				var cartResponse = await _cartService.GetCartForCheckoutAsync(userId, getCartTotalRequest)
-                  ?? throw AppException.BadRequest("Không thể lấy thông tin giỏ hàng để thanh toán.");
+				  ?? throw AppException.BadRequest("Không thể lấy thông tin giỏ hàng để thanh toán.");
 
 				if (cartResponse.Items.Count == 0)
-                    throw AppException.BadRequest("Giỏ hàng trống.");
+					throw AppException.BadRequest("Giỏ hàng trống.");
 
 				if (request.ExpectedTotalPrice.HasValue && Math.Abs(request.ExpectedTotalPrice.Value - cartResponse.TotalPrice) > 0.0001m)
-                  throw AppException.Conflict("Mức giảm giá không còn khớp. Vui lòng làm mới tổng tiền giỏ hàng và thanh toán lại.");
+					throw AppException.Conflict("Mức giảm giá không còn khớp. Vui lòng làm mới tổng tiền giỏ hàng và thanh toán lại.");
 
 				// Create order details
 				var itemsToValidate = cartResponse.Items
@@ -215,10 +219,10 @@ namespace PerfumeGPT.Application.Services
 				// Recalculate total right before reservation to detect promotion/batch drift
 				var latestTotalResponse = await _cartService.GetCartTotalAsync(userId, getCartTotalRequest);
 				if (!latestTotalResponse.Success || latestTotalResponse.Payload == null)
-                  throw AppException.BadRequest(latestTotalResponse.Message ?? "Không thể làm mới tổng tiền giỏ hàng.");
+					throw AppException.BadRequest(latestTotalResponse.Message ?? "Không thể làm mới tổng tiền giỏ hàng.");
 
 				if (Math.Abs(latestTotalResponse.Payload.TotalPrice - cartResponse.TotalPrice) > 0.0001m)
-                  throw AppException.Conflict("Mức giảm giá không còn khớp. Vui lòng làm mới tổng tiền giỏ hàng và thanh toán lại.");
+					throw AppException.Conflict("Mức giảm giá không còn khớp. Vui lòng làm mới tổng tiền giỏ hàng và thanh toán lại.");
 
 				var promoUsageList = cartResponse.Items
 					.Where(x => x.AppliedPromotionItemId.HasValue)
@@ -228,7 +232,7 @@ namespace PerfumeGPT.Application.Services
 
 				foreach (var usage in promoUsageList)
 				{
-                   var promo = await _unitOfWork.PromotionItems.GetByIdAsync(usage.PromoId) ?? throw AppException.BadRequest("Không tìm thấy khuyến mãi cho sản phẩm đã áp dụng.");
+					var promo = await _unitOfWork.PromotionItems.GetByIdAsync(usage.PromoId) ?? throw AppException.BadRequest("Không tìm thấy khuyến mãi cho sản phẩm đã áp dụng.");
 					promo.IncreaseCurrentUsage(usage.Qty);
 					_unitOfWork.PromotionItems.Update(promo);
 				}
@@ -248,7 +252,7 @@ namespace PerfumeGPT.Application.Services
 				if (voucher != null)
 				{
 					var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(userId, null, voucher.Id, order.Id)
-                        ?? throw AppException.BadRequest("Không thể đánh dấu mã giảm giá đã sử dụng.");
+						?? throw AppException.BadRequest("Không thể đánh dấu mã giảm giá đã sử dụng.");
 
 					order.AssignVoucher(markVoucherResult);
 				}
@@ -268,14 +272,14 @@ namespace PerfumeGPT.Application.Services
 				// Publish order_created event to Redis for AI backend (email notification)
 				await _redisPublisher.PublishOrderCreatedAsync(order.Id, userId);
 
-             return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Thanh toán đơn hàng thành công.");
+				return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Thanh toán đơn hàng thành công.");
 			});
 		}
 
 		public async Task<BaseResponse<CreatePaymentResponseDto>> CheckoutInStore(Guid staffId, CreateInStoreOrderRequest request)
 		{
 			if (request.ScannedItems == null || request.ScannedItems.Count == 0)
-                throw AppException.BadRequest("Không có sản phẩm trong đơn hàng.");
+				throw AppException.BadRequest("Không có sản phẩm trong đơn hàng.");
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
@@ -291,14 +295,14 @@ namespace PerfumeGPT.Application.Services
 				foreach (var scan in groupedScans)
 				{
 					var variantResponse = await _unitOfWork.Variants.GetByBarcodeAsync(scan.Barcode)
-                      ?? throw AppException.NotFound($"Không tìm thấy biến thể với mã vạch {scan.Barcode}.");
+					  ?? throw AppException.NotFound($"Không tìm thấy biến thể với mã vạch {scan.Barcode}.");
 
 					// Ép kiểu nếu GetByBarcodeAsync trả về DTO
 					var variantId = variantResponse.Id;
 					var variantBasePrice = variantResponse.BasePrice;
 
 					var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b => b.BatchCode == scan.BatchCode && b.VariantId == variantId)
-                     ?? throw AppException.NotFound($"Không tìm thấy lô {scan.BatchCode} cho sản phẩm {variantResponse.Sku}.");
+					 ?? throw AppException.NotFound($"Không tìm thấy lô {scan.BatchCode} cho sản phẩm {variantResponse.Sku}.");
 
 					var subTotal = variantBasePrice * scan.Quantity;
 
@@ -323,7 +327,7 @@ namespace PerfumeGPT.Application.Services
 					request.CustomerId);
 
 				if (request.ExpectedTotalPrice.HasValue && Math.Abs(request.ExpectedTotalPrice.Value - finalAmount) > 0.0001m)
-                   throw AppException.Conflict("Giá đã thay đổi so với lúc xem trước. Vui lòng làm mới và kiểm tra lại tổng tiền.");
+					throw AppException.Conflict("Giá đã thay đổi so với lúc xem trước. Vui lòng làm mới và kiểm tra lại tổng tiền.");
 
 				// 4. TẠO ĐƠN HÀNG CHỜ (PENDING)
 				var order = Order.CreateOffline(request.CustomerId, staffId, finalAmount);
@@ -340,7 +344,7 @@ namespace PerfumeGPT.Application.Services
 
 				foreach (var usage in promoUsageList)
 				{
-                   var promo = await _unitOfWork.PromotionItems.GetByIdAsync(usage.PromoId) ?? throw AppException.BadRequest("Không tìm thấy khuyến mãi cho sản phẩm đã áp dụng.");
+					var promo = await _unitOfWork.PromotionItems.GetByIdAsync(usage.PromoId) ?? throw AppException.BadRequest("Không tìm thấy khuyến mãi cho sản phẩm đã áp dụng.");
 					promo.IncreaseCurrentUsage(usage.Qty);
 					_unitOfWork.PromotionItems.Update(promo);
 				}
@@ -388,10 +392,11 @@ namespace PerfumeGPT.Application.Services
 				if (request.CustomerId.HasValue)
 					await _redisPublisher.PublishOrderCreatedAsync(order.Id, request.CustomerId.Value);
 
-             return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Tạo đơn hàng thành công. Đang chờ xác nhận thanh toán.");
+				return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Tạo đơn hàng thành công. Đang chờ xác nhận thanh toán.");
 			});
 		}
 		#endregion Checkout Operations
+
 
 
 		#region Order Status Management
@@ -402,10 +407,10 @@ namespace PerfumeGPT.Application.Services
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId)
-                 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				if (order.Status != OrderStatus.Pending)
-                 throw AppException.BadRequest($"Chỉ có thể cập nhật trạng thái đơn hàng từ Pending sang Preparing. Hiện tại: {order.Status}.");
+					throw AppException.BadRequest($"Chỉ có thể cập nhật trạng thái đơn hàng từ Pending sang Preparing. Hiện tại: {order.Status}.");
 
 				// 1. RÀO CHẮN TÀI CHÍNH (FINANCIAL GUARD)
 				// Chú ý: Đảm bảo PaymentMethod.CashOnDelivery khớp với Enum thực tế của bạn
@@ -422,7 +427,7 @@ namespace PerfumeGPT.Application.Services
 
 				if (!canPrepare)
 				{
-                 throw AppException.BadRequest("Không thể chuẩn bị đơn chưa thanh toán, trừ khi là COD hoặc thanh toán tại quầy cho đơn nhận tại cửa hàng.");
+					throw AppException.BadRequest("Không thể chuẩn bị đơn chưa thanh toán, trừ khi là COD hoặc thanh toán tại quầy cho đơn nhận tại cửa hàng.");
 				}
 
 				// 2. CHUYỂN TRẠNG THÁI (Entity Order sẽ tự chặn nếu là đơn Takeaway)
@@ -434,7 +439,7 @@ namespace PerfumeGPT.Application.Services
 				// 3. LẤY PICK LIST CHẮC CHẮN 100% CÓ DATA
 				var pickListResponse = await _fulfillmentService.GetPickListAsync(order);
 
-                var orderTypeText = order.Type == OrderType.Online ? "trực tuyến" : "giao tại cửa hàng";
+				var orderTypeText = order.Type == OrderType.Online ? "trực tuyến" : "giao tại cửa hàng";
 				return BaseResponse<PickListResponse?>.Ok(pickListResponse, $"Đơn hàng đã sẵn sàng để soạn ({orderTypeText}).");
 			});
 
@@ -460,10 +465,10 @@ namespace PerfumeGPT.Application.Services
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId)
-                 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Preparing && order.Status != OrderStatus.ReadyToPick)
-                   throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending hoặc Preparing.");
+					throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending hoặc Preparing.");
 
 				var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
 
@@ -473,7 +478,7 @@ namespace PerfumeGPT.Application.Services
 						x => x.OrderId == order.Id && x.Status == CancelRequestStatus.Pending);
 
 					if (hasPendingCancelRequest)
-                       throw AppException.BadRequest("Đơn hàng này đã có yêu cầu hủy đang chờ xử lý.");
+						throw AppException.BadRequest("Đơn hàng này đã có yêu cầu hủy đang chờ xử lý.");
 
 					var payload = new CancelRequestPayload
 					{
@@ -488,7 +493,7 @@ namespace PerfumeGPT.Application.Services
 
 					await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
 					createdCancelRequestId = cancelRequest.Id;
-                   return BaseResponse<string>.Ok("Gửi yêu cầu hủy đơn thành công.");
+					return BaseResponse<string>.Ok("Gửi yêu cầu hủy đơn thành công.");
 				}
 
 				await HandleOrderCancellationAsync(order, request.Reason);
@@ -496,7 +501,7 @@ namespace PerfumeGPT.Application.Services
 				_unitOfWork.Orders.Update(order);
 				customerIdToNotify = order.CustomerId;
 
-             var orderType = order.Type == OrderType.Online ? "trực tuyến" : "tại cửa hàng";
+				var orderType = order.Type == OrderType.Online ? "trực tuyến" : "tại cửa hàng";
 				return BaseResponse<string>.Ok($"Hủy đơn hàng {orderType} thành công.");
 			});
 
@@ -532,7 +537,7 @@ namespace PerfumeGPT.Application.Services
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			   {
 				   var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(orderId)
-                     ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+					 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				   // Validate authorization
 				   order.EnsureOwnedBy(userId);
@@ -541,7 +546,7 @@ namespace PerfumeGPT.Application.Services
 				   order.EnsureOnlineOrder();
 
 				   if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Preparing && order.Status != OrderStatus.ReadyToPick)
-                       throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending hoặc Preparing.");
+					   throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending hoặc Preparing.");
 
 				   var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
 
@@ -551,14 +556,14 @@ namespace PerfumeGPT.Application.Services
 					   await HandleOrderCancellationAsync(order, request.Reason);
 					   _unitOfWork.Orders.Update(order);
 
-                    return BaseResponse<string>.Ok("Hủy đơn hàng thành công.");
+					   return BaseResponse<string>.Ok("Hủy đơn hàng thành công.");
 				   }
 
 				   var hasPendingCancelRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(
 					   x => x.OrderId == order.Id && x.Status == CancelRequestStatus.Pending);
 
 				   if (hasPendingCancelRequest)
-                       throw AppException.BadRequest("Đơn hàng này đã có yêu cầu hủy đang chờ xử lý.");
+					   throw AppException.BadRequest("Đơn hàng này đã có yêu cầu hủy đang chờ xử lý.");
 
 				   var payload = new CancelRequestPayload
 				   {
@@ -576,7 +581,7 @@ namespace PerfumeGPT.Application.Services
 				   await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
 				   createdCancelRequestId = cancelRequest.Id;
 
-                   return BaseResponse<string>.Ok("Gửi yêu cầu hủy đơn thành công.");
+				   return BaseResponse<string>.Ok("Gửi yêu cầu hủy đơn thành công.");
 			   });
 
 			if (createdCancelRequestId.HasValue)
@@ -603,11 +608,12 @@ namespace PerfumeGPT.Application.Services
 		#endregion Order Status Management
 
 
+
 		#region Fulfillment Operations
 		public async Task<BaseResponse<PickListResponse>> GetOrderPickListAsync(Guid orderId)
 		{
 			var order = await _unitOfWork.Orders.GetOrderForPickListAsync(orderId)
-             ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+			 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 			return BaseResponse<PickListResponse>.Ok(await _fulfillmentService.GetPickListAsync(order));
 		}
 
@@ -621,16 +627,16 @@ namespace PerfumeGPT.Application.Services
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId)
-                 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				if (order.Type != OrderType.Online)
-                  throw AppException.BadRequest("Thao tác này chỉ hỗ trợ đơn hàng trực tuyến.");
+					throw AppException.BadRequest("Thao tác này chỉ hỗ trợ đơn hàng trực tuyến.");
 
 				if (order.Status != OrderStatus.ReadyToPick)
-                    throw AppException.BadRequest($"Đơn hàng phải ở trạng thái ReadyToPick. Hiện tại: {order.Status}.");
+					throw AppException.BadRequest($"Đơn hàng phải ở trạng thái ReadyToPick. Hiện tại: {order.Status}.");
 
 				if (order.ForwardShipping != null)
-                    throw AppException.BadRequest("Đơn hàng này được cấu hình giao tận nơi. Vui lòng dùng quy trình giao hàng để hoàn tất.");
+					throw AppException.BadRequest("Đơn hàng này được cấu hình giao tận nơi. Vui lòng dùng quy trình giao hàng để hoàn tất.");
 
 				// 1. CẬP NHẬT TRẠNG THÁI VÀ NHÂN VIÊN GIAO HÀNG
 				order.SetStatus(OrderStatus.Delivered);
@@ -645,7 +651,7 @@ namespace PerfumeGPT.Application.Services
 				var pendingCod = order.PaymentTransactions.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
 				if (pendingCod != null)
 				{
-                   pendingCod.MarkSuccess("Khách hàng đã thanh toán và nhận hàng tại cửa hàng.");
+					pendingCod.MarkSuccess("Khách hàng đã thanh toán và nhận hàng tại cửa hàng.");
 					_unitOfWork.Payments.Update(pendingCod);
 				}
 
@@ -661,7 +667,7 @@ namespace PerfumeGPT.Application.Services
 
 				_unitOfWork.Orders.Update(order);
 
-                return BaseResponse<string>.Ok("Giao hàng cho khách tại cửa hàng thành công.");
+				return BaseResponse<string>.Ok("Giao hàng cho khách tại cửa hàng thành công.");
 			});
 		}
 
@@ -670,6 +676,7 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<SwapDamagedStockResponse>.Ok(await _fulfillmentService.SwapDamagedStockAsync(orderId, staffId, request));
 		}
 		#endregion Fulfillment Operations
+
 
 
 		#region Private Helper Methods
@@ -690,7 +697,7 @@ namespace PerfumeGPT.Application.Services
 			var orderWithDetails = order.OrderDetails.Count > 0
 				  ? order
 				  : await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(order.Id)
-                     ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+					 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 			var promoUsageList = orderWithDetails.OrderDetails
 				.Where(x => x.PromotionItemId.HasValue)
@@ -701,7 +708,7 @@ namespace PerfumeGPT.Application.Services
 			foreach (var usage in promoUsageList)
 			{
 				var promo = await _unitOfWork.PromotionItems.GetByIdAsync(usage.PromoId)
-                    ?? throw AppException.BadRequest("Không tìm thấy khuyến mãi cho sản phẩm đã áp dụng.");
+					?? throw AppException.BadRequest("Không tìm thấy khuyến mãi cho sản phẩm đã áp dụng.");
 
 				promo.DecreaseCurrentUsage(usage.Qty);
 				_unitOfWork.PromotionItems.Update(promo);
@@ -726,7 +733,7 @@ namespace PerfumeGPT.Application.Services
 
 			foreach (var payment in orderWithDetails.PaymentTransactions.Where(p => p.IsPending()))
 			{
-              payment.MarkCancelled("Đơn hàng đã bị hủy.");
+				payment.MarkCancelled("Đơn hàng đã bị hủy.");
 				_unitOfWork.Payments.Update(payment);
 			}
 
@@ -745,11 +752,11 @@ namespace PerfumeGPT.Application.Services
 		{
 			// Get voucher details
 			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode)
-               ?? throw AppException.NotFound("Không tìm thấy mã giảm giá.");
+			   ?? throw AppException.NotFound("Không tìm thấy mã giảm giá.");
 
 			// Validate voucher eligibility
 			var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(voucherCode, userId, totalPrice, phoneNumber, cartVariantIds);
-            if (!voucherValidation) throw AppException.BadRequest("Xác thực mã giảm giá thất bại.");
+			if (!voucherValidation) throw AppException.BadRequest("Xác thực mã giảm giá thất bại.");
 
 			return voucher;
 		}

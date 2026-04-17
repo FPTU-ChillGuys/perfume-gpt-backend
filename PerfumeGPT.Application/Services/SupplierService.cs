@@ -22,6 +22,8 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
+
+
 		public async Task<BaseResponse<List<SupplierLookupItem>>> GetSupplierLookupListAsync()
 		{
 			var suppliers = await _unitOfWork.Suppliers.GetSupplierLookupListAsync();

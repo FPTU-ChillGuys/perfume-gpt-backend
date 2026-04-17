@@ -55,27 +55,6 @@ namespace PerfumeGPT.Application.Services
 			return totalAvailable >= requiredQuantity;
 		}
 
-		//public async Task<bool> DeductBatchesByVariantIdAsync(Guid variantId, int quantity, Guid referenceId)
-		//{
-		//	if (quantity <= 0)
-		//	{
-		//		throw AppException.BadRequest("Quantity must be greater than 0.");
-		//	}
-
-		//	if (referenceId == Guid.Empty)
-		//	{
-		//		throw AppException.BadRequest("Reference ID is required.");
-		//	}
-
-		//	var result = await _unitOfWork.Batches.DeductBatchesByVariantIdAsync(variantId, quantity, referenceId);
-		//	if (result)
-		//	{
-		//		await _unitOfWork.Stocks.UpdateStockAsync(variantId);
-		//	}
-
-		//	return result;
-		//}
-
 		public async Task<BaseResponse<PagedResult<BatchDetailResponse>>> GetBatchesAsync(GetBatchesRequest request)
 		{
 			var (batches, totalCount) = await _unitOfWork.Batches.GetBatchesAsync(request);

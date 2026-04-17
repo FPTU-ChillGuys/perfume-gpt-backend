@@ -17,7 +17,7 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<UpdateScentNoteRequest> _updateValidator;
 
 		public ScentNotesController(
-			[FromRoute] IScentNoteService scentNoteService,
+			IScentNoteService scentNoteService,
 			IValidator<CreateScentNoteRequest> createValidator,
 			IValidator<UpdateScentNoteRequest> updateValidator)
 		{

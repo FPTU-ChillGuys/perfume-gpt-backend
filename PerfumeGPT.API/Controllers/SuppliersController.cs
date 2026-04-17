@@ -17,7 +17,7 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<UpdateSupplierRequest> _updateValidator;
 
 		public SuppliersController(
-			[FromRoute] ISupplierService supplierService,
+			ISupplierService supplierService,
 			IValidator<CreateSupplierRequest> createValidator,
 			IValidator<UpdateSupplierRequest> updateValidator)
 		{

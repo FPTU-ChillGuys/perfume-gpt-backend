@@ -29,11 +29,11 @@ namespace PerfumeGPT.Application.Services
 		public OrderCancelRequestService(
 			IUnitOfWork unitOfWork,
 			IVnPayService vnPayService,
-		   IMomoService momoService,
+			IMomoService momoService,
 			IHttpContextAccessor httpContextAccessor,
 			IStockReservationService stockReservationService,
 			IVoucherService voucherService,
-		 IGHNService ghnService,
+			IGHNService ghnService,
 			INotificationService notificationService)
 		{
 			_unitOfWork = unitOfWork;
@@ -46,6 +46,8 @@ namespace PerfumeGPT.Application.Services
 			_notificationService = notificationService;
 		}
 		#endregion Dependencies
+
+
 
 		public async Task<BaseResponse<PagedResult<OrderCancelRequestResponse>>> GetPagedRequestsAsync(GetPagedCancelRequestsRequest request)
 		{

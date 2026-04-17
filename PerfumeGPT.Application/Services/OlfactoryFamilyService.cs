@@ -22,6 +22,8 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
+
+
 		public async Task<BaseResponse<List<OlfactoryLookupResponse>>> GetOlfactoryFamilyLookupListAsync()
 		{
 			return BaseResponse<List<OlfactoryLookupResponse>>.Ok(

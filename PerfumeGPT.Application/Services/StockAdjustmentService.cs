@@ -20,7 +20,7 @@ namespace PerfumeGPT.Application.Services
 
 		public StockAdjustmentService(
 			IUnitOfWork unitOfWork,
-		 IBatchService batchService,
+			IBatchService batchService,
 			INotificationService notificationService)
 		{
 			_unitOfWork = unitOfWork;
@@ -28,6 +28,8 @@ namespace PerfumeGPT.Application.Services
 			_notificationService = notificationService;
 		}
 		#endregion Dependencies
+
+
 
 		public async Task<BaseResponse<string>> CreateStockAdjustmentAsync(CreateStockAdjustmentRequest request, Guid userId)
 		{

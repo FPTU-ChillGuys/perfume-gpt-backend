@@ -18,7 +18,7 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<UpdateVoucherRequest> _updateValidator;
 
 		public VouchersController(
-			[FromRoute] IVoucherService voucherService,
+			IVoucherService voucherService,
 			IValidator<CreateVoucherRequest> createValidator,
 			IValidator<UpdateVoucherRequest> updateValidator)
 		{
@@ -28,7 +28,6 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		#region Admin Endpoints
-
 		[HttpPost]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
@@ -91,11 +90,11 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _voucherService.GetPagedVouchersAsync(request);
 			return HandleResponse(response);
 		}
+		#endregion Admin Endpoints
 
-		#endregion
+
 
 		#region User Endpoints
-
 		[HttpGet("redeemable")]
 		public async Task<ActionResult<BaseResponse<List<RedeemableVoucherResponse>>>> GetRedeemableVouchersV2([FromQuery] GetPagedRedeemableVouchersRequest request)
 		{
@@ -159,7 +158,6 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _voucherService.GetApplicableVouchersAsync(effectiveRequest);
 			return HandleResponse(response);
 		}
-
-		#endregion
+		#endregion User Endpoints
 	}
 }

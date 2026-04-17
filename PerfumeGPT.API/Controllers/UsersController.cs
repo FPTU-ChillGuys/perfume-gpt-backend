@@ -24,7 +24,7 @@ namespace PerfumeGPT.API.Controllers
 		public UsersController(
 			IUserService userService,
 			IMediaService mediaService,
-		  IValidator<ProfileAvtarUploadRequest> profileAvtarUploadValidator,
+			IValidator<ProfileAvtarUploadRequest> profileAvtarUploadValidator,
 			IValidator<UpdateUserBasicInfoRequest> updateUserBasicInfoValidator)
 		{
 			_userService = userService;

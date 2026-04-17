@@ -15,11 +15,11 @@ namespace PerfumeGPT.Persistence.Repositories
 	{
 		public VariantRepository(PerfumeDbContext context) : base(context) { }
 
-        public async Task<List<VariantLookupItem>> GetLookupList(Guid? productId = null, int? supplierId = null)
+		public async Task<List<VariantLookupItem>> GetLookupList(Guid? productId = null, int? supplierId = null)
 		=> await _context.ProductVariants
 			  .Where(v => !v.IsDeleted
 					&& v.Status != VariantStatus.Discontinued
-                 && (!productId.HasValue || v.ProductId == productId.Value)
+				 && (!productId.HasValue || v.ProductId == productId.Value)
 					&& (!supplierId.HasValue || !_context.VariantSuppliers.Any(vs => vs.ProductVariantId == v.Id && vs.SupplierId == supplierId.Value)))
 				.Select(v => new VariantLookupItem
 				{

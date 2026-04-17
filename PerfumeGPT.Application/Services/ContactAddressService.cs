@@ -23,6 +23,8 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
+
+
 		public async Task<ContactAddressInformation> ResolveContactAddressDataAsync(ContactAddressInformation? contactAddressInfo, Guid? savedAddressId, Guid? customerId)
 		{
 			// If request includes AddressId -> must have customerId and we load saved address

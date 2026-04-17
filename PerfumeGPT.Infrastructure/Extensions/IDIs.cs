@@ -150,10 +150,10 @@ namespace PerfumeGPT.Infrastructure.Extensions
 				//});
 				options.AddPolicy("AllowAllForDev", policy =>
 				{
-					policy.SetIsOriginAllowed(origin => true) // 💥 Cốt lõi: Linh động chấp nhận mọi Origin
-			  .AllowAnyHeader()
-			  .AllowAnyMethod()
-			  .AllowCredentials();
+					policy.SetIsOriginAllowed(origin => true) // Cốt lõi: Linh động chấp nhận mọi Origin
+					.AllowAnyHeader()
+					.AllowAnyMethod()
+					.AllowCredentials();
 				});
 			});
 
@@ -200,7 +200,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			var jwtIssuer = configuration["Jwt:Issuer"] ?? Environment.GetEnvironmentVariable("JWT_ISSUER");
 			var jwtAudience = configuration["Jwt:Audience"] ?? Environment.GetEnvironmentVariable("JWT_AUDIENCE");
 
-			var keyBytes = Encoding.UTF8.GetBytes(jwtKey ?? throw new Exception("JWT Key is not configured."));
+			var keyBytes = Encoding.UTF8.GetBytes(jwtKey ?? throw new Exception("JWT Key chưa được cấu hình!"));
 
 			services.AddAuthentication(options =>
 			{
@@ -225,13 +225,13 @@ namespace PerfumeGPT.Infrastructure.Extensions
 
 						context.Response.StatusCode = StatusCodes.Status401Unauthorized;
 						context.Response.ContentType = "application/json";
-                        return context.Response.WriteAsJsonAsync(BaseResponse<string>.Fail("Thiếu token hoặc token không hợp lệ", ResponseErrorType.Unauthorized));
+						return context.Response.WriteAsJsonAsync(BaseResponse<string>.Fail("Thiếu token hoặc token không hợp lệ", ResponseErrorType.Unauthorized));
 					},
 					OnForbidden = context =>
 					{
 						context.Response.StatusCode = StatusCodes.Status403Forbidden;
 						context.Response.ContentType = "application/json";
-                     return context.Response.WriteAsJsonAsync(BaseResponse<string>.Fail("Bạn không có quyền truy cập tài nguyên này", ResponseErrorType.Forbidden));
+						return context.Response.WriteAsJsonAsync(BaseResponse<string>.Fail("Bạn không có quyền truy cập tài nguyên này", ResponseErrorType.Forbidden));
 					},
 					OnMessageReceived = context =>
 					{
@@ -258,7 +258,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 				}
 				else
 				{
-					throw new Exception("JWT Public Key is not configured.");
+					throw new Exception("JWT Public Key chưa được cấu hình! Vui lòng cung cấp để ứng dụng có thể xác thực token.");
 				}
 
 				var rsaKey = new RsaSecurityKey(rsa);

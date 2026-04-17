@@ -2,7 +2,7 @@
 {
 	public enum StockTransactionType
 	{
-		Import,
+		Import = 1,
 		Sales,
 		Adjustment
 	}

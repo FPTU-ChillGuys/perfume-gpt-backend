@@ -25,8 +25,8 @@ namespace PerfumeGPT.Application.Services
 
 		public CartService(
 			IUnitOfWork unitOfWork,
-		 IVoucherService voucherService,
-		 ISignalRService signalRService,
+			IVoucherService voucherService,
+			ISignalRService signalRService,
 			IGHNService ghnService)
 		{
 			_unitOfWork = unitOfWork;
@@ -35,6 +35,8 @@ namespace PerfumeGPT.Application.Services
 			_ghnService = ghnService;
 		}
 		#endregion Dependencies
+
+
 
 		public async Task<BaseResponse<PreviewPosOrderResponse>> PreviewPosOrderAsync(PreviewPosOrderRequest request)
 		{

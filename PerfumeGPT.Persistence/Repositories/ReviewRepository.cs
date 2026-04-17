@@ -17,24 +17,24 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<ReviewDetailResponse?> GetReviewWithDetailsAsync(Guid reviewId)
 		=> await _context.Reviews
 			.Where(r => r.Id == reviewId && !r.IsDeleted)
-          .Select(r => new ReviewDetailResponse
-			{
-				Id = r.Id,
-				UserId = r.UserId,
-				UserFullName = r.User.FullName,
-				UserProfilePictureUrl = r.User.ProfilePicture != null ? r.User.ProfilePicture.Url : null,
-				OrderDetailId = r.OrderDetailId,
-				OrderId = r.OrderDetail.OrderId,
-				Quantity = r.OrderDetail.Quantity,
-				UnitPrice = r.OrderDetail.UnitPrice,
-				VariantId = r.OrderDetail.VariantId,
-				VariantName = r.OrderDetail.ProductVariant.Product.Name + " " + r.OrderDetail.ProductVariant.VolumeMl + "ml " + r.OrderDetail.ProductVariant.Concentration.Name,
-				ProductName = r.OrderDetail.ProductVariant.Product.Name,
-				VolumeMl = r.OrderDetail.ProductVariant.VolumeMl,
-				ConcentrationName = r.OrderDetail.ProductVariant.Concentration.Name,
-				Rating = r.Rating,
-				Comment = r.Comment ?? string.Empty,
-				Images = r.ReviewImages
+		  .Select(r => new ReviewDetailResponse
+		  {
+			  Id = r.Id,
+			  UserId = r.UserId,
+			  UserFullName = r.User.FullName,
+			  UserProfilePictureUrl = r.User.ProfilePicture != null ? r.User.ProfilePicture.Url : null,
+			  OrderDetailId = r.OrderDetailId,
+			  OrderId = r.OrderDetail.OrderId,
+			  Quantity = r.OrderDetail.Quantity,
+			  UnitPrice = r.OrderDetail.UnitPrice,
+			  VariantId = r.OrderDetail.VariantId,
+			  VariantName = r.OrderDetail.ProductVariant.Product.Name + " " + r.OrderDetail.ProductVariant.VolumeMl + "ml " + r.OrderDetail.ProductVariant.Concentration.Name,
+			  ProductName = r.OrderDetail.ProductVariant.Product.Name,
+			  VolumeMl = r.OrderDetail.ProductVariant.VolumeMl,
+			  ConcentrationName = r.OrderDetail.ProductVariant.Concentration.Name,
+			  Rating = r.Rating,
+			  Comment = r.Comment ?? string.Empty,
+			  Images = r.ReviewImages
 					.Where(ri => !ri.IsDeleted)
 					.Select(ri => new MediaResponse
 					{
@@ -46,12 +46,12 @@ namespace PerfumeGPT.Persistence.Repositories
 						FileSize = ri.FileSize,
 						MimeType = ri.MimeType
 					}).ToList(),
-				StaffFeedbackComment = r.StaffFeedbackComment,
-				StaffFeedbackByStaffId = r.StaffFeedbackByStaffId,
-				StaffFeedbackAt = r.StaffFeedbackAt,
-				CreatedAt = r.CreatedAt,
-				UpdatedAt = r.UpdatedAt
-			})
+			  StaffFeedbackComment = r.StaffFeedbackComment,
+			  StaffFeedbackByStaffId = r.StaffFeedbackByStaffId,
+			  StaffFeedbackAt = r.StaffFeedbackAt,
+			  CreatedAt = r.CreatedAt,
+			  UpdatedAt = r.UpdatedAt
+		  })
 			.AsNoTracking()
 			.FirstOrDefaultAsync();
 
@@ -109,7 +109,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
-                .Select(r => new ReviewListItem
+				.Select(r => new ReviewListItem
 				{
 					Id = r.Id,
 					UserId = r.UserId,
@@ -133,7 +133,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<List<ReviewResponse>> GetReviewsByVariantIdAsync(Guid variantId)
 		=> await _context.Reviews
 			.Where(r => r.OrderDetail.VariantId == variantId && !r.IsDeleted)
-            .Select(r => new ReviewResponse
+			.Select(r => new ReviewResponse
 			{
 				Id = r.Id,
 				UserId = r.UserId,
@@ -168,7 +168,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<List<ReviewResponse>> GetReviewsByUserIdAsync(Guid userId)
 		=> await _context.Reviews
 			.Where(r => r.UserId == userId && !r.IsDeleted)
-            .Select(r => new ReviewResponse
+			.Select(r => new ReviewResponse
 			{
 				Id = r.Id,
 				UserId = r.UserId,

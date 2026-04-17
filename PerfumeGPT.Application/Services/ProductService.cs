@@ -38,6 +38,8 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
+
+
 		public async Task<BaseResponse<BulkActionResult<string>>> CreateProductAsync(CreateProductRequest request)
 		{
 			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes);
@@ -236,6 +238,8 @@ namespace PerfumeGPT.Application.Services
 			  response, "Lấy nhanh thông tin sản phẩm thành công");
 		}
 
+
+
 		#region Media Management
 		public async Task<BaseResponse<List<MediaResponse>>> GetProductImagesAsync(Guid productId)
 		{
@@ -244,7 +248,9 @@ namespace PerfumeGPT.Application.Services
 
 			return await _mediaService.GetMediaByEntityAsync(EntityType.Product, productId);
 		}
-		#endregion
+		#endregion Media Management
+
+
 
 		#region Semantic Search
 		public async Task<BaseResponse<List<ProductDailySaleFigureResponse>>> GetProductDailySaleFiguresAsync(
@@ -254,9 +260,9 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<List<ProductDailySaleFigureResponse>>.Ok(
 			 response, "Lấy số liệu bán hàng theo ngày của sản phẩm thành công");
 		}
+		#endregion Semantic Search
 
 
-		#endregion
 
 		#region Private Methods
 		private async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(
@@ -266,6 +272,6 @@ namespace PerfumeGPT.Application.Services
 
 		private async Task<BulkActionResponse> DeleteMultipleMediaAsync(List<Guid> mediaIds)
 			=> await _helper.DeleteMultipleMediaAsync(mediaIds);
-		#endregion
+		#endregion Private Methods
 	}
 }

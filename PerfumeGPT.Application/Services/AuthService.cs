@@ -48,7 +48,9 @@ namespace PerfumeGPT.Application.Services
 			_mediaService = mediaService;
 			_logger = logger;
 		}
-		#endregion
+		#endregion Dependencies
+
+
 
 		public async Task<BaseResponse<TokenResponse>> LoginAsync(LoginRequest request)
 		{
@@ -215,6 +217,8 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<string>.Ok("Đặt lại mật khẩu thành công");
 		}
 
+
+
 		#region Private Helpers
 		private async Task<TokenResponse> GenerateTokenResponseAsync(User user)
 		{
@@ -299,6 +303,6 @@ namespace PerfumeGPT.Application.Services
 
 			return new string(arr);
 		}
-		#endregion
+		#endregion Private Helpers
 	}
 }

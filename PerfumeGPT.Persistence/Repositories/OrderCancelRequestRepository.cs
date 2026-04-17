@@ -27,14 +27,14 @@ namespace PerfumeGPT.Persistence.Repositories
 			var totalCount = await query.CountAsync();
 
 			var pagedData = await query
-                .OrderByDescending(r => r.CreatedAt)
+				.OrderByDescending(r => r.CreatedAt)
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
 				.Select(r => new OrderCancelRequestResponse
 				{
 					Id = r.Id,
 					OrderId = r.OrderId,
-                    OrderCode = r.Order.Code,
+					OrderCode = r.Order.Code,
 					RequestedById = r.RequestedById,
 					RequestedByEmail = r.RequestedBy != null ? r.RequestedBy.Email : null,
 					ProcessedById = r.ProcessedById,

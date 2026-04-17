@@ -39,6 +39,8 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
+
+
 		public async Task<BaseResponse<BulkActionResult<string>>> CreateVariantAsync(CreateVariantRequest request)
 		{
 			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(

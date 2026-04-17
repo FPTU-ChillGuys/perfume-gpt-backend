@@ -10,7 +10,6 @@ namespace PerfumeGPT.Application.Services
 	public class CartItemService : ICartItemService
 	{
 		#region Dependencies
-
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IStockService _stockService;
 
@@ -19,8 +18,9 @@ namespace PerfumeGPT.Application.Services
 			_unitOfWork = unitOfWork;
 			_stockService = stockService;
 		}
+		#endregion Dependencies
 
-		#endregion
+
 
 		public async Task<BaseResponse<string>> AddToCartAsync(Guid userId, CreateCartItemRequest request)
 		{

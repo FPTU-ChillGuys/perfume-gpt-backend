@@ -19,6 +19,8 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
+
+
 		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
 			=> await _unitOfWork.Stocks.HasSufficientStockAsync(variantId, requiredQuantity);
 

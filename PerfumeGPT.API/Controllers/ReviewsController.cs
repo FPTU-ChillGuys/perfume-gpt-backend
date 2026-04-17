@@ -21,7 +21,7 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<AnswerReviewRequest> _answerValidator;
 
 		public ReviewsController(
-			[FromRoute] IReviewService reviewService,
+			IReviewService reviewService,
 			IMediaService mediaService,
 			IValidator<CreateReviewRequest> createValidator,
 			IValidator<AnswerReviewRequest> answerValidator)

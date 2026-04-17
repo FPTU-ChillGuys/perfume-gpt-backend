@@ -5,7 +5,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.VNPays
 		public Guid OrderId { get; init; }
 		public decimal Amount { get; init; }
 		public Guid PaymentId { get; init; }
-		public string TransactionType { get; init; } = "02"; // 02 for full refund, 03 for partial
+		public required string TransactionType { get; init; }
 		public string? TransactionNo { get; init; }
 		public string CreateBy { get; init; } = string.Empty;
 		public string OrderInfo { get; init; } = string.Empty;

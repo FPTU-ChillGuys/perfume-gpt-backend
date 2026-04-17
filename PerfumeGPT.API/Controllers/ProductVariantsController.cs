@@ -23,7 +23,7 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IValidator<VariantUploadMediaRequest> _variantUploadValidator;
 
 		public ProductVariantsController(
-			[FromRoute] IVariantService variantService,
+			IVariantService variantService,
 			IMediaService mediaService,
 			IValidator<CreateVariantRequest> createVariantValidator,
 			IValidator<UpdateVariantRequest> updateVariantValidator,
@@ -37,7 +37,6 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		#region CRUD Endpoints
-
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<VariantPagedItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<VariantPagedItem>>), StatusCodes.Status500InternalServerError)]
@@ -60,9 +59,9 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("lookup")]
 		[ProducesResponseType(typeof(BaseResponse<List<VariantLookupItem>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<List<VariantLookupItem>>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<BaseResponse<List<VariantLookupItem>>>> GetVariantLookupList([FromQuery] Guid? productId = null, [FromQuery] int? supplierId = null)
+		public async Task<ActionResult<BaseResponse<List<VariantLookupItem>>>> GetVariantLookupList([FromQuery] Guid? productId = null, [FromQuery] int? supplierId = null)
 		{
-            var result = await _variantService.GetVariantLookupListAsync(productId, supplierId);
+			var result = await _variantService.GetVariantLookupListAsync(productId, supplierId);
 			return HandleResponse(result);
 		}
 
@@ -125,7 +124,6 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(result);
 		}
 		#endregion CRUD Endpoints
-
 
 
 

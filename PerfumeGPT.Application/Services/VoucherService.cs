@@ -35,6 +35,7 @@ namespace PerfumeGPT.Application.Services
 		#endregion Dependencies
 
 
+
 		#region Admin Operations
 		public async Task<BaseResponse<string>> CreateRegularVoucherAsync(CreateVoucherRequest request)
 		{
@@ -154,16 +155,16 @@ namespace PerfumeGPT.Application.Services
 
 			return BaseResponse<PagedResult<VoucherResponse>>.Ok(pagedResult, "Lấy danh sách mã giảm giá thành công");
 		}
-		#endregion
+		#endregion Admin Operations
+
 
 
 		#region User Operations
 		public async Task<BaseResponse<PagedResult<RedeemableVoucherResponse>>> GetRedeemableVouchersAsync(GetPagedRedeemableVouchersRequest request, Guid? userId = null)
 		{
 			var (items, totalCount) = await _unitOfWork.Vouchers.GetPagedRedeemableVouchersAsync(request, userId);
-			var voucherList = _mapper.Map<List<RedeemableVoucherResponse>>(items);
 			var pagedResult = new PagedResult<RedeemableVoucherResponse>(
-				voucherList,
+				items,
 				request.PageNumber,
 				request.PageSize,
 				totalCount
@@ -239,7 +240,8 @@ namespace PerfumeGPT.Application.Services
 
 			return BaseResponse<PagedResult<UserVoucherResponse>>.Ok(pagedResult, "Lấy danh sách mã giảm giá của người dùng thành công");
 		}
-		#endregion
+		#endregion User Operations
+
 
 
 		#region Apply Voucher Logic
@@ -777,6 +779,7 @@ namespace PerfumeGPT.Application.Services
 			return await _unitOfWork.Vouchers.GetByCodeAsync(code);
 		}
 		#endregion Apply Voucher Logic
+
 
 
 		#region Private Helper Methods

@@ -14,39 +14,39 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<AddressResponse?> GetUserAddressById(Guid userId, Guid addressId)
 		=> await _context.Addresses
 			.Where(a => a.UserId == userId && a.Id == addressId)
-           .Select(a => new AddressResponse
-			{
-				Id = a.Id,
-				RecipientName = a.RecipientName,
-				RecipientPhoneNumber = a.RecipientPhoneNumber,
-				Street = a.Street,
-				Ward = a.Ward,
-				District = a.District,
-				City = a.City,
-				WardCode = a.WardCode,
-				DistrictId = a.DistrictId,
-				ProvinceId = a.ProvinceId,
-				IsDefault = a.IsDefault
-			})
+		   .Select(a => new AddressResponse
+		   {
+			   Id = a.Id,
+			   RecipientName = a.RecipientName,
+			   RecipientPhoneNumber = a.RecipientPhoneNumber,
+			   Street = a.Street,
+			   Ward = a.Ward,
+			   District = a.District,
+			   City = a.City,
+			   WardCode = a.WardCode,
+			   DistrictId = a.DistrictId,
+			   ProvinceId = a.ProvinceId,
+			   IsDefault = a.IsDefault
+		   })
 			.FirstOrDefaultAsync();
 
 		public async Task<AddressResponse?> GetDefaultAddressAsync(Guid userId)
 		=> await _context.Addresses
 			.Where(a => a.UserId == userId && a.IsDefault)
-           .Select(a => new AddressResponse
-			{
-				Id = a.Id,
-				RecipientName = a.RecipientName,
-				RecipientPhoneNumber = a.RecipientPhoneNumber,
-				Street = a.Street,
-				Ward = a.Ward,
-				District = a.District,
-				City = a.City,
-				WardCode = a.WardCode,
-				DistrictId = a.DistrictId,
-				ProvinceId = a.ProvinceId,
-				IsDefault = a.IsDefault
-			})
+		   .Select(a => new AddressResponse
+		   {
+			   Id = a.Id,
+			   RecipientName = a.RecipientName,
+			   RecipientPhoneNumber = a.RecipientPhoneNumber,
+			   Street = a.Street,
+			   Ward = a.Ward,
+			   District = a.District,
+			   City = a.City,
+			   WardCode = a.WardCode,
+			   DistrictId = a.DistrictId,
+			   ProvinceId = a.ProvinceId,
+			   IsDefault = a.IsDefault
+		   })
 			.FirstOrDefaultAsync();
 
 		public async Task<List<AddressResponse>> GetUserAddresses(Guid userId)

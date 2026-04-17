@@ -61,6 +61,8 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
+
+
 		public async Task<PayOsReturnResponse> ProcessPayOsReturnAsync(IQueryCollection queryParameters, bool isCancelCallback = false)
 		{
 			var payment = await ResolvePayOsPaymentFromCallbackAsync(queryParameters);

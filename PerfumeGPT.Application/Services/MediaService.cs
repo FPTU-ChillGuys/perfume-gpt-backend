@@ -37,6 +37,8 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
+
+
 		#region Media CRUD
 		public async Task<BaseResponse<List<MediaResponse>>> GetMediaByEntityAsync(EntityType entityType, Guid entityId)
 		{
@@ -101,6 +103,8 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<string>.Ok(count.ToString(), $"Đã xóa thành công {count} media");
 		}
 		#endregion Media CRUD
+
+
 
 		#region Profile Avatar
 		public async Task<bool> CreateProfileAvatarFromUrlAsync(Guid userId, string avatarUrl, string? altText = null)
@@ -201,6 +205,8 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Profile Avatar
 
+
+
 		#region Temporary Media
 		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadReviewTemporaryMediaAsync(
 		Guid? userId, ReviewUploadMediaRequest request)
@@ -299,6 +305,8 @@ namespace PerfumeGPT.Application.Services
 			return await UploadTemporaryMediaBulkAsync(userId, mediaRequests, ValidateOrderReturnMediaFile, "media");
 		}
 		#endregion Temporary Media
+
+
 
 		#region Private Helpers
 		private async Task<(string? Url, string? Error)> UploadToTemporaryStorageAsync(IFormFile file, EntityType entityType)
@@ -466,7 +474,7 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		private static BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>> BuildTemporaryMediaResponse(
-	  List<TemporaryMediaResponse> uploadedMedia, BulkActionResponse bulkResult, string mediaType)
+			List<TemporaryMediaResponse> uploadedMedia, BulkActionResponse bulkResult, string mediaType)
 		{
 			var mediaTypePlural = $"{mediaType}s";
 

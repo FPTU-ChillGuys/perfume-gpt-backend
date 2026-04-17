@@ -216,6 +216,7 @@ namespace PerfumeGPT.Application.Services
 		#endregion Campaign Management
 
 
+
 		#region Promotion Item Management
 		public async Task<BaseResponse<string>> AddCampaignItemAsync(Guid campaignId, CreateCampaignPromotionItemRequest request)
 		{
@@ -271,6 +272,7 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<string>.Ok(itemId.ToString(), "Xóa mục chiến dịch thành công.");
 		}
 		#endregion Promotion Item Management
+
 
 
 		#region Campaign Voucher Management

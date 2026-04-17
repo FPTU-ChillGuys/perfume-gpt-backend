@@ -10,10 +10,7 @@ namespace PerfumeGPT.Persistence.Repositories
 	{
 		private readonly PerfumeDbContext _context;
 
-		public AdminDashboardRepository(PerfumeDbContext context)
-		{
-			_context = context;
-		}
+		public AdminDashboardRepository(PerfumeDbContext context) { _context = context; }
 
 		public async Task<RevenueSummaryResponse> GetRevenueSummaryAsync(DateTime fromDateUtc, DateTime toDateUtc)
 		{

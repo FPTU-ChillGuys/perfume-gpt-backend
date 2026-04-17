@@ -20,7 +20,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Payments
 		public int FailedTransactionsCount { get; init; }
 		public int CancelledTransactionsCount { get; init; }
 		public decimal TotalPaymentAmount { get; init; }
-     public decimal TotalShippingFeeDeductedPerOrder { get; init; }
+		public decimal TotalShippingFeeDeductedPerOrder { get; init; }
 		public decimal TotalPaymentAmountExcludingShipping { get; init; }
 		public decimal TotalRefundAmount { get; init; }
 	}
