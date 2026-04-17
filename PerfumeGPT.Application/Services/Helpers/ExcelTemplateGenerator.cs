@@ -1,7 +1,9 @@
 ﻿using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Responses.Imports;
+using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
+using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Services.Helpers
@@ -15,23 +17,24 @@ namespace PerfumeGPT.Application.Services.Helpers
 			_unitOfWork = unitOfWork;
 		}
 
-		public async Task<ExcelTemplateResponse> GenerateImportTemplateAsync()
+		public async Task<ExcelTemplateResponse> GenerateImportTemplateAsync(int supplierId)
 		{
-			// Fetch all active variants from database for dropdown
-			var variants = await _unitOfWork.Variants.GetAllAsync(
-				filter: v => v.Status == VariantStatus.Active,
+			var supplier = await _unitOfWork.Suppliers.GetByIdAsync(supplierId)
+				?? throw AppException.NotFound("Không tìm thấy nhà cung cấp với ID đã cho.");
+
+			var variantSuppliers = await _unitOfWork.VariantSuppliers.GetAllAsync(
+				filter: vs => vs.SupplierId == supplierId && vs.ProductVariant.Status == VariantStatus.Active,
 				include: query => query
-					.Include(v => v.Product)
-					.Include(v => v.Concentration),
-				orderBy: q => q.OrderBy(v => v.Barcode));
+					.Include(vs => vs.ProductVariant).ThenInclude(v => v.Product)
+					.Include(vs => vs.ProductVariant).ThenInclude(v => v.Concentration),
+				orderBy: q => q.OrderBy(vs => vs.ProductVariant.Sku));
 
 			using var workbook = new XLWorkbook();
-			// Create all sheets
-			CreateMainTemplateSheet(workbook, variants);
-			CreateVariantReferenceSheet(workbook, variants);
+
+			CreateMainTemplateSheet(workbook, variantSuppliers, supplier);
+			CreateVariantReferenceSheet(workbook, variantSuppliers);
 			CreateInstructionsSheet(workbook);
 
-			// Convert to byte array
 			using var stream = new MemoryStream();
 			workbook.SaveAs(stream);
 			var fileContent = stream.ToArray();
@@ -39,308 +42,240 @@ namespace PerfumeGPT.Application.Services.Helpers
 			return new ExcelTemplateResponse
 			{
 				FileContent = fileContent,
-				FileName = $"ImportTicket_Template_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx"
+				FileName = $"PhieuNhap_{supplier.Name.Replace(" ", "")}_{DateTime.UtcNow:yyyyMMdd}.xlsx"
 			};
 		}
 
-		/// <summary>
-		/// Creates the main import template sheet with dropdowns and formulas.
-		/// </summary>
-		private static void CreateMainTemplateSheet(XLWorkbook workbook, IEnumerable<dynamic> variants)
+		private static void CreateMainTemplateSheet(XLWorkbook workbook, IEnumerable<VariantSupplier> variantSuppliers, Supplier supplier)
 		{
-			var worksheet = workbook.Worksheets.Add("Import Template");
+			var worksheet = workbook.Worksheets.Add("Biểu mẫu Nhập hàng");
 
-			// Set column headers
-			SetupHeaders(worksheet);
+			// Dòng 1: Nhúng ID Nhà cung cấp (Quan trọng để upload)
+			worksheet.Cell(1, 1).Value = "MÃ HỆ THỐNG NCC:";
+			worksheet.Cell(1, 1).Style.Font.Bold = true;
+			worksheet.Cell(1, 2).Value = supplier.Id; // Đây là giá trị sẽ đọc lại khi upload
+			worksheet.Cell(1, 2).Style.Font.FontColor = XLColor.Gray;
 
-			// Add data validation (dropdown) for Barcode column
-			if (variants.Any())
-			{
-				SetupBarcodeDropdown(worksheet, variants.Count());
-			}
+			// Dòng 2: Tên Nhà cung cấp để người dùng nhận diện
+			worksheet.Cell(2, 1).Value = "TÊN NHÀ CUNG CẤP:";
+			worksheet.Cell(2, 1).Style.Font.Bold = true;
+			worksheet.Cell(2, 2).Value = supplier.Name;
+			worksheet.Cell(2, 2).Style.Font.Bold = true;
+			worksheet.Cell(2, 2).Style.Font.FontColor = XLColor.DarkBlue;
 
-			// Add formulas for auto-filled columns
-			AddAutoFillFormulas(worksheet);
+			// Set column headers (Bắt đầu từ dòng 4 - Dòng 3 để trống cho thoáng)
+			worksheet.Cell(4, 1).Value = "Mã SKU";
+			worksheet.Cell(4, 2).Value = "Mã vạch (Tự động)";
+			worksheet.Cell(4, 3).Value = "Tên sản phẩm (Tự động)";
+			worksheet.Cell(4, 4).Value = "SL Dự kiến";
+			worksheet.Cell(4, 5).Value = "Giá Hệ thống (VNĐ)";
+			worksheet.Cell(4, 6).Value = "Giá Thực tế (VNĐ)";
+			worksheet.Cell(4, 7).Value = "Thành tiền (Tự động)";
 
-			// Apply formatting
-			ApplyFormatting(worksheet);
-
-			// Add conditional formatting and totals
-			AddConditionalFormattingAndTotals(worksheet);
-		}
-
-		/// <summary>
-		/// Sets up column headers with professional styling.
-		/// </summary>
-		private static void SetupHeaders(IXLWorksheet worksheet)
-		{
-			worksheet.Cell(1, 1).Value = "SKU";
-			worksheet.Cell(1, 2).Value = "Barcode (Auto-filled)";
-			worksheet.Cell(1, 3).Value = "Product Name (Auto-filled)";
-			worksheet.Cell(1, 4).Value = "ExpectedQuantity";
-			worksheet.Cell(1, 5).Value = "Unit Price (VND)";
-			worksheet.Cell(1, 6).Value = "Subtotal (Auto-calculated)";
-
-			// Format headers
-			var headerRange = worksheet.Range(1, 1, 1, 6);
+			var headerRange = worksheet.Range(4, 1, 4, 7);
 			headerRange.Style.Font.Bold = true;
-			headerRange.Style.Font.FontSize = 11;
 			headerRange.Style.Fill.BackgroundColor = XLColor.FromArgb(68, 114, 196);
 			headerRange.Style.Font.FontColor = XLColor.White;
 			headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-			headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-			headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Medium;
-			worksheet.Row(1).Height = 25;
+			worksheet.Row(4).Height = 25;
+
+			if (variantSuppliers.Any())
+			{
+				SetupBarcodeDropdown(worksheet, variantSuppliers.Count());
+			}
+
+			AddAutoFillFormulas(worksheet);
+			ApplyFormatting(worksheet);
+			AddConditionalFormattingAndTotals(worksheet);
 		}
 
-		/// <summary>
-		/// Sets up dropdown validation for the SKU column.
-		/// </summary>
 		private static void SetupBarcodeDropdown(IXLWorksheet worksheet, int variantCount)
 		{
-			var skuRange = worksheet.Range("A2:A1000");
-			var variantSheetName = "Variant_Reference";
+			// SỬA LỖI: Dữ liệu bắt đầu từ dòng 4
+			var skuRange = worksheet.Range("A4:A1000");
+			var variantSheetName = "DanhSach_SanPham";
 			var validationFormula = $"'{variantSheetName}'!$A$2:$A${variantCount + 1}";
 
 			var skuValidation = skuRange.CreateDataValidation();
 			skuValidation.List(validationFormula, true);
-			skuValidation.InputTitle = "Select SKU";
-			skuValidation.InputMessage = "Click the dropdown arrow to select a product SKU from the list. SKUs are more readable than barcodes!";
-			skuValidation.ErrorTitle = "Invalid SKU";
-			skuValidation.ErrorMessage = "Please select a SKU from the dropdown list.";
+			skuValidation.InputTitle = "Chọn Mã SKU";
+			skuValidation.InputMessage = "Click vào mũi tên để chọn mã SKU từ danh sách. Không nhập tay!";
+			skuValidation.ErrorTitle = "SKU Không hợp lệ";
+			skuValidation.ErrorMessage = "Vui lòng chỉ chọn mã SKU có sẵn trong danh sách thả xuống.";
 		}
 
-		/// <summary>
-		/// Adds VLOOKUP and calculation formulas to auto-fill columns.
-		/// </summary>
 		private static void AddAutoFillFormulas(IXLWorksheet worksheet)
 		{
-			for (int row = 2; row <= 1000; row++)
+			for (int row = 5; row <= 1000; row++) // Bắt đầu từ 5
 			{
-				// Barcode lookup (Column B)
-				worksheet.Cell(row, 2).FormulaA1 = $"=IFERROR(VLOOKUP(A{row},Variant_Reference!A:B,2,FALSE),\"\")";
-
-				// Product Name lookup (Column C)
-				worksheet.Cell(row, 3).FormulaA1 = $"=IFERROR(VLOOKUP(A{row},Variant_Reference!A:C,3,FALSE),\"\")";
-
-				// Subtotal calculation (Column F)
-				worksheet.Cell(row, 6).FormulaA1 = $"=IF(AND(ISNUMBER(D{row}),ISNUMBER(E{row})),D{row}*E{row},\"\")";
+				worksheet.Cell(row, 2).FormulaA1 = $"=IFERROR(VLOOKUP(A{row},DanhSach_SanPham!A:E,2,FALSE),\"\")";
+				worksheet.Cell(row, 3).FormulaA1 = $"=IFERROR(VLOOKUP(A{row},DanhSach_SanPham!A:E,3,FALSE),\"\")";
+				worksheet.Cell(row, 5).FormulaA1 = $"=IFERROR(VLOOKUP(A{row},DanhSach_SanPham!A:E,5,FALSE),\"\")";
+				worksheet.Cell(row, 7).FormulaA1 = $"=IF(ISNUMBER(D{row}), D{row} * IF(ISNUMBER(F{row}), F{row}, IF(ISNUMBER(E{row}), E{row}, 0)), \"\")";
 			}
 		}
 
-		/// <summary>
-		/// Applies formatting to the worksheet (colors, borders, column widths).
-		/// </summary>
 		private static void ApplyFormatting(IXLWorksheet worksheet)
 		{
-			// Format auto-filled columns as read-only (light gray background)
-			var autoFilledColumns = worksheet.Range("B2:C1000");
-			autoFilledColumns.Style.Fill.BackgroundColor = XLColor.FromArgb(242, 242, 242);
-			autoFilledColumns.Style.Font.FontColor = XLColor.FromArgb(89, 89, 89);
+			// SỬA LỖI: Cập nhật lại cột làm mờ (Read-only) là B, C, E, G từ dòng 4
+			var readOnlyCols1 = worksheet.Range("B4:C1000");
+			var readOnlyCols2 = worksheet.Range("E4:E1000");
+			var readOnlyCols3 = worksheet.Range("G4:G1000");
 
-			var subtotalColumn = worksheet.Range("F2:F1000");
-			subtotalColumn.Style.Fill.BackgroundColor = XLColor.FromArgb(242, 242, 242);
-			subtotalColumn.Style.Font.FontColor = XLColor.FromArgb(89, 89, 89);
+			var grayColor = XLColor.FromArgb(242, 242, 242);
+			var fontGray = XLColor.FromArgb(89, 89, 89);
 
-			// Number formatting for currency
-			worksheet.Range("E2:F1000").Style.NumberFormat.Format = "#,##0";
+			readOnlyCols1.Style.Fill.BackgroundColor = grayColor; readOnlyCols1.Style.Font.FontColor = fontGray;
+			readOnlyCols2.Style.Fill.BackgroundColor = grayColor; readOnlyCols2.Style.Font.FontColor = fontGray;
+			readOnlyCols3.Style.Fill.BackgroundColor = grayColor; readOnlyCols3.Style.Font.FontColor = fontGray;
 
-			// Adjust column widths to fit header content, then set minimum widths
-			worksheet.Columns(1, 6).AdjustToContents(1, 1);
+			// Format tiền tệ cho cột E, F, G
+			worksheet.Range("E4:G1000").Style.NumberFormat.Format = "#,##0";
 
-			// Ensure minimum widths for data
-			double[] minWidths = [18, 20, 35, 12, 18, 18];
-			for (int col = 1; col <= 6; col++)
+			// Điều chỉnh độ rộng 7 cột
+			worksheet.Columns(1, 7).AdjustToContents(1, 3);
+			double[] minWidths = [15, 18, 35, 12, 18, 18, 20];
+			for (int col = 1; col <= 7; col++)
 			{
 				if (worksheet.Column(col).Width < minWidths[col - 1])
 					worksheet.Column(col).Width = minWidths[col - 1];
 			}
 
-			// Freeze the header row
-			worksheet.SheetView.FreezeRows(1);
+			// SỬA LỖI: Đóng băng ở dòng 4 (Header)
+			worksheet.SheetView.FreezeRows(4);
 
-			// Add borders
-			worksheet.Range("A1:F1000").Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-			worksheet.Range("A1:F1000").Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+			// Border cho toàn bộ bảng
+			worksheet.Range("A4:G1000").Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+			worksheet.Range("A4:G1000").Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 		}
 
-		/// <summary>
-		/// Adds conditional formatting for validation and total row.
-		/// </summary>
 		private static void AddConditionalFormattingAndTotals(IXLWorksheet worksheet)
 		{
-			// Conditional formatting for Quantity (highlight if <= 0 or > 10000)
-			var quantityRange = worksheet.Range("D2:D1000");
+			// SỬA LỖI: Áp dụng từ dòng 4
+			var quantityRange = worksheet.Range("D4:D1000");
 			var conditionalFormat = quantityRange.AddConditionalFormat();
-			conditionalFormat.WhenIsTrue("=OR(D2<=0,D2>10000)").Fill.BackgroundColor = XLColor.FromArgb(255, 199, 206);
+			conditionalFormat.WhenIsTrue("=OR(D4<=0,D4>10000)").Fill.BackgroundColor = XLColor.FromArgb(255, 199, 206);
 
-			// Add total row at the bottom (row 1002)
-			worksheet.Cell(1002, 5).Value = "TOTAL:";
-			worksheet.Cell(1002, 5).Style.Font.Bold = true;
-			worksheet.Cell(1002, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-			worksheet.Cell(1002, 6).FormulaA1 = "=SUBTOTAL(109,F2:F1000)";
+			// Thêm dòng Tổng cộng ở cuối
+			worksheet.Cell(1002, 6).Value = "TỔNG CỘNG:";
 			worksheet.Cell(1002, 6).Style.Font.Bold = true;
-			worksheet.Cell(1002, 6).Style.Fill.BackgroundColor = XLColor.FromArgb(217, 217, 217);
-			worksheet.Cell(1002, 6).Style.NumberFormat.Format = "#,##0";
+			worksheet.Cell(1002, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+
+			// SỬA LỖI: Tính tổng cột G thay vì cột F
+			worksheet.Cell(1002, 7).FormulaA1 = "=SUBTOTAL(109,G4:G1000)";
+			worksheet.Cell(1002, 7).Style.Font.Bold = true;
+			worksheet.Cell(1002, 7).Style.Fill.BackgroundColor = XLColor.FromArgb(217, 217, 217);
+			worksheet.Cell(1002, 7).Style.NumberFormat.Format = "#,##0";
 		}
 
-		/// <summary>
-		/// Creates the hidden variant reference sheet with product data.
-		/// </summary>
-		private static void CreateVariantReferenceSheet(XLWorkbook workbook, IEnumerable<dynamic> variants)
+		private static void CreateVariantReferenceSheet(XLWorkbook workbook, IEnumerable<VariantSupplier> variantSuppliers)
 		{
-			var variantSheet = workbook.Worksheets.Add("Variant_Reference");
+			var variantSheet = workbook.Worksheets.Add("DanhSach_SanPham");
 
-			// Headers - SKU is now first for the dropdown
-			variantSheet.Cell(1, 1).Value = "SKU";
-			variantSheet.Cell(1, 2).Value = "Barcode";
-			variantSheet.Cell(1, 3).Value = "Product Name";
-			variantSheet.Cell(1, 4).Value = "Volume (ml)";
-			variantSheet.Cell(1, 5).Value = "Concentration";
-			variantSheet.Cell(1, 6).Value = "Base Price";
-			variantSheet.Cell(1, 7).Value = "Type";
+			variantSheet.Cell(1, 1).Value = "Mã SKU";
+			variantSheet.Cell(1, 2).Value = "Mã vạch";
+			variantSheet.Cell(1, 3).Value = "Tên sản phẩm";
+			variantSheet.Cell(1, 4).Value = "Loại";
+			variantSheet.Cell(1, 5).Value = "Giá thương lượng";
 
-			// Format headers
-			var variantHeaderRange = variantSheet.Range(1, 1, 1, 7);
-			variantHeaderRange.Style.Font.Bold = true;
-			variantHeaderRange.Style.Fill.BackgroundColor = XLColor.LightGray;
-
-			// Populate variant data - ordered by SKU for better readability
 			int variantRow = 2;
-			foreach (var variant in variants.OrderBy(v => v.Sku))
+			foreach (var vs in variantSuppliers)
 			{
-				variantSheet.Cell(variantRow, 1).Value = variant.Sku;
-				variantSheet.Cell(variantRow, 2).Value = variant.Barcode;
-				variantSheet.Cell(variantRow, 3).Value = variant.Product?.Name ?? "N/A";
-				variantSheet.Cell(variantRow, 4).Value = variant.VolumeMl;
-				variantSheet.Cell(variantRow, 5).Value = variant.Concentration?.Name ?? "N/A";
-				variantSheet.Cell(variantRow, 6).Value = variant.BasePrice;
-				variantSheet.Cell(variantRow, 7).Value = variant.Type.ToString();
+				variantSheet.Cell(variantRow, 1).Value = vs.ProductVariant.Sku;
+				variantSheet.Cell(variantRow, 2).Value = vs.ProductVariant.Barcode;
+				variantSheet.Cell(variantRow, 3).Value = vs.ProductVariant.Product?.Name ?? "N/A";
+				variantSheet.Cell(variantRow, 4).Value = vs.ProductVariant.Type.ToString();
+				variantSheet.Cell(variantRow, 5).Value = vs.NegotiatedPrice;
 				variantRow++;
 			}
 
-			// Auto-fit columns and hide sheet
 			variantSheet.Columns().AdjustToContents();
 			variantSheet.Visibility = XLWorksheetVisibility.VeryHidden;
 		}
 
-		/// <summary>
-		/// Creates the instructions sheet with user guide and tips.
-		/// </summary>
 		private static void CreateInstructionsSheet(XLWorkbook workbook)
 		{
-			var instructionsSheet = workbook.Worksheets.Add("Instructions");
+			var instructionsSheet = workbook.Worksheets.Add("Hướng dẫn");
 
-			// Title
-			instructionsSheet.Cell(1, 1).Value = "📋 IMPORT TICKET EXCEL TEMPLATE - USER GUIDE";
+			instructionsSheet.Cell(1, 1).Value = "📋 HƯỚNG DẪN SỬ DỤNG BIỂU MẪU NHẬP HÀNG";
 			instructionsSheet.Cell(1, 1).Style.Font.Bold = true;
 			instructionsSheet.Cell(1, 1).Style.Font.FontSize = 16;
 			instructionsSheet.Cell(1, 1).Style.Font.FontColor = XLColor.FromArgb(68, 114, 196);
 
-			// How to Use Section
 			AddHowToUseSection(instructionsSheet);
-
-			// Column Descriptions
 			AddColumnDescriptions(instructionsSheet);
-
-			// Important Notes
 			AddImportantNotes(instructionsSheet);
-
-			// Tips & Tricks
 			AddTipsAndTricks(instructionsSheet);
-
-			// Troubleshooting
 			AddTroubleshooting(instructionsSheet);
 
-			// Auto-fit columns and set as active sheet
 			instructionsSheet.Columns().AdjustToContents();
 			instructionsSheet.SetTabActive();
 		}
 
-		/// <summary>
-		/// Adds "How to Use" section to instructions sheet.
-		/// </summary>
 		private static void AddHowToUseSection(IXLWorksheet sheet)
 		{
-			sheet.Cell(3, 1).Value = "🚀 HOW TO USE THIS TEMPLATE:";
+			sheet.Cell(3, 1).Value = "🚀 CÁCH SỬ DỤNG:";
 			sheet.Cell(3, 1).Style.Font.Bold = true;
 			sheet.Cell(3, 1).Style.Font.FontSize = 12;
 
-			sheet.Cell(4, 1).Value = "1. Select a SKU from the DROPDOWN in Column A (don't type manually!)";
-			sheet.Cell(5, 1).Value = "2. Barcode and Product Name will auto-fill (Columns B & C)";
-			sheet.Cell(6, 1).Value = "3. Enter the Expected Quantity (Column D)";
-			sheet.Cell(7, 1).Value = "4. Enter the Unit Price in VND (Column E)";
-			sheet.Cell(8, 1).Value = "5. Subtotal will calculate automatically (Column F)";
-			sheet.Cell(9, 1).Value = "6. Total will be shown at the bottom";
-			sheet.Cell(10, 1).Value = "7. Save and upload the file to the system";
+			sheet.Cell(4, 1).Value = "1. Chọn Mã SKU từ DANH SÁCH THẢ XUỐNG ở Cột A (Tuyệt đối không nhập tay!)";
+			sheet.Cell(5, 1).Value = "2. Mã vạch, Tên sản phẩm và Giá Hệ thống sẽ tự động điền (Cột B, C, E)";
+			sheet.Cell(6, 1).Value = "3. Nhập số lượng cần nhập kho vào Cột D (SL Dự kiến)";
+			sheet.Cell(7, 1).Value = "4. Nếu giá nhập có thay đổi, nhập giá mới vào Cột F (Giá Thực tế). Nếu không, bỏ trống.";
+			sheet.Cell(8, 1).Value = "5. Thành tiền sẽ tự động được tính toán ở Cột G";
+			sheet.Cell(9, 1).Value = "6. Lưu file và tải lên hệ thống để tạo Phiếu nhập hàng";
 		}
 
-		/// <summary>
-		/// Adds column descriptions to instructions sheet.
-		/// </summary>
 		private static void AddColumnDescriptions(IXLWorksheet sheet)
 		{
-			sheet.Cell(12, 1).Value = "📊 COLUMN DESCRIPTIONS:";
+			sheet.Cell(12, 1).Value = "📊 GIẢI THÍCH CÁC CỘT:";
 			sheet.Cell(12, 1).Style.Font.Bold = true;
 			sheet.Cell(12, 1).Style.Font.FontSize = 12;
 
-			sheet.Cell(13, 1).Value = "Column A - SKU: Use DROPDOWN to select (Required) - More readable than barcodes!";
-			sheet.Cell(14, 1).Value = "Column B - Barcode: Auto-filled from database (Read-only)";
-			sheet.Cell(15, 1).Value = "Column C - Product Name: Auto-filled from database (Read-only)";
-			sheet.Cell(16, 1).Value = "Column D - Expected Quantity: Enter number of units (Required, > 0)";
-			sheet.Cell(17, 1).Value = "Column E - Unit Price: Enter price per unit in VND (Required, > 0)";
-			sheet.Cell(18, 1).Value = "Column F - Subtotal: Auto-calculated (Read-only)";
+			sheet.Cell(13, 1).Value = "Cột A - Mã SKU: Bắt buộc CHỌN từ danh sách.";
+			sheet.Cell(14, 1).Value = "Cột B - Mã vạch: Tự động điền (Chỉ đọc).";
+			sheet.Cell(15, 1).Value = "Cột C - Tên sản phẩm: Tự động điền (Chỉ đọc).";
+			sheet.Cell(16, 1).Value = "Cột D - SL Dự kiến: Số lượng hàng hóa muốn nhập (Bắt buộc > 0).";
+			sheet.Cell(17, 1).Value = "Cột E - Giá Hệ thống: Giá nhập đã thương lượng lưu trên phần mềm (Chỉ đọc).";
+			sheet.Cell(18, 1).Value = "Cột F - Giá Thực tế: Nhập giá mới nếu có biến động. Nếu để trống, hệ thống sẽ lấy Giá Hệ thống.";
+			sheet.Cell(19, 1).Value = "Cột G - Thành tiền: Tự động tính toán (Chỉ đọc).";
 		}
 
-		/// <summary>
-		/// Adds important notes to instructions sheet.
-		/// </summary>
 		private static void AddImportantNotes(IXLWorksheet sheet)
 		{
-			sheet.Cell(20, 1).Value = "⚠️ IMPORTANT NOTES:";
-			sheet.Cell(20, 1).Style.Font.Bold = true;
-			sheet.Cell(20, 1).Style.Font.FontSize = 12;
-			sheet.Cell(20, 1).Style.Font.FontColor = XLColor.Red;
+			sheet.Cell(21, 1).Value = "⚠️ LƯU Ý QUAN TRỌNG:";
+			sheet.Cell(21, 1).Style.Font.Bold = true;
+			sheet.Cell(21, 1).Style.Font.FontSize = 12;
+			sheet.Cell(21, 1).Style.Font.FontColor = XLColor.Red;
 
-			sheet.Cell(21, 1).Value = "✓ Always use the DROPDOWN for SKUs - don't type manually!";
-			sheet.Cell(22, 1).Value = "✓ Each SKU can only appear once in the file";
-			sheet.Cell(23, 1).Value = "✓ Expected Quantity must be a positive whole number";
-			sheet.Cell(24, 1).Value = "✓ Unit Price must be a positive number";
-			sheet.Cell(25, 1).Value = "✓ Gray columns are auto-filled - don't edit them";
-			sheet.Cell(26, 1).Value = "✓ Maximum file size: 10MB";
-			sheet.Cell(27, 1).Value = "✓ Supported formats: .xlsx only";
+			sheet.Cell(22, 1).Value = "✓ Luôn CHỌN SKU từ danh sách thả xuống, hệ thống sẽ báo lỗi nếu bạn gõ sai.";
+			sheet.Cell(23, 1).Value = "✓ Mỗi mã SKU chỉ được xuất hiện MỘT LẦN trong file.";
+			sheet.Cell(24, 1).Value = "✓ Số lượng phải là số nguyên dương.";
+			sheet.Cell(25, 1).Value = "✓ Các cột màu xám là cột công thức tự động - KHÔNG ĐƯỢC XÓA HOẶC SỬA.";
+			sheet.Cell(26, 1).Value = "✓ Kích thước file tối đa: 10MB (Chỉ hỗ trợ đuôi .xlsx).";
 		}
 
-		/// <summary>
-		/// Adds tips and tricks to instructions sheet.
-		/// </summary>
 		private static void AddTipsAndTricks(IXLWorksheet sheet)
 		{
-			sheet.Cell(29, 1).Value = "💡 TIPS & TRICKS:";
-			sheet.Cell(29, 1).Style.Font.Bold = true;
-			sheet.Cell(29, 1).Style.Font.FontSize = 12;
-			sheet.Cell(29, 1).Style.Font.FontColor = XLColor.Green;
+			sheet.Cell(28, 1).Value = "💡 MẸO & THỦ THUẬT:";
+			sheet.Cell(28, 1).Style.Font.Bold = true;
+			sheet.Cell(28, 1).Style.Font.FontSize = 12;
+			sheet.Cell(28, 1).Style.Font.FontColor = XLColor.Green;
 
-			sheet.Cell(30, 1).Value = "• Use Ctrl+D to copy down values in Excel";
-			sheet.Cell(31, 1).Value = "• The total at the bottom updates automatically";
-			sheet.Cell(32, 1).Value = "• Red highlighting in Quantity means invalid value";
-			sheet.Cell(33, 1).Value = "• Sort by Product Name to group similar items";
-			sheet.Cell(34, 1).Value = "• You can add up to 999 products in one file";
+			sheet.Cell(29, 1).Value = "• Nhấn Ctrl+D để copy nhanh giá trị từ ô phía trên xuống.";
+			sheet.Cell(30, 1).Value = "• Ô Số lượng chuyển màu đỏ nghĩa là bạn nhập số âm hoặc quá lớn.";
+			sheet.Cell(31, 1).Value = "• Bạn có thể nhập tối đa 1000 dòng sản phẩm trong một file.";
 		}
 
-		/// <summary>
-		/// Adds troubleshooting section to instructions sheet.
-		/// </summary>
 		private static void AddTroubleshooting(IXLWorksheet sheet)
 		{
-			sheet.Cell(36, 1).Value = "🔧 TROUBLESHOOTING:";
-			sheet.Cell(36, 1).Style.Font.Bold = true;
-			sheet.Cell(36, 1).Style.Font.FontSize = 12;
+			sheet.Cell(33, 1).Value = "🔧 KHẮC PHỤC SỰ CỐ:";
+			sheet.Cell(33, 1).Style.Font.Bold = true;
+			sheet.Cell(33, 1).Style.Font.FontSize = 12;
 
-			sheet.Cell(37, 1).Value = "❓ Dropdown not showing? Click on the cell and look for the arrow";
-			sheet.Cell(38, 1).Value = "❓ Barcode/Product name not auto-filling? Make sure you selected SKU from dropdown";
-			sheet.Cell(39, 1).Value = "❓ Subtotal not calculating? Check Quantity and Price are numbers";
-			sheet.Cell(40, 1).Value = "❓ Upload failed? Check for duplicate SKUs or invalid values";
+			sheet.Cell(34, 1).Value = "❓ Không thấy mũi tên chọn SKU? Click thẳng chuột vào ô trống ở Cột A, mũi tên sẽ hiện ra bên cạnh.";
+			sheet.Cell(35, 1).Value = "❓ Tên sản phẩm không nhảy tự động? Đảm bảo bạn đã chọn SKU đúng từ danh sách thay vì gõ tay.";
+			sheet.Cell(36, 1).Value = "❓ Thành tiền bị lỗi #VALUE? Kiểm tra xem Số lượng và Giá có bị dính chữ cái nào không.";
 		}
 	}
 }

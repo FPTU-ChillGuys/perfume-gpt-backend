@@ -106,9 +106,9 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Dung lượng tệp không được vượt quá 10MB.");
 			}
 
-			// Parse Excel file
 			var importDetails = new List<CreateImportDetailRequest>();
 			var errors = new List<string>();
+			int supplierIdFromFile = 0;
 
 			using (var stream = new MemoryStream())
 			{
@@ -117,101 +117,108 @@ namespace PerfumeGPT.Application.Services
 
 				using var workbook = new XLWorkbook(stream);
 				var worksheet = workbook.Worksheet(1);
-				var rows = worksheet.RangeUsed()?.RowsUsed().Skip(1); // Skip header row
 
-				if (rows == null || !rows.Any())
+				var supplierIdCell = worksheet.Cell("B1"); // Chuyển sang dùng tọa độ chữ cái
+				if (!supplierIdCell.TryGetValue(out supplierIdFromFile) || supplierIdFromFile <= 0)
 				{
-					throw AppException.BadRequest("Tệp Excel trống hoặc không có dòng dữ liệu.");
+					throw AppException.BadRequest("Không tìm thấy Mã hệ thống Nhà cung cấp hợp lệ trong file Excel. Vui lòng sử dụng đúng template.");
 				}
 
-				int rowNumber = 2; // Start from 2 (1 is header)
+				var rows = worksheet.RowsUsed().Where(r => r.RowNumber() >= 5);
+
+				if (!rows.Any())
+				{
+					throw AppException.BadRequest("Tệp Excel không có dòng dữ liệu hàng hóa.");
+				}
+
 				foreach (var row in rows)
 				{
+					// Lấy chính xác tọa độ dòng hiện tại để báo lỗi chuẩn xác (dù có dòng trống ở giữa)
+					int currentRowNumber = row.RowNumber();
+
 					try
 					{
-						// Column A: SKU (required) - Columns B & C are auto-filled (Barcode, Product Name)
-						var skuCell = row.Cell(1).GetValue<string>();
+						// Cột 1 (A): Mã SKU
+						var skuCell = row.Cell(1).GetValue<string>()?.Trim();
 
-						// Skip empty rows (template has 1000 rows with formulas, but user may only fill a few)
-						if (string.IsNullOrWhiteSpace(skuCell))
+						// Bỏ qua dòng trống hoặc dòng có chữ "TỔNG CỘNG" ở cuối file
+						if (string.IsNullOrWhiteSpace(skuCell) || skuCell.Contains("TỔNG CỘNG") || skuCell.Contains("TOTAL"))
 						{
-							rowNumber++;
 							continue;
 						}
 
-						// Column D: Quantity (required) 
+						// Cột 4 (D): Số lượng dự kiến
 						var quantityCell = row.Cell(4);
 						if (!quantityCell.TryGetValue(out int quantity) || quantity <= 0)
 						{
-							errors.Add($"Dòng {rowNumber}: Số lượng dự kiến phải là số dương (giá trị hiện tại: '{quantityCell.GetString()}').");
-							rowNumber++;
+							errors.Add($"Dòng {currentRowNumber}: Số lượng dự kiến phải là số nguyên dương.");
 							continue;
 						}
 
-						// Column E: Unit Price (required)
-						var unitPriceCell = row.Cell(5);
-						if (!unitPriceCell.TryGetValue(out decimal unitPrice) || unitPrice <= 0)
+						// Cột 5 (E) và 6 (F): Xử lý Logic Giá
+						row.Cell(5).TryGetValue(out decimal systemPrice);
+						row.Cell(6).TryGetValue(out decimal actualPrice);
+
+						// Ưu tiên Giá thực tế (nếu nhân viên có nhập tay), ngược lại lấy Giá hệ thống
+						decimal finalUnitPrice = actualPrice > 0 ? actualPrice : systemPrice;
+
+						if (finalUnitPrice <= 0)
 						{
-							errors.Add($"Dòng {rowNumber}: Đơn giá phải là số dương (giá trị hiện tại: '{unitPriceCell.GetString()}').");
-							rowNumber++;
+							errors.Add($"Dòng {currentRowNumber}: Không xác định được đơn giá hợp lệ. Vui lòng kiểm tra Giá hệ thống hoặc điền Giá thực tế.");
 							continue;
 						}
 
-						// Find variant by SKU
-						var variant = await _unitOfWork.Variants.GetBySkuAsync(skuCell.Trim());
+						// Tìm biến thể bằng SKU
+						var variant = await _unitOfWork.Variants.GetBySkuAsync(skuCell);
 
 						if (variant == null)
 						{
-							errors.Add($"Dòng {rowNumber}: Không tìm thấy biến thể có SKU '{skuCell}'.");
-							rowNumber++;
+							errors.Add($"Dòng {currentRowNumber}: Không tìm thấy mã SKU '{skuCell}' trong hệ thống.");
 							continue;
 						}
 
-						// Add to import details
+						// Gom dữ liệu hợp lệ
 						importDetails.Add(new CreateImportDetailRequest
 						{
 							VariantId = variant.Id,
 							ExpectedQuantity = quantity,
-							UnitPrice = unitPrice
+							UnitPrice = finalUnitPrice
 						});
-
-						rowNumber++;
 					}
 					catch (Exception ex)
 					{
-						errors.Add($"Dòng {rowNumber}: Lỗi khi đọc dữ liệu - {ex.Message}");
-						rowNumber++;
+						errors.Add($"Dòng {currentRowNumber}: Lỗi khi đọc dữ liệu - {ex.Message}");
 					}
 				}
 			}
 
-			// Check if there are any errors
+			// Trả về TOÀN BỘ lỗi (nếu có)
 			if (errors.Count != 0)
 			{
-				var errorMessage = string.Join("; ", errors);
-				throw AppException.BadRequest($"Lỗi khi đọc tệp Excel: {errorMessage}");
+				var errorMessage = string.Join("\n", errors);
+				throw AppException.BadRequest($"Vui lòng sửa các lỗi sau trong tệp Excel:\n{errorMessage}");
 			}
 
-			// Check if we have any details
+			// Nếu chạy hết vòng lặp mà importDetails vẫn bằng 0 (có thể do tất cả các dòng đều lỗi và bị continue)
+			// Thực tế đoạn này ít khi chạy vào vì phần bắt lỗi ở trên đã văng Exception rồi.
 			if (importDetails.Count == 0)
 			{
-				throw AppException.BadRequest("Không tìm thấy chi tiết nhập hợp lệ trong tệp Excel.");
+				throw AppException.BadRequest("Không tìm thấy dữ liệu hợp lệ. Đảm bảo bạn đã điền Mã SKU và Số lượng ở cột A và D.");
 			}
 
-			// Create the import ticket request
 			var createRequest = new CreateImportTicketRequest
 			{
-				SupplierId = request.SupplierId,
+				SupplierId = supplierIdFromFile,
 				ExpectedArrivalDate = request.ExpectedArrivalDate,
 				ImportDetails = importDetails
 			};
 
-			return BaseResponse<CreateImportTicketRequest>.Ok(createRequest, "Đọc tệp Excel thành công. Vui lòng xác nhận và gửi phiếu nhập.");
+			return BaseResponse<CreateImportTicketRequest>.Ok(createRequest, "Đọc tệp Excel thành công. Vui lòng kiểm tra lại số liệu trước khi tạo phiếu nhập.");
 		}
 
-		public async Task<BaseResponse<ExcelTemplateResponse>> GenerateImportTemplateAsync()
+		public async Task<BaseResponse<ExcelTemplateResponse>> GenerateImportTemplateAsync(int supplierId)
 		{
-			var response = await _excelTemplateGenerator.GenerateImportTemplateAsync();
+			var response = await _excelTemplateGenerator.GenerateImportTemplateAsync(supplierId);
 			return BaseResponse<ExcelTemplateResponse>.Ok(response, "Tạo mẫu Excel thành công.");
 		}
 

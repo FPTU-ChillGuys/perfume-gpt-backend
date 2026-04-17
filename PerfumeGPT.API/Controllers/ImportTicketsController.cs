@@ -67,13 +67,18 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpGet("excel-template")]
+		[HttpGet("excel-template/{supplierId:int}")]
 		[AllowAnonymous]
 		[ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<ExcelTemplateResponse>), StatusCodes.Status500InternalServerError)]
-		public async Task<IActionResult> DownloadImportTemplate()
+		public async Task<IActionResult> DownloadImportTemplate(int supplierId)
 		{
-			var response = await _importTicketService.GenerateImportTemplateAsync();
+			if (supplierId < 0)
+			{
+				return BadRequest(BaseResponse<ExcelTemplateResponse>.Fail("Id nhà cung cấp không hợp lệ"));
+			}
+
+			var response = await _importTicketService.GenerateImportTemplateAsync(supplierId);
 
 			if (response.Success && response.Payload != null)
 			{

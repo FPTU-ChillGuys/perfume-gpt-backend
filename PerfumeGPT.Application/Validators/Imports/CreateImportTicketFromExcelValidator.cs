@@ -10,9 +10,6 @@ namespace PerfumeGPT.Application.Validators.Imports
 			RuleFor(x => x.ExcelFile)
 				.NotNull().WithMessage("Tệp Excel là bắt buộc.");
 
-			RuleFor(x => x.SupplierId)
-				.GreaterThan(0).WithMessage("Supplier ID phải lớn hơn 0.");
-
 			RuleFor(x => x.ExpectedArrivalDate)
 				.NotEmpty().WithMessage("Ngày dự kiến đến là bắt buộc.");
 		}
