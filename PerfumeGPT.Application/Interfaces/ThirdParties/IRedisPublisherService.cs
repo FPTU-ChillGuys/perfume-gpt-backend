@@ -12,9 +12,9 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		Task PublishOrderCreatedAsync(Guid orderId, Guid userId);
 
 		/// <summary>
-		/// Publishes a "review_created" event to Redis with the review ID.
+		/// Publishes a "review_created" event to Redis with the variant ID.
 		/// Implementations should be fire-and-forget safe — errors must not propagate to the caller.
 		/// </summary>
-		Task PublishReviewCreatedAsync(Guid reviewId);
+		Task PublishReviewCreatedAsync(Guid variantId);
 	}
 }

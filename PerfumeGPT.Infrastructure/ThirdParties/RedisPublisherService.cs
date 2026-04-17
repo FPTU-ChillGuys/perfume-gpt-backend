@@ -47,25 +47,25 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			}
 		}
 
-		public async Task PublishReviewCreatedAsync(Guid reviewId)
+		public async Task PublishReviewCreatedAsync(Guid variantId)
 		{
 			try
 			{
 				var publisher = _redis.GetSubscriber();
 				var payload = JsonSerializer.Serialize(new
 				{
-					reviewId = reviewId.ToString()
+					variantId = variantId.ToString()
 				});
 
 				await publisher.PublishAsync(
 					RedisChannel.Literal(ReviewCreatedChannel),
 					payload);
 
-				_logger.LogInformation("[Redis] Published review_created: reviewId={ReviewId}", reviewId);
+				_logger.LogInformation("[Redis] Published review_created: variantId={VariantId}", variantId);
 			}
 			catch (Exception ex)
 			{
-				_logger.LogWarning(ex, "[Redis] Failed to publish review_created for reviewId={ReviewId}. Skipping.", reviewId);
+				_logger.LogWarning(ex, "[Redis] Failed to publish review_created for variantId={VariantId}. Skipping.", variantId);
 			}
 		}
 	}

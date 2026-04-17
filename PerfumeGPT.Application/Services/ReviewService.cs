@@ -44,16 +44,17 @@ namespace PerfumeGPT.Application.Services
 
 			var review = Review.Create(userId, request.OrderDetailId, request.Rating, request.Comment);
 
-			await _unitOfWork.Reviews.AddAsync(review);
+            await _unitOfWork.Reviews.AddAsync(review);
 			var saved = await _unitOfWork.SaveChangesAsync();
 
 			if (!saved)
 				throw AppException.Internal("Failed to create review");
 
-			// Notify external services via Redis
-			await _redisPublisherService.PublishReviewCreatedAsync(review.Id);
+            // Notify external services via Redis
+            var variantId = await _unitOfWork.Reviews.GetVariantIdByOrderDetailIdAsync(request.OrderDetailId);
+            await _redisPublisherService.PublishReviewCreatedAsync(variantId);
 
-			var metadata = new BulkActionMetadata { Operations = [] };
+            var metadata = new BulkActionMetadata { Operations = [] };
 			if (request.TemporaryMediaIds != null && request.TemporaryMediaIds.Count != 0)
 			{
 				var conversionResult = await _helper.ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIds, EntityType.Review, review.Id);
