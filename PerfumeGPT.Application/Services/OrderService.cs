@@ -200,7 +200,7 @@ namespace PerfumeGPT.Application.Services
 
 				// Create order and populate details through aggregate methods
 				var order = Order.CreateOnline(userId, cartResponse.TotalPrice, paymentExpiresAt);
-				await _orderDetailsFactory.CreateOrderDetailsAsync(order, cartResponse.Items.ToList());
+				await _orderDetailsFactory.CreateOrderDetailsAsync(order, [.. cartResponse.Items]);
 
 				// Validate voucher if provided (with subtotal + cart variant context)
 				VoucherResponse? voucher = null;
@@ -324,7 +324,8 @@ namespace PerfumeGPT.Application.Services
 				var (pricedItems, subtotal, finalAmount, voucherMessage) = await _cartService.CalculatePricingEngineAsync(
 					checkoutItems,
 					request.VoucherCode,
-					request.CustomerId);
+					request.CustomerId,
+					request.GuestEmailOrPhoneNumber);
 
 				if (request.ExpectedTotalPrice.HasValue && Math.Abs(request.ExpectedTotalPrice.Value - finalAmount) > 0.0001m)
 					throw AppException.Conflict("Giá đã thay đổi so với lúc xem trước. Vui lòng làm mới và kiểm tra lại tổng tiền.");
@@ -358,14 +359,14 @@ namespace PerfumeGPT.Application.Services
 					var voucher = await ValidateAndGetVoucherAsync(
 						request.VoucherCode,
 						request.CustomerId,
-						request.Recipient?.ContactPhoneNumber,
+						request.GuestEmailOrPhoneNumber,
 						subtotal,
 						pricedItems.Select(x => x.VariantId));
 
 					if (voucher != null)
 					{
 						var markVoucherResult = await _voucherService.MarkVoucherAsReservedAsync(
-							request.CustomerId, request.Recipient?.ContactPhoneNumber, voucher.Id, order.Id);
+							request.CustomerId, request.GuestEmailOrPhoneNumber, voucher.Id, order.Id);
 
 						if (markVoucherResult != null) order.AssignVoucher(markVoucherResult);
 					}

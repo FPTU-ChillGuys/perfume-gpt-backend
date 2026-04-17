@@ -11,5 +11,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<bool> IsPhoneNumberInUseAsync(string phoneNumber, Guid excludedUserId);
 		Task<List<string>> GetActiveAdminEmailsAsync();
 		Task<List<StaffManageItem>> GetStaffForManagementAsync();
+		Task<List<UserManageItem>> GetUsersForManagementAsync();
 	}
 }

@@ -9,7 +9,8 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	{
 		Task<BaseResponse<List<StaffLookupItem>>> GetStaffLookupAsync();
 		Task<BaseResponse<List<StaffManageItem>>> GetStaffForManagementAsync();
-		Task<BaseResponse<string>> InactiveStaffAsync(Guid staffId);
+		Task<BaseResponse<List<UserManageItem>>> GetUsersForManagementAsync();
+		Task<BaseResponse<string>> InactiveUserAsync(Guid userId);
 		Task<BaseResponse<CustomerForPosResponse>> GetCustomerForPosAsync(string phoneOrEmail);
 		Task<BaseResponse<string>> GetEmailByIdAsync(Guid userId);
 		Task<BaseResponse<UserCredentialsResponse>> GetUserCredentialsAsync(Guid userId);

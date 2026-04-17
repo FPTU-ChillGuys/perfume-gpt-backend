@@ -13,6 +13,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Carts
 	{
 		public required List<PosScanItemRequest> ScannedItems { get; init; }
 		public string? VoucherCode { get; init; }
+		public string? GuestEmailOrPhoneNumber { get; init; }
 		public Guid? CustomerId { get; init; }
 		public string? SessionId { get; init; }
 		public ContactAddressInformation? Recipient { get; init; }

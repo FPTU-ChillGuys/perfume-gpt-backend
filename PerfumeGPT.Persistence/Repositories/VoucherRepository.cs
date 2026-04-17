@@ -54,6 +54,37 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
 
+		public async Task<VoucherResponse?> GetByIdResponseAsync(Guid voucherId)
+		{
+			var now = DateTime.UtcNow;
+
+			return await _context.Vouchers
+				.Where(v => v.Id == voucherId && !v.IsDeleted)
+				.Select(v => new VoucherResponse
+				{
+					Id = v.Id,
+					Code = v.Code,
+					DiscountValue = v.DiscountValue,
+					DiscountType = v.DiscountType,
+					CampaignId = v.CampaignId,
+					ApplyType = v.ApplyType,
+					TargetItemType = v.TargetItemType ?? default,
+					RequiredPoints = v.RequiredPoints,
+					MaxDiscountAmount = v.MaxDiscountAmount,
+					MinOrderValue = v.MinOrderValue,
+					ExpiryDate = v.ExpiryDate,
+					IsExpired = v.ExpiryDate < now,
+					TotalQuantity = v.TotalQuantity,
+					RemainingQuantity = v.RemainingQuantity,
+					MaxUsagePerUser = v.MaxUsagePerUser,
+					IsPublic = v.IsPublic,
+					IsMemberOnly = v.IsMemberOnly,
+					CreatedAt = v.CreatedAt
+				})
+				.AsNoTracking()
+				.FirstOrDefaultAsync();
+		}
+
 		public async Task<List<VoucherResponse>> GetByCampaignIdAsync(Guid campaignId)
 			=> await _context.Vouchers
 				.Where(v => v.CampaignId == campaignId && !v.IsDeleted)
@@ -160,7 +191,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
-		public async Task<(List<Voucher> Items, int TotalCount)> GetPagedVouchersAsync(GetPagedVouchersRequest request)
+		public async Task<(List<VoucherResponse> Items, int TotalCount)> GetPagedVouchersAsync(GetPagedVouchersRequest request)
 		{
 			var now = DateTime.UtcNow;
 
@@ -188,10 +219,31 @@ namespace PerfumeGPT.Persistence.Repositories
 			var totalCount = await query.CountAsync();
 
 			var items = await query
-				.OrderByDescending(v => v.CreatedAt)
-				.Skip((request.PageNumber - 1) * request.PageSize)
-				.Take(request.PageSize)
-				.ToListAsync();
+				   .OrderByDescending(v => v.CreatedAt)
+				   .Skip((request.PageNumber - 1) * request.PageSize)
+				   .Take(request.PageSize)
+				.Select(v => new VoucherResponse
+				{
+					Id = v.Id,
+					Code = v.Code,
+					DiscountValue = v.DiscountValue,
+					DiscountType = v.DiscountType,
+					CampaignId = v.CampaignId,
+					ApplyType = v.ApplyType,
+					TargetItemType = v.TargetItemType ?? default,
+					RequiredPoints = v.RequiredPoints,
+					MaxDiscountAmount = v.MaxDiscountAmount,
+					MinOrderValue = v.MinOrderValue,
+					ExpiryDate = v.ExpiryDate,
+					IsExpired = v.ExpiryDate < now,
+					TotalQuantity = v.TotalQuantity,
+					RemainingQuantity = v.RemainingQuantity,
+					MaxUsagePerUser = v.MaxUsagePerUser,
+					IsPublic = v.IsPublic,
+					IsMemberOnly = v.IsMemberOnly,
+					CreatedAt = v.CreatedAt
+				})
+				   .ToListAsync();
 
 			return (items, totalCount);
 		}
