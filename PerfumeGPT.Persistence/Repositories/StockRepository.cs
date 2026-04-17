@@ -13,9 +13,6 @@ namespace PerfumeGPT.Persistence.Repositories
 {
 	public class StockRepository : GenericRepository<Stock>, IStockRepository
 	{
-		private const int MaxRetryAttempts = 3;
-		private const int RetryDelayMilliseconds = 100;
-
 		public StockRepository(PerfumeDbContext context) : base(context) { }
 
 		public async Task<bool> IsLowStockAsync(Guid variantId)
@@ -104,6 +101,8 @@ namespace PerfumeGPT.Persistence.Repositories
 						.Where(m => m.IsPrimary && !m.IsDeleted)
 						.Select(m => m.Url)
 						.FirstOrDefault() ?? string.Empty,
+				 ReplenishmentPolicy = s.ProductVariant.RestockPolicy,
+				 VariantStatus = s.ProductVariant.Status,
 				 VolumeMl = s.ProductVariant.VolumeMl,
 				 ConcentrationName = s.ProductVariant.Concentration.Name,
 				 TotalQuantity = s.TotalQuantity,
@@ -130,6 +129,8 @@ namespace PerfumeGPT.Persistence.Repositories
 					.Where(m => m.IsPrimary && !m.IsDeleted)
 					.Select(m => m.Url)
 					.FirstOrDefault() ?? string.Empty,
+				ReplenishmentPolicy = s.ProductVariant.RestockPolicy,
+				VariantStatus = s.ProductVariant.Status,
 				VolumeMl = s.ProductVariant.VolumeMl,
 				ConcentrationName = s.ProductVariant.Concentration.Name,
 				TotalQuantity = s.TotalQuantity,

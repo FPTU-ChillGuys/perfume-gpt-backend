@@ -17,6 +17,8 @@ namespace PerfumeGPT.Application.Mappings
 					.Where(m => m.IsPrimary && !m.IsDeleted)
 					.Select(m => m.Url)
 					.FirstOrDefault())
+				.Map(dest => dest.ReplenishmentPolicy, src => src.ProductVariant.RestockPolicy)
+				.Map(dest => dest.VariantStatus, src => src.ProductVariant.Status)
 				.Map(dest => dest.VolumeMl, src => src.ProductVariant.VolumeMl)
 				.Map(dest => dest.ConcentrationName, src => src.ProductVariant.Concentration.Name)
 				.Map(dest => dest.TotalQuantity, src => src.TotalQuantity)

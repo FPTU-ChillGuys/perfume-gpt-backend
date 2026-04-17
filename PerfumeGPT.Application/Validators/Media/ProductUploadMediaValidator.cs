@@ -8,7 +8,7 @@ namespace PerfumeGPT.Application.Validators.Media
 		public ProductUploadMediaValidator()
 		{
 			RuleFor(x => x.Images)
-				.NotEmpty().WithMessage("Bắt buộc phải có ít nhất một hình ảnh.")
+				.NotEmpty().WithMessage("Bắt buộc phải có ít nhất một hình ảnh.");
 
 			RuleFor(x => x.Images).Custom((images, context) =>
 			{

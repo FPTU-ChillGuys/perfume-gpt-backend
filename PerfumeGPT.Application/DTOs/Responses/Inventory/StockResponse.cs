@@ -9,6 +9,8 @@ namespace PerfumeGPT.Application.DTOs.Responses.Inventory
 		public required string VariantSku { get; init; }
 		public required string ProductName { get; init; }
 		public required string VariantImageUrl { get; init; }
+		public required ReplenishmentPolicy ReplenishmentPolicy { get; init; }
+		public required VariantStatus VariantStatus { get; init; }
 		public int VolumeMl { get; init; }
 		public required string ConcentrationName { get; init; }
 		public int TotalQuantity { get; init; }

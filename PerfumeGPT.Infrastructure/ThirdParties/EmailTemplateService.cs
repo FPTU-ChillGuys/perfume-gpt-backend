@@ -72,13 +72,13 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
                       <head>
                         <meta charset="utf-8">
                         <meta name="viewport" content="width=device-width,initial-scale=1">
-                        <title>Hóa đơn {invoice.OrderId}</title>
+                        <title>Hóa đơn {invoice.Code}</title>
                       </head>
                       <body style="font-family:Arial,Helvetica,sans-serif;background:#f7f7f7;padding:20px;">
                         <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
                           <table width="700" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;padding:24px;">
                             <tr><td><h2 style="margin:0 0 12px;">Hóa đơn PerfumeGPT</h2></td></tr>
-                            <tr><td style="padding-bottom:16px;color:#374151;">Mã đơn hàng: <b>{invoice.OrderId}</b><br/>Ngày đặt: {invoice.OrderDate:dd/MM/yyyy HH:mm:ss}<br/>Khách hàng: {WebUtility.HtmlEncode(invoice.CustomerName)}<br/>Số điện thoại: {WebUtility.HtmlEncode(invoice.RecipientPhone)}<br/>Địa chỉ: {WebUtility.HtmlEncode(invoice.RecipientAddress)}</td></tr>
+                            <tr><td style="padding-bottom:16px;color:#374151;">Mã đơn hàng: <b>{invoice.Code}</b><br/>Ngày đặt: {invoice.OrderDate:dd/MM/yyyy HH:mm:ss}<br/>Khách hàng: {WebUtility.HtmlEncode(invoice.CustomerName)}<br/>Số điện thoại: {WebUtility.HtmlEncode(invoice.RecipientPhone)}<br/>Địa chỉ: {WebUtility.HtmlEncode(invoice.RecipientAddress)}</td></tr>
                             <tr><td>
                               <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">
                                 <thead><tr style="background:#f3f4f6;"><th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Sản phẩm</th><th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Phân loại</th><th style="padding:8px;border:1px solid #e5e7eb;text-align:right;">SL</th><th style="padding:8px;border:1px solid #e5e7eb;text-align:right;">Đơn giá</th><th style="padding:8px;border:1px solid #e5e7eb;text-align:right;">Thành tiền</th></tr></thead>
