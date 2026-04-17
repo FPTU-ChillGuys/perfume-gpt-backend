@@ -247,5 +247,14 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<bool> HasUserReviewedOrderDetailAsync(Guid userId, Guid orderDetailId)
 		=> await _context.Reviews.AnyAsync(r => r.UserId == userId && r.OrderDetailId == orderDetailId && !r.IsDeleted);
+
+		public async Task<Guid> GetVariantIdByOrderDetailIdAsync(Guid orderDetailId)
+		{
+			return await _context.OrderDetails
+				.Where(od => od.Id == orderDetailId)
+				.Include(od => od.ProductVariant)
+                .Select(od => od.ProductVariant.Id)
+				.FirstOrDefaultAsync();
+		}
 	}
 }

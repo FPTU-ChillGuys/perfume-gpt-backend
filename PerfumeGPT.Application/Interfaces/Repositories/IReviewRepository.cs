@@ -14,6 +14,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<(int TotalReviews, double AverageRating, int[] StarCounts)> GetVariantReviewStatisticsAsync(Guid variantId);
 		Task<bool> CanUserReviewOrderDetailAsync(Guid userId, Guid orderDetailId);
 		Task<bool> HasUserReviewedOrderDetailAsync(Guid userId, Guid orderDetailId);
+		Task<Guid> GetVariantIdByOrderDetailIdAsync(Guid orderDetailId);
 
 	}
 }

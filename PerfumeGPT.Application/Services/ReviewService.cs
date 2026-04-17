@@ -6,6 +6,7 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Services.Helpers;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
@@ -18,15 +19,18 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 
 		private readonly MediaBulkActionHelper _helper;
+		private readonly IRedisPublisherService _redisPublisherService;
 
 		public ReviewService(
 			IMediaService mediaService,
 			MediaBulkActionHelper helper,
-			IUnitOfWork unitOfWork)
+			IUnitOfWork unitOfWork,
+			IRedisPublisherService redisPublisherService)
 		{
 			_mediaService = mediaService;
 			_helper = helper;
 			_unitOfWork = unitOfWork;
+			_redisPublisherService = redisPublisherService;
 		}
 		#endregion Dependencies
 
@@ -42,13 +46,17 @@ namespace PerfumeGPT.Application.Services
 
 			var review = Review.Create(userId, request.OrderDetailId, request.Rating, request.Comment);
 
-			await _unitOfWork.Reviews.AddAsync(review);
+            await _unitOfWork.Reviews.AddAsync(review);
 			var saved = await _unitOfWork.SaveChangesAsync();
 
 			if (!saved)
 				throw AppException.Internal("Tạo đánh giá thất bại");
 
-			var metadata = new BulkActionMetadata { Operations = [] };
+            // Notify external services via Redis
+            var variantId = await _unitOfWork.Reviews.GetVariantIdByOrderDetailIdAsync(request.OrderDetailId);
+            await _redisPublisherService.PublishReviewCreatedAsync(variantId);
+
+            var metadata = new BulkActionMetadata { Operations = [] };
 			if (request.TemporaryMediaIds != null && request.TemporaryMediaIds.Count != 0)
 			{
 				var conversionResult = await _helper.ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIds, EntityType.Review, review.Id);
