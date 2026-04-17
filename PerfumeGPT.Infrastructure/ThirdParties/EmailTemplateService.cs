@@ -8,6 +8,34 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 {
 	public class EmailTemplateService : IEmailTemplateService
 	{
+       public string GetVoucherGiftTemplate(string voucherCode, DateTime expiryDate)
+        {
+            var safeVoucherCode = string.IsNullOrWhiteSpace(voucherCode) ? string.Empty : WebUtility.HtmlEncode(voucherCode);
+            var expiryText = expiryDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss");
+
+            return $"""
+                    <!doctype html>
+                    <html>
+                      <head>
+                        <meta charset="utf-8">
+                        <meta name="viewport" content="width=device-width,initial-scale=1">
+                        <title>Bạn vừa nhận được mã giảm giá</title>
+                      </head>
+                      <body style="font-family:Arial,Helvetica,sans-serif;background:#f7f7f7;padding:20px;">
+                        <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+                          <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;padding:24px;">
+                            <tr><td><h2 style="margin:0 0 12px;">Bạn vừa nhận được mã giảm giá từ PerfumeGPT</h2></td></tr>
+                            <tr><td style="padding-bottom:16px;color:#374151;">Một người dùng vừa tặng bạn mã giảm giá. Bạn có thể sử dụng mã này khi thanh toán.</td></tr>
+                            <tr><td style="padding:16px;background:#f3f4f6;border-radius:6px;text-align:center;font-size:18px;font-weight:700;letter-spacing:1px;">{safeVoucherCode}</td></tr>
+                            <tr><td style="padding-top:16px;color:#374151;">Hạn sử dụng: <b>{expiryText}</b></td></tr>
+                            <tr><td style="padding-top:8px;color:#6b7280;font-size:13px;">Nếu bạn không mong đợi email này, bạn có thể bỏ qua.</td></tr>
+                          </table>
+                        </td></tr></table>
+                      </body>
+                    </html>
+                    """;
+        }
+
 		public string GetLowStockAlertTemplate(IEnumerable<LowStockAlertItem> lowStockItems, DateTime generatedAtUtc)
 		{
 			var rows = new StringBuilder();

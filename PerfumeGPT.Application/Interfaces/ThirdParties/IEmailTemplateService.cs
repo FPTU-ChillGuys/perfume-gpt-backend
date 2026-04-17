@@ -9,5 +9,6 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		string GetForgotPasswordTemplate(string username, string resetUrl);
 		string GetInvoiceTemplate(ReceiptResponse invoice);
 		string GetLowStockAlertTemplate(IEnumerable<LowStockAlertItem> lowStockItems, DateTime generatedAtUtc);
+		string GetVoucherGiftTemplate(string voucherCode, DateTime expiryDate);
 	}
 }

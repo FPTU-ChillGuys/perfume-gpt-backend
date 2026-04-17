@@ -5,9 +5,11 @@ using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using System.Globalization;
+using System.Net.Mail;
 using static PerfumeGPT.Domain.Entities.Voucher;
 
 namespace PerfumeGPT.Application.Services
@@ -18,15 +20,21 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IUserService _userService;
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
+		private readonly IEmailService _emailService;
+		private readonly IEmailTemplateService _emailTemplateService;
 
 		public VoucherService(
 			IUnitOfWork unitOfWork,
 			IUserService userService,
-			ILoyaltyTransactionService loyaltyTransactionService)
+		   ILoyaltyTransactionService loyaltyTransactionService,
+			IEmailService emailService,
+			IEmailTemplateService emailTemplateService)
 		{
 			_unitOfWork = unitOfWork;
 			_userService = userService;
 			_loyaltyTransactionService = loyaltyTransactionService;
+			_emailService = emailService;
+			_emailTemplateService = emailTemplateService;
 		}
 		#endregion Dependencies
 
@@ -167,55 +175,88 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> RedeemVoucherAsync(Guid userId, RedeemVoucherRequest request)
 		{
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			var redeemResult = await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			  {
+				  var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
+					  v => v.Id == request.VoucherId && !v.IsDeleted,
+					  asNoTracking: false
+				) ?? throw AppException.NotFound("Không tìm thấy mã giảm giá");
+
+				  voucher.EnsureNotExpired(DateTime.UtcNow);
+
+				  var usageCount = await _unitOfWork.UserVouchers.GetUserVoucherUsageCountAsync(userId, request.VoucherId, request.ReceiverEmailOrPhone);
+				  // Use repository method to check if user already redeemed this voucher
+				  if (voucher.MaxUsagePerUser.HasValue && usageCount >= voucher.MaxUsagePerUser.Value)
+				  {
+					  throw AppException.Conflict($"Bạn đã đạt giới hạn sử dụng tối đa ({voucher.MaxUsagePerUser.Value}) cho mã này.");
+				  }
+
+				  // Use LoyaltyPointService to deduct points
+				  if (voucher.RequiredPoints > 0)
+				  {
+					  await _loyaltyTransactionService.RedeemPointAsync(userId, voucher.RequiredPoints, voucher.Id, null, false);
+				  }
+
+				  var receiverContact = request.ReceiverEmailOrPhone?.Trim();
+				  var shouldNotifyGiftByEmail = IsValidEmail(receiverContact);
+				  string? giftReceiverEmail = null;
+
+				  Guid? finalOwnerId = userId;
+				  if (!string.IsNullOrEmpty(receiverContact))
+				  {
+					  var receiver = await _userService.GetByPhoneOrEmailAsync(receiverContact);
+					  if (receiver != null)
+					  {
+						  finalOwnerId = receiver.Id;
+						  if (shouldNotifyGiftByEmail && receiver.Id != userId && !string.IsNullOrWhiteSpace(receiver.Email))
+						  {
+							  giftReceiverEmail = receiver.Email;
+						  }
+					  }
+					  else
+					  {
+						  finalOwnerId = null;
+						  if (shouldNotifyGiftByEmail)
+						  {
+							  giftReceiverEmail = receiverContact;
+						  }
+					  }
+				  }
+
+				  var userVoucher = UserVoucher.CreateAvailable(
+					   finalOwnerId,
+					   request.VoucherId,
+					 finalOwnerId.HasValue ? null : receiverContact);
+
+				  // Decrement voucher remaining quantity
+				  voucher.DecreaseRemainingQuantity();
+				  _unitOfWork.Vouchers.Update(voucher);
+
+				  await _unitOfWork.UserVouchers.AddAsync(userVoucher);
+
+				  return new RedeemVoucherResult(
+					  userVoucher.Id.ToString(),
+					  giftReceiverEmail,
+					  voucher.Code,
+					  voucher.ExpiryDate);
+			  });
+
+			if (!string.IsNullOrWhiteSpace(redeemResult.GiftReceiverEmail))
 			{
-				var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
-					v => v.Id == request.VoucherId && !v.IsDeleted,
-					asNoTracking: false
-			  ) ?? throw AppException.NotFound("Không tìm thấy mã giảm giá");
-
-				voucher.EnsureNotExpired(DateTime.UtcNow);
-
-				var usageCount = await _unitOfWork.UserVouchers.GetUserVoucherUsageCountAsync(userId, request.VoucherId, request.ReceiverEmailOrPhone);
-				// Use repository method to check if user already redeemed this voucher
-				if (voucher.MaxUsagePerUser.HasValue && usageCount >= voucher.MaxUsagePerUser.Value)
+				try
 				{
-					throw AppException.Conflict($"Bạn đã đạt giới hạn sử dụng tối đa ({voucher.MaxUsagePerUser.Value}) cho mã này.");
+					var emailBody = _emailTemplateService.GetVoucherGiftTemplate(redeemResult.VoucherCode, redeemResult.ExpiryDate);
+					await _emailService.SendEmailAsync(
+						redeemResult.GiftReceiverEmail,
+						"[PerfumeGPT] Bạn vừa nhận được mã giảm giá",
+						emailBody);
 				}
-
-				// Use LoyaltyPointService to deduct points
-				if (voucher.RequiredPoints > 0)
+				catch
 				{
-					await _loyaltyTransactionService.RedeemPointAsync(userId, voucher.RequiredPoints, voucher.Id, null, false);
 				}
+			}
 
-				Guid? finalOwnerId = userId;
-				if (!string.IsNullOrEmpty(request.ReceiverEmailOrPhone))
-				{
-					var receiver = await _userService.GetByPhoneOrEmailAsync(request.ReceiverEmailOrPhone);
-					if (receiver != null) finalOwnerId = receiver.Id;
-					else
-					{
-						// If receiver not found, treat as guest redemption (voucher will be associated with email/phone instead of userId)
-						finalOwnerId = null;
-					}
-				}
-
-				var userVoucher = UserVoucher.CreateAvailable(
-					 finalOwnerId,
-					 request.VoucherId,
-					 finalOwnerId.HasValue ? null : request.ReceiverEmailOrPhone);
-
-				// Decrement voucher remaining quantity
-				voucher.DecreaseRemainingQuantity();
-				_unitOfWork.Vouchers.Update(voucher);
-
-				await _unitOfWork.UserVouchers.AddAsync(userVoucher);
-
-				// Notification logic can be added here if needed
-
-				return BaseResponse<string>.Ok(userVoucher.Id.ToString(), "Đổi mã giảm giá thành công");
-			});
+			return BaseResponse<string>.Ok(redeemResult.UserVoucherId, "Đổi mã giảm giá thành công");
 		}
 
 		public async Task<BaseResponse<PagedResult<UserVoucherResponse>>> GetUserVouchersAsync(Guid userId, GetPagedUserVouchersRequest request)
@@ -835,7 +876,24 @@ namespace PerfumeGPT.Application.Services
 
 
 		#region Private Helper Methods
+		private sealed record RedeemVoucherResult(string UserVoucherId, string? GiftReceiverEmail, string VoucherCode, DateTime ExpiryDate);
 		private sealed record VoucherApplicabilityEvaluation(VoucherResponse Voucher, bool IsApplicable, string? IneligibleReason, bool IsHidden = false);
+
+		private static bool IsValidEmail(string? value)
+		{
+			if (string.IsNullOrWhiteSpace(value))
+				return false;
+
+			try
+			{
+				_ = new MailAddress(value);
+				return true;
+			}
+			catch
+			{
+				return false;
+			}
+		}
 
 		private async Task<(Guid? EffectiveUserId, bool IsGuest, bool IsAnonymousGuest)> ResolveEffectiveUserAsync(Guid? userId, string? emailOrPhone)
 		{
