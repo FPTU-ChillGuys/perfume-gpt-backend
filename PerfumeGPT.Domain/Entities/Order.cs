@@ -22,6 +22,7 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime? PaidAt { get; private set; }
 		public Guid? ForwardShippingId { get; private set; }
 		public Guid? ContactAddressId { get; private set; }
+		public string? GuestEmailOrPhone { get; private set; }
 
 		// Navigation properties
 		public virtual User? Customer { get; set; }

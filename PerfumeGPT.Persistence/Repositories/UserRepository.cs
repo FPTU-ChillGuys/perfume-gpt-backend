@@ -44,6 +44,36 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Select(u => u.Email!)];
 		}
 
+		public async Task<List<UserManageItem>> GetUsersForManagementAsync()
+		{
+			var UserIds = _context.UserRoles
+				.Join(_context.Roles,
+					ur => ur.RoleId,
+					r => r.Id,
+					(ur, r) => new { ur.UserId, r.Name })
+				.Where(x => x.Name == "user")
+				.Select(x => x.UserId)
+				.Distinct();
+
+			return await _context.Users
+				.Where(u => !u.IsDeleted && UserIds.Contains(u.Id))
+				.OrderBy(u => u.FullName)
+				.Select(u => new UserManageItem
+				{
+					Id = u.Id,
+					UserName = u.UserName ?? string.Empty,
+					FullName = u.FullName,
+					Email = u.Email ?? string.Empty,
+					PhoneNumber = u.PhoneNumber ?? string.Empty,
+					IsActive = u.IsActive,
+					ProfileImageUrl = u.ProfilePicture != null ? u.ProfilePicture.Url : null,
+					DeliveryRefusalCount = u.DeliveryRefusalCount,
+					CodBlockedUntil = u.CodBlockedUntil
+				})
+				.AsNoTracking()
+				.ToListAsync();
+		}
+
 		public async Task<List<StaffManageItem>> GetStaffForManagementAsync()
 		{
 			var staffUserIds = _context.UserRoles

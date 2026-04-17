@@ -1,5 +1,4 @@
 using FluentValidation;
-using MapsterMapper;
 using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
@@ -19,16 +18,13 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IUserService _userService;
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
-		private readonly IMapper _mapper;
 
 		public VoucherService(
 			IUnitOfWork unitOfWork,
-			IMapper mapper,
 			IUserService userService,
 			ILoyaltyTransactionService loyaltyTransactionService)
 		{
 			_unitOfWork = unitOfWork;
-			_mapper = mapper;
 			_userService = userService;
 			_loyaltyTransactionService = loyaltyTransactionService;
 		}
@@ -133,21 +129,18 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<VoucherResponse>> GetVoucherByIdAsync(Guid voucherId)
 		{
-			var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(v => v.Id == voucherId && !v.IsDeleted, asNoTracking: true)
+			var voucher = await _unitOfWork.Vouchers.GetByIdResponseAsync(voucherId)
 				?? throw AppException.NotFound("Không tìm thấy mã giảm giá");
 
-			var response = _mapper.Map<VoucherResponse>(voucher);
-			return BaseResponse<VoucherResponse>.Ok(response, "Lấy thông tin mã giảm giá thành công");
+			return BaseResponse<VoucherResponse>.Ok(voucher, "Lấy thông tin mã giảm giá thành công");
 		}
 
 		public async Task<BaseResponse<PagedResult<VoucherResponse>>> GetPagedVouchersAsync(GetPagedVouchersRequest request)
 		{
 			var (items, totalCount) = await _unitOfWork.Vouchers.GetPagedVouchersAsync(request);
 
-			var voucherList = _mapper.Map<List<VoucherResponse>>(items);
-
 			var pagedResult = new PagedResult<VoucherResponse>(
-				voucherList,
+				items,
 				request.PageNumber,
 				request.PageSize,
 				totalCount
@@ -211,7 +204,7 @@ namespace PerfumeGPT.Application.Services
 				var userVoucher = UserVoucher.CreateAvailable(
 					 finalOwnerId,
 					 request.VoucherId,
-					 request.ReceiverEmailOrPhone ?? null);
+					 finalOwnerId.HasValue ? null : request.ReceiverEmailOrPhone);
 
 				// Decrement voucher remaining quantity
 				voucher.DecreaseRemainingQuantity();
@@ -229,10 +222,8 @@ namespace PerfumeGPT.Application.Services
 		{
 			var (items, totalCount) = await _unitOfWork.UserVouchers.GetPagedWithVouchersAsync(userId, request);
 
-			var userVoucherList = _mapper.Map<List<UserVoucherResponse>>(items);
-
 			var pagedResult = new PagedResult<UserVoucherResponse>(
-				userVoucherList,
+				items,
 				request.PageNumber,
 				request.PageSize,
 				totalCount
@@ -245,38 +236,40 @@ namespace PerfumeGPT.Application.Services
 
 
 		#region Apply Voucher Logic
-		public async Task<BaseResponse<PagedResult<AvailableVoucherResponse>>> GetAvailableVouchersAsync(Guid userId, GetPagedAvailableVouchersRequest request)
-		{
-			var (items, totalCount) = await _unitOfWork.UserVouchers.GetPagedAvailableVouchersAsync(userId, request);
-			var pagedResult = new PagedResult<AvailableVoucherResponse>(
-				items,
-				request.PageNumber,
-				request.PageSize,
-				totalCount
-			);
-
-			return BaseResponse<PagedResult<AvailableVoucherResponse>>.Ok(
-				pagedResult,
-			 "Lấy danh sách mã giảm giá khả dụng thành công"
-			);
-		}
-
 		public async Task<BaseResponse<List<ApplicableVoucherResponse>>> GetApplicableVouchersAsync(GetApplicableVouchersRequest request)
 		{
 			var cartItems = NormalizeCartItems(request.CartItems);
-			if (cartItems.Count == 0)
-			{
-				return BaseResponse<List<ApplicableVoucherResponse>>.Ok([], "Chưa có sản phẩm trong giỏ hàng.");
-			}
+
+			// Dù giỏ hàng trống, VẪN CHO ĐI TIẾP để xem các voucher Applicable (nhưng chúng sẽ bị đánh dấu là Ineligible vì chưa mua đủ tiền)
 
 			var aggregatedVouchers = await AggregateVouchersForApplicabilityAsync(request.CustomerId);
 			if (aggregatedVouchers.Count == 0)
 			{
-				return BaseResponse<List<ApplicableVoucherResponse>>.Ok([], "Không có mã giảm giá phù hợp cho giỏ hàng này.");
+				return BaseResponse<List<ApplicableVoucherResponse>>.Ok([], "Không có mã giảm giá.");
 			}
 
-			var evaluations = await EvaluateVoucherApplicabilityAsync(aggregatedVouchers, request.CustomerId, cartItems, null);
+			// Chuẩn bị dữ liệu Campaign cho Evaluator
+			var campaignIds = aggregatedVouchers.Where(v => v.CampaignId.HasValue).Select(v => v.CampaignId!.Value).Distinct().ToList();
+
+			var campaigns = await _unitOfWork.Campaigns.GetAllAsync(c => campaignIds.Contains(c.Id));
+			var campaignsById = campaigns.ToDictionary(c => c.Id, c => c);
+
+			var promotionItems = await _unitOfWork.PromotionItems.GetActiveByCampaignIdsAsync(campaignIds);
+			var promotionItemsByCampaign = promotionItems.GroupBy(x => x.CampaignId).ToDictionary(g => g.Key, g => g.ToList());
+
+			var (effectiveUserId, isGuest, isAnonymousGuest) = await ResolveEffectiveUserAsync(request.CustomerId, null);
+			var totalCartValue = cartItems.Sum(x => x.Price * x.Quantity);
+
+			var evaluations = new List<VoucherApplicabilityEvaluation>();
+			foreach (var voucher in aggregatedVouchers)
+			{
+				evaluations.Add(await EvaluateSingleVoucherAsync(
+					voucher, totalCartValue, cartItems, promotionItemsByCampaign, campaignsById, effectiveUserId, isGuest, isAnonymousGuest, null));
+			}
+
+			// LỌC BỎ CÁC MÃ HIDDEN, CHỈ TRẢ VỀ CÁC MÃ APPLICABLE HOẶC INELIGIBLE
 			var payload = evaluations
+				.Where(x => !x.IsHidden)
 				.OrderByDescending(x => x.IsApplicable)
 				.ThenBy(x => x.Voucher.Code)
 				.Select(x => new ApplicableVoucherResponse
@@ -360,23 +353,30 @@ namespace PerfumeGPT.Application.Services
 							? "Bạn cần đổi mã này bằng điểm trước khi sử dụng"
 							   : "Bạn không sở hữu mã giảm giá riêng tư này");
 			}
-			else if (voucher.IsMemberOnly)
+			else if (voucher.MaxUsagePerUser.HasValue) // Chỉ cần có MaxUsage là phải đếm
 			{
-				int currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
-					uv.VoucherId == voucher.Id &&
-					(
-						uv.Status == UsageStatus.Used ||
-						(uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow)
-					) &&
-				   effectiveUserId.HasValue &&
-					uv.UserId == effectiveUserId.Value
-				);
+				int currentUsageCount = 0;
 
-				var allowedUsage = voucher.MaxUsagePerUser ?? 1;
-
-				if (currentUsageCount >= allowedUsage)
+				if (effectiveUserId.HasValue)
 				{
-					throw AppException.BadRequest($"Bạn đã đạt giới hạn sử dụng tối đa ({allowedUsage}) cho khuyến mãi này.");
+					currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
+						uv.VoucherId == voucher.Id &&
+						uv.UserId == effectiveUserId.Value &&
+						(uv.Status == UsageStatus.Used || (uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow))
+					);
+				}
+				else if (!isAnonymousGuest) // Đếm cho khách vãng lai có để lại Email/Phone
+				{
+					currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
+						uv.VoucherId == voucher.Id &&
+						uv.GuestIdentifier == emailOrPhone &&
+						(uv.Status == UsageStatus.Used || (uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow))
+					);
+				}
+
+				if (currentUsageCount >= voucher.MaxUsagePerUser.Value)
+				{
+					throw AppException.BadRequest($"Bạn đã đạt giới hạn số lần sử dụng ({voucher.MaxUsagePerUser.Value}) cho mã này.");
 				}
 			}
 
@@ -404,10 +404,10 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		private async Task<List<VoucherApplicabilityEvaluation>> EvaluateVoucherApplicabilityAsync(
-			IEnumerable<VoucherResponse> vouchers,
-			Guid? userId,
-			List<ApplicableVoucherCartItemRequest> cartItems,
-			string? emailOrPhone)
+	IEnumerable<VoucherResponse> vouchers,
+	Guid? userId,
+	List<ApplicableVoucherCartItemRequest> cartItems,
+	string? emailOrPhone)
 		{
 			var voucherList = vouchers
 				.Where(v => v.Id != Guid.Empty)
@@ -422,6 +422,10 @@ namespace PerfumeGPT.Application.Services
 				.Distinct()
 				.ToList();
 
+			// 💡 BỔ SUNG: Truy vấn Campaigns tại đây
+			var campaigns = await _unitOfWork.Campaigns.GetAllAsync(c => campaignIds.Contains(c.Id));
+			var campaignsById = campaigns.ToDictionary(c => c.Id, c => c);
+
 			var promotionItems = await _unitOfWork.PromotionItems.GetActiveByCampaignIdsAsync(campaignIds);
 			var promotionItemsByCampaign = promotionItems
 				.GroupBy(x => x.CampaignId)
@@ -432,17 +436,16 @@ namespace PerfumeGPT.Application.Services
 			var evaluations = new List<VoucherApplicabilityEvaluation>(voucherList.Count);
 			foreach (var voucher in voucherList)
 			{
-				var evaluation = await EvaluateSingleVoucherAsync(
+				evaluations.Add(await EvaluateSingleVoucherAsync(
 					voucher,
 					totalCartValue,
 					cartItems,
 					promotionItemsByCampaign,
+					campaignsById, // 💡 Truyền dữ liệu thật vào đây
 					effectiveUserId,
 					isGuest,
 					isAnonymousGuest,
-					emailOrPhone);
-
-				evaluations.Add(evaluation);
+					emailOrPhone));
 			}
 
 			return evaluations;
@@ -453,50 +456,101 @@ namespace PerfumeGPT.Application.Services
 			decimal totalCartValue,
 			List<ApplicableVoucherCartItemRequest> cartItems,
 			Dictionary<Guid, List<PromotionItem>> promotionItemsByCampaign,
+			Dictionary<Guid, Campaign> campaignsById,
 			Guid? effectiveUserId,
 			bool isGuest,
 			bool isAnonymousGuest,
 			string? emailOrPhone)
 		{
-			if (voucher.ExpiryDate < DateTime.UtcNow)
-				return new VoucherApplicabilityEvaluation(voucher, false, "Mã giảm giá đã hết hạn.");
+			var now = DateTime.UtcNow;
 
+			// ==========================================
+			// NHÓM 1: CÁC TRƯỜNG HỢP HIDDEN (ẨN HOÀN TOÀN KHỎI UI)
+			// ==========================================
+
+			// 1. Mã đã hết hạn thời gian tuyệt đối
+			if (voucher.ExpiryDate < now)
+				return new VoucherApplicabilityEvaluation(voucher, false, "Đã hết hạn", IsHidden: true);
+
+			Campaign? campaign = null;
+			if (voucher.CampaignId.HasValue && campaignsById.TryGetValue(voucher.CampaignId.Value, out campaign))
+			{
+				// 2. Campaign đã bị Hủy hoặc Đã kết thúc
+				if (campaign.Status == CampaignStatus.Cancelled || campaign.EndDate < now)
+					return new VoucherApplicabilityEvaluation(voucher, false, "Chương trình đã kết thúc", IsHidden: true);
+			}
+
+			// 3. Giỏ hàng trống nhưng đây là mã yêu cầu Sản phẩm cụ thể (Ẩn cho đỡ rác UI)
+			if (cartItems.Count == 0 && voucher.ApplyType == VoucherType.Product)
+				return new VoucherApplicabilityEvaluation(voucher, false, "Cần có sản phẩm trong giỏ", IsHidden: true);
+
+
+			// ==========================================
+			// NHÓM 2: CÁC TRƯỜNG HỢP INELIGIBLE (HIỆN MỜ + LÝ DO)
+			// ==========================================
+
+			// 4. Campaign chưa bắt đầu hoặc đang tạm dừng
+			if (campaign != null)
+			{
+				if (campaign.StartDate > now)
+					return new VoucherApplicabilityEvaluation(voucher, false, $"Sắp diễn ra vào {campaign.StartDate:dd/MM/yyyy HH:mm}");
+
+				if (campaign.Status == CampaignStatus.Paused)
+					return new VoucherApplicabilityEvaluation(voucher, false, "Chương trình đang tạm dừng");
+			}
+
+			// 5. Hết số lượng phát hành
 			if (voucher.RemainingQuantity.HasValue && voucher.RemainingQuantity.Value <= 0)
-				return new VoucherApplicabilityEvaluation(voucher, false, "Mã giảm giá đã hết lượt sử dụng.");
+				return new VoucherApplicabilityEvaluation(voucher, false, "Đã hết lượt sử dụng của hệ thống");
 
+			// 6. Yêu cầu thành viên
 			if (voucher.IsMemberOnly && !effectiveUserId.HasValue)
-				return new VoucherApplicabilityEvaluation(voucher, false, "Mã giảm giá này chỉ dành cho Khách hàng Thành viên. Vui lòng đăng ký tài khoản.");
+				return new VoucherApplicabilityEvaluation(voucher, false, "Chỉ dành cho Thành viên. Vui lòng đăng nhập.");
 
+			// 7. Yêu cầu sở hữu riêng (Đổi điểm / Tặng riêng)
 			var requiredPoints = voucher.RequiredPoints ?? 0;
-			var requiresPriorOwnership = !voucher.IsPublic || requiredPoints > 0;
+			bool requiresPriorOwnership = !voucher.IsPublic || requiredPoints > 0;
 
 			if (requiresPriorOwnership)
 			{
 				if (isAnonymousGuest)
-					return new VoucherApplicabilityEvaluation(voucher, false, "Vui lòng đăng nhập để sử dụng mã đổi điểm hoặc mã riêng tư.");
+					return new VoucherApplicabilityEvaluation(voucher, false, "Vui lòng đăng nhập để dùng mã cá nhân.");
 
 				var ownedVoucher = await FindUserVoucherAsync(voucher.Id, effectiveUserId, emailOrPhone, isGuest, UsageStatus.Available);
 				if (ownedVoucher == null)
 				{
-					return new VoucherApplicabilityEvaluation(
-						voucher,
-						false,
-						requiredPoints > 0
-							? "Bạn chưa đổi mã này bằng điểm thưởng."
-							: "Bạn không sở hữu mã giảm giá này.");
+					// Không sở hữu thì ẩn luôn cũng được, hoặc báo mờ
+					return new VoucherApplicabilityEvaluation(voucher, false, "Bạn chưa sở hữu hoặc chưa đổi mã này.", IsHidden: true);
 				}
 			}
-			else if (voucher.MaxUsagePerUser.HasValue && effectiveUserId.HasValue)
+			// 8. Giới hạn sử dụng cá nhân (Max Usage)
+			else if (voucher.MaxUsagePerUser.HasValue)
 			{
-				var currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
-					uv.VoucherId == voucher.Id &&
-					uv.UserId == effectiveUserId.Value &&
-					(uv.Status == UsageStatus.Used
-					|| (uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow)));
+				int currentUsageCount = 0;
+				if (effectiveUserId.HasValue)
+				{
+					currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
+						uv.VoucherId == voucher.Id && uv.UserId == effectiveUserId.Value &&
+						(uv.Status == UsageStatus.Used || (uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > now)));
+				}
+				else if (!isAnonymousGuest)
+				{
+					currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
+						uv.VoucherId == voucher.Id && uv.GuestIdentifier == emailOrPhone &&
+						(uv.Status == UsageStatus.Used || (uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > now)));
+				}
 
 				if (currentUsageCount >= voucher.MaxUsagePerUser.Value)
-					return new VoucherApplicabilityEvaluation(voucher, false, "Bạn đã đạt giới hạn số lần sử dụng mã này.");
+					return new VoucherApplicabilityEvaluation(voucher, false, "Bạn đã dùng hết số lượt cho phép.");
 			}
+
+			// ==========================================
+			// NHÓM 3: XÉT ĐIỀU KIỆN TIỀN & SẢN PHẨM TRONG GIỎ HÀNG
+			// ==========================================
+
+			// Tránh tính toán nếu giỏ hàng rỗng (Chỉ xem danh sách)
+			if (cartItems.Count == 0)
+				return new VoucherApplicabilityEvaluation(voucher, false, "Vui lòng thêm sản phẩm vào giỏ hàng.");
 
 			if (voucher.ApplyType == VoucherType.Order)
 			{
@@ -504,41 +558,39 @@ namespace PerfumeGPT.Application.Services
 				if (totalCartValue < minOrderValue)
 				{
 					var needMore = minOrderValue - totalCartValue;
-					return new VoucherApplicabilityEvaluation(voucher, false, $"Mua thêm {FormatVietnameseCurrency(needMore)} để dùng mã này.");
+					return new VoucherApplicabilityEvaluation(voucher, false, $"Mua thêm {FormatVietnameseCurrency(needMore)} để sử dụng mã này.");
 				}
 
-				return new VoucherApplicabilityEvaluation(voucher, true, null);
+				return new VoucherApplicabilityEvaluation(voucher, true, null); // THÀNH CÔNG
 			}
 
+			// Xử lý Voucher theo Sản phẩm
 			if (!voucher.CampaignId.HasValue)
-				return new VoucherApplicabilityEvaluation(voucher, false, "Mã giảm giá theo sản phẩm không có chiến dịch hợp lệ.");
+				return new VoucherApplicabilityEvaluation(voucher, false, "Mã giảm giá bị lỗi cấu hình chiến dịch.", IsHidden: true);
 
 			if (!promotionItemsByCampaign.TryGetValue(voucher.CampaignId.Value, out var campaignPromotionItems))
-				return new VoucherApplicabilityEvaluation(voucher, false, "Giỏ hàng không có sản phẩm thuộc chương trình khuyến mãi.");
+				return new VoucherApplicabilityEvaluation(voucher, false, "Giỏ hàng không có sản phẩm thuộc chương trình.");
 
 			var eligibleVariantIds = campaignPromotionItems
 				.Where(x => x.ItemType == voucher.TargetItemType)
 				.Select(x => x.TargetProductVariantId)
 				.ToHashSet();
 
-			if (eligibleVariantIds.Count == 0)
-				return new VoucherApplicabilityEvaluation(voucher, false, "Giỏ hàng không có sản phẩm thuộc chương trình khuyến mãi.");
-
 			var campaignSubTotal = cartItems
 				.Where(x => eligibleVariantIds.Contains(x.VariantId))
 				.Sum(x => x.Price * x.Quantity);
 
 			if (campaignSubTotal <= 0)
-				return new VoucherApplicabilityEvaluation(voucher, false, "Giỏ hàng không có sản phẩm thuộc chương trình khuyến mãi.");
+				return new VoucherApplicabilityEvaluation(voucher, false, "Giỏ hàng không có sản phẩm thuộc chương trình.");
 
 			var minCampaignValue = voucher.MinOrderValue ?? 0m;
 			if (campaignSubTotal < minCampaignValue)
 			{
 				var needMore = minCampaignValue - campaignSubTotal;
-				return new VoucherApplicabilityEvaluation(voucher, false, $"Mua thêm {FormatVietnameseCurrency(needMore)} sản phẩm cùng chương trình để áp dụng.");
+				return new VoucherApplicabilityEvaluation(voucher, false, $"Mua thêm {FormatVietnameseCurrency(needMore)} sản phẩm cùng chương trình để sử dụng.");
 			}
 
-			return new VoucherApplicabilityEvaluation(voucher, true, null);
+			return new VoucherApplicabilityEvaluation(voucher, true, null); // THÀNH CÔNG
 		}
 
 		private static List<ApplicableVoucherCartItemRequest> NormalizeCartItems(IEnumerable<ApplicableVoucherCartItemRequest>? cartItems)
@@ -783,7 +835,7 @@ namespace PerfumeGPT.Application.Services
 
 
 		#region Private Helper Methods
-		private sealed record VoucherApplicabilityEvaluation(VoucherResponse Voucher, bool IsApplicable, string? IneligibleReason);
+		private sealed record VoucherApplicabilityEvaluation(VoucherResponse Voucher, bool IsApplicable, string? IneligibleReason, bool IsHidden = false);
 
 		private async Task<(Guid? EffectiveUserId, bool IsGuest, bool IsAnonymousGuest)> ResolveEffectiveUserAsync(Guid? userId, string? emailOrPhone)
 		{

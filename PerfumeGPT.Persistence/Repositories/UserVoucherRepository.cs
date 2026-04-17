@@ -32,8 +32,9 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 		}
 
-		public async Task<(List<UserVoucher> Items, int TotalCount)> GetPagedWithVouchersAsync(Guid userId, GetPagedUserVouchersRequest request)
+		public async Task<(List<UserVoucherResponse> Items, int TotalCount)> GetPagedWithVouchersAsync(Guid userId, GetPagedUserVouchersRequest request)
 		{
+			var now = DateTime.UtcNow;
 			var query = _context.UserVouchers
 				.Include(uv => uv.Voucher)
 				.Where(uv => uv.UserId == userId)
@@ -61,7 +62,6 @@ namespace PerfumeGPT.Persistence.Repositories
 			// IsExpired filter
 			if (request.IsExpired.HasValue)
 			{
-				var now = DateTime.UtcNow;
 				Expression<Func<UserVoucher, bool>> expiredFilter;
 
 				if (request.IsExpired.Value)
@@ -109,21 +109,50 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			// Apply pagination
 			var items = await sortedQuery
-				.Skip((request.PageNumber - 1) * request.PageSize)
-				.Take(request.PageSize)
-				.ToListAsync();
+				 .Skip((request.PageNumber - 1) * request.PageSize)
+				 .Take(request.PageSize)
+			  .Select(uv => new UserVoucherResponse
+			  {
+				  Id = uv.Id,
+				  VoucherId = uv.VoucherId,
+				  Code = uv.Voucher.Code,
+				  DiscountValue = uv.Voucher.DiscountValue,
+				  DiscountType = uv.Voucher.DiscountType,
+				  MinOrderValue = uv.Voucher.MinOrderValue,
+				  ExpiryDate = uv.Voucher.ExpiryDate,
+				  IsUsed = uv.Status == UsageStatus.Used,
+				  Status = uv.Status,
+				  IsExpired = uv.Voucher.ExpiryDate < now,
+				  RedeemedAt = uv.CreatedAt
+			  })
+				 .ToListAsync();
 
 			return (items, totalCount);
 		}
 
-		public async Task<int> GetUserVoucherUsageCountAsync(Guid userId, Guid voucherId, string? guestIdentifier)
+		public async Task<int> GetUserVoucherUsageCountAsync(Guid? userId, Guid voucherId, string? guestIdentifier)
 		{
-			return await _context.UserVouchers
+			// Đổi signature nhận Guid? userId để dùng chung cho cả User và Guest
+			var query = _context.UserVouchers
 				.AsNoTracking()
-				.CountAsync(uv =>
-					(uv.UserId == userId && uv.VoucherId == voucherId) ||
-					(uv.GuestIdentifier == guestIdentifier && uv.VoucherId == voucherId)
-				);
+				.Where(uv => uv.VoucherId == voucherId);
+
+			if (userId.HasValue)
+			{
+				query = query.Where(uv => uv.UserId == userId.Value);
+			}
+			else if (!string.IsNullOrEmpty(guestIdentifier))
+			{
+				// Chỉ đếm cho Guest nếu thực sự có truyền Email/Phone
+				query = query.Where(uv => uv.UserId == null && uv.GuestIdentifier == guestIdentifier);
+			}
+			else
+			{
+				// Khách vãng lai vô danh (không user, không phone) thì không có lịch sử để đếm
+				return 0;
+			}
+
+			return await query.CountAsync();
 		}
 
 		public async Task<UserVoucher?> GetUnusedUserVoucherAsync(Guid userId, Guid voucherId)
@@ -192,7 +221,8 @@ namespace PerfumeGPT.Persistence.Repositories
 					&& v.IsPublic
 					&& v.RequiredPoints == 0
 					&& (v.RemainingQuantity == null || v.RemainingQuantity > 0)
-					&& v.UserVouchers.Count(uv => uv.UserId == userId && (uv.Status == UsageStatus.Used || uv.Status == UsageStatus.Reserved)) < (v.MaxUsagePerUser ?? 1));
+					&& (!v.MaxUsagePerUser.HasValue ||
+						v.UserVouchers.Count(uv => uv.UserId == userId && (uv.Status == UsageStatus.Used || uv.Status == UsageStatus.Reserved)) < v.MaxUsagePerUser.Value));
 
 			var query = ownedAvailableVouchers
 				.Union(publicFreeVouchers)

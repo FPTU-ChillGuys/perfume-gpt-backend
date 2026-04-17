@@ -88,14 +88,24 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpPut("staff/{staffId:guid}/inactive")]
+		[HttpGet("user-manage")]
+		[Authorize(Roles = "admin")]
+		[ProducesResponseType(typeof(BaseResponse<List<UserManageItem>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<UserManageItem>>), StatusCodes.Status500InternalServerError)]
+		public async Task<ActionResult<BaseResponse<List<UserManageItem>>>> GetUsersForManagement()
+		{
+			var response = await _userService.GetUsersForManagementAsync();
+			return HandleResponse(response);
+		}
+
+		[HttpPut("user/{userId:guid}/inactive")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		public async Task<ActionResult<BaseResponse<string>>> InactiveStaff([FromRoute] Guid staffId)
+		public async Task<ActionResult<BaseResponse<string>>> InactiveUser([FromRoute] Guid userId)
 		{
-			var response = await _userService.InactiveStaffAsync(staffId);
+			var response = await _userService.InactiveUserAsync(userId);
 			return HandleResponse(response);
 		}
 
@@ -148,6 +158,5 @@ namespace PerfumeGPT.API.Controllers
 			var email = await _userService.GetEmailByIdAsync(id);
 			return HandleResponse(email);
 		}
-
 	}
 }

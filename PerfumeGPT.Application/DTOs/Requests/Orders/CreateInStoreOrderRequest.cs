@@ -6,6 +6,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Orders
 	{
 		public required List<PosScanItemRequest> ScannedItems { get; init; }
 		public string? VoucherCode { get; init; }
+		public string? GuestEmailOrPhoneNumber { get; init; }
 		public Guid? CustomerId { get; init; } // Rất quan trọng nếu muốn tích điểm hoặc lưu lịch sử
 
 		public bool IsPickupInStore { get; init; } = true;

@@ -9,9 +9,10 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	{
 		Task<bool> CodeExistsAsync(string code, Guid? excludeVoucherId = null);
 		Task<VoucherResponse?> GetByCodeAsync(string code);
+		Task<VoucherResponse?> GetByIdResponseAsync(Guid voucherId);
 		Task<List<VoucherResponse>> GetByCampaignIdAsync(Guid campaignId);
 		Task<List<VoucherResponse>> GetPublicVouchersForApplicabilityAsync();
-		Task<(List<Voucher> Items, int TotalCount)> GetPagedVouchersAsync(GetPagedVouchersRequest request);
+		Task<(List<VoucherResponse> Items, int TotalCount)> GetPagedVouchersAsync(GetPagedVouchersRequest request);
 		Task<(List<RedeemableVoucherResponse> Items, int TotalCount)> GetPagedRedeemableVouchersAsync(GetPagedRedeemableVouchersRequest request, Guid? userId = null);
 	}
 }

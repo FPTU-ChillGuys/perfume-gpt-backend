@@ -91,8 +91,13 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<List<StaffManageItem>>> GetStaffForManagementAsync()
 		{
 			var staffs = await _userRepository.GetStaffForManagementAsync();
-
 			return BaseResponse<List<StaffManageItem>>.Ok(staffs, "Lấy danh sách nhân viên thành công.");
+		}
+
+		public async Task<BaseResponse<List<UserManageItem>>> GetUsersForManagementAsync()
+		{
+			var users = await _userRepository.GetUsersForManagementAsync();
+			return BaseResponse<List<UserManageItem>>.Ok(users, "Lấy danh sách người dùng thành công.");
 		}
 
 		public async Task<BaseResponse<string>> UpdateUserBasicInfoAsync(Guid userId, UpdateUserBasicInfoRequest request)
@@ -123,23 +128,23 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<string>.Ok(userId.ToString(), "Cập nhật thông tin người dùng thành công.");
 		}
 
-		public async Task<BaseResponse<string>> InactiveStaffAsync(Guid staffId)
+		public async Task<BaseResponse<string>> InactiveUserAsync(Guid userId)
 		{
-			var user = await _userRepository.GetByIdAsync(staffId);
+			var user = await _userRepository.GetByIdAsync(userId);
 			if (user == null || user.IsDeleted)
 			{
-				return BaseResponse<string>.Fail("Không tìm thấy nhân viên.", ResponseErrorType.NotFound);
+				return BaseResponse<string>.Fail("Không tìm thấy người dùng.", ResponseErrorType.NotFound);
 			}
 
-			var isStaff = await _userManager.IsInRoleAsync(user, "staff");
-			if (!isStaff)
+			var isAdmin = await _userManager.IsInRoleAsync(user, "amin");
+			if (isAdmin)
 			{
-				return BaseResponse<string>.Fail("Người dùng không phải nhân viên.", ResponseErrorType.BadRequest);
+				return BaseResponse<string>.Fail("Người dùng là admin không thể bị vô hiệu hóa.", ResponseErrorType.BadRequest);
 			}
 
 			if (!user.IsActive)
 			{
-				return BaseResponse<string>.Fail("Nhân viên đã ở trạng thái không hoạt động.", ResponseErrorType.BadRequest);
+				return BaseResponse<string>.Fail("Người dùng đã ở trạng thái không hoạt động.", ResponseErrorType.BadRequest);
 			}
 
 			user.Deactivate();
@@ -147,10 +152,10 @@ namespace PerfumeGPT.Application.Services
 			if (!updateResult.Succeeded)
 			{
 				var error = string.Join("; ", updateResult.Errors.Select(e => e.Description));
-				return BaseResponse<string>.Fail($"Vô hiệu hóa nhân viên thất bại: {error}", ResponseErrorType.BadRequest);
+				return BaseResponse<string>.Fail($"Vô hiệu hóa người dùng thất bại: {error}", ResponseErrorType.BadRequest);
 			}
 
-			return BaseResponse<string>.Ok(staffId.ToString(), "Vô hiệu hóa nhân viên thành công.");
+			return BaseResponse<string>.Ok(userId.ToString(), "Vô hiệu hóa người dùng thành công.");
 		}
 
 		public async Task<BaseResponse<string>> GetEmailByIdAsync(Guid userId)

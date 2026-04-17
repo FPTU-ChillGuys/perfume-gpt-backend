@@ -110,7 +110,8 @@ namespace PerfumeGPT.Application.Services
 				(pricedItems, subtotal, finalAmount, voucherMessage) = await CalculatePricingEngineAsync(
 					checkoutItems,
 					request.VoucherCode,
-					request.CustomerId);
+					request.CustomerId,
+					request.GuestEmailOrPhoneNumber);
 			}
 			catch (AppException ex) when (!string.IsNullOrWhiteSpace(request.VoucherCode))
 			{
@@ -119,7 +120,8 @@ namespace PerfumeGPT.Application.Services
 					(pricedItems, subtotal, finalAmount, voucherMessage) = await CalculatePricingEngineAsync(
 						checkoutItems,
 						null,
-						request.CustomerId);
+						request.CustomerId,
+						request.GuestEmailOrPhoneNumber);
 
 					appliedVoucherCode = null;
 					warnings = [ex.Message];
@@ -269,7 +271,7 @@ namespace PerfumeGPT.Application.Services
 			}).ToList();
 
 			// 3. Chạy Pricing Engine (Truyền VoucherCode = null để chỉ lấy Promotion)
-			var (pricedItems, _, _, _) = await CalculatePricingEngineAsync(checkoutItems, null, userId);
+			var (pricedItems, _, _, _) = await CalculatePricingEngineAsync(checkoutItems, null, userId, null);
 			var pricedItemByVariant = pricedItems
 				.GroupBy(x => x.VariantId)
 				.ToDictionary(g => g.Key, g => g.First());
@@ -420,7 +422,7 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		public async Task<(List<CartCheckoutItemDto> Items, decimal Subtotal, decimal FinalAmount, string? Message)> CalculatePricingEngineAsync(
-			List<CartCheckoutItemDto> checkoutItems, string? voucherCode, Guid? userId)
+			List<CartCheckoutItemDto> checkoutItems, string? voucherCode, Guid? userId, string? guestEmailOrPhoneNumber)
 		{
 			var (itemsAfterFlashSale, flashSaleMessage) = await ApplyAutoFlashSalesAsync(checkoutItems);
 			var subtotal = itemsAfterFlashSale.Sum(x => x.FinalTotal); // Subtotal MỚI sau khi đã trừ Flash Sale
@@ -484,7 +486,7 @@ namespace PerfumeGPT.Application.Services
 				})
 				.ToList();
 
-			return await CalculatePricingEngineAsync(checkoutItems, request.VoucherCode, userId);
+			return await CalculatePricingEngineAsync(checkoutItems, request.VoucherCode, userId, null);
 		}
 
 		private async Task<(List<CartCheckoutItemDto> Items, string? Message)> ApplyProductLevelVoucherDiscountAsync(VoucherResponse voucher, List<CartCheckoutItemDto> items)
