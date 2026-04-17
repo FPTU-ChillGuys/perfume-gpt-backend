@@ -140,6 +140,43 @@ namespace PerfumeGPT.Persistence.Repositories
 					uv.Voucher.ExpiryDate > now);
 		}
 
+		public async Task<List<VoucherResponse>> GetAvailableVoucherDetailsByUserIdAsync(Guid userId)
+		{
+			var now = DateTime.UtcNow;
+
+			return await _context.UserVouchers
+				.Where(uv => uv.UserId == userId
+					&& uv.Status == UsageStatus.Available
+					&& uv.Voucher != null
+					&& !uv.Voucher.IsDeleted
+					&& uv.Voucher.ExpiryDate >= now)
+				.Select(uv => uv.Voucher)
+				.GroupBy(v => v.Id)
+				.Select(g => g.Select(v => new VoucherResponse
+				{
+					Id = v.Id,
+					Code = v.Code,
+					DiscountValue = v.DiscountValue,
+					DiscountType = v.DiscountType,
+					CampaignId = v.CampaignId,
+					ApplyType = v.ApplyType,
+					TargetItemType = v.TargetItemType ?? default,
+					RequiredPoints = v.RequiredPoints,
+					MaxDiscountAmount = v.MaxDiscountAmount,
+					MinOrderValue = v.MinOrderValue,
+					ExpiryDate = v.ExpiryDate,
+					IsExpired = v.ExpiryDate < now,
+					TotalQuantity = v.TotalQuantity,
+					RemainingQuantity = v.RemainingQuantity,
+					MaxUsagePerUser = v.MaxUsagePerUser,
+					IsPublic = v.IsPublic,
+					IsMemberOnly = v.IsMemberOnly,
+					CreatedAt = v.CreatedAt
+				}).First())
+				.AsNoTracking()
+				.ToListAsync();
+		}
+
 		public async Task<(List<AvailableVoucherResponse> Items, int TotalCount)> GetPagedAvailableVouchersAsync(Guid userId, GetPagedAvailableVouchersRequest request)
 		{
 			var now = DateTime.UtcNow;

@@ -48,7 +48,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				   RemainingQuantity = v.RemainingQuantity,
 				   MaxUsagePerUser = v.MaxUsagePerUser,
 				   IsPublic = v.IsPublic,
-                 IsMemberOnly = v.IsMemberOnly,
+				   IsMemberOnly = v.IsMemberOnly,
 				   CreatedAt = v.CreatedAt
 			   })
 				.AsNoTracking()
@@ -76,16 +76,62 @@ namespace PerfumeGPT.Persistence.Repositories
 					RemainingQuantity = v.RemainingQuantity,
 					MaxUsagePerUser = v.MaxUsagePerUser,
 					IsPublic = v.IsPublic,
-                 IsMemberOnly = v.IsMemberOnly,
+					IsMemberOnly = v.IsMemberOnly,
 					CreatedAt = v.CreatedAt
 				})
 				.AsNoTracking()
 				.ToListAsync();
 
-		public async Task<(List<RedeemableVoucherResponse> Items, int TotalCount)> GetPagedRedeemableVouchersAsync(GetPagedRedeemableVouchersRequest request)
+		public async Task<List<VoucherResponse>> GetPublicVouchersForApplicabilityAsync()
 		{
+			var now = DateTime.UtcNow;
+
+			return await _context.Vouchers
+				.Where(v =>
+					!v.IsDeleted
+					&& v.IsPublic
+					&& v.ExpiryDate >= now
+					&& (!v.RemainingQuantity.HasValue || v.RemainingQuantity.Value > 0)
+					&& (v.CampaignId.HasValue || v.RequiredPoints == 0))
+				.Select(v => new VoucherResponse
+				{
+					Id = v.Id,
+					Code = v.Code,
+					DiscountValue = v.DiscountValue,
+					DiscountType = v.DiscountType,
+					CampaignId = v.CampaignId,
+					ApplyType = v.ApplyType,
+					TargetItemType = v.TargetItemType ?? default,
+					RequiredPoints = v.RequiredPoints,
+					MaxDiscountAmount = v.MaxDiscountAmount,
+					MinOrderValue = v.MinOrderValue,
+					ExpiryDate = v.ExpiryDate,
+					IsExpired = v.ExpiryDate < now,
+					TotalQuantity = v.TotalQuantity,
+					RemainingQuantity = v.RemainingQuantity,
+					MaxUsagePerUser = v.MaxUsagePerUser,
+					IsPublic = v.IsPublic,
+					IsMemberOnly = v.IsMemberOnly,
+					CreatedAt = v.CreatedAt
+				})
+				.AsNoTracking()
+				.ToListAsync();
+		}
+
+		public async Task<(List<RedeemableVoucherResponse> Items, int TotalCount)> GetPagedRedeemableVouchersAsync(GetPagedRedeemableVouchersRequest request, Guid? userId = null)
+		{
+			var now = DateTime.UtcNow;
 			var query = _context.Vouchers
-				.Where(v => !v.IsDeleted && v.ExpiryDate >= DateTime.UtcNow && v.IsPublic && v.RequiredPoints > 0 && v.RemainingQuantity > 0)
+			   .Where(v =>
+					!v.IsDeleted
+					&& v.CampaignId == null
+					&& v.ExpiryDate >= now
+					&& v.IsPublic
+					&& v.RequiredPoints > 0
+					&& v.RemainingQuantity > 0
+					&& (!userId.HasValue
+						|| !v.MaxUsagePerUser.HasValue
+						|| _context.UserVouchers.Count(uv => uv.UserId == userId.Value && uv.VoucherId == v.Id) < v.MaxUsagePerUser.Value))
 				.AsNoTracking();
 
 			var totalCount = await query.CountAsync();
@@ -104,7 +150,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				 MaxDiscountAmount = v.MaxDiscountAmount,
 				 MinOrderValue = v.MinOrderValue,
 				 ExpiryDate = v.ExpiryDate,
-				 IsExpired = v.ExpiryDate < DateTime.UtcNow,
+				 IsExpired = v.ExpiryDate < now,
 				 RemainingQuantity = v.RemainingQuantity,
 				 MaxUsagePerUser = v.MaxUsagePerUser,
 				 CreatedAt = v.CreatedAt

@@ -96,12 +96,23 @@ namespace PerfumeGPT.API.Controllers
 
 		#region User Endpoints
 
-		[HttpGet("redeemable-list")]
-		public async Task<ActionResult<BaseResponse<List<RedeemableVoucherResponse>>>> GetRedeemableVouchers([FromQuery] GetPagedRedeemableVouchersRequest request)
+		[HttpGet("redeemable")]
+		public async Task<ActionResult<BaseResponse<List<RedeemableVoucherResponse>>>> GetRedeemableVouchersV2([FromQuery] GetPagedRedeemableVouchersRequest request)
 		{
-			var response = await _voucherService.GetRedeemableVouchersAsync(request);
+			var currentUserId = User.Identity?.IsAuthenticated == true ? GetCurrentUserId() : Guid.Empty;
+			Guid? userId = currentUserId == Guid.Empty ? null : currentUserId;
+			var response = await _voucherService.GetRedeemableVouchersAsync(request, userId);
 			return HandleResponse(response);
 		}
+
+		//[HttpGet("redeemable-list")]
+		//public async Task<ActionResult<BaseResponse<List<RedeemableVoucherResponse>>>> GetRedeemableVouchers([FromQuery] GetPagedRedeemableVouchersRequest request)
+		//{
+		//	var currentUserId = User.Identity?.IsAuthenticated == true ? GetCurrentUserId() : Guid.Empty;
+		//	Guid? userId = currentUserId == Guid.Empty ? null : currentUserId;
+		//	var response = await _voucherService.GetRedeemableVouchersAsync(request, userId);
+		//	return HandleResponse(response);
+		//}
 
 		[HttpPost("redeem")]
 		[Authorize]
@@ -131,14 +142,41 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpGet("me")]
+		//[HttpGet("me")]
+		//[Authorize]
+		//[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status200OK)]
+		//[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status500InternalServerError)]
+		//public async Task<ActionResult<BaseResponse<PagedResult<UserVoucherResponse>>>> GetMyVouchers([FromQuery] GetPagedUserVouchersRequest request)
+		//{
+		//	var userId = GetCurrentUserId();
+		//	var response = await _voucherService.GetUserVouchersAsync(userId, request);
+		//	return HandleResponse(response);
+		//}
+
+		[HttpGet("/api/user-vouchers/me")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status200OK)]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<PagedResult<UserVoucherResponse>>>> GetMyVouchers([FromQuery] GetPagedUserVouchersRequest request)
+		public async Task<ActionResult<BaseResponse<PagedResult<UserVoucherResponse>>>> GetMyUserVouchers([FromQuery] GetPagedUserVouchersRequest request)
 		{
 			var userId = GetCurrentUserId();
 			var response = await _voucherService.GetUserVouchersAsync(userId, request);
+			return HandleResponse(response);
+		}
+
+		[HttpPost("applicable")]
+		[ProducesResponseType(typeof(BaseResponse<List<ApplicableVoucherResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<ApplicableVoucherResponse>>), StatusCodes.Status400BadRequest)]
+		public async Task<ActionResult<BaseResponse<List<ApplicableVoucherResponse>>>> GetApplicableVouchers([FromBody] GetApplicableVouchersRequest request)
+		{
+			var validation = ValidateRequestBody<GetApplicableVouchersRequest>(request);
+			if (validation != null) return validation;
+
+			var currentUserId = User.Identity?.IsAuthenticated == true ? GetCurrentUserId() : Guid.Empty;
+			var resolvedCustomerId = request.CustomerId ?? (currentUserId == Guid.Empty ? null : currentUserId);
+			var effectiveRequest = request with { CustomerId = resolvedCustomerId };
+
+			var response = await _voucherService.GetApplicableVouchersAsync(effectiveRequest);
 			return HandleResponse(response);
 		}
 
