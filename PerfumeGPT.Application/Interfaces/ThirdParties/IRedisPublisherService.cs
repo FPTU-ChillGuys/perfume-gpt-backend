@@ -10,5 +10,11 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		/// Implementations should be fire-and-forget safe — errors must not propagate to the caller.
 		/// </summary>
 		Task PublishOrderCreatedAsync(Guid orderId, Guid userId);
+
+		/// <summary>
+		/// Publishes a "review_created" event to Redis with the review ID.
+		/// Implementations should be fire-and-forget safe — errors must not propagate to the caller.
+		/// </summary>
+		Task PublishReviewCreatedAsync(Guid reviewId);
 	}
 }

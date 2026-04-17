@@ -12,6 +12,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 	public class RedisPublisherService : IRedisPublisherService
 	{
 		private const string OrderCreatedChannel = "order_created";
+		private const string ReviewCreatedChannel = "review_created";
 
 		private readonly IConnectionMultiplexer _redis;
 		private readonly ILogger<RedisPublisherService> _logger;
@@ -43,6 +44,28 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			{
 				// Redis failure must NEVER break the order flow — log and continue
 				_logger.LogWarning(ex, "[Redis] Failed to publish order_created for orderId={OrderId}. Skipping.", orderId);
+			}
+		}
+
+		public async Task PublishReviewCreatedAsync(Guid reviewId)
+		{
+			try
+			{
+				var publisher = _redis.GetSubscriber();
+				var payload = JsonSerializer.Serialize(new
+				{
+					reviewId = reviewId.ToString()
+				});
+
+				await publisher.PublishAsync(
+					RedisChannel.Literal(ReviewCreatedChannel),
+					payload);
+
+				_logger.LogInformation("[Redis] Published review_created: reviewId={ReviewId}", reviewId);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "[Redis] Failed to publish review_created for reviewId={ReviewId}. Skipping.", reviewId);
 			}
 		}
 	}

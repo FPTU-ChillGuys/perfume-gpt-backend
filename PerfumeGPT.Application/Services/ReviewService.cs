@@ -6,6 +6,7 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Services.Helpers;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
@@ -18,15 +19,18 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 
 		private readonly MediaBulkActionHelper _helper;
+		private readonly IRedisPublisherService _redisPublisherService;
 
 		public ReviewService(
 			IMediaService mediaService,
 			MediaBulkActionHelper helper,
-			IUnitOfWork unitOfWork)
+			IUnitOfWork unitOfWork,
+			IRedisPublisherService redisPublisherService)
 		{
 			_mediaService = mediaService;
 			_helper = helper;
 			_unitOfWork = unitOfWork;
+			_redisPublisherService = redisPublisherService;
 		}
 		#endregion Dependencies
 
@@ -45,6 +49,9 @@ namespace PerfumeGPT.Application.Services
 
 			if (!saved)
 				throw AppException.Internal("Failed to create review");
+
+			// Notify external services via Redis
+			await _redisPublisherService.PublishReviewCreatedAsync(review.Id);
 
 			var metadata = new BulkActionMetadata { Operations = [] };
 			if (request.TemporaryMediaIds != null && request.TemporaryMediaIds.Count != 0)
