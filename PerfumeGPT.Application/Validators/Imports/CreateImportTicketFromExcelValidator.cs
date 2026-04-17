@@ -8,13 +8,13 @@ namespace PerfumeGPT.Application.Validators.Imports
 		public CreateImportTicketFromExcelValidator()
 		{
 			RuleFor(x => x.ExcelFile)
-				.NotNull().WithMessage("Excel file is required.");
+				.NotNull().WithMessage("Tệp Excel là bắt buộc.");
 
 			RuleFor(x => x.SupplierId)
-				.GreaterThan(0).WithMessage("Supplier ID must be greater than 0.");
+				.GreaterThan(0).WithMessage("Supplier ID phải lớn hơn 0.");
 
 			RuleFor(x => x.ExpectedArrivalDate)
-				.NotEmpty().WithMessage("Expected arrival date is required.");
+				.NotEmpty().WithMessage("Ngày dự kiến đến là bắt buộc.");
 		}
 	}
 }

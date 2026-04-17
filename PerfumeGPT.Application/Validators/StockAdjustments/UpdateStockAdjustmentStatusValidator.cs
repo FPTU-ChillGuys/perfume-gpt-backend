@@ -9,7 +9,7 @@ namespace PerfumeGPT.Application.Validators.StockAdjustments
 		{
 			RuleFor(x => x.Status)
 				.IsInEnum()
-				.WithMessage("Invalid adjustment status.");
+			 .WithMessage("Trạng thái điều chỉnh không hợp lệ.");
 		}
 	}
 }

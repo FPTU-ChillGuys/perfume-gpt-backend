@@ -44,7 +44,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static Order CreateOnline(Guid customerId, decimal totalAmount, DateTime? paymentExpiresAt)
 		{
 			if (customerId == Guid.Empty)
-				throw DomainException.BadRequest("Customer ID is required for online orders.");
+				throw DomainException.BadRequest("ID khách hàng là bắt buộc cho đơn hàng online.");
 
 			ValidateTotalAmount(totalAmount);
 
@@ -63,7 +63,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static Order CreateOffline(Guid? customerId, Guid staffId, decimal totalAmount)
 		{
 			if (staffId == Guid.Empty)
-				throw DomainException.BadRequest("Staff ID is required for offline orders.");
+				throw DomainException.BadRequest("ID nhân viên là bắt buộc cho đơn hàng offline.");
 
 			ValidateTotalAmount(totalAmount);
 
@@ -88,14 +88,14 @@ namespace PerfumeGPT.Domain.Entities
 
 		public void AssignVoucher(UserVoucher userVoucher)
 		{
-			UserVoucher = userVoucher ?? throw DomainException.BadRequest("User voucher is required.");
+			UserVoucher = userVoucher ?? throw DomainException.BadRequest("ID voucher người dùng là bắt buộc.");
 			UserVoucherId = userVoucher.Id;
 		}
 
 		public void AddOrderDetails(IEnumerable<OrderDetail> orderDetails)
 		{
 			if (orderDetails is null)
-				throw DomainException.BadRequest("Order details are required.");
+				throw DomainException.BadRequest("Chi tiết đơn hàng là bắt buộc.");
 
 			foreach (var orderDetail in orderDetails)
 			{
@@ -106,7 +106,7 @@ namespace PerfumeGPT.Domain.Entities
 		private void AddOrderDetail(OrderDetail orderDetail)
 		{
 			if (orderDetail is null)
-				throw DomainException.BadRequest("Order detail is required.");
+				throw DomainException.BadRequest("Chi tiết đơn hàng là bắt buộc.");
 
 			orderDetail.Order = this;
 			OrderDetails.Add(orderDetail);
@@ -115,7 +115,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void SetStaff(Guid staffId)
 		{
 			if (staffId == Guid.Empty)
-				throw DomainException.BadRequest("Staff ID is required.");
+				throw DomainException.BadRequest("ID nhân viên là bắt buộc.");
 
 			StaffId = staffId;
 		}
@@ -123,7 +123,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void SetStatus(OrderStatus newStatus)
 		{
 			if (Status == newStatus && newStatus != OrderStatus.Pending)
-				throw DomainException.BadRequest("Order is already in this status.");
+				throw DomainException.BadRequest("Đơn hàng đã ở trạng thái này.");
 
 			var validTransitions = new Dictionary<OrderStatus, List<OrderStatus>>
 			{
@@ -144,11 +144,11 @@ namespace PerfumeGPT.Domain.Entities
 			};
 
 			if (!(validTransitions.ContainsKey(Status) && validTransitions[Status].Contains(newStatus)))
-				throw DomainException.BadRequest($"Cannot change status from {Status} to {newStatus}.");
+				throw DomainException.BadRequest($"Không thể thay đổi trạng thái từ {Status} sang {newStatus}.");
 
 			if (Type == OrderType.Offline && (newStatus == OrderStatus.Preparing || newStatus == OrderStatus.ReadyToPick || newStatus == OrderStatus.Delivering))
 			{
-				throw DomainException.BadRequest("Offline POS orders skip packaging and delivering phases and must go directly to Delivered.");
+				throw DomainException.BadRequest("Đơn hàng POS offline bỏ qua các giai đoạn đóng gói và giao hàng và phải đi thẳng đến Đã giao.");
 			}
 
 			Status = newStatus;
@@ -166,7 +166,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void CancelCashInStore(CancelOrderReason cancelReason)
 		{
 			if (Status != OrderStatus.ReadyToPick)
-				throw DomainException.BadRequest("Only ReadyToPick CashInStore orders can be cancelled with penalty.");
+				throw DomainException.BadRequest("Chỉ các đơn hàng ReadyToPick CashInStore mới có thể bị hủy với hình phạt.");
 
 			SetStatus(OrderStatus.Cancelled);
 
@@ -180,7 +180,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void AttachForwardShipping(Guid shippingInfoId)
 		{
 			if (shippingInfoId == Guid.Empty)
-				throw DomainException.BadRequest("Shipping Info ID is required.");
+				throw DomainException.BadRequest("ID thông tin vận chuyển là bắt buộc.");
 
 			ForwardShippingId = shippingInfoId;
 		}
@@ -188,7 +188,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void AttachContactAddress(Guid contactAddressId)
 		{
 			if (contactAddressId == Guid.Empty)
-				throw DomainException.BadRequest("Contact address ID is required.");
+				throw DomainException.BadRequest("ID địa chỉ liên hệ là bắt buộc.");
 
 			EnsureAddressUpdatable();
 
@@ -198,7 +198,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void MarkPaid(DateTime paidAtUtc)
 		{
 			if (PaymentStatus == PaymentStatus.Paid)
-				throw DomainException.BadRequest("Order is already marked as paid.");
+				throw DomainException.BadRequest("Đơn hàng đã được đánh dấu là đã thanh toán.");
 			PaymentStatus = PaymentStatus.Paid;
 			PaidAt = paidAtUtc;
 		}
@@ -227,28 +227,28 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureAddressUpdatable()
 		{
 			if (Status >= OrderStatus.Delivering)
-				throw DomainException.BadRequest("Cannot update address after the order has started delivering.");
+				throw DomainException.BadRequest("Không thể cập nhật địa chỉ sau khi đơn hàng đã bắt đầu giao.");
 		}
 
 		public void EnsureOwnedBy(Guid userId)
 		{
 			if (CustomerId != userId)
-				throw DomainException.Forbidden("You are not authorized to modify this order.");
+				throw DomainException.Forbidden("Bạn không được phép sửa đổi đơn hàng này.");
 		}
 
 		public void EnsureOnlineOrder()
 		{
 			if (Type != OrderType.Online)
-				throw DomainException.BadRequest("Only online orders are supported for this operation.");
+				throw DomainException.BadRequest("Chỉ các đơn hàng trực tuyến mới được hỗ trợ cho thao tác này.");
 		}
 
 		public void FulfillOrderDetail(Guid orderDetailId, Guid fulfilledBatchId)
 		{
 			if (orderDetailId == Guid.Empty)
-				throw DomainException.BadRequest("Order detail ID is required.");
+				throw DomainException.BadRequest("ID chi tiết đơn hàng là bắt buộc.");
 
 			var orderDetail = OrderDetails.FirstOrDefault(od => od.Id == orderDetailId)
-				?? throw DomainException.NotFound("Order detail not found in this order.");
+				?? throw DomainException.NotFound("Chi tiết đơn hàng không tìm thấy trong đơn hàng này.");
 
 			orderDetail.Fulfill(fulfilledBatchId);
 		}
@@ -256,7 +256,7 @@ namespace PerfumeGPT.Domain.Entities
 		private static void ValidateTotalAmount(decimal totalAmount)
 		{
 			if (totalAmount < 0)
-				throw DomainException.BadRequest("Total amount cannot be negative.");
+				throw DomainException.BadRequest("Tổng số tiền không được âm.");
 		}
 	}
 }

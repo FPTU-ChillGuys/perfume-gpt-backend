@@ -17,10 +17,10 @@ namespace PerfumeGPT.Domain.Entities
 		public static UserNotificationRead Create(Guid userId, Guid notificationId)
 		{
 			if (userId == Guid.Empty)
-				throw DomainException.BadRequest("User ID is required.");
+               throw DomainException.BadRequest("User ID là bắt buộc.");
 
 			if (notificationId == Guid.Empty)
-				throw DomainException.BadRequest("Notification ID is required.");
+               throw DomainException.BadRequest("Notification ID là bắt buộc.");
 
 			return new UserNotificationRead
 			{

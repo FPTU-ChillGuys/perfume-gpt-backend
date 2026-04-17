@@ -63,13 +63,13 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureOwnedBy(Guid userId)
 		{
 			if (UserId != userId)
-				throw DomainException.Forbidden("Address does not belong to this user.");
+				throw DomainException.Forbidden("Địa chỉ này không thuộc về người dùng.");
 		}
 
 		public void EnsureNotAlreadyDefault()
 		{
 			if (IsDefault)
-				throw DomainException.BadRequest("Address is already set as default.");
+				throw DomainException.BadRequest("Địa chỉ này đã được đặt làm mặc định.");
 		}
 
 		public void SetAsDefault() => IsDefault = true;

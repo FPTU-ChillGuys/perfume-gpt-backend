@@ -19,12 +19,12 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			if (profileId == Guid.Empty)
 			{
-				throw DomainException.BadRequest("Profile ID is required.");
+				throw DomainException.BadRequest("Profile ID là bắt buộc.");
 			}
 
 			if (attributeValueId <= 0)
 			{
-				throw DomainException.BadRequest("Attribute value ID must be greater than 0.");
+				throw DomainException.BadRequest("Attribute value ID phải lớn hơn 0.");
 			}
 
 			return new CustomerAttributePreference

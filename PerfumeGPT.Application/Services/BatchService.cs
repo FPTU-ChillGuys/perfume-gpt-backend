@@ -24,7 +24,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task CreateBatchesAsync(Guid variantId, Guid importDetailId, List<CreateBatchRequest> batchRequests)
 		{
 			if (batchRequests == null || batchRequests.Count == 0)
-				throw AppException.BadRequest("At least one batch is required.");
+				throw AppException.BadRequest("Bắt buộc có ít nhất một lô.");
 
 			foreach (var batchRequest in batchRequests)
 			{
@@ -45,7 +45,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			if (requiredQuantity <= 0)
 			{
-				throw AppException.BadRequest("Required quantity must be greater than 0.");
+				throw AppException.BadRequest("Số lượng yêu cầu phải lớn hơn 0.");
 			}
 
 			var batches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
@@ -99,25 +99,25 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<BatchDetailResponse>> GetBatchByIdAsync(Guid batchId)
 		{
 			var response = await _unitOfWork.Batches.GetBatchByIdAsync(batchId);
-			return response == null ? throw AppException.NotFound("Batch not found") : BaseResponse<BatchDetailResponse>.Ok(response);
+			return response == null ? throw AppException.NotFound("Không tìm thấy lô") : BaseResponse<BatchDetailResponse>.Ok(response);
 		}
 
 		public async Task IncreaseBatchQuantityAsync(Guid batchId, int quantity)
 		{
 			if (quantity <= 0)
 			{
-				throw AppException.BadRequest("Quantity must be greater than 0.");
+				throw AppException.BadRequest("Số lượng phải lớn hơn 0.");
 			}
 
 			var batch = await _unitOfWork.Batches.GetByIdAsync(batchId)
-				?? throw AppException.NotFound($"Batch {batchId} not found");
+			   ?? throw AppException.NotFound($"Không tìm thấy lô {batchId}");
 
 			batch.IncreaseQuantity(
 				 quantity,
 				 StockTransactionType.Adjustment,
 				 batchId,
 				 null,
-				 $"Manual batch increase for batch {batchId}.");
+				 $"Tăng thủ công số lượng cho lô {batchId}.");
 			_unitOfWork.Batches.Update(batch);
 
 			var variantId = await _unitOfWork.Batches.GetVariantIdByBatchIdAsync(batchId);
@@ -131,18 +131,18 @@ namespace PerfumeGPT.Application.Services
 		{
 			if (quantity <= 0)
 			{
-				throw AppException.BadRequest("Quantity must be greater than 0.");
+				throw AppException.BadRequest("Số lượng phải lớn hơn 0.");
 			}
 
 			var batch = await _unitOfWork.Batches.GetByIdAsync(batchId)
-				?? throw AppException.NotFound($"Batch {batchId} not found");
+			   ?? throw AppException.NotFound($"Không tìm thấy lô {batchId}");
 
 			batch.DecreaseQuantity(
 				 quantity,
 				 StockTransactionType.Adjustment,
 				 batchId,
 				 null,
-				 $"Manual batch decrease for batch {batchId}.");
+				 $"Giảm thủ công số lượng cho lô {batchId}.");
 			_unitOfWork.Batches.Update(batch);
 
 			var variantId = await _unitOfWork.Batches.GetVariantIdByBatchIdAsync(batchId);

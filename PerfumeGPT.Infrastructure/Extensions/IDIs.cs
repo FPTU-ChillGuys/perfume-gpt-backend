@@ -225,13 +225,13 @@ namespace PerfumeGPT.Infrastructure.Extensions
 
 						context.Response.StatusCode = StatusCodes.Status401Unauthorized;
 						context.Response.ContentType = "application/json";
-						return context.Response.WriteAsJsonAsync(BaseResponse<string>.Fail("Missing or invalid token", ResponseErrorType.Unauthorized));
+                        return context.Response.WriteAsJsonAsync(BaseResponse<string>.Fail("Thiếu token hoặc token không hợp lệ", ResponseErrorType.Unauthorized));
 					},
 					OnForbidden = context =>
 					{
 						context.Response.StatusCode = StatusCodes.Status403Forbidden;
 						context.Response.ContentType = "application/json";
-						return context.Response.WriteAsJsonAsync(BaseResponse<string>.Fail("You are not authorized to access this resource", ResponseErrorType.Forbidden));
+                     return context.Response.WriteAsJsonAsync(BaseResponse<string>.Fail("Bạn không có quyền truy cập tài nguyên này", ResponseErrorType.Forbidden));
 					},
 					OnMessageReceived = context =>
 					{

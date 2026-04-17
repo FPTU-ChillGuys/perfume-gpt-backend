@@ -8,11 +8,11 @@ namespace PerfumeGPT.Application.Validators.Auths
 		public VerifyEmailValidator()
 		{
 			RuleFor(x => x.Email)
-				.NotEmpty().WithMessage("Email is required.")
-				.EmailAddress().WithMessage("Invalid email format.");
+				.NotEmpty().WithMessage("Email là bắt buộc.")
+				.EmailAddress().WithMessage("Định dạng email không hợp lệ.");
 
 			RuleFor(x => x.Token)
-				.NotEmpty().WithMessage("Token is required.");
+				.NotEmpty().WithMessage("Token là bắt buộc.");
 		}
 	}
 }

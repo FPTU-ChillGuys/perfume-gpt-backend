@@ -78,7 +78,7 @@ namespace PerfumeGPT.Application.Services
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var latestPayment = await _unitOfWork.Payments.GetByIdAsync(payment.Id)
-					?? throw AppException.NotFound("Payment record not found.");
+					?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
 
 				var payload = new PayOsReturnResponse
 				{
@@ -95,7 +95,7 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(latestPayment.OrderId)
-					?? throw AppException.NotFound("Order not found.");
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				var isCancelled = isCancelCallback ||
 					(queryParameters.TryGetValue("cancel", out var cancelValue) &&
@@ -104,7 +104,7 @@ namespace PerfumeGPT.Application.Services
 
 				if (isCancelled)
 				{
-					latestPayment.MarkCancelled("PayOS payment was cancelled by user.");
+					latestPayment.MarkCancelled("Thanh toán PayOS đã bị người dùng hủy.");
 					order.MarkUnpaid();
 					_unitOfWork.Payments.Update(latestPayment);
 					_unitOfWork.Orders.Update(order);
@@ -113,13 +113,13 @@ namespace PerfumeGPT.Application.Services
 
 				if (!payOsInfo.IsSuccess)
 				{
-					await HandleFailedPayment(latestPayment, order, payOsInfo.Message ?? "PayOS payment verification failed.", payOsInfo.PaymentLinkId);
+					await HandleFailedPayment(latestPayment, order, payOsInfo.Message ?? "Xác thực thanh toán PayOS thất bại.", payOsInfo.PaymentLinkId);
 					return payload;
 				}
 
 				if (payOsInfo.Amount > 0 && latestPayment.Amount != payOsInfo.Amount)
 				{
-					throw AppException.BadRequest("Payment amount mismatch.");
+					throw AppException.BadRequest("Số tiền thanh toán không khớp.");
 				}
 
 				if (payOsInfo.IsPaid)
@@ -128,7 +128,7 @@ namespace PerfumeGPT.Application.Services
 					return payload with { IsSuccess = true };
 				}
 
-				await HandleFailedPayment(latestPayment, order, $"PayOS payment status: {payOsInfo.Status ?? "UNKNOWN"}", payOsInfo.PaymentLinkId, extractedPosSessionId);
+				await HandleFailedPayment(latestPayment, order, $"Trạng thái thanh toán PayOS: {payOsInfo.Status ?? "KHÔNG_XÁC_ĐỊNH"}", payOsInfo.PaymentLinkId, extractedPosSessionId);
 				return payload;
 			});
 		}
@@ -137,15 +137,15 @@ namespace PerfumeGPT.Application.Services
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var payment = await _unitOfWork.Payments.GetByIdAsync(paymentId)
-					?? throw AppException.NotFound("Payment record not found.");
+					?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
 
 				if (!payment.IsPending())
 				{
-					return BaseResponse<bool>.Ok(true, "Payment already processed.");
+					return BaseResponse<bool>.Ok(true, "Thanh toán đã được xử lý trước đó.");
 				}
 
 				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
-					?? throw AppException.NotFound("Order not found.");
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				return request.IsSuccess
 					? await CompleteSuccessfulPayment(payment, order)
@@ -159,11 +159,11 @@ namespace PerfumeGPT.Application.Services
 				Guid.TryParse(paymentIdValue.ToString(), out var paymentId))
 			{
 				var paymentById = await _unitOfWork.Payments.GetByIdAsync(paymentId)
-					?? throw AppException.NotFound("Payment record not found.");
+					?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
 
 				if (paymentById.Method != PaymentMethod.PayOs)
 				{
-					throw AppException.BadRequest("Payment method is not PayOS.");
+					throw AppException.BadRequest("Phương thức thanh toán không phải PayOS.");
 				}
 
 				return paymentById;
@@ -173,7 +173,7 @@ namespace PerfumeGPT.Application.Services
 				!long.TryParse(orderCodeValue.ToString(), out var callbackOrderCode) ||
 				callbackOrderCode <= 0)
 			{
-				throw AppException.BadRequest("PayOS callback missing required payment identifier.");
+				throw AppException.BadRequest("Callback PayOS thiếu thông tin định danh thanh toán bắt buộc.");
 			}
 
 			var payOsPendingPayments = await _unitOfWork.Payments.GetAllAsync(
@@ -186,7 +186,7 @@ namespace PerfumeGPT.Application.Services
 			var matchedPayment = payOsPendingPayments
 				.FirstOrDefault(p => ResolvePayOsOrderCode(p.Order.Code, p.Id) == callbackOrderCode);
 
-			return matchedPayment ?? throw AppException.NotFound("PayOS payment record not found.");
+			return matchedPayment ?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán PayOS.");
 		}
 
 		private static long ResolvePayOsOrderCode(string orderCode, Guid paymentId)
@@ -230,13 +230,13 @@ namespace PerfumeGPT.Application.Services
 			var posSessionId = momoResponse.PosSessionId;
 			if (momoResponse.PaymentId == Guid.Empty)
 			{
-				throw AppException.BadRequest("MoMo payment failed");
+				throw AppException.BadRequest("Thanh toán MoMo thất bại");
 			}
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var payment = await _unitOfWork.Payments.GetByIdAsync(momoResponse.PaymentId)
-					?? throw AppException.NotFound("Payment record not found.");
+					?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
 
 				var payload = new MomoReturnResponse
 				{
@@ -254,11 +254,11 @@ namespace PerfumeGPT.Application.Services
 
 				if (payment.Amount != momoResponse.Amount)
 				{
-					throw AppException.BadRequest("Payment amount mismatch.");
+					throw AppException.BadRequest("Số tiền thanh toán không khớp.");
 				}
 
 				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
-					?? throw AppException.NotFound("Order not found.");
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				if (momoResponse.IsSuccess)
 				{
@@ -276,14 +276,14 @@ namespace PerfumeGPT.Application.Services
 		{
 			try
 			{
-				var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "VNPay payment failed");
+				var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "Thanh toán VNPay thất bại");
 				var orderCode = vnPayResponse.OrderCode;
 				var posSessionId = vnPayResponse.PosSessionId;
 
 				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
 					var payment = await _unitOfWork.Payments.GetByIdAsync(vnPayResponse.PaymentId)
-						?? throw AppException.NotFound("Payment record not found.");
+						?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
 
 					var payload = new VnPayReturnResponse
 					{
@@ -301,11 +301,11 @@ namespace PerfumeGPT.Application.Services
 
 					if (payment.Amount != vnPayResponse.Amount)
 					{
-						throw AppException.BadRequest("Payment amount mismatch.");
+						throw AppException.BadRequest("Số tiền thanh toán không khớp.");
 					}
 
 					var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
-						?? throw AppException.NotFound("Order not found.");
+					 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 					if (vnPayResponse.IsSuccess)
 					{
@@ -321,13 +321,13 @@ namespace PerfumeGPT.Application.Services
 			{
 				_logger.LogWarning(ex, "Giao dịch đã được xử lý bởi một luồng khác (Khả năng cao là IPN Webhook). Bỏ qua lỗi cập nhật.");
 
-				var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "VNPay payment failed");
+				var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "Thanh toán VNPay thất bại");
 				var fallbackOrderCode = vnPayResponse.OrderCode;
 				var fallbackPosSessionId = vnPayResponse.PosSessionId;
 				var latestPayment = await _unitOfWork.Payments.FirstOrDefaultAsync(p => p.Id == vnPayResponse.PaymentId);
 
 				return latestPayment == null
-					? throw AppException.NotFound("Payment record not found.")
+				  ? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.")
 					: new VnPayReturnResponse
 					{
 						PaymentId = latestPayment.Id,
@@ -354,10 +354,10 @@ namespace PerfumeGPT.Application.Services
 		private async Task<BaseResponse<string>> ProcessPaymentRetryAsync(Guid paymentId, PaymentInformation? newMethod = null, string? posSessionId = null)
 		{
 			var currentPayment = await _unitOfWork.Payments.GetByIdAsync(paymentId)
-				  ?? throw AppException.NotFound("Payment record not found.");
+				?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
 
 			if (currentPayment.TransactionStatus == TransactionStatus.Success)
-				throw AppException.BadRequest("Cannot retry completed payments.");
+				throw AppException.BadRequest("Không thể thử lại thanh toán đã hoàn tất.");
 
 			if (currentPayment.Method == PaymentMethod.VnPay)
 			{
@@ -380,7 +380,7 @@ namespace PerfumeGPT.Application.Services
 			if (currentPayment.Method == PaymentMethod.PayOs)
 			{
 				var order = await _unitOfWork.Orders.GetByIdAsync(currentPayment.OrderId)
-					?? throw AppException.NotFound("Order not found.");
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				var statusSyncResponse = await TryCompletePayOsIfAlreadyPaidAsync(currentPayment, order.Code);
 				if (statusSyncResponse != null)
@@ -392,26 +392,26 @@ namespace PerfumeGPT.Application.Services
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var payment = await _unitOfWork.Payments.GetByIdAsync(paymentId)
-					   ?? throw AppException.NotFound("Payment record not found.");
+					?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
 
 				if (payment.TransactionStatus == TransactionStatus.Success)
-					throw AppException.BadRequest("Cannot retry completed payments.");
+					throw AppException.BadRequest("Không thể thử lại thanh toán đã hoàn tất.");
 
 				var isOnlineMethod = payment.Method == PaymentMethod.VnPay || payment.Method == PaymentMethod.Momo || payment.Method == PaymentMethod.PayOs;
 				if (!isOnlineMethod &&
 					payment.TransactionStatus != TransactionStatus.Pending &&
 					payment.TransactionStatus != TransactionStatus.Failed)
-					throw AppException.BadRequest("Only pending or failed payments can be retried.");
+					throw AppException.BadRequest("Chỉ có thể thử lại thanh toán ở trạng thái đang chờ hoặc thất bại.");
 
 				var order = await _unitOfWork.Orders.GetByIdAsync(payment.OrderId)
-					 ?? throw AppException.NotFound("Order not found.");
+					 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				//if (order.Status != OrderStatus.Pending)
 				//	throw AppException.BadRequest($"Cannot change payment method or retry because the order is already being processed (Current status: {order.Status}).");
 
 				if (order.PaymentExpiresAt.HasValue && order.PaymentExpiresAt.Value < DateTime.UtcNow)
 				{
-					throw AppException.BadRequest("The payment window for this order has expired. Please create a new order.");
+					throw AppException.BadRequest("Thời gian thanh toán của đơn hàng này đã hết. Vui lòng tạo đơn hàng mới.");
 				}
 
 				var existingPendingPayments = await _unitOfWork.Payments
@@ -421,7 +421,7 @@ namespace PerfumeGPT.Application.Services
 
 				foreach (var pendingPayment in existingPendingPayments)
 				{
-					pendingPayment.MarkCancelled("Superseded by new payment attempt.");
+					pendingPayment.MarkCancelled("Được thay thế bởi lần thử thanh toán mới.");
 					_unitOfWork.Payments.Update(pendingPayment);
 				}
 
@@ -459,7 +459,7 @@ namespace PerfumeGPT.Application.Services
 
 				var methodChanged = payment.Method != paymentMethod;
 				var methodMessage = methodChanged
-				 ? $" (changed from {payment.Method} to {paymentMethod})"
+				? $" (đổi từ {payment.Method} sang {paymentMethod})"
 					: "";
 
 				var paymentResponse = await GeneratePaymentResponse(newPayment, order, newPayment.RetryAttempt, methodMessage, posSessionId);
@@ -499,28 +499,28 @@ namespace PerfumeGPT.Application.Services
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var latestPayment = await _unitOfWork.Payments.GetByIdAsync(payment.Id)
-					?? throw AppException.NotFound("Payment record not found.");
+					?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
 
 				if (latestPayment.TransactionStatus == TransactionStatus.Success)
 				{
-					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Order was already paid successfully.");
+					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Đơn hàng đã được thanh toán thành công trước đó.");
 				}
 
 				if (!latestPayment.IsPending())
 				{
-					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Gateway already confirmed payment.");
+					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Cổng thanh toán đã xác nhận giao dịch.");
 				}
 
 				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(latestPayment.OrderId)
-					?? throw AppException.NotFound("Order not found.");
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				if (paymentInfo.Amount > 0 && latestPayment.Amount != paymentInfo.Amount)
 				{
-					throw AppException.BadRequest("Payment amount mismatch.");
+					throw AppException.BadRequest("Số tiền thanh toán không khớp.");
 				}
 
 				await CompleteSuccessfulPayment(latestPayment, order, paymentInfo.PaymentLinkId, paymentInfo.PosSessionId);
-				return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Order was already paid successfully.");
+				return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Đơn hàng đã được thanh toán thành công trước đó.");
 			});
 		}
 
@@ -540,29 +540,29 @@ namespace PerfumeGPT.Application.Services
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var latestPayment = await _unitOfWork.Payments.GetByIdAsync(payment.Id)
-					?? throw AppException.NotFound("Payment record not found.");
+					?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
 
 				if (latestPayment.TransactionStatus == TransactionStatus.Success)
 				{
-					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Order was already paid successfully.");
+					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Đơn hàng đã được thanh toán thành công trước đó.");
 				}
 
 				if (!latestPayment.IsPending())
 				{
-					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Gateway already confirmed payment.");
+					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Cổng thanh toán đã xác nhận giao dịch.");
 				}
 
 				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(latestPayment.OrderId)
-					?? throw AppException.NotFound("Order not found.");
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				await CompleteSuccessfulPayment(latestPayment, order, queryResponse.TransactionNo);
-				return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Order was already paid successfully.");
+				return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Đơn hàng đã được thanh toán thành công trước đó.");
 			});
 		}
 
 		private async Task<BaseResponse<string>?> TryCompleteVnPayIfAlreadyPaidAsync(PaymentTransaction payment)
 		{
-			var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext is not available.");
+			var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext hiện không khả dụng.");
 			var queryRequest = new VnPayQueryRequest
 			{
 				PaymentId = payment.Id,
@@ -580,23 +580,23 @@ namespace PerfumeGPT.Application.Services
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var latestPayment = await _unitOfWork.Payments.GetByIdAsync(payment.Id)
-					?? throw AppException.NotFound("Payment record not found.");
+					?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
 
 				if (latestPayment.TransactionStatus == TransactionStatus.Success)
 				{
-					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Order was already paid successfully.");
+					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Đơn hàng đã được thanh toán thành công trước đó.");
 				}
 
 				if (!latestPayment.IsPending())
 				{
-					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Gateway already confirmed payment.");
+					return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Cổng thanh toán đã xác nhận giao dịch.");
 				}
 
 				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(latestPayment.OrderId)
-					?? throw AppException.NotFound("Order not found.");
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				await CompleteSuccessfulPayment(latestPayment, order, queryResponse.TransactionNo);
-				return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Order was already paid successfully.");
+				return BaseResponse<string>.Ok(latestPayment.Id.ToString(), "Đơn hàng đã được thanh toán thành công trước đó.");
 			});
 		}
 
@@ -653,7 +653,7 @@ namespace PerfumeGPT.Application.Services
 				}
 			}
 
-			return BaseResponse<bool>.Ok(true, "Payment processed successfully.");
+			return BaseResponse<bool>.Ok(true, "Xử lý thanh toán thành công.");
 		}
 
 		private async Task<BaseResponse<bool>> HandleFailedPayment(
@@ -691,7 +691,7 @@ namespace PerfumeGPT.Application.Services
 				}
 			}
 
-			var message = string.IsNullOrEmpty(reason) ? "Payment failed." : $"Payment failed: {reason}";
+			var message = string.IsNullOrEmpty(reason) ? "Thanh toán thất bại." : $"Thanh toán thất bại: {reason}";
 			return BaseResponse<bool>.Fail(message, ResponseErrorType.BadRequest);
 		}
 
@@ -705,7 +705,7 @@ namespace PerfumeGPT.Application.Services
 			switch (payment.Method)
 			{
 				case PaymentMethod.VnPay:
-					var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext is not available.");
+					var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext hiện không khả dụng.");
 					var vnPayRequest = new VnPaymentRequest
 					{
 						OrderId = order.Id,
@@ -716,10 +716,10 @@ namespace PerfumeGPT.Application.Services
 					};
 
 					var paymentUrlResponse = await _vnPayService.CreatePaymentUrlAsync(httpContext, vnPayRequest);
-					return BaseResponse<string>.Ok(paymentUrlResponse.PaymentUrl, $"Payment transaction #{retryAttempt} created{methodMessage}. Redirecting to VnPay.");
+					return BaseResponse<string>.Ok(paymentUrlResponse.PaymentUrl, $"Đã tạo giao dịch thanh toán #{retryAttempt}{methodMessage}. Đang chuyển hướng đến VnPay.");
 
 				case PaymentMethod.Momo:
-					var momoHttpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext is not available.");
+					var momoHttpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext hiện không khả dụng.");
 					var momoRequest = new MomoPaymentRequest
 					{
 						OrderId = order.Id,
@@ -730,7 +730,7 @@ namespace PerfumeGPT.Application.Services
 					};
 
 					var momoUrlResponse = await _momoService.CreatePaymentUrlAsync(momoHttpContext, momoRequest);
-					return BaseResponse<string>.Ok(momoUrlResponse.PaymentUrl, $"Payment transaction #{retryAttempt} created{methodMessage}. Redirecting to Momo.");
+					return BaseResponse<string>.Ok(momoUrlResponse.PaymentUrl, $"Đã tạo giao dịch thanh toán #{retryAttempt}{methodMessage}. Đang chuyển hướng đến Momo.");
 
 				case PaymentMethod.PayOs:
 					var payOsRequest = new PayOsPaymentRequest
@@ -743,14 +743,14 @@ namespace PerfumeGPT.Application.Services
 					};
 
 					var payOsUrlResponse = await _payOsService.CreatePaymentUrlAsync(payOsRequest);
-					return BaseResponse<string>.Ok(payOsUrlResponse.PaymentUrl, $"Payment transaction #{retryAttempt} created{methodMessage}. Redirecting to PayOs.");
+					return BaseResponse<string>.Ok(payOsUrlResponse.PaymentUrl, $"Đã tạo giao dịch thanh toán #{retryAttempt}{methodMessage}. Đang chuyển hướng đến PayOs.");
 
 				case PaymentMethod.CashOnDelivery:
 				case PaymentMethod.CashInStore:
-					return BaseResponse<string>.Ok(payment.Id.ToString(), $"Payment transaction #{retryAttempt} created{methodMessage}. Cash payment is pending confirmation.");
+					return BaseResponse<string>.Ok(payment.Id.ToString(), $"Đã tạo giao dịch thanh toán #{retryAttempt}{methodMessage}. Thanh toán tiền mặt đang chờ xác nhận.");
 
 				default:
-					throw AppException.BadRequest("Unsupported payment method.");
+					throw AppException.BadRequest("Phương thức thanh toán không được hỗ trợ.");
 			}
 		}
 

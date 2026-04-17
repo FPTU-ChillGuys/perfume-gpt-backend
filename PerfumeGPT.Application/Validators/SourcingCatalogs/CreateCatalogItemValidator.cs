@@ -8,17 +8,17 @@ namespace PerfumeGPT.Application.Validators.SourcingCatalogs
 		public CreateCatalogItemValidator()
 		{
 			RuleFor(x => x.ProductVariantId)
-				.NotEmpty().WithMessage("ProductVariantId is required.")
-				.NotEqual(Guid.Empty).WithMessage("ProductVariantId must be a valid GUID.");
+                .NotEmpty().WithMessage("ProductVariantId là bắt buộc.")
+				.NotEqual(Guid.Empty).WithMessage("ProductVariantId phải là GUID hợp lệ.");
 
 			RuleFor(x => x.SupplierId)
-				.GreaterThan(0).WithMessage("SupplierId must be a positive integer.");
+              .GreaterThan(0).WithMessage("SupplierId phải là số nguyên dương.");
 
 			RuleFor(x => x.NegotiatedPrice)
-				.GreaterThan(0).WithMessage("NegotiatedPrice must be greater than 0.");
+             .GreaterThan(0).WithMessage("Giá thương lượng phải lớn hơn 0.");
 
 			RuleFor(x => x.EstimatedLeadTimeDays)
-				.GreaterThanOrEqualTo(0).WithMessage("EstimatedLeadTimeDays cannot be negative.");
+              .GreaterThanOrEqualTo(0).WithMessage("Số ngày giao hàng dự kiến không được âm.");
 		}
 	}
 }

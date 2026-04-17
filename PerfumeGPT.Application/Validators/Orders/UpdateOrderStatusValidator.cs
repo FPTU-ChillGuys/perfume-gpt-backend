@@ -10,7 +10,7 @@ namespace PerfumeGPT.Application.Validators.Orders
 			RuleFor(x => x.Note)
 				.MaximumLength(500)
 				.When(x => !string.IsNullOrEmpty(x.Note))
-				.WithMessage("Note cannot exceed 500 characters.");
+             .WithMessage("Ghi chú không được vượt quá 500 ký tự.");
 		}
 	}
 }

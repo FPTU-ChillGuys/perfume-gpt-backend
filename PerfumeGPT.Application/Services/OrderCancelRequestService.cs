@@ -81,10 +81,10 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<OrderCancelRequestResponse>> GetRequestByIdAsync(Guid requestId, Guid requesterId, bool isPrivilegedUser)
 		{
 			var request = await _unitOfWork.OrderCancelRequests.GetResponseByIdAsync(requestId)
-				?? throw AppException.NotFound("Cancel request not found.");
+				?? throw AppException.NotFound("Không tìm thấy yêu cầu hủy đơn.");
 
 			if (!isPrivilegedUser && request.RequestedById != requesterId)
-				throw AppException.Forbidden("You are not allowed to view this cancel request.");
+				throw AppException.Forbidden("Bạn không có quyền xem yêu cầu hủy đơn này.");
 
 			if (!isPrivilegedUser)
 			{
@@ -94,7 +94,7 @@ namespace PerfumeGPT.Application.Services
 				};
 			}
 
-			return BaseResponse<OrderCancelRequestResponse>.Ok(request, "Cancel request retrieved successfully.");
+			return BaseResponse<OrderCancelRequestResponse>.Ok(request, "Lấy thông tin yêu cầu hủy đơn thành công.");
 		}
 
 		private static string? MaskAccountNumber(string? accountNumber)
@@ -108,14 +108,14 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> ProcessRequestAsync(Guid requestId, Guid processedBy, string userRole, ProcessCancelRequest request)
 		{
 			var cancelRequest = await _unitOfWork.OrderCancelRequests.GetByIdAsync(requestId)
-				?? throw AppException.NotFound("Cancel request not found.");
+				?? throw AppException.NotFound("Không tìm thấy yêu cầu hủy đơn.");
 
 			if (cancelRequest.Status != CancelRequestStatus.Pending)
-				throw AppException.BadRequest("This request has already been processed.");
+				throw AppException.BadRequest("Yêu cầu này đã được xử lý trước đó.");
 
 			if (cancelRequest.IsRefundRequired && userRole != UserRole.admin.ToString())
 			{
-				throw AppException.Forbidden("Only Administrators can approve cancellation requests that require a refund.");
+				throw AppException.Forbidden("Chỉ Quản trị viên mới có thể duyệt yêu cầu hủy đơn có hoàn tiền.");
 			}
 
 			string? refundTransactionNo = null;
@@ -124,22 +124,22 @@ namespace PerfumeGPT.Application.Services
 			decimal? finalRefundAmount = null;
 
 			var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
-				?? throw AppException.NotFound("Associated order not found.");
+			  ?? throw AppException.NotFound("Không tìm thấy đơn hàng liên quan.");
 
 			if (request.IsApproved)
 			{
 				if (cancelRequest.IsRefundRequired)
 				{
 					var refundMethod = request.RefundMethod
-						   ?? throw AppException.BadRequest("Refund method is required when refund is needed.");
+						   ?? throw AppException.BadRequest("Bắt buộc chọn phương thức hoàn tiền khi cần hoàn tiền.");
 
 					var successfulOnlinePayments = (await _unitOfWork.Payments.GetAllAsync(
 						p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Success))
 						.OrderByDescending(p => p.CreatedAt).ToList();
 
-					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod) ?? throw AppException.NotFound($"No successful {refundMethod} payment found for this order.");
+					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod) ?? throw AppException.NotFound($"Không tìm thấy giao dịch {refundMethod} thành công cho đơn hàng này.");
 
-					var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext not available.");
+					var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext hiện không khả dụng.");
 					var refundAmount = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
 					var isRefundSuccess = false;
 
@@ -147,7 +147,7 @@ namespace PerfumeGPT.Application.Services
 					{
 						case PaymentMethod.VnPay:
 							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod)
-								?? throw AppException.NotFound($"No successful {refundMethod} payment found for this order.");
+						  ?? throw AppException.NotFound($"Không tìm thấy giao dịch {refundMethod} thành công cho đơn hàng này.");
 
 							var refundAmountVnPay = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
 							var vnPayResponse = await _vnPayService.RefundAsync(context, new VnPayRefundRequest
@@ -158,7 +158,7 @@ namespace PerfumeGPT.Application.Services
 								TransactionType = refundAmountVnPay == originalPayment.Amount ? "02" : "03",
 								TransactionNo = originalPayment.GatewayTransactionNo,
 								CreateBy = processedBy.ToString(),
-								OrderInfo = $"Refund for Order {order.Code}",
+								OrderInfo = $"Hoàn tiền cho đơn hàng {order.Code}",
 								TransactionDate = originalPayment.CreatedAt.ToString("yyyyMMddHHmmss")
 							});
 
@@ -169,7 +169,7 @@ namespace PerfumeGPT.Application.Services
 
 						case PaymentMethod.Momo:
 							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod)
-								?? throw AppException.NotFound($"No successful {refundMethod} payment found for this order.");
+						  ?? throw AppException.NotFound($"Không tìm thấy giao dịch {refundMethod} thành công cho đơn hàng này.");
 
 							var refundAmountMomo = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
 							var momoResponse = await _momoService.RefundAsync(context, new MomoRefundRequest
@@ -179,7 +179,7 @@ namespace PerfumeGPT.Application.Services
 								Amount = refundAmountMomo,
 								PaymentId = originalPayment.Id,
 								TransactionNo = originalPayment.GatewayTransactionNo,
-								Description = $"Refund for Order {order.Code}"
+								Description = $"Hoàn tiền cho đơn hàng {order.Code}"
 							});
 
 							isRefundSuccess = momoResponse.IsSuccess;
@@ -190,18 +190,18 @@ namespace PerfumeGPT.Application.Services
 						case PaymentMethod.ExternalBankTransfer:
 						case PaymentMethod.CashInStore:
 							originalPayment = successfulOnlinePayments.FirstOrDefault()
-								?? throw AppException.NotFound("No successful payment found for this order to reference for manual refund.");
+							   ?? throw AppException.NotFound("Không tìm thấy giao dịch thanh toán thành công của đơn hàng để đối chiếu hoàn tiền thủ công.");
 
 							if (string.IsNullOrWhiteSpace(request.ManualTransactionReference))
-								throw AppException.BadRequest("Manual transaction reference is required for Bank Transfer refunds.");
+								throw AppException.BadRequest("Bắt buộc nhập mã tham chiếu giao dịch thủ công cho hoàn tiền chuyển khoản.");
 
 							isRefundSuccess = true;
-							refundMessage = request.StaffNote ?? "Manual refund recorded by Admin.";
+							refundMessage = request.StaffNote ?? "Đã ghi nhận hoàn tiền thủ công bởi Quản trị viên.";
 							refundTransactionNo = request.ManualTransactionReference.Trim();
 							break;
 
 						default:
-							throw AppException.BadRequest($"Refund is not supported for payment method {refundMethod}.");
+							throw AppException.BadRequest($"Không hỗ trợ hoàn tiền cho phương thức thanh toán {refundMethod}.");
 					}
 
 					finalRefundAmount = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
@@ -223,7 +223,7 @@ namespace PerfumeGPT.Application.Services
 						await _unitOfWork.Payments.AddAsync(failedRefund);
 						await _unitOfWork.SaveChangesAsync();
 
-						throw AppException.BadRequest($"Refund failed via {refundMethod}. Cancellation aborted. Reason: {refundMessage}");
+						throw AppException.BadRequest($"Hoàn tiền qua {refundMethod} thất bại. Đã hủy xử lý yêu cầu hủy đơn. Lý do: {refundMessage}");
 					}
 				}
 
@@ -238,7 +238,7 @@ namespace PerfumeGPT.Application.Services
 					}
 					catch (Exception ex)
 					{
-						throw AppException.BadRequest($"Failed to cancel shipping order on GHN: {ex.Message}");
+						throw AppException.BadRequest($"Hủy đơn vận chuyển trên GHN thất bại: {ex.Message}");
 					}
 				}
 			}
@@ -246,10 +246,10 @@ namespace PerfumeGPT.Application.Services
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			  {
 				  var freshCancelReq = await _unitOfWork.OrderCancelRequests.GetByIdAsync(requestId)
-					  ?? throw AppException.NotFound("Cancel request not found during transaction.");
+					 ?? throw AppException.NotFound("Không tìm thấy yêu cầu hủy đơn trong phiên giao dịch.");
 
 				  var freshOrder = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
-					  ?? throw AppException.NotFound("Associated order not found during transaction.");
+				   ?? throw AppException.NotFound("Không tìm thấy đơn hàng liên quan trong phiên giao dịch.");
 
 				  freshCancelReq.Process(processedBy, request.IsApproved, request.StaffNote);
 
@@ -289,7 +289,7 @@ namespace PerfumeGPT.Application.Services
 
 				  _unitOfWork.OrderCancelRequests.Update(freshCancelReq);
 
-				  return BaseResponse<string>.Ok(request.IsApproved ? "Cancel request approved and processed." : "Cancel request rejected.");
+				  return BaseResponse<string>.Ok(request.IsApproved ? "Yêu cầu hủy đơn đã được chấp thuận và xử lý." : "Yêu cầu hủy đơn đã bị từ chối.");
 			  });
 
 			await _notificationService.SendToUserAsync(

@@ -76,7 +76,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return new VnPaymentResponse
 				{
 					IsSuccess = false,
-					Message = "Invalid or missing vnp_TxnRef in VNPay response"
+					Message = "Phản hồi VNPay không chứa vnp_TxnRef hợp lệ"
 				};
 			}
 
@@ -91,7 +91,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return new VnPaymentResponse
 				{
 					IsSuccess = false,
-					Message = "Missing vnp_SecureHash in VNPay response"
+					Message = "Phản hồi VNPay không chứa vnp_SecureHash hợp lệ"
 				};
 			}
 
@@ -103,7 +103,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return new VnPaymentResponse
 				{
 					IsSuccess = false,
-					Message = "Signature validation failed"
+					Message = "Xác thực chữ ký thất bại"
 				};
 			}
 
@@ -120,11 +120,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			return new VnPaymentResponse
 			{
 				IsSuccess = success,
-				Message = success ? "Payment successful" : "Payment failed",
+				Message = success ? "Thanh toán thành công" : "Thanh toán thất bại",
 				PaymentId = txnRef,
 				TransactionNo = vnp_TranNo,
 				PaymentInfo = vnp_OrderInfo,
-                OrderCode = orderCode,
+				OrderCode = orderCode,
 				PosSessionId = posSessionId,
 				ResponseCode = vnp_ResponseCode,
 				Amount = decimal.TryParse(rawAmountStr, out var amt) ? amt / 100 : 0m
@@ -232,7 +232,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return new VnPayQueryResponse
 				{
 					IsSuccess = false,
-					Message = $"VNPay query failed with HTTP {(int)response.StatusCode}",
+					Message = $"VNPay truy vấn thất bại với HTTP {(int)response.StatusCode}",
 					PaymentId = request.PaymentId
 				};
 			}
@@ -254,7 +254,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 					return new VnPayQueryResponse
 					{
 						IsSuccess = false,
-						Message = "Missing vnp_SecureHash in VNPay query response",
+						Message = "Phản hồi VNPay không chứa vnp_SecureHash hợp lệ",
 						PaymentId = request.PaymentId,
 						ResponseCode = responseCode,
 						TransactionStatus = transactionStatus,
@@ -269,7 +269,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 					return new VnPayQueryResponse
 					{
 						IsSuccess = false,
-						Message = "VNPay query signature validation failed",
+						Message = "Xác thực chữ ký VNPay thất bại",
 						PaymentId = request.PaymentId,
 						ResponseCode = responseCode,
 						TransactionStatus = transactionStatus,
@@ -295,7 +295,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return new VnPayQueryResponse
 				{
 					IsSuccess = false,
-					Message = "Invalid VNPay query response format",
+					Message = "Phản hồi VNPay không hợp lệ",
 					PaymentId = request.PaymentId
 				};
 			}

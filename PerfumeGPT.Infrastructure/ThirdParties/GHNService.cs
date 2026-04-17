@@ -92,11 +92,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			{
 				var errorContent = await response.Content.ReadAsStringAsync();
 				Console.WriteLine($"Error Detail: {errorContent}");
-				throw new HttpRequestException($"Failed to get districts: {errorContent}");
+				throw new HttpRequestException($"Không thể lấy danh sách quận/huyện: {errorContent}");
 			}
 
 			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<List<DistrictResponse>>>();
-			return BaseResponse<List<DistrictResponse>>.Ok(result?.Data ?? [], "Districts retrieved successfully");
+			return BaseResponse<List<DistrictResponse>>.Ok(result?.Data ?? [], "Lấy danh sách quận/huyện thành công");
 		}
 
 		public async Task<bool> UpdateOrderCodAsync(UpdateCodRequest request)
@@ -139,11 +139,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			{
 				var errorContent = await response.Content.ReadAsStringAsync();
 				Console.WriteLine($"Error Detail: {errorContent}");
-				throw new HttpRequestException($"Failed to get provinces: {errorContent}");
+				throw new HttpRequestException($"Không thể lấy danh sách tỉnh/thành: {errorContent}");
 			}
 
 			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<List<ProvinceResponse>>>();
-			return BaseResponse<List<ProvinceResponse>>.Ok(result?.Data ?? [], "Provinces retrieved successfully");
+			return BaseResponse<List<ProvinceResponse>>.Ok(result?.Data ?? [], "Lấy danh sách tỉnh/thành thành công");
 		}
 
 		public async Task<BaseResponse<List<WardResponse>>> GetWardsByDistrictIdAsync(int districtId)
@@ -165,11 +165,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			{
 				var errorContent = await response.Content.ReadAsStringAsync();
 				Console.WriteLine($"Error Detail: {errorContent}");
-				throw new HttpRequestException($"Failed to get wards: {errorContent}");
+				throw new HttpRequestException($"Không thể lấy danh sách phường/xã: {errorContent}");
 			}
 
 			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<List<WardResponse>>>();
-			return BaseResponse<List<WardResponse>>.Ok(result?.Data ?? [], "Wards retrieved successfully");
+			return BaseResponse<List<WardResponse>>.Ok(result?.Data ?? [], "Lấy danh sách phường/xã thành công");
 		}
 
 		public async Task<CreateShippingOrderResponse?> CreateShippingOrderAsync(CreateShippingOrderRequest request)
@@ -241,7 +241,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			{
 				var errorContent = await response.Content.ReadAsStringAsync();
 				Console.WriteLine($"Error Detail: {errorContent}");
-				throw new HttpRequestException($"Failed to create shipping order: {errorContent}");
+				throw new HttpRequestException($"Không thể tạo đơn hàng GHN: {errorContent}");
 			}
 
 			var options = new JsonSerializerOptions
@@ -361,7 +361,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 		{
 			if (request.TrackingNumbers.Count == 0)
 			{
-				return BaseResponse<string>.Fail("Tracking numbers are required.", ResponseErrorType.BadRequest);
+				return BaseResponse<string>.Fail("Bắt buộc cung cấp mã vận đơn.", ResponseErrorType.BadRequest);
 			}
 
 			var token = _configuration["GHN:Token"];
@@ -382,27 +382,27 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			{
 				var errorContent = await response.Content.ReadAsStringAsync();
 				Console.WriteLine($"Error Detail: {errorContent}");
-				return BaseResponse<string>.Fail($"Failed to generate GHN token: {errorContent}");
+				return BaseResponse<string>.Fail($"Không thể tạo token GHN: {errorContent}");
 			}
 
 			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<GetOrderInfoTokenResponse>>();
 			if (result?.Code != 200 || string.IsNullOrWhiteSpace(result.Data?.Token) || string.IsNullOrWhiteSpace(getOrderInfoUrl))
 			{
-				return BaseResponse<string>.Fail("Invalid response from GHN when generating order info URL.");
+				return BaseResponse<string>.Fail("Phản hồi từ GHN không hợp lệ khi tạo đường dẫn tra cứu đơn hàng.");
 			}
 
 			var orderInfoUrl = getOrderInfoUrl.Contains('?')
 				? $"{getOrderInfoUrl}&token={result.Data.Token}"
 				: $"{getOrderInfoUrl}?token={result.Data.Token}";
 
-			return BaseResponse<string>.Ok(orderInfoUrl, "GHN order info URL generated successfully.");
+			return BaseResponse<string>.Ok(orderInfoUrl, "Tạo đường dẫn tra cứu đơn hàng GHN thành công.");
 		}
 
 		public async Task CancelOrderAsync(CancelOrderRequest request)
 		{
 			if (request.TrackingNumbers.Count == 0)
 			{
-				throw AppException.BadRequest("Tracking numbers are required.");
+				throw AppException.BadRequest("Bắt buộc cung cấp mã vận đơn.");
 			}
 
 			var token = _configuration["GHN:Token"];
@@ -427,13 +427,13 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			{
 				var errorContent = await response.Content.ReadAsStringAsync();
 				Console.WriteLine($"Error Detail: {errorContent}");
-				throw AppException.Internal($"Failed to cancel GHN order: {errorContent}");
+				throw AppException.Internal($"Không thể hủy đơn GHN: {errorContent}");
 			}
 
 			var result = await response.Content.ReadFromJsonAsync<GHNApiResponse<object>>();
 			if (result?.Code != 200)
 			{
-				throw AppException.Internal(result?.Message ?? "GHN cancel order request failed.");
+				throw AppException.Internal(result?.Message ?? "Yêu cầu hủy đơn GHN thất bại.");
 			}
 		}
 	}

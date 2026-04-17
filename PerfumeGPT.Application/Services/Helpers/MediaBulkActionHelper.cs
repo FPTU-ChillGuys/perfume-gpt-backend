@@ -35,7 +35,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 		Guid entityId)
 		{
 			if (!SupportedEntityTypes.Contains(entityType))
-				throw AppException.BadRequest($"Unsupported entity type: {entityType}");
+				throw AppException.BadRequest($"Không hỗ trợ loại thực thể {entityType}.");
 
 			var response = new BulkActionResponse { SucceededIds = [], FailedItems = [] };
 
@@ -67,7 +67,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 					response.FailedItems.Add(new BulkActionError
 					{
 						Id = mediaId,
-						ErrorMessage = "Media not found."
+						ErrorMessage = "Không tìm thấy media hoặc media đã bị xóa."
 					});
 					continue;
 				}
@@ -100,7 +100,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 		{
 			var tempMedia = await _unitOfWork.TemporaryMedia.GetByIdAsync(tempMediaId);
 			if (tempMedia == null)
-				return (false, "Temporary media not found.");
+				return (false, "Không tìm thấy media tạm thời.");
 
 			try
 			{

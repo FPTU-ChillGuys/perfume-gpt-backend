@@ -10,14 +10,13 @@ namespace PerfumeGPT.Application.Validators.Campaigns
 		public UpdateCampaignValidator()
 		{
 			RuleFor(x => x.Name)
-				.NotEmpty().WithMessage("Campaign name is required.")
-				.MaximumLength(100).WithMessage("Campaign name must not exceed 100 characters.");
+				.NotEmpty().WithMessage("Tên chiến dịch là bắt buộc.")
+				.MaximumLength(100).WithMessage("Tên chiến dịch không được vượt quá 100 ký tự.");
 
 			RuleFor(x => x.EndDate)
-				.GreaterThan(x => x.StartDate).WithMessage("End date must be after start date.");
-
+				.GreaterThan(x => x.StartDate).WithMessage("Ngày kết thúc phải sau ngày bắt đầu.");
 			RuleFor(x => x.Items)
-				.NotEmpty().WithMessage("Campaign must include at least one promotion item.");
+				.NotEmpty().WithMessage("Chiến dịch phải bao gồm ít nhất một mục khuyến mãi.");
 
 			RuleForEach(x => x.Items)
 			  .SetValidator(new UpdateCampaignPromotionItemValidator());
@@ -27,7 +26,7 @@ namespace PerfumeGPT.Application.Validators.Campaigns
 
 			RuleFor(x => x.Vouchers)
 				.Must(vouchers => vouchers == null || vouchers.Select(v => v.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count() == vouchers.Count)
-				.WithMessage("Voucher codes in campaign must be unique.");
+				.WithMessage("Mã voucher trong chiến dịch phải là duy nhất.");
 		}
 	}
 }

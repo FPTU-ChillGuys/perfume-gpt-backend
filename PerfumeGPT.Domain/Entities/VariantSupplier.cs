@@ -30,16 +30,16 @@ namespace PerfumeGPT.Domain.Entities
 		public static VariantSupplier Create(Guid productVariantId, int supplierId, decimal negotiatedPrice, int leadTimeDays, bool isPrimary)
 		{
 			if (productVariantId == Guid.Empty)
-				throw DomainException.BadRequest("Product variant is required.");
+               throw DomainException.BadRequest("Biến thể sản phẩm là bắt buộc.");
 
 			if (supplierId <= 0)
-				throw DomainException.BadRequest("Supplier is required.");
+              throw DomainException.BadRequest("Nhà cung cấp là bắt buộc.");
 
 			if (negotiatedPrice <= 0)
-				throw DomainException.BadRequest("Price must be positive.");
+                throw DomainException.BadRequest("Giá phải lớn hơn 0.");
 
 			if (leadTimeDays < 0)
-				throw DomainException.BadRequest("Lead time cannot be negative.");
+              throw DomainException.BadRequest("Thời gian giao hàng dự kiến không được âm.");
 
 			return new VariantSupplier
 			{
@@ -54,10 +54,10 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdatePricing(decimal newPrice, int leadTimeDays)
 		{
 			if (newPrice <= 0)
-				throw DomainException.BadRequest("Price must be positive.");
+                throw DomainException.BadRequest("Giá phải lớn hơn 0.");
 
 			if (leadTimeDays < 0)
-				throw DomainException.BadRequest("Lead time cannot be negative.");
+              throw DomainException.BadRequest("Thời gian giao hàng dự kiến không được âm.");
 
 			NegotiatedPrice = newPrice;
 			EstimatedLeadTimeDays = leadTimeDays;

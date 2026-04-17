@@ -62,7 +62,7 @@ namespace PerfumeGPT.API.Middlewares
 
 				UnauthorizedAccessException => (
 					(int)ResponseErrorType.Unauthorized,
-					BaseResponse<object?>.Fail("You are not authorized.", ResponseErrorType.Unauthorized)),
+				 BaseResponse<object?>.Fail("Bạn không có quyền truy cập.", ResponseErrorType.Unauthorized)),
 
 				DbUpdateConcurrencyException => (
 					(int)ResponseErrorType.Conflict,
@@ -72,7 +72,7 @@ namespace PerfumeGPT.API.Middlewares
 
 				_ => (
 					(int)ResponseErrorType.InternalError,
-					 BaseResponse<object?>.Fail("An unexpected server error occurred.", ResponseErrorType.InternalError))
+					BaseResponse<object?>.Fail("Đã xảy ra lỗi máy chủ ngoài mong đợi.", ResponseErrorType.InternalError))
 			};
 
 			context.Response.StatusCode = statusCode;

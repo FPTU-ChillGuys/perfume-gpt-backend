@@ -20,7 +20,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static ProductNoteMap Create(int scentNoteId, NoteType noteType)
 		{
 			if (scentNoteId <= 0)
-				throw DomainException.BadRequest("Scent note ID must be greater than 0.");
+              throw DomainException.BadRequest("Scent note ID phải lớn hơn 0.");
 
 			return new ProductNoteMap
 			{

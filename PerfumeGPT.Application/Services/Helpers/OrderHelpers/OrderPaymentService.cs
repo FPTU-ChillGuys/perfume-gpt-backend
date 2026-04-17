@@ -42,7 +42,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 			if (paymentMethod == PaymentMethod.VnPay)
 			{
-				var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("Unable to access HTTP context for VnPay integration.");
+				var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("Không thể truy cập HTTP context để tích hợp VnPay.");
 
 				var vnPayRequest = new VnPaymentRequest
 				{
@@ -63,14 +63,14 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			}
 			else if (paymentMethod == PaymentMethod.Momo)
 			{
-				var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("Unable to access HTTP context for Momo integration.");
+				var httpContext = _httpContextAccessor.HttpContext ?? throw AppException.Internal("Không thể truy cập HTTP context để tích hợp Momo.");
 
 				var momoRequest = new MomoPaymentRequest
 				{
 					OrderId = order.Id,
 					OrderCode = order.Code,
 					PaymentId = payment.Id,
-                    Amount = (int)amount,
+					Amount = (int)amount,
 					PosSessionId = posSessionId
 				};
 
@@ -89,7 +89,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					OrderId = order.Id,
 					OrderCode = order.Code,
 					PaymentId = payment.Id,
-                    Amount = (int)amount,
+					Amount = (int)amount,
 					PosSessionId = posSessionId
 				};
 

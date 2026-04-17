@@ -55,7 +55,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<bool> PlusPointAsync(Guid userId, int points, Guid? orderId, bool saveChanges = true, string? reason = null)
 		{
 			var user = await _userRepository.GetByIdAsync(userId)
-				  ?? throw AppException.NotFound("User not found.");
+				  ?? throw AppException.NotFound("Không tìm thấy người dùng.");
 
 			var info = new EarnTransactionInfo
 			{
@@ -71,7 +71,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				var saved = await _unitOfWork.SaveChangesAsync();
 				if (!saved)
-					throw AppException.Internal("Failed to add loyalty points.");
+					throw AppException.Internal("Cộng điểm tích lũy thất bại.");
 			}
 
 			return true;
@@ -80,7 +80,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<bool> RedeemPointAsync(Guid userId, int points, Guid? voucherId, Guid? orderId, bool saveChanges = true, string? reason = null)
 		{
 			var user = await _userRepository.GetByIdAsync(userId)
-				?? throw AppException.NotFound("User not found.");
+			  ?? throw AppException.NotFound("Không tìm thấy người dùng.");
 
 			var info = new SpendTransactionInfo
 			{
@@ -97,7 +97,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				var saved = await _unitOfWork.SaveChangesAsync();
 				if (!saved)
-					throw AppException.Internal("Failed to redeem loyalty points.");
+					throw AppException.Internal("Đổi điểm tích lũy thất bại.");
 			}
 
 			return true;
@@ -106,7 +106,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> ManualChangeAsync(Guid userId, ManualChangeRequest request)
 		{
 			var user = await _userRepository.GetByIdAsync(userId)
-				 ?? throw AppException.NotFound("User not found.");
+			  ?? throw AppException.NotFound("Không tìm thấy người dùng.");
 
 			var info = new ManualTransactionInfo
 			{
@@ -120,9 +120,9 @@ namespace PerfumeGPT.Application.Services
 
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
-				throw AppException.Internal("Failed to apply manual loyalty point change.");
+				throw AppException.Internal("Áp dụng thay đổi điểm tích lũy thủ công thất bại.");
 
-			return BaseResponse<string>.Ok(transaction.Id.ToString(), "Manual loyalty point change applied successfully.");
+			return BaseResponse<string>.Ok(transaction.Id.ToString(), "Áp dụng thay đổi điểm tích lũy thủ công thành công.");
 		}
 	}
 }

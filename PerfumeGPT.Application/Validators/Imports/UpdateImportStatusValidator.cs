@@ -8,7 +8,7 @@ namespace PerfumeGPT.Application.Validators.Imports
 		public UpdateImportStatusValidator()
 		{
 			RuleFor(x => x.Status)
-				.IsInEnum().WithMessage("Invalid import status.");
+				.IsInEnum().WithMessage("Trạng thái không hợp lệ. Vui lòng chọn một trong các giá trị: Pending, InProgress, Completed, Cancelled.");
 		}
 	}
 }

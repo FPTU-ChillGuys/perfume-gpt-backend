@@ -41,7 +41,7 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			var normalized = name?.Trim() ?? string.Empty;
 			if (string.IsNullOrWhiteSpace(normalized))
-				throw DomainException.BadRequest("Supplier name is required.");
+             throw DomainException.BadRequest("Tên nhà cung cấp là bắt buộc.");
 			return normalized;
 		}
 
@@ -49,7 +49,7 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			var normalized = email?.Trim() ?? string.Empty;
 			if (string.IsNullOrWhiteSpace(normalized))
-				throw DomainException.BadRequest("Supplier contact email is required.");
+                throw DomainException.BadRequest("Email liên hệ nhà cung cấp là bắt buộc.");
 			return normalized;
 		}
 
@@ -57,9 +57,9 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			var normalized = phone?.Trim() ?? string.Empty;
 			if (string.IsNullOrWhiteSpace(normalized))
-				throw DomainException.BadRequest("Supplier phone is required.");
+                throw DomainException.BadRequest("Số điện thoại nhà cung cấp là bắt buộc.");
 			if (!PhoneRegex.IsMatch(normalized))
-				throw DomainException.BadRequest("Invalid phone number format.");
+               throw DomainException.BadRequest("Định dạng số điện thoại không hợp lệ.");
 			return normalized;
 		}
 
@@ -67,7 +67,7 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			var normalized = address?.Trim() ?? string.Empty;
 			if (string.IsNullOrWhiteSpace(normalized))
-				throw DomainException.BadRequest("Supplier address is required.");
+              throw DomainException.BadRequest("Địa chỉ nhà cung cấp là bắt buộc.");
 			return normalized;
 		}
 

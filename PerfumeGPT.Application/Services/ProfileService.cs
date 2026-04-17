@@ -28,7 +28,7 @@ namespace PerfumeGPT.Application.Services
 			await _unitOfWork.Profiles.AddAsync(profile);
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
-				throw AppException.Internal("Failed to create profile");
+				throw AppException.Internal("Tạo hồ sơ thất bại");
 
 			return profile;
 		}
@@ -36,7 +36,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> UpdateProfileAsync(Guid userId, UpdateProfileRequest request)
 		{
 			var profile = await _unitOfWork.Profiles.GetByUserIdWithPreferencesAsync(userId)
-				?? throw AppException.NotFound("Profile not found");
+				?? throw AppException.NotFound("Không tìm thấy hồ sơ");
 
 			var notePreferences = request.NotePreferenceIds?
 				   .Select(x => (x.NoteId, x.NoteType))
@@ -57,9 +57,9 @@ namespace PerfumeGPT.Application.Services
 
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
-				throw AppException.Internal("Failed to update profile");
+				throw AppException.Internal("Cập nhật hồ sơ thất bại");
 
-			return BaseResponse<string>.Ok(profile.Id.ToString(), "Profile updated successfully");
+			return BaseResponse<string>.Ok(profile.Id.ToString(), "Cập nhật hồ sơ thành công");
 		}
 
 		public async Task<BaseResponse<ProfileResponse>> GetProfileAsync(Guid userId)
@@ -67,9 +67,9 @@ namespace PerfumeGPT.Application.Services
 			await CreateProfileAsync(userId);
 
 			var profile = await _unitOfWork.Profiles.GetProfileResponseByUserIdAsync(userId)
-				?? throw AppException.NotFound("Profile not found");
+				?? throw AppException.NotFound("Không tìm thấy hồ sơ");
 
-			return BaseResponse<ProfileResponse>.Ok(profile, "Profile retrieved successfully");
+			return BaseResponse<ProfileResponse>.Ok(profile, "Lấy hồ sơ thành công");
 		}
 
 		private async Task ValidatePreferenceIdsAsync(
@@ -82,7 +82,7 @@ namespace PerfumeGPT.Application.Services
 				var missingNoteIds = await _unitOfWork.Profiles.GetMissingNoteIdsAsync(noteIds);
 				if (missingNoteIds.Count > 0)
 				{
-					throw AppException.BadRequest($"Invalid note preference IDs: {string.Join(", ", missingNoteIds)}");
+					throw AppException.BadRequest($"ID sở thích nốt hương không hợp lệ: {string.Join(", ", missingNoteIds)}");
 				}
 			}
 
@@ -91,7 +91,7 @@ namespace PerfumeGPT.Application.Services
 				var missingFamilyIds = await _unitOfWork.Profiles.GetMissingFamilyIdsAsync(familyIds);
 				if (missingFamilyIds.Count > 0)
 				{
-					throw AppException.BadRequest($"Invalid family preference IDs: {string.Join(", ", missingFamilyIds)}");
+					throw AppException.BadRequest($"ID sở thích nhóm hương không hợp lệ: {string.Join(", ", missingFamilyIds)}");
 				}
 			}
 
@@ -100,7 +100,7 @@ namespace PerfumeGPT.Application.Services
 				var missingAttributeIds = await _unitOfWork.Profiles.GetMissingAttributeValueIdsAsync(attributeIds);
 				if (missingAttributeIds.Count > 0)
 				{
-					throw AppException.BadRequest($"Invalid attribute preference IDs: {string.Join(", ", missingAttributeIds)}");
+					throw AppException.BadRequest($"ID sở thích thuộc tính không hợp lệ: {string.Join(", ", missingAttributeIds)}");
 				}
 			}
 		}

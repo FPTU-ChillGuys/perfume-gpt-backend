@@ -8,8 +8,8 @@ namespace PerfumeGPT.Application.Validators.Metadatas.OlfactoryFamilies
 		public CreateOlfactoryFamilyValidator()
 		{
 			RuleFor(x => x.Name)
-				.NotEmpty().WithMessage("Olfactory family name is required.")
-				.MaximumLength(100).WithMessage("Olfactory family name cannot exceed 100 characters.");
+				.NotEmpty().WithMessage("Tên nhóm mùi là bắt buộc.")
+				.MaximumLength(100).WithMessage("Tên nhóm mùi không được vượt quá 100 ký tự.");
 		}
 	}
 }

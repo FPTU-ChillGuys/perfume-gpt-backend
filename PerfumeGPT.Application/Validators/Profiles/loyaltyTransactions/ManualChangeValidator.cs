@@ -9,17 +9,17 @@ namespace PerfumeGPT.Application.Validators.Profiles.loyaltyTransactions
 		{
 			RuleFor(x => x.TransactionType)
 				.IsInEnum()
-				.WithMessage("Invalid transaction type.");
+              .WithMessage("Loại giao dịch không hợp lệ.");
 
 			RuleFor(x => x.Points)
 				.GreaterThan(0)
-				.WithMessage("Points must be greater than 0.");
+             .WithMessage("Số điểm phải lớn hơn 0.");
 
 			RuleFor(x => x.Reason)
 				.NotEmpty()
-				.WithMessage("Reason is required for manual point changes.")
+                .WithMessage("Lý do là bắt buộc khi thay đổi điểm thủ công.")
 				.MaximumLength(500)
-				.WithMessage("Reason cannot exceed 500 characters.");
+               .WithMessage("Lý do không được vượt quá 500 ký tự.");
 		}
 	}
 }

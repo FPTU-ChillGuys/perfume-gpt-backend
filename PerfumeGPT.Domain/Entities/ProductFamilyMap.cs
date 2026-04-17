@@ -18,7 +18,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static ProductFamilyMap Create(int olfactoryFamilyId)
 		{
 			if (olfactoryFamilyId <= 0)
-				throw DomainException.BadRequest("Olfactory family ID must be greater than 0.");
+                throw DomainException.BadRequest("Olfactory family ID phải lớn hơn 0.");
 
 			return new ProductFamilyMap
 			{

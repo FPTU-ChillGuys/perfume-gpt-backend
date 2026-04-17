@@ -13,7 +13,7 @@ namespace PerfumeGPT.Infrastructure.Security
 		{
 			var configuredKey = configuration["Encryption:Key"]
 				?? Environment.GetEnvironmentVariable("ENCRYPTION_KEY")
-				?? throw new InvalidOperationException("Encryption key is not configured.");
+				?? throw new InvalidOperationException("Encryption key không được cấu hình. Vui lòng thiết lập 'Encryption:Key'");
 
 			using var sha256 = SHA256.Create();
 			_key = sha256.ComputeHash(Encoding.UTF8.GetBytes(configuredKey));

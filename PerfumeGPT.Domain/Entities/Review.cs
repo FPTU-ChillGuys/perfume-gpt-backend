@@ -37,17 +37,17 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			if (userId == Guid.Empty)
 			{
-				throw DomainException.BadRequest("User ID is required.");
+               throw DomainException.BadRequest("User ID là bắt buộc.");
 			}
 
 			if (orderDetailId == Guid.Empty)
 			{
-				throw DomainException.BadRequest("Order detail ID is required.");
+               throw DomainException.BadRequest("Order detail ID là bắt buộc.");
 			}
 
 			if (rating < 1 || rating > 5)
 			{
-				throw DomainException.BadRequest("Rating must be between 1 and 5 stars.");
+              throw DomainException.BadRequest("Đánh giá phải nằm trong khoảng từ 1 đến 5 sao.");
 			}
 
 			return new Review
@@ -66,17 +66,17 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			if (staffId == Guid.Empty)
 			{
-				throw DomainException.BadRequest("Staff ID is required.");
+              throw DomainException.BadRequest("Staff ID là bắt buộc.");
 			}
 
 			if (string.IsNullOrWhiteSpace(staffFeedbackComment))
 			{
-				throw DomainException.BadRequest("Staff feedback comment is required.");
+                throw DomainException.BadRequest("Nội dung phản hồi của nhân viên là bắt buộc.");
 			}
 
 			if (HasStaffResponse())
 			{
-				throw DomainException.BadRequest("This review already has a staff response.");
+              throw DomainException.BadRequest("Đánh giá này đã có phản hồi từ nhân viên.");
 			}
 
 			StaffFeedbackComment = staffFeedbackComment.Trim();

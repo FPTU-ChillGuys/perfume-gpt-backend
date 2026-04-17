@@ -9,15 +9,14 @@ namespace PerfumeGPT.Application.Validators.Imports
 		public CreateImportTicketValidator()
 		{
 			RuleFor(x => x.SupplierId)
-				.GreaterThan(0).WithMessage("Supplier ID must be a positive integer.");
+				.GreaterThan(0).WithMessage("ID nhà cung cấp phải lớn hơn 0.");
 
 			RuleFor(x => x.ExpectedArrivalDate)
-				.NotEmpty().WithMessage("Expected arrival date is required.");
+				.NotEmpty().WithMessage("Ngày dự kiến đến là bắt buộc.");
 
 			RuleFor(x => x.ImportDetails)
-				.NotEmpty().WithMessage("Import details are required.")
-				.Must(details => details != null && details.Count > 0).WithMessage("At least one import detail is required.");
-
+				.NotEmpty().WithMessage("Chi tiết nhập hàng là bắt buộc.")
+				.Must(details => details != null && details.Count > 0).WithMessage("Phải có ít nhất một chi tiết nhập hàng.");
 			RuleForEach(x => x.ImportDetails).SetValidator(new CreateImportDetailValidator());
 		}
 	}

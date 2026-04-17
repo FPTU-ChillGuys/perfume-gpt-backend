@@ -5,7 +5,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Base
 	public record BaseResponse
 	{
 		public bool Success { get; init; } = true;
-		public string Message { get; init; } = "OK";
+        public string Message { get; init; } = "Thành công";
 
 		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 		public List<string>? Errors { get; init; }
@@ -13,7 +13,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Base
 		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 		public ResponseErrorType? ErrorType { get; init; }
 
-		public static BaseResponse Ok(string message = "Success")
+       public static BaseResponse Ok(string message = "Thành công")
 			=> new() { Success = true, Message = message };
 
 		public static BaseResponse Fail(string message, ResponseErrorType errorType = ResponseErrorType.InternalError, List<string>? errors = null)
@@ -24,7 +24,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Base
 	{
 		public T? Payload { get; init; }
 
-		public static BaseResponse<T> Ok(T data, string message = "Success")
+        public static BaseResponse<T> Ok(T data, string message = "Thành công")
 			=> new() { Success = true, Message = message, Payload = data };
 
 		public static new BaseResponse<T> Fail(string message, ResponseErrorType errorType = ResponseErrorType.InternalError, List<string>? errors = null)

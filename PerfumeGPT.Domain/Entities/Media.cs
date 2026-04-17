@@ -109,7 +109,8 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			if (IsPrimary)
 				throw DomainException.BadRequest(
-					"Cannot delete primary media. Please set another media as primary before deleting.");
+					"Không thể xóa media này vì nó đang được đánh dấu là primary. Vui lòng đặt một media khác làm primary trước khi xóa."
+				);
 		}
 
 		private void SetEntityId(EntityType entityType, Guid entityId)
@@ -127,7 +128,7 @@ namespace PerfumeGPT.Domain.Entities
 		private static void ValidateUrl(string url)
 		{
 			if (string.IsNullOrWhiteSpace(url))
-				throw DomainException.BadRequest("Media URL is required.");
+				throw DomainException.BadRequest("URL là bắt buộc và không được để trống.");
 		}
 
 		// Records

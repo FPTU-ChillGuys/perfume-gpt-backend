@@ -9,15 +9,15 @@ namespace PerfumeGPT.Application.Validators.StockAdjustments.Details
 		{
 			RuleFor(x => x.VariantId)
 				.NotEmpty()
-				.WithMessage("Variant ID is required.");
+                .WithMessage("Variant ID là bắt buộc.");
 
 			RuleFor(x => x.BatchId)
 				.NotEmpty()
-				.WithMessage("Batch ID is required.");
+              .WithMessage("Batch ID là bắt buộc.");
 
 			RuleFor(x => x.AdjustmentQuantity)
 				.NotEqual(0)
-				.WithMessage("Adjustment quantity cannot be zero.");
+                .WithMessage("Số lượng điều chỉnh không được bằng 0.");
 		}
 	}
 }

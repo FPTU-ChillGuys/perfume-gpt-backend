@@ -29,7 +29,7 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			if (userId == Guid.Empty)
 			{
-				throw DomainException.BadRequest("User ID is required.");
+               throw DomainException.BadRequest("User ID là bắt buộc.");
 			}
 
 			return new CustomerProfile
@@ -42,17 +42,17 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			if (minBudget.HasValue && minBudget.Value < 0)
 			{
-				throw DomainException.BadRequest("MinBudget must be greater than or equal to 0.");
+              throw DomainException.BadRequest("Ngân sách tối thiểu phải lớn hơn hoặc bằng 0.");
 			}
 
 			if (maxBudget.HasValue && maxBudget.Value < 0)
 			{
-				throw DomainException.BadRequest("MaxBudget must be greater than or equal to 0.");
+              throw DomainException.BadRequest("Ngân sách tối đa phải lớn hơn hoặc bằng 0.");
 			}
 
 			if (minBudget.HasValue && maxBudget.HasValue && minBudget.Value > maxBudget.Value)
 			{
-				throw DomainException.BadRequest("MinBudget cannot be greater than MaxBudget.");
+                throw DomainException.BadRequest("Ngân sách tối thiểu không được lớn hơn ngân sách tối đa.");
 			}
 
 			DateOfBirth = dateOfBirth;
@@ -65,10 +65,10 @@ namespace PerfumeGPT.Domain.Entities
 			var distinctNewPreferences = notePreferences?.Distinct().ToList() ?? [];
 
 			if (distinctNewPreferences.Any(np => np.NoteId <= 0))
-				throw DomainException.BadRequest("All note preference IDs must be greater than 0.");
+                throw DomainException.BadRequest("Tất cả ID sở thích nốt hương phải lớn hơn 0.");
 
 			if (distinctNewPreferences.Any(np => !Enum.IsDefined(np.NoteType)))
-				throw DomainException.BadRequest("All note preference types must be valid.");
+               throw DomainException.BadRequest("Tất cả loại sở thích nốt hương phải hợp lệ.");
 
 			var newPreferenceSet = distinctNewPreferences.ToHashSet();
 
@@ -98,7 +98,7 @@ namespace PerfumeGPT.Domain.Entities
 			var distinctNewIds = familyPreferenceIds?.Distinct().ToList() ?? [];
 
 			if (distinctNewIds.Any(id => id <= 0))
-				throw DomainException.BadRequest("All family preference IDs must be greater than 0.");
+              throw DomainException.BadRequest("Tất cả ID sở thích nhóm hương phải lớn hơn 0.");
 
 			var itemsToRemove = FamilyPreferences
 				.Where(fp => !distinctNewIds.Contains(fp.FamilyId))
@@ -123,7 +123,7 @@ namespace PerfumeGPT.Domain.Entities
 			var distinctNewIds = attributePreferenceIds?.Distinct().ToList() ?? [];
 
 			if (distinctNewIds.Any(id => id <= 0))
-				throw DomainException.BadRequest("All attribute preference IDs must be greater than 0.");
+               throw DomainException.BadRequest("Tất cả ID sở thích thuộc tính phải lớn hơn 0.");
 
 			var itemsToRemove = AttributePreferences
 				.Where(ap => !distinctNewIds.Contains(ap.AttributeValueId))

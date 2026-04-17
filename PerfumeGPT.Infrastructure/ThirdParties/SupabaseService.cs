@@ -32,7 +32,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			if (string.IsNullOrWhiteSpace(_settings.Url) || string.IsNullOrWhiteSpace(_settings.ApiKey))
 			{
-				throw new InvalidOperationException("Supabase URL and API Key must be configured.");
+				throw new InvalidOperationException("Thiếu cấu hình Supabase URL hoặc API Key. Vui lòng kiểm tra lại cấu hình.");
 			}
 
 			var options = new SupabaseOptions
@@ -52,7 +52,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
 			if (fileStream == null || fileStream.Length == 0)
-				throw new ArgumentException("File stream is empty or null.");
+				throw new ArgumentException("File stream is empty hoặc null.");
 
 			await EnsureInitializedAsync();
 

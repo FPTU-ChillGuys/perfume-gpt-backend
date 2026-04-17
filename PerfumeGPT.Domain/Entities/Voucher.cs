@@ -76,16 +76,16 @@ namespace PerfumeGPT.Domain.Entities
 		public static Voucher CreateCampaign(VoucherCampaignConfigFactor details)
 		{
 			if (details.CampaignId == Guid.Empty)
-				throw DomainException.BadRequest("Campaign ID is required.");
+               throw DomainException.BadRequest("Bắt buộc có Campaign ID.");
 
 			if (string.IsNullOrWhiteSpace(details.Code))
-				throw DomainException.BadRequest("Voucher code is required.");
+              throw DomainException.BadRequest("Bắt buộc có mã giảm giá.");
 
 			if (details.DiscountValue <= 0)
-				throw DomainException.BadRequest("Discount value must be greater than 0.");
+             throw DomainException.BadRequest("Giá trị giảm giá phải lớn hơn 0.");
 
 			if (details.ExpiryDate <= DateTime.UtcNow)
-				throw DomainException.BadRequest("Expiry date must be in the future.");
+             throw DomainException.BadRequest("Ngày hết hạn phải ở tương lai.");
 
 			return new Voucher
 			{
@@ -122,10 +122,10 @@ namespace PerfumeGPT.Domain.Entities
 				details.MaxUsagePerUser);
 
 			if (details.RemainingQuantity < 0)
-				throw DomainException.BadRequest("Remaining quantity must be greater than or equal to 0.");
+             throw DomainException.BadRequest("Số lượng còn lại phải lớn hơn hoặc bằng 0.");
 
 			if (details.RemainingQuantity > details.TotalQuantity)
-				throw DomainException.BadRequest("Remaining quantity cannot exceed total quantity.");
+               throw DomainException.BadRequest("Số lượng còn lại không được vượt quá tổng số lượng.");
 
 			Code = details.Code.Trim().ToUpperInvariant();
 			DiscountValue = details.DiscountValue;
@@ -145,16 +145,16 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdateCampaign(VoucherCampaignConfigFactor details)
 		{
 			if (details.CampaignId == Guid.Empty)
-				throw DomainException.BadRequest("Campaign ID is required.");
+               throw DomainException.BadRequest("Bắt buộc có Campaign ID.");
 
 			if (string.IsNullOrWhiteSpace(details.Code))
-				throw DomainException.BadRequest("Voucher code is required.");
+              throw DomainException.BadRequest("Bắt buộc có mã giảm giá.");
 
 			if (details.DiscountValue <= 0)
-				throw DomainException.BadRequest("Discount value must be greater than 0.");
+             throw DomainException.BadRequest("Giá trị giảm giá phải lớn hơn 0.");
 
 			if (details.ExpiryDate <= DateTime.UtcNow)
-				throw DomainException.BadRequest("Expiry date must be in the future.");
+             throw DomainException.BadRequest("Ngày hết hạn phải ở tương lai.");
 
 			Code = details.Code.Trim().ToUpperInvariant();
 			DiscountValue = details.DiscountValue;
@@ -177,19 +177,19 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureNotDeleted()
 		{
 			if (IsDeleted)
-				throw DomainException.NotFound("Voucher not found");
+                throw DomainException.NotFound("Không tìm thấy mã giảm giá");
 		}
 
 		public void EnsureNotExpired(DateTime nowUtc)
 		{
 			if (ExpiryDate < nowUtc)
-				throw DomainException.BadRequest("Voucher has expired");
+                throw DomainException.BadRequest("Mã giảm giá đã hết hạn");
 		}
 
 		public void EnsureInStock()
 		{
 			if (RemainingQuantity.HasValue && RemainingQuantity.Value <= 0)
-				throw DomainException.BadRequest("Voucher is out of stock");
+                throw DomainException.BadRequest("Mã giảm giá đã hết lượt sử dụng");
 		}
 
 		public void EnsureMemberEligible(Guid? userId)
@@ -201,7 +201,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void DecreaseRemainingQuantity(int quantity = 1)
 		{
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Quantity must be greater than 0.");
+               throw DomainException.BadRequest("Số lượng phải lớn hơn 0.");
 
 			EnsureInStock();
 
@@ -214,7 +214,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void IncreaseRemainingQuantity(int quantity = 1)
 		{
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Quantity must be greater than 0.");
+               throw DomainException.BadRequest("Số lượng phải lớn hơn 0.");
 
 			if (!RemainingQuantity.HasValue || !TotalQuantity.HasValue)
 				return;
@@ -236,28 +236,28 @@ namespace PerfumeGPT.Domain.Entities
 			int? maxUsagePerUser)
 		{
 			if (string.IsNullOrWhiteSpace(code))
-				throw DomainException.BadRequest("Voucher code is required.");
+              throw DomainException.BadRequest("Bắt buộc có mã giảm giá.");
 
 			if (discountValue <= 0)
-				throw DomainException.BadRequest("Discount value must be greater than 0.");
+             throw DomainException.BadRequest("Giá trị giảm giá phải lớn hơn 0.");
 
 			if (requiredPoints < 0)
-				throw DomainException.BadRequest("Required points must be greater than or equal to 0.");
+                throw DomainException.BadRequest("Điểm yêu cầu phải lớn hơn hoặc bằng 0.");
 
 			if (minOrderValue < 0)
-				throw DomainException.BadRequest("Minimum order value must be greater than or equal to 0.");
+                throw DomainException.BadRequest("Giá trị đơn hàng tối thiểu phải lớn hơn hoặc bằng 0.");
 
 			if (expiryDate <= DateTime.UtcNow)
-				throw DomainException.BadRequest("Expiry date must be in the future.");
+             throw DomainException.BadRequest("Ngày hết hạn phải ở tương lai.");
 
 			if (totalQuantity <= 0)
-				throw DomainException.BadRequest("Total quantity must be greater than 0.");
+             throw DomainException.BadRequest("Tổng số lượng phải lớn hơn 0.");
 
 			if (maxDiscountAmount.HasValue && maxDiscountAmount.Value <= 0)
-				throw DomainException.BadRequest("Max discount amount must be greater than 0.");
+                throw DomainException.BadRequest("Mức giảm tối đa phải lớn hơn 0.");
 
 			if (maxUsagePerUser.HasValue && maxUsagePerUser.Value <= 0)
-				throw DomainException.BadRequest("Max usage per user must be greater than 0.");
+             throw DomainException.BadRequest("Số lần sử dụng tối đa mỗi người dùng phải lớn hơn 0.");
 		}
 
 		// Records

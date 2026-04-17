@@ -35,7 +35,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ScentNoteResponse>> GetScentNoteByIdAsync(int id)
 		{
-			var result = await _unitOfWork.ScentNotes.GetScentNoteByIdAsync(id) ?? throw AppException.NotFound("ScentNote not found");
+			var result = await _unitOfWork.ScentNotes.GetScentNoteByIdAsync(id) ?? throw AppException.NotFound("Không tìm thấy nốt hương");
 			return BaseResponse<ScentNoteResponse>.Ok(result);
 		}
 
@@ -45,13 +45,13 @@ namespace PerfumeGPT.Application.Services
 
 			var exists = await _unitOfWork.ScentNotes.AnyAsync(s => s.Name.ToLower() == normalizedName.ToLower());
 			if (exists)
-				throw AppException.Conflict("ScentNote name already exists.");
+				throw AppException.Conflict("Tên nốt hương đã tồn tại.");
 
 			var entity = ScentNote.Create(request.Name);
 
 			await _unitOfWork.ScentNotes.AddAsync(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Could not create ScentNote.");
+			if (!saved) throw AppException.Internal("Không thể tạo nốt hương.");
 			return BaseResponse<ScentNoteResponse>.Ok(_mapper.Map<ScentNoteResponse>(entity));
 		}
 
@@ -61,27 +61,27 @@ namespace PerfumeGPT.Application.Services
 
 			var exists = await _unitOfWork.ScentNotes.AnyAsync(s => s.Name.ToLower() == normalizedName.ToLower() && s.Id != id);
 			if (exists)
-				throw AppException.Conflict("ScentNote name already exists.");
+				throw AppException.Conflict("Tên nốt hương đã tồn tại.");
 
-			var entity = await _unitOfWork.ScentNotes.GetByIdAsync(id) ?? throw AppException.NotFound("ScentNote not found");
+			var entity = await _unitOfWork.ScentNotes.GetByIdAsync(id) ?? throw AppException.NotFound("Không tìm thấy nốt hương");
 			entity.Rename(request.Name);
 
 			_unitOfWork.ScentNotes.Update(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Could not update ScentNote.");
+			if (!saved) throw AppException.Internal("Không thể cập nhật nốt hương.");
 
 			return BaseResponse<ScentNoteResponse>.Ok(_mapper.Map<ScentNoteResponse>(entity));
 		}
 
 		public async Task<BaseResponse<bool>> DeleteScentNoteAsync(int id)
 		{
-			var entity = await _unitOfWork.ScentNotes.GetByIdAsync(id) ?? throw AppException.NotFound("ScentNote not found");
+			var entity = await _unitOfWork.ScentNotes.GetByIdAsync(id) ?? throw AppException.NotFound("Không tìm thấy nốt hương");
 			var hasAssociations = await _unitOfWork.ScentNotes.HasAssociationsAsync(id);
-			if (!hasAssociations) throw AppException.Conflict("Cannot delete ScentNote with existing associations.");
+			if (!hasAssociations) throw AppException.Conflict("Không thể xóa nốt hương có dữ liệu liên kết.");
 
 			_unitOfWork.ScentNotes.Remove(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Could not delete ScentNote.");
+			if (!saved) throw AppException.Internal("Không thể xóa nốt hương.");
 
 			return BaseResponse<bool>.Ok(true);
 		}

@@ -32,7 +32,7 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			var normalized = name?.Trim() ?? string.Empty;
 			if (string.IsNullOrWhiteSpace(normalized))
-				throw DomainException.BadRequest("Brand name is required.");
+				throw DomainException.BadRequest("Tên thương hiệu không được để trống.");
 			return normalized;
 		}
 	}

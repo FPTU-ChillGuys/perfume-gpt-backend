@@ -67,7 +67,7 @@ namespace PerfumeGPT.API.Controllers.Base
 		{
 			if (request == null)
 			{
-				var resp = BaseResponse<object>.Fail("Request body cannot be null.", ResponseErrorType.BadRequest);
+             var resp = BaseResponse<object>.Fail("Nội dung request không được để trống.", ResponseErrorType.BadRequest);
 				return HandleResponse(resp);
 			}
 			return null;
@@ -81,7 +81,7 @@ namespace PerfumeGPT.API.Controllers.Base
 		{
 			if (request == null)
 			{
-				var resp = BaseResponse<T>.Fail("Request body cannot be null.", ResponseErrorType.BadRequest);
+              var resp = BaseResponse<T>.Fail("Nội dung request không được để trống.", ResponseErrorType.BadRequest);
 				return HandleResponse(resp);
 			}
 			return null;
@@ -91,7 +91,7 @@ namespace PerfumeGPT.API.Controllers.Base
 		{
 			if (request == null)
 			{
-				var resp = BaseResponse<T>.Fail("Request body cannot be null.", ResponseErrorType.BadRequest);
+              var resp = BaseResponse<T>.Fail("Nội dung request không được để trống.", ResponseErrorType.BadRequest);
 				return HandleResponse(resp);
 			}
 
@@ -99,7 +99,7 @@ namespace PerfumeGPT.API.Controllers.Base
 			if (!validationResult.IsValid)
 			{
 				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-				var resp = BaseResponse<T>.Fail("Validation failed.", ResponseErrorType.BadRequest, errors);
+                var resp = BaseResponse<T>.Fail("Dữ liệu không hợp lệ.", ResponseErrorType.BadRequest, errors);
 				return HandleResponse(resp);
 			}
 

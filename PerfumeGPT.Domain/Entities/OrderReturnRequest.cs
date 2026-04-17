@@ -51,15 +51,15 @@ namespace PerfumeGPT.Domain.Entities
 		public static OrderReturnRequest Create(Guid orderId, Guid customerId, ReturnRequestPayload payload)
 		{
 			if (orderId == Guid.Empty)
-				throw DomainException.BadRequest("Order ID is required.");
+				throw DomainException.BadRequest("ID đơn hàng là bắt buộc.");
 
 			if (customerId == Guid.Empty)
-				throw DomainException.BadRequest("Customer ID is required.");
+				throw DomainException.BadRequest("ID khách hàng là bắt buộc.");
 
 			var returnDetails = BuildReturnDetails(payload.ReturnDetails);
 
 			if (payload.RequestedRefundAmount < 0)
-				throw DomainException.BadRequest("Requested refund amount cannot be negative.");
+				throw DomainException.BadRequest("Số tiền hoàn trả yêu cầu không được âm.");
 
 			bool hasBankInfo = !string.IsNullOrWhiteSpace(payload.RefundBankName) ||
 						   !string.IsNullOrWhiteSpace(payload.RefundAccountNumber) ||
@@ -71,7 +71,7 @@ namespace PerfumeGPT.Domain.Entities
 					string.IsNullOrWhiteSpace(payload.RefundAccountNumber) ||
 					string.IsNullOrWhiteSpace(payload.RefundAccountName))
 				{
-					throw DomainException.BadRequest("Incomplete bank information. All fields are required if requesting a manual refund.");
+					throw DomainException.BadRequest("Thông tin ngân hàng không đầy đủ. Tất cả các trường đều bắt buộc nếu yêu cầu hoàn tiền thủ công.");
 				}
 			}
 
@@ -98,13 +98,13 @@ namespace PerfumeGPT.Domain.Entities
 		public void Process(Guid processedById, bool isApproved, bool isRequestMoreInfo, string? staffNote)
 		{
 			if (Status != ReturnRequestStatus.Pending)
-				throw DomainException.BadRequest("Return request is not pending.");
+				throw DomainException.BadRequest("Yêu cầu hoàn trả không ở trạng thái chờ xử lý.");
 
 			if (processedById == Guid.Empty)
-				throw DomainException.BadRequest("Processed by user is required.");
+				throw DomainException.BadRequest("ID người xử lý là bắt buộc.");
 
 			if (isApproved && isRequestMoreInfo)
-				throw DomainException.BadRequest("Invalid review action.");
+				throw DomainException.BadRequest("Hành động xem xét không hợp lệ.");
 
 			ProcessedById = processedById;
 			StaffNote = string.IsNullOrWhiteSpace(staffNote) ? null : staffNote.Trim();
@@ -112,7 +112,7 @@ namespace PerfumeGPT.Domain.Entities
 			if (isRequestMoreInfo)
 			{
 				if (string.IsNullOrWhiteSpace(staffNote))
-					throw DomainException.BadRequest("Staff note is required when requesting more information.");
+					throw DomainException.BadRequest("Ghi chú của nhân viên là bắt buộc khi yêu cầu thêm thông tin.");
 
 				Status = ReturnRequestStatus.RequestMoreInfo;
 				return;
@@ -142,10 +142,10 @@ namespace PerfumeGPT.Domain.Entities
 			   string? refundAccountName = null)
 		{
 			if (CustomerId != customerId)
-				throw DomainException.Forbidden("You are not authorized to update this return request.");
+				throw DomainException.Forbidden("Bạn không có quyền cập nhật yêu cầu hoàn trả này.");
 
 			if (Status != ReturnRequestStatus.RequestMoreInfo)
-				throw DomainException.BadRequest("Only return requests that require more information can be updated.");
+				throw DomainException.BadRequest("Chỉ các yêu cầu hoàn trả cần thêm thông tin mới có thể được cập nhật.");
 
 			bool hasBankInfo = !string.IsNullOrWhiteSpace(refundBankName)
 				|| !string.IsNullOrWhiteSpace(refundAccountNumber)
@@ -157,7 +157,7 @@ namespace PerfumeGPT.Domain.Entities
 					|| string.IsNullOrWhiteSpace(refundAccountNumber)
 					|| string.IsNullOrWhiteSpace(refundAccountName))
 				{
-					throw DomainException.BadRequest("Incomplete bank information. All fields are required if requesting a manual refund.");
+					throw DomainException.BadRequest("Thông tin ngân hàng không đầy đủ. Tất cả các trường đều bắt buộc nếu yêu cầu hoàn tiền thủ công.");
 				}
 
 				RefundBankName = refundBankName.Trim();
@@ -178,10 +178,10 @@ namespace PerfumeGPT.Domain.Entities
 		public void CancelByCustomer(Guid customerId)
 		{
 			if (CustomerId != customerId)
-				throw DomainException.Forbidden("You are not authorized to cancel this return request.");
+				throw DomainException.Forbidden("Bạn không có quyền hủy yêu cầu hoàn trả này.");
 
 			if (Status != ReturnRequestStatus.Pending && Status != ReturnRequestStatus.RequestMoreInfo)
-				throw DomainException.BadRequest("Only pending or request-more-info return requests can be cancelled.");
+				throw DomainException.BadRequest("Chỉ các yêu cầu hoàn trả đang chờ xử lý hoặc cần thêm thông tin mới có thể bị hủy.");
 
 			Status = ReturnRequestStatus.Rejected;
 		}
@@ -189,10 +189,10 @@ namespace PerfumeGPT.Domain.Entities
 		private static List<OrderReturnRequestDetail> BuildReturnDetails(List<ReturnRequestDetailPayload> returnRequestDetails)
 		{
 			if (returnRequestDetails == null || returnRequestDetails.Count == 0)
-				throw DomainException.BadRequest("At least one return detail is required.");
+				throw DomainException.BadRequest("Ít nhất một chi tiết hoàn trả là bắt buộc.");
 
 			if (returnRequestDetails.GroupBy(x => x.OrderDetailId).Any(x => x.Count() > 1))
-				throw DomainException.BadRequest("Duplicate order details are not allowed in a return request.");
+				throw DomainException.BadRequest("Không được phép có chi tiết đơn hàng trùng lặp trong yêu cầu hoàn trả.");
 
 			return [.. returnRequestDetails
 				.Select(x => OrderReturnRequestDetail.Create(new OrderReturnRequestDetail.ReturnRequestDetailPayload
@@ -206,10 +206,10 @@ namespace PerfumeGPT.Domain.Entities
 		public void AttachReturnShipping(Guid shippingInfoId)
 		{
 			if (Status != ReturnRequestStatus.ApprovedForReturn)
-				throw DomainException.BadRequest("Can only attach return shipping to an approved return request.");
+				throw DomainException.BadRequest("Chỉ có thể gắn thông tin vận chuyển trả hàng cho yêu cầu hoàn trả đã được phê duyệt.");
 
 			if (shippingInfoId == Guid.Empty)
-				throw DomainException.BadRequest("Shipping Info ID is required.");
+				throw DomainException.BadRequest("ID thông tin vận chuyển là bắt buộc.");
 
 			ReturnShippingId = shippingInfoId;
 		}
@@ -217,7 +217,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void AttachPickupAddress(Guid pickupAddressId)
 		{
 			if (pickupAddressId == Guid.Empty)
-				throw DomainException.BadRequest("Pickup address ID is required.");
+				throw DomainException.BadRequest("ID địa chỉ lấy hàng là bắt buộc.");
 
 			PickupAddressId = pickupAddressId;
 		}
@@ -225,10 +225,10 @@ namespace PerfumeGPT.Domain.Entities
 		public void StartInspection(Guid inspectedById, string? inspectionNote = null)
 		{
 			if (Status != ReturnRequestStatus.ApprovedForReturn)
-				throw DomainException.BadRequest("Only approved return requests can be moved to inspection.");
+				throw DomainException.BadRequest("Chỉ các yêu cầu hoàn trả đã được phê duyệt mới có thể chuyển sang kiểm tra.");
 
 			if (inspectedById == Guid.Empty)
-				throw DomainException.BadRequest("Inspected by user is required.");
+				throw DomainException.BadRequest("Người kiểm tra là bắt buộc.");
 
 			InspectedById = inspectedById;
 			InspectionNote = string.IsNullOrWhiteSpace(inspectionNote) ? null : inspectionNote.Trim();
@@ -238,10 +238,10 @@ namespace PerfumeGPT.Domain.Entities
 		public void RecordInspectionResult(decimal approvedRefundAmount, bool isRestocked, string? inspectionNote = null)
 		{
 			if (Status != ReturnRequestStatus.Inspecting)
-				throw DomainException.BadRequest("Only inspecting return requests can record inspection results.");
+				throw DomainException.BadRequest("Chỉ các yêu cầu hoàn trả đang kiểm tra mới có thể ghi nhận kết quả kiểm tra.");
 
 			if (approvedRefundAmount < 0)
-				throw DomainException.BadRequest("Approved refund amount cannot be negative.");
+				throw DomainException.BadRequest("Số tiền hoàn trả được phê duyệt không được âm.");
 
 			ApprovedRefundAmount = approvedRefundAmount;
 			IsRestocked = isRestocked;
@@ -253,11 +253,11 @@ namespace PerfumeGPT.Domain.Entities
 		public void RejectAfterInspection(Guid inspectedById, string note)
 		{
 			if (Status != ReturnRequestStatus.Inspecting)
-				throw DomainException.BadRequest("Only inspecting return requests can be rejected after inspection.");
+				throw DomainException.BadRequest("Chỉ các yêu cầu hoàn trả đang kiểm tra mới có thể bị từ chối sau khi kiểm tra.");
 			if (inspectedById == Guid.Empty)
-				throw DomainException.BadRequest("Inspected by user is required.");
+				throw DomainException.BadRequest("Người kiểm tra là bắt buộc.");
 			if (string.IsNullOrWhiteSpace(note))
-				throw DomainException.BadRequest("Rejection note is required.");
+				throw DomainException.BadRequest("Ghi chú từ chối là bắt buộc.");
 			InspectedById = inspectedById;
 			InspectionNote = note.Trim();
 			Status = ReturnRequestStatus.Rejected;
@@ -266,7 +266,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void CancelBySystemWhenReturnPickupFailed(string? note = null)
 		{
 			if (Status != ReturnRequestStatus.ApprovedForReturn)
-				throw DomainException.BadRequest("Only approved return requests can be cancelled due to return pickup failure.");
+				throw DomainException.BadRequest("Chỉ các yêu cầu hoàn trả đã được phê duyệt mới có thể bị hủy do thất bại trong việc lấy hàng trả lại.");
 
 			if (!string.IsNullOrWhiteSpace(note))
 			{
@@ -279,13 +279,13 @@ namespace PerfumeGPT.Domain.Entities
 		public void MarkRefunded(string? transactionReference = null)
 		{
 			if (Status != ReturnRequestStatus.ReadyForRefund)
-				throw DomainException.BadRequest("Only return requests ready for refund can be completed.");
+				throw DomainException.BadRequest("Chỉ các yêu cầu hoàn trả sẵn sàng cho việc hoàn tiền mới có thể được hoàn tất.");
 
 			if (!ApprovedRefundAmount.HasValue)
-				throw DomainException.BadRequest("Approved refund amount is required before refunding.");
+				throw DomainException.BadRequest("Số tiền hoàn trả được phê duyệt là bắt buộc trước khi hoàn tiền.");
 
 			if (IsRefunded)
-				throw DomainException.BadRequest("Return request is already refunded.");
+				throw DomainException.BadRequest("Yêu cầu hoàn trả đã được hoàn tiền.");
 
 			IsRefunded = true;
 			RefundTransactionReference = string.IsNullOrWhiteSpace(transactionReference) ? null : transactionReference.Trim();

@@ -21,10 +21,10 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 		{
 			_httpClient = httpClient;
 			_configuration = configuration;
-			GHTK_BaseUrl = _configuration["GHTK:BaseUrl"] ?? throw new NullReferenceException("Missing Base url!");
-			GHTK_GetAddressLevel4Url = _configuration["GHTK:GetAddressLevel4Url"] ?? throw new NullReferenceException("Missing Get Address Level 4 url!");
-			GHTK_Token = _configuration["GHTK:Token"] ?? throw new NullReferenceException("Missing GHTK api key!");
-			GHTK_PartnerCode = _configuration["GHTK:PartnerCode"] ?? throw new NullReferenceException("Missing GHTK parner code!");
+			GHTK_BaseUrl = _configuration["GHTK:BaseUrl"] ?? throw new NullReferenceException("Thiếu cấu hình GHTK:BaseUrl!");
+			GHTK_GetAddressLevel4Url = _configuration["GHTK:GetAddressLevel4Url"] ?? throw new NullReferenceException("Thiếu cấu hình GHTK:GetAddressLevel4Url!");
+			GHTK_Token = _configuration["GHTK:Token"] ?? throw new NullReferenceException("Thiếu cấu hình GHTK:Token!");
+			GHTK_PartnerCode = _configuration["GHTK:PartnerCode"] ?? throw new NullReferenceException("Thiếu cấu hình GHTK:PartnerCode!");
 		}
 
 		public async Task<BaseResponse<AddressLevel4Response>> GetAddressLevel4Async(GetAddressLevel4Request request)
@@ -38,7 +38,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			if (!response.IsSuccessStatusCode)
 			{
-				return BaseResponse<AddressLevel4Response>.Ok(new AddressLevel4Response { Data = [] }, "Failed to get address level 4 data from GHTK API.");
+				return BaseResponse<AddressLevel4Response>.Ok(new AddressLevel4Response { Data = [] }, "Không thể lấy dữ liệu địa chỉ cấp 4 từ GHTK.");
 			}
 
 			var result = await response.Content.ReadFromJsonAsync<GHTKApiResponse<List<string>>>();

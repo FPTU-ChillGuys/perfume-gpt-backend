@@ -105,15 +105,6 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		//[HttpGet("redeemable-list")]
-		//public async Task<ActionResult<BaseResponse<List<RedeemableVoucherResponse>>>> GetRedeemableVouchers([FromQuery] GetPagedRedeemableVouchersRequest request)
-		//{
-		//	var currentUserId = User.Identity?.IsAuthenticated == true ? GetCurrentUserId() : Guid.Empty;
-		//	Guid? userId = currentUserId == Guid.Empty ? null : currentUserId;
-		//	var response = await _voucherService.GetRedeemableVouchersAsync(request, userId);
-		//	return HandleResponse(response);
-		//}
-
 		[HttpPost("redeem")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
@@ -141,17 +132,6 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _voucherService.GetAvailableVouchersAsync(userId, request);
 			return HandleResponse(response);
 		}
-
-		//[HttpGet("me")]
-		//[Authorize]
-		//[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status200OK)]
-		//[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status500InternalServerError)]
-		//public async Task<ActionResult<BaseResponse<PagedResult<UserVoucherResponse>>>> GetMyVouchers([FromQuery] GetPagedUserVouchersRequest request)
-		//{
-		//	var userId = GetCurrentUserId();
-		//	var response = await _voucherService.GetUserVouchersAsync(userId, request);
-		//	return HandleResponse(response);
-		//}
 
 		[HttpGet("/api/user-vouchers/me")]
 		[Authorize]

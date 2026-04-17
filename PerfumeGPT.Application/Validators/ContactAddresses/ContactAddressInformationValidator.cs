@@ -9,39 +9,36 @@ namespace PerfumeGPT.Application.Validators.ContactAddresses
 		{
 			RuleFor(r => r.ContactName)
 				.NotEmpty()
-				.WithMessage("FullName is required");
+				.WithMessage("Tên liên hệ là bắt buộc");
 
 			RuleFor(r => r.ContactPhoneNumber)
 				.NotEmpty()
-				.WithMessage("Phone is required");
+				.WithMessage("Số điện thoại liên hệ là bắt buộc");
 
 			RuleFor(r => r.DistrictId)
 				.GreaterThan(0)
-				.WithMessage("DistrictId is required");
-
+				.WithMessage("DistrictId là bắt buộc");
 			RuleFor(r => r.DistrictName)
 				.NotEmpty()
-				.WithMessage("DistrictName is required");
+				.WithMessage("Tên quận/huyện là bắt buộc");
 
 			RuleFor(r => r.WardCode)
 				.NotEmpty()
-				.WithMessage("WardCode is required");
-
+				.WithMessage("Mã phường/xã là bắt buộc");
 			RuleFor(r => r.WardName)
 				.NotEmpty()
-				.WithMessage("WardName is required");
+				.WithMessage("Tên phường/xã là bắt buộc");
 
 			RuleFor(r => r.ProvinceId)
 				.GreaterThan(0)
-				.WithMessage("ProvinceId is required");
-
+				.WithMessage("ProvinceId là bắt buộc");
 			RuleFor(r => r.ProvinceName)
 				.NotEmpty()
-				.WithMessage("ProvinceName is required");
+				.WithMessage("Tên tỉnh/thành phố là bắt buộc");
 
 			RuleFor(r => r.FullAddress)
 				.NotEmpty()
-				.WithMessage("FullAddress is required");
+				.WithMessage("Địa chỉ đầy đủ là bắt buộc");
 		}
 	}
 }

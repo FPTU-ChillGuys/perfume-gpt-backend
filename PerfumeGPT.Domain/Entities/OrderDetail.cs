@@ -38,19 +38,19 @@ namespace PerfumeGPT.Domain.Entities
 		decimal promotionDiscountAmount = 0)
 		{
 			if (variantId == Guid.Empty)
-				throw DomainException.BadRequest("Variant ID is required.");
+                throw DomainException.BadRequest("Variant ID là bắt buộc.");
 
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Quantity must be greater than 0.");
+               throw DomainException.BadRequest("Số lượng phải lớn hơn 0.");
 
 			if (unitPrice < 0)
-				throw DomainException.BadRequest("Unit price cannot be negative.");
+             throw DomainException.BadRequest("Đơn giá không được âm.");
 
 			if (apportionedVoucherDiscount + promotionDiscountAmount > (unitPrice * quantity))
-				throw DomainException.BadRequest("Total discounts cannot exceed the total line price.");
+                throw DomainException.BadRequest("Tổng giảm giá không được vượt quá tổng tiền dòng sản phẩm.");
 
 			if (string.IsNullOrWhiteSpace(snapshot))
-				throw DomainException.BadRequest("Snapshot is required.");
+              throw DomainException.BadRequest("Snapshot là bắt buộc.");
 
 			return new OrderDetail
 			{
@@ -67,7 +67,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void ApplyDiscounts(decimal apportionedVoucherDiscount, decimal promotionDiscountAmount)
 		{
 			if (apportionedVoucherDiscount + promotionDiscountAmount > (UnitPrice * Quantity))
-				throw DomainException.BadRequest("Total discounts cannot exceed the total line price.");
+                throw DomainException.BadRequest("Tổng giảm giá không được vượt quá tổng tiền dòng sản phẩm.");
 
 			ApportionedDiscount = apportionedVoucherDiscount;
 			PromotionDiscountAmount = promotionDiscountAmount;
@@ -76,7 +76,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void Fulfill(Guid actualBatchId)
 		{
 			if (actualBatchId == Guid.Empty)
-				throw DomainException.BadRequest("Actual Batch ID is required for fulfillment.");
+               throw DomainException.BadRequest("Actual Batch ID là bắt buộc khi hoàn tất đơn.");
 
 			FulfilledBatchId = actualBatchId;
 		}
@@ -84,7 +84,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdateQuantityAndDiscount(int newQuantity, decimal newApportionedDiscount)
 		{
 			if (newQuantity <= 0)
-				throw DomainException.BadRequest("Quantity must be greater than zero.");
+                throw DomainException.BadRequest("Số lượng phải lớn hơn 0.");
 
 			Quantity = newQuantity;
 			ApportionedDiscount = newApportionedDiscount;

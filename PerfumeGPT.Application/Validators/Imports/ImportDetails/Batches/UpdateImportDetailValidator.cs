@@ -8,13 +8,13 @@ namespace PerfumeGPT.Application.Validators.Imports.ImportDetails.Batches
 		public UpdateImportDetailValidator()
 		{
 			RuleFor(x => x.VariantId)
-				.NotEmpty().WithMessage("Variant ID is required.");
+				.NotEmpty().WithMessage("Variant ID là bắt buộc.");
 
 			RuleFor(x => x.ExpectedQuantity)
-				.GreaterThan(0).WithMessage("Quantity must be greater than zero.");
+				.GreaterThan(0).WithMessage("Số lượng dự kiến phải lớn hơn 0.");
 
 			RuleFor(x => x.UnitPrice)
-				.GreaterThanOrEqualTo(0).WithMessage("Unit price must be greater than or equal to zero.");
+				.GreaterThanOrEqualTo(0).WithMessage("Đơn giá phải lớn hơn hoặc bằng 0.");
 		}
 	}
 }

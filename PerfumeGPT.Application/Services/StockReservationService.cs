@@ -20,7 +20,7 @@ namespace PerfumeGPT.Application.Services
 			foreach (var (variantId, quantity) in items)
 			{
 				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
-					?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
+					?? throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {variantId}.");
 
 				// 1. Reserve quantity in Stock 
 				stock.Reserve(quantity);
@@ -52,7 +52,7 @@ namespace PerfumeGPT.Application.Services
 				// insufficient stock in batches
 				if (remainingToReserve > 0)
 				{
-					throw AppException.Conflict($"Data inconsistency: Batches do not have enough stock for variant {variantId}. Need {quantity}, missing {remainingToReserve}.");
+					throw AppException.Conflict($"Dữ liệu không nhất quán: Các lô không đủ tồn kho cho biến thể {variantId}. Cần {quantity}, còn thiếu {remainingToReserve}.");
 				}
 
 				_unitOfWork.Stocks.Update(stock);
@@ -63,7 +63,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			if (items == null || items.Count == 0)
 			{
-				throw AppException.BadRequest("At least one reservation item is required.");
+				throw AppException.BadRequest("Cần ít nhất một mục giữ chỗ.");
 			}
 
 			var normalizedItems = items
@@ -76,16 +76,16 @@ namespace PerfumeGPT.Application.Services
 			foreach (var (VariantId, BatchId, Quantity) in normalizedItems)
 			{
 				var batch = await _unitOfWork.Batches.GetByIdAsync(BatchId)
-					?? throw AppException.NotFound($"Batch {BatchId} not found.");
+				  ?? throw AppException.NotFound($"Không tìm thấy lô {BatchId}.");
 
 				if (batch.VariantId != VariantId)
-					throw AppException.BadRequest($"Batch {BatchId} does not belong to variant {VariantId}.");
+					throw AppException.BadRequest($"Lô {BatchId} không thuộc biến thể {VariantId}.");
 
 				if (batch.ExpiryDate <= DateTime.UtcNow)
-					throw AppException.Conflict($"Batch {BatchId} has expired and cannot be reserved.");
+					throw AppException.Conflict($"Lô {BatchId} đã hết hạn và không thể giữ chỗ.");
 
 				if (batch.AvailableInBatch < Quantity)
-					throw AppException.Conflict($"Insufficient quantity in batch {BatchId}. Available: {batch.AvailableInBatch}, requested: {Quantity}.");
+					throw AppException.Conflict($"Số lượng trong lô {BatchId} không đủ. Khả dụng: {batch.AvailableInBatch}, yêu cầu: {Quantity}.");
 
 				batchDict[BatchId] = batch; // Cache lại để dùng ở dưới, tránh Query DB 2 lần
 			}
@@ -99,7 +99,7 @@ namespace PerfumeGPT.Application.Services
 			foreach (var item in quantitiesByVariant)
 			{
 				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == item.VariantId)
-					?? throw AppException.NotFound($"Stock for variant {item.VariantId} not found.");
+				   ?? throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {item.VariantId}.");
 
 				stock.Reserve(item.Quantity);
 				_unitOfWork.Stocks.Update(stock);
@@ -120,7 +120,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task CommitReservationAsync(Guid orderId)
 		{
 			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(orderId);
-			if (!reservations.Any()) throw AppException.NotFound($"No reservations found for order {orderId}.");
+			if (!reservations.Any()) throw AppException.NotFound($"Không tìm thấy reservation cho đơn hàng {orderId}.");
 
 			// Group reservations by VariantId to minimize database calls when updating Stock
 			var reservationsGroupedByVariant = reservations
@@ -132,10 +132,10 @@ namespace PerfumeGPT.Application.Services
 				var variantId = group.Key;
 				var totalQuantityToCommit = group.Sum(r => r.ReservedQuantity);
 				var variant = await _unitOfWork.Variants.GetByIdAsync(variantId)
-					?? throw AppException.NotFound($"Variant {variantId} not found.");
+				  ?? throw AppException.NotFound($"Không tìm thấy biến thể {variantId}.");
 
 				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
-					?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
+					?? throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {variantId}.");
 
 				// 1. Release Reservation
 				stock.ReleaseReservation(totalQuantityToCommit);
@@ -158,7 +158,7 @@ namespace PerfumeGPT.Application.Services
 						 StockTransactionType.Sales,
 						 orderId,
 						 null,
-						 $"Committed reserved stock for order {orderId}.");
+					  $"Đã chốt tồn kho đã giữ chỗ cho đơn hàng {orderId}.");
 
 					_unitOfWork.Batches.Update(batch);
 
@@ -204,7 +204,7 @@ namespace PerfumeGPT.Application.Services
 							 StockTransactionType.Adjustment,
 							 orderId,
 							 null,
-							 $"Restocked committed reservation due to order cancellation {orderId}.");
+						   $"Nhập lại tồn kho từ reservation đã chốt do hủy đơn {orderId}.");
 						reservation.Restock();
 					}
 
@@ -297,7 +297,7 @@ namespace PerfumeGPT.Application.Services
 
 						foreach (var payment in pendingPayments)
 						{
-							payment.MarkCancelled("Order was cancelled due to expired stock reservation.");
+							payment.MarkCancelled($"Đơn hàng {payment.OrderId} đã bị hủy do hết hạn giữ tồn kho.");
 							_unitOfWork.Payments.Update(payment);
 						}
 					}

@@ -53,13 +53,13 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<TokenResponse>> LoginAsync(LoginRequest request)
 		{
 			var user = await _userRepository.FindByPhoneOrEmailAsync(request.Credential)
-				  ?? throw AppException.NotFound("User not found");
+			   ?? throw AppException.NotFound("Không tìm thấy người dùng");
 
 			user.EnsureActive();
 
 			var isPasswordValid = await _userManager.CheckPasswordAsync(user, request.Password);
 			if (!isPasswordValid)
-				throw AppException.Unauthorized("Invalid password");
+				throw AppException.Unauthorized("Mật khẩu không chính xác");
 
 			user.EnsureEmailConfirmed();
 
@@ -69,7 +69,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<TokenResponse>> CreateApiTokenAsync(Guid userId)
 		{
-			var user = await _userManager.FindByIdAsync(userId.ToString()) ?? throw AppException.NotFound("User not found");
+			var user = await _userManager.FindByIdAsync(userId.ToString()) ?? throw AppException.NotFound("Không tìm thấy người dùng");
 			user.EnsureActive();
 
 			var tokenResponse = await GenerateTokenResponseAsync(user);
@@ -81,7 +81,7 @@ namespace PerfumeGPT.Application.Services
 			var existingUser = await _userManager.FindByEmailAsync(request.Email)
 			  ?? await _userRepository.FindByPhoneNumberAsync(request.PhoneNumber);
 			if (existingUser != null)
-				throw AppException.Conflict("Email/PhoneNumber already exists");
+				throw AppException.Conflict("Email hoặc số điện thoại đã tồn tại");
 
 			var creationDetails = new UserCreationDetails(
 				request.FullName ?? request.Email,
@@ -93,14 +93,14 @@ namespace PerfumeGPT.Application.Services
 			var identityResult = await _userManager.CreateAsync(user, request.Password!);
 			if (!identityResult.Succeeded)
 				throw AppException.BadRequest(
-					"Failed to create user",
+					"Tạo người dùng thất bại",
 					[.. identityResult.Errors.Select(e => e.Description)]);
 
 			var roleName = role?.ToString() ?? UserRole.user.ToString();
 			var roleResult = await _userManager.AddToRoleAsync(user, roleName);
 			if (!roleResult.Succeeded)
 				throw AppException.BadRequest(
-					"Failed to assign role",
+					"Gán vai trò thất bại",
 					[.. roleResult.Errors.Select(e => e.Description)]);
 
 			var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
@@ -116,25 +116,25 @@ namespace PerfumeGPT.Application.Services
 				request.FullName ?? request.Email, verifyUrl);
 
 			await _emailService.SendEmailAsync(request.Email!, "[PerfumeGPT] Xác nhận địa chỉ email", emailContent);
-			return BaseResponse<string>.Ok(token, "User registered successfully. Please check your email to verify!");
+			return BaseResponse<string>.Ok(token, "Đăng ký tài khoản thành công. Vui lòng kiểm tra email để xác thực!");
 		}
 
 		public async Task<BaseResponse<string>> VerifyEmailAsync(VerifyEmailRequest request)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				var user = await _userManager.FindByEmailAsync(request.Email) ?? throw AppException.NotFound("User not found");
+				var user = await _userManager.FindByEmailAsync(request.Email) ?? throw AppException.NotFound("Không tìm thấy người dùng");
 
 				var result = await _userManager.ConfirmEmailAsync(user, request.Token);
 				if (!result.Succeeded)
-					throw AppException.BadRequest("Failed to verify email", [.. result.Errors.Select(e => e.Description)]);
+					throw AppException.BadRequest("Xác thực email thất bại", [.. result.Errors.Select(e => e.Description)]);
 
 				await _unitOfWork.UserVouchers.MigrateGuestVouchersAsync(
 					user.Id,
 					user.Email ?? string.Empty,
 					user.PhoneNumber ?? string.Empty);
 
-				return BaseResponse<string>.Ok("Success");
+				return BaseResponse<string>.Ok("Xác thực email thành công");
 			});
 		}
 
@@ -147,12 +147,12 @@ namespace PerfumeGPT.Application.Services
 			}
 			catch
 			{
-				throw AppException.BadRequest("Invalid Google token");
+				throw AppException.BadRequest("Google token không hợp lệ");
 			}
 
 			var email = payload.Email;
 			if (string.IsNullOrWhiteSpace(email))
-				throw AppException.BadRequest("Google token does not contain an email");
+				throw AppException.BadRequest("Google token không chứa email");
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
@@ -179,7 +179,7 @@ namespace PerfumeGPT.Application.Services
 					user.PhoneNumber ?? string.Empty);
 
 				var tokenResponse = await GenerateTokenResponseAsync(user);
-				var message = isNewRegistration ? "Google registration and login successful" : "Google login successful";
+				var message = isNewRegistration ? "Đăng ký và đăng nhập Google thành công" : "Đăng nhập Google thành công";
 
 				return BaseResponse<TokenResponse>.Ok(tokenResponse, message);
 			});
@@ -187,7 +187,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> ForgotPasswordAsync(ForgotPasswordRequest request)
 		{
-			var user = await _userManager.FindByEmailAsync(request.Email!) ?? throw AppException.NotFound("User not found");
+			var user = await _userManager.FindByEmailAsync(request.Email!) ?? throw AppException.NotFound("Không tìm thấy người dùng");
 			var token = await _userManager.GeneratePasswordResetTokenAsync(user);
 			var param = new Dictionary<string, string?>
 		{
@@ -204,15 +204,15 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> ResetPasswordAsync(ResetPasswordRequest request)
 		{
-			var user = await _userManager.FindByEmailAsync(request.Email!) ?? throw AppException.NotFound("User not found");
+			var user = await _userManager.FindByEmailAsync(request.Email!) ?? throw AppException.NotFound("Không tìm thấy người dùng");
 
 			var resetResult = await _userManager.ResetPasswordAsync(user, request.Token!, request.Password!);
 			if (!resetResult.Succeeded)
 				throw AppException.BadRequest(
-					 "Failed to reset password",
+					 "Đặt lại mật khẩu thất bại",
 					 resetResult.Errors.Select(e => e.Description).ToList());
 
-			return BaseResponse<string>.Ok("Password reset successfully");
+			return BaseResponse<string>.Ok("Đặt lại mật khẩu thành công");
 		}
 
 		#region Private Helpers
@@ -240,7 +240,7 @@ namespace PerfumeGPT.Application.Services
 			if (!createResult.Succeeded)
 			{
 				throw AppException.Internal(
-					$"Failed to create user via Google. Errors: {string.Join(" | ", createResult.Errors.Select(e => e.Description))}");
+				 $"Tạo người dùng bằng Google thất bại. Lỗi: {string.Join(" | ", createResult.Errors.Select(e => e.Description))}");
 			}
 
 			string defaultRole = UserRole.user.ToString();

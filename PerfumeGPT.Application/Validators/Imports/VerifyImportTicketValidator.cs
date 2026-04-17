@@ -9,8 +9,8 @@ namespace PerfumeGPT.Application.Validators.Imports
 		public VerifyImportTicketValidator()
 		{
 			RuleFor(x => x.ImportDetails)
-				.NotEmpty().WithMessage("Import details are required.")
-				.Must(details => details != null && details.Count > 0).WithMessage("At least one import detail is required.");
+				.NotEmpty().WithMessage("Chi tiết nhập hàng là bắt buộc.")
+				.Must(details => details != null && details.Count > 0).WithMessage("Phải có ít nhất một chi tiết nhập hàng.");
 
 			RuleForEach(x => x.ImportDetails).SetValidator(new VerifyImportDetailValidator());
 		}

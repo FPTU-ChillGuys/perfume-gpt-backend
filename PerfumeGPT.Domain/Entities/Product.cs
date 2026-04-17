@@ -62,28 +62,28 @@ namespace PerfumeGPT.Domain.Entities
 			if (payload.Name != null)
 			{
 				if (string.IsNullOrWhiteSpace(payload.Name))
-					throw DomainException.BadRequest("Product name cannot be empty.");
+                  throw DomainException.BadRequest("Tên sản phẩm không được để trống.");
 				Name = payload.Name.Trim();
 			}
 
 			if (payload.BrandId.HasValue)
 			{
 				if (payload.BrandId.Value <= 0)
-					throw DomainException.BadRequest("Invalid brand.");
+                 throw DomainException.BadRequest("Thương hiệu không hợp lệ.");
 				BrandId = payload.BrandId.Value;
 			}
 
 			if (payload.CategoryId.HasValue)
 			{
 				if (payload.CategoryId.Value <= 0)
-					throw DomainException.BadRequest("Invalid category.");
+                  throw DomainException.BadRequest("Danh mục không hợp lệ.");
 				CategoryId = payload.CategoryId.Value;
 			}
 
 			if (payload.Origin != null)
 			{
 				if (string.IsNullOrWhiteSpace(payload.Origin))
-					throw DomainException.BadRequest("Origin cannot be empty.");
+                    throw DomainException.BadRequest("Xuất xứ không được để trống.");
 				Origin = payload.Origin.Trim();
 			}
 
@@ -93,7 +93,7 @@ namespace PerfumeGPT.Domain.Entities
 			if (payload.ReleaseYear.HasValue)
 			{
 				if (payload.ReleaseYear.Value < 1900 || payload.ReleaseYear.Value > DateTime.UtcNow.Year + 1)
-					throw DomainException.BadRequest("Invalid release year.");
+                  throw DomainException.BadRequest("Năm phát hành không hợp lệ.");
 				ReleaseYear = payload.ReleaseYear.Value;
 			}
 
@@ -104,7 +104,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void ReplaceScentMaps(IEnumerable<(int NoteId, NoteType Type)> scentNotes)
 		{
 			if (scentNotes == null)
-				throw DomainException.BadRequest("Scent notes are required.");
+              throw DomainException.BadRequest("Danh sách nốt hương là bắt buộc.");
 
 			ProductScentMaps.Clear();
 			foreach (var (noteId, type) in scentNotes)
@@ -114,7 +114,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void ReplaceFamilyMaps(IEnumerable<int> olfactoryFamilyIds)
 		{
 			if (olfactoryFamilyIds == null)
-				throw DomainException.BadRequest("Olfactory families are required.");
+               throw DomainException.BadRequest("Danh sách nhóm hương là bắt buộc.");
 
 			ProductFamilyMaps.Clear();
 			foreach (var familyId in olfactoryFamilyIds)
@@ -145,32 +145,32 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureNotDeleted()
 		{
 			if (IsDeleted)
-				throw DomainException.BadRequest("Cannot update a deleted product.");
+               throw DomainException.BadRequest("Không thể cập nhật sản phẩm đã bị xóa.");
 		}
 
 		public static void EnsureCanBeDeleted(bool hasActiveVariants)
 		{
 			if (hasActiveVariants)
 				throw DomainException.BadRequest(
-					"Cannot delete product with active variants. Please delete all variants first.");
+                   "Không thể xóa sản phẩm có biến thể đang hoạt động. Vui lòng xóa tất cả biến thể trước.");
 		}
 
 		private static void ValidateCore(ProductPayload payload)
 		{
 			if (string.IsNullOrWhiteSpace(payload.Name))
-				throw DomainException.BadRequest("Product name is required.");
+              throw DomainException.BadRequest("Tên sản phẩm là bắt buộc.");
 
 			if (payload.BrandId <= 0)
-				throw DomainException.BadRequest("Invalid brand.");
+             throw DomainException.BadRequest("Thương hiệu không hợp lệ.");
 
 			if (payload.CategoryId <= 0)
-				throw DomainException.BadRequest("Invalid category.");
+              throw DomainException.BadRequest("Danh mục không hợp lệ.");
 
 			if (string.IsNullOrWhiteSpace(payload.Origin))
-				throw DomainException.BadRequest("Product origin is required.");
+                throw DomainException.BadRequest("Xuất xứ sản phẩm là bắt buộc.");
 
 			if (payload.ReleaseYear < 1900 || payload.ReleaseYear > DateTime.UtcNow.Year + 1)
-				throw DomainException.BadRequest("Invalid release year.");
+              throw DomainException.BadRequest("Năm phát hành không hợp lệ.");
 		}
 
 		// Records

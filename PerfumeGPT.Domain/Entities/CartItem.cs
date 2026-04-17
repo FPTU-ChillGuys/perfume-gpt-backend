@@ -19,13 +19,13 @@ namespace PerfumeGPT.Domain.Entities
 		public static CartItem Create(Guid userId, Guid variantId, int quantity)
 		{
 			if (userId == Guid.Empty)
-				throw DomainException.BadRequest("User ID is required.");
+				throw DomainException.BadRequest("User ID là bắt buộc.");
 
 			if (variantId == Guid.Empty)
-				throw DomainException.BadRequest("Variant ID is required.");
+				throw DomainException.BadRequest("Variant ID là bắt buộc.");
 
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Quantity must be greater than 0.");
+				throw DomainException.BadRequest("Số lượng phải lớn hơn 0.");
 
 			return new CartItem
 			{
@@ -39,7 +39,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void SetQuantity(int quantity)
 		{
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Quantity must be greater than 0.");
+				throw DomainException.BadRequest("Số lượng phải lớn hơn 0.");
 
 			Quantity = quantity;
 		}

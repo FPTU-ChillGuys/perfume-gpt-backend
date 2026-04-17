@@ -9,9 +9,9 @@ namespace PerfumeGPT.Application.Validators.Metadatas.Brands
 		{
 			RuleFor(x => x.Name)
 				.Must(name => !string.IsNullOrWhiteSpace(name))
-				.WithMessage("Brand name is required.")
+				.WithMessage("Tên thương hiệu không được để trống.")
 				.MaximumLength(100)
-				.WithMessage("Brand name must not exceed 100 characters.");
+				.WithMessage("Tên thương hiệu không được vượt quá 100 ký tự.");
 		}
 	}
 }

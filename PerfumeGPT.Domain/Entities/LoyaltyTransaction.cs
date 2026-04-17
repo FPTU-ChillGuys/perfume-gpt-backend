@@ -24,7 +24,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static LoyaltyTransaction CreateManual(Guid userId, ManualTransactionInfo info)
 		{
 			if (string.IsNullOrWhiteSpace(info.Reason))
-				throw DomainException.BadRequest("Reason is required for manual loyalty point changes.");
+				throw DomainException.BadRequest("Lí do giao dịch là bắt buộc cho các giao dịch thủ công.");
 
 			return info.TransactionType switch
 			{
@@ -38,7 +38,7 @@ namespace PerfumeGPT.Domain.Entities
 					Points = info.Points,
 					Reason = info.Reason
 				}),
-				_ => throw DomainException.BadRequest("Unsupported loyalty transaction type.")
+				_ => throw DomainException.BadRequest("Loại giao dịch điểm trung thành không được hỗ trợ.")
 			};
 		}
 
@@ -53,7 +53,7 @@ namespace PerfumeGPT.Domain.Entities
 				TransactionType = LoyaltyTransactionType.Earn,
 				PointsChanged = info.Points,
 				Reason = string.IsNullOrWhiteSpace(info.Reason)
-					? info.OrderId.HasValue ? $"Earned from Order {info.OrderId}" : "Manual point addition"
+					? info.OrderId.HasValue ? $"Đã nhận từ Đơn hàng {info.OrderId}" : "Thêm điểm thủ công"
 					: info.Reason.Trim()
 			};
 		}
@@ -71,8 +71,8 @@ namespace PerfumeGPT.Domain.Entities
 				PointsChanged = -info.Points,
 				Reason = string.IsNullOrWhiteSpace(info.Reason)
 					? info.VoucherId.HasValue
-						? $"Redeemed for Voucher {info.VoucherId}"
-						: info.OrderId.HasValue ? $"Redeemed for Order {info.OrderId} returned" : "Manual point redemption"
+						? $"Đã đổi cho Voucher {info.VoucherId}"
+						: info.OrderId.HasValue ? $"Đã đổi cho Đơn hàng {info.OrderId} trả lại" : "Đổi điểm thủ công"
 					: info.Reason.Trim()
 			};
 		}
@@ -80,10 +80,10 @@ namespace PerfumeGPT.Domain.Entities
 		private static void ValidateCreateArgs(Guid userId, int points)
 		{
 			if (userId == Guid.Empty)
-				throw DomainException.BadRequest("User ID is required.");
+				throw DomainException.BadRequest("ID người dùng là bắt buộc.");
 
 			if (points <= 0)
-				throw DomainException.BadRequest("Points must be greater than 0.");
+				throw DomainException.BadRequest("Số điểm phải lớn hơn 0.");
 		}
 
 		// Records

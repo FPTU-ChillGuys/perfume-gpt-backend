@@ -8,19 +8,18 @@ namespace PerfumeGPT.Application.Validators.Imports.ImportDetails.Batches
 		public CreateBatchValidator()
 		{
 			RuleFor(x => x.BatchCode)
-				.NotEmpty().WithMessage("Batch code is required.")
-				.MaximumLength(50).WithMessage("Batch code must not exceed 50 characters.");
+				.NotEmpty().WithMessage("Mã lô là bắt buộc.")
+				.MaximumLength(50).WithMessage("Mã lô không được vượt quá 50 ký tự.");
 
 			RuleFor(x => x.ManufactureDate)
-				.NotEmpty().WithMessage("Manufacture date is required.")
-				.LessThanOrEqualTo(DateTime.UtcNow).WithMessage("Manufacture date cannot be in the future.");
-
+				.NotEmpty().WithMessage("Ngày sản xuất là bắt buộc.")
+				.LessThanOrEqualTo(DateTime.UtcNow).WithMessage("Ngày sản xuất không được ở tương lai.");
 			RuleFor(x => x.ExpiryDate)
-				.NotEmpty().WithMessage("Expiry date is required.")
-				.GreaterThan(x => x.ManufactureDate).WithMessage("Expiry date must be after manufacture date.");
+				.NotEmpty().WithMessage("Ngày hết hạn là bắt buộc.")
+				.GreaterThan(x => x.ManufactureDate).WithMessage("Ngày hết hạn phải sau ngày sản xuất.");
 
 			RuleFor(x => x.Quantity)
-				.GreaterThan(0).WithMessage("Batch quantity must be greater than 0.");
+				.GreaterThan(0).WithMessage("Số lượng lô phải lớn hơn 0.");
 		}
 	}
 }

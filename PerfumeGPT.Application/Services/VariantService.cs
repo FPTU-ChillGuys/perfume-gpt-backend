@@ -44,7 +44,7 @@ namespace PerfumeGPT.Application.Services
 			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(
 				request.Attributes, isForVariant: true);
 			if (attributeErrors.Count != 0)
-				throw AppException.BadRequest("Validation failed", attributeErrors);
+				throw AppException.BadRequest("Dữ liệu không hợp lệ", attributeErrors);
 
 			var variantId = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			  {
@@ -75,8 +75,8 @@ namespace PerfumeGPT.Application.Services
 				metadata.Operations.Count > 0 ? metadata : null);
 
 			var message = metadata.HasPartialFailure
-				? $"Variant created successfully with {metadata.TotalFailed} media upload failure(s)."
-				: "Variant created successfully";
+			  ? $"Tạo biến thể thành công nhưng có {metadata.TotalFailed} tệp media tải lên thất bại."
+				: "Tạo biến thể thành công";
 
 			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
 		}
@@ -84,14 +84,14 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<BulkActionResult<string>>> UpdateVariantAsync(Guid variantId, UpdateVariantRequest request)
 		{
 			var variant = await _unitOfWork.Variants.GetByIdAsync(variantId)
-				?? throw AppException.NotFound("Variant not found");
+				?? throw AppException.NotFound("Không tìm thấy biến thể");
 
 			variant.EnsureNotDeleted();
 
 			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(
 				request.Attributes, isForVariant: true);
 			if (attributeErrors.Count != 0)
-				throw AppException.BadRequest("Validation failed", attributeErrors);
+				throw AppException.BadRequest("Dữ liệu không hợp lệ", attributeErrors);
 
 			var payload = _mapper.Map<ProductVariant.UpdateVariantPayload>(request);
 			variant.Update(payload);
@@ -102,7 +102,7 @@ namespace PerfumeGPT.Application.Services
 
 			_unitOfWork.Variants.Update(variant);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to update variant");
+			if (!saved) throw AppException.Internal("Cập nhật biến thể thất bại");
 
 			var metadata = new BulkActionMetadata { Operations = [] };
 
@@ -128,8 +128,8 @@ namespace PerfumeGPT.Application.Services
 				metadata.Operations.Count > 0 ? metadata : null);
 
 			var message = metadata.HasPartialFailure
-				? $"Variant updated successfully with {metadata.TotalFailed} media operation failure(s)."
-				: "Variant updated successfully";
+			   ? $"Cập nhật biến thể thành công nhưng có {metadata.TotalFailed} thao tác media thất bại."
+				: "Cập nhật biến thể thành công";
 
 			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
 		}
@@ -137,7 +137,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> DeleteVariantAsync(Guid variantId)
 		{
 			var variant = await _unitOfWork.Variants.GetByIdAsync(variantId)
-				?? throw AppException.NotFound("Variant not found");
+				?? throw AppException.NotFound("Không tìm thấy biến thể");
 
 			variant.EnsureNotDeleted();
 
@@ -146,9 +146,9 @@ namespace PerfumeGPT.Application.Services
 
 			_unitOfWork.Variants.Remove(variant);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to delete variant");
+			if (!saved) throw AppException.Internal("Xóa biến thể thất bại");
 
-			return BaseResponse<string>.Ok(variantId.ToString(), "Variant deleted successfully");
+			return BaseResponse<string>.Ok(variantId.ToString(), "Xóa biến thể thành công");
 		}
 
 		public async Task<BaseResponse<PagedResult<VariantPagedItem>>> GetPagedVariantsAsync(GetPagedVariantsRequest request)
@@ -156,59 +156,59 @@ namespace PerfumeGPT.Application.Services
 			var (items, totalCount) = await _unitOfWork.Variants.GetPagedVariantsWithDetailsAsync(request);
 			return BaseResponse<PagedResult<VariantPagedItem>>.Ok(
 				new PagedResult<VariantPagedItem>(items, request.PageNumber, request.PageSize, totalCount),
-				"Variants retrieved successfully");
+			 "Lấy danh sách biến thể thành công");
 		}
 
 		public async Task<BaseResponse<PagedResult<VariantPagedItem>>> GetPagedVariantsByCampaignIdAsync(Guid campaignId, GetPagedVariantsRequest request)
 		{
 			var campaignExists = await _unitOfWork.Campaigns.AnyAsync(c => c.Id == campaignId && !c.IsDeleted);
 			if (!campaignExists)
-				throw AppException.NotFound("Campaign not found");
+				throw AppException.NotFound("Không tìm thấy chiến dịch");
 
 			var (items, totalCount) = await _unitOfWork.Variants.GetPagedVariantsByCampaignIdAsync(campaignId, request);
 			return BaseResponse<PagedResult<VariantPagedItem>>.Ok(
 				new PagedResult<VariantPagedItem>(items, request.PageNumber, request.PageSize, totalCount),
-				"Campaign variants retrieved successfully");
+				"Lấy danh sách biến thể theo chiến dịch thành công");
 		}
 
 		public async Task<BaseResponse<ProductVariantResponse>> GetVariantByIdAsync(Guid variantId)
 		{
 			var variant = await _unitOfWork.Variants.GetVariantWithDetailsAsync(variantId)
-				?? throw AppException.NotFound("Variant not found");
+				?? throw AppException.NotFound("Không tìm thấy biến thể");
 
-			return BaseResponse<ProductVariantResponse>.Ok(variant, "Variant retrieved successfully");
+			return BaseResponse<ProductVariantResponse>.Ok(variant, "Lấy thông tin biến thể thành công");
 		}
 
 		public async Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId)
 			=> await _unitOfWork.Variants.GetVariantForCreateOrderAsync(variantId);
 
-      public async Task<BaseResponse<List<VariantLookupItem>>> GetVariantLookupListAsync(Guid? productId = null, int? supplierId = null)
+		public async Task<BaseResponse<List<VariantLookupItem>>> GetVariantLookupListAsync(Guid? productId = null, int? supplierId = null)
 		{
-          var lookupItems = await _unitOfWork.Variants.GetLookupList(productId, supplierId);
+			var lookupItems = await _unitOfWork.Variants.GetLookupList(productId, supplierId);
 			return BaseResponse<List<VariantLookupItem>>.Ok(
-				lookupItems, "Variant lookup list retrieved successfully");
+				lookupItems, "Lấy danh sách tra cứu biến thể thành công");
 		}
 
 		public async Task<BaseResponse<ProductVariantForPosResponse>> GetVariantByInfoAsync(string keyword)
 		{
 			if (string.IsNullOrWhiteSpace(keyword))
 			{
-				throw AppException.BadRequest("At least one search criteria is required: barcode, sku, or name.");
+				throw AppException.BadRequest("Cần ít nhất một tiêu chí tìm kiếm: barcode, sku hoặc tên.");
 			}
 
 			var variant = await _unitOfWork.Variants.GetVariantByInfoAsync(keyword)
-				?? throw AppException.NotFound("Variant not found");
+				?? throw AppException.NotFound("Không tìm thấy biến thể");
 
 			return BaseResponse<ProductVariantForPosResponse>.Ok(
 				variant,
-				"Variant retrieved successfully");
+			  "Lấy thông tin biến thể thành công");
 		}
 
 		#region Media Management
 		public async Task<BaseResponse<List<MediaResponse>>> GetVariantImagesAsync(Guid variantId)
 		{
 			var exists = await _unitOfWork.Variants.AnyAsync(v => v.Id == variantId);
-			if (!exists) throw AppException.NotFound("Variant not found");
+			if (!exists) throw AppException.NotFound("Không tìm thấy biến thể");
 
 			return await _mediaService.GetMediaByEntityAsync(EntityType.ProductVariant, variantId);
 		}

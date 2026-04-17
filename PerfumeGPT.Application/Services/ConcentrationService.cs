@@ -28,7 +28,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<ConcentrationResponse>> GetConcentrationByIdAsync(int id)
 		{
 			var result = await _unitOfWork.Concentrations.GetConcentrationByIdAsync(id)
-				  ?? throw AppException.NotFound("Concentration not found");
+				  ?? throw AppException.NotFound("Không tìm thấy nồng độ");
 
 			return BaseResponse<ConcentrationResponse>.Ok(result);
 		}
@@ -44,13 +44,13 @@ namespace PerfumeGPT.Application.Services
 			var normalizedName = Concentration.NormalizeName(request.Name).ToUpperInvariant();
 			var exists = await _unitOfWork.Concentrations.AnyAsync(c => c.Name.ToUpper() == normalizedName);
 			if (exists)
-				throw AppException.Conflict("Concentration name already exists.");
+				throw AppException.Conflict("Tên nồng độ đã tồn tại.");
 
 			var entity = Concentration.Create(normalizedName);
 			await _unitOfWork.Concentrations.AddAsync(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to create concentration");
+			if (!saved) throw AppException.Internal("Tạo nồng độ thất bại");
 
 			return BaseResponse<ConcentrationResponse>.Ok(_mapper.Map<ConcentrationResponse>(entity));
 		}
@@ -58,18 +58,18 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<ConcentrationResponse>> UpdateConcentrationAsync(int id, UpdateConcentrationRequest request)
 		{
 			var entity = await _unitOfWork.Concentrations.GetByIdAsync(id)
-				?? throw AppException.NotFound("Concentration not found");
+			  ?? throw AppException.NotFound("Không tìm thấy nồng độ");
 
 			var normalizedName = Concentration.NormalizeName(request.Name).ToUpperInvariant();
 			var exists = await _unitOfWork.Concentrations.AnyAsync(c => c.Id != id && c.Name.ToUpper() == normalizedName);
 			if (exists)
-				throw AppException.Conflict("Concentration name already exists.");
+				throw AppException.Conflict("Tên nồng độ đã tồn tại.");
 
 			entity.Rename(normalizedName);
 			_unitOfWork.Concentrations.Update(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to update concentration");
+			if (!saved) throw AppException.Internal("Cập nhật nồng độ thất bại");
 
 			return BaseResponse<ConcentrationResponse>.Ok(_mapper.Map<ConcentrationResponse>(entity));
 		}
@@ -77,15 +77,15 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<bool>> DeleteConcentrationAsync(int id)
 		{
 			var entity = await _unitOfWork.Concentrations.GetByIdAsync(id)
-				?? throw AppException.NotFound("Concentration not found");
+			  ?? throw AppException.NotFound("Không tìm thấy nồng độ");
 
 			var hasVariants = await _unitOfWork.Concentrations.HasVariantsAsync(id);
-			if (!hasVariants) throw AppException.Conflict("Cannot delete concentration with associated variants.");
+			if (!hasVariants) throw AppException.Conflict("Không thể xóa nồng độ có biến thể liên kết.");
 
 			_unitOfWork.Concentrations.Remove(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to delete concentration");
+			if (!saved) throw AppException.Internal("Xóa nồng độ thất bại");
 
 			return BaseResponse<bool>.Ok(true);
 		}

@@ -8,18 +8,17 @@ namespace PerfumeGPT.Application.Validators.Auths
 		public ResetPasswordValidator()
 		{
 			RuleFor(x => x.Password)
-				.NotEmpty().WithMessage("Password is required");
+				.NotEmpty().WithMessage("Mật khẩu mới là bắt buộc");
 
 			RuleFor(x => x.ConfirmPassword)
-				.NotEmpty().WithMessage("Confirm Password is required")
-				.Equal(x => x.Password).WithMessage("Confirm Password must match Password");
-
+				.NotEmpty().WithMessage("Xác nhận mật khẩu là bắt buộc")
+				.Equal(x => x.Password).WithMessage("Xác nhận mật khẩu phải khớp với mật khẩu");
 			RuleFor(x => x.Email)
-				.NotEmpty().WithMessage("Email is required")
-				.EmailAddress().WithMessage("Invalid email format");
+				.NotEmpty().WithMessage("Email là bắt buộc")
+				.EmailAddress().WithMessage("Định dạng email không hợp lệ");
 
 			RuleFor(x => x.Token)
-				.NotEmpty().WithMessage("Token is required");
+				.NotEmpty().WithMessage("Token là bắt buộc");
 		}
 	}
 }

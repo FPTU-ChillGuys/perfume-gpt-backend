@@ -12,11 +12,11 @@ namespace PerfumeGPT.Application.Validators.Reviews
 		{
 			RuleFor(x => x.StaffFeedbackComment)
 				.NotEmpty()
-				.WithMessage("Staff feedback comment is required.")
+             .WithMessage("Nội dung phản hồi của nhân viên là bắt buộc.")
 				.MinimumLength(MinCommentLength)
-				.WithMessage($"Staff feedback comment must be at least {MinCommentLength} characters.")
+             .WithMessage($"Nội dung phản hồi của nhân viên phải có ít nhất {MinCommentLength} ký tự.")
 				.MaximumLength(MaxCommentLength)
-				.WithMessage($"Staff feedback comment must not exceed {MaxCommentLength} characters.");
+             .WithMessage($"Nội dung phản hồi của nhân viên không được vượt quá {MaxCommentLength} ký tự.");
 		}
 	}
 }

@@ -19,7 +19,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static AttributeValue Create(int attributeId, string value)
 		{
 			if (string.IsNullOrWhiteSpace(value))
-				throw DomainException.BadRequest("Attribute value cannot be empty.");
+				throw DomainException.BadRequest("Tên thuộc tính không được để trống.");
 
 			return new AttributeValue
 			{
@@ -33,7 +33,7 @@ namespace PerfumeGPT.Domain.Entities
 			if (value == null) return;
 
 			if (string.IsNullOrWhiteSpace(value))
-				throw DomainException.BadRequest("Attribute value cannot be empty.");
+				throw DomainException.BadRequest("Tên thuộc tính không được để trống.");
 
 			Value = value.Trim();
 		}

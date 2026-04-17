@@ -42,7 +42,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes);
 			if (attributeErrors.Count != 0)
-				throw AppException.BadRequest("Validation failed", attributeErrors);
+				throw AppException.BadRequest("Dữ liệu không hợp lệ", attributeErrors);
 
 			var payload = _mapper.Map<Product.ProductPayload>(request);
 			var product = Product.Create(payload);
@@ -58,7 +58,7 @@ namespace PerfumeGPT.Application.Services
 
 			await _unitOfWork.Products.AddAsync(product);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to create product");
+			if (!saved) throw AppException.Internal("Tạo sản phẩm thất bại");
 
 			var metadata = new BulkActionMetadata { Operations = [] };
 			if (request.TemporaryMediaIds?.Count > 0)
@@ -75,8 +75,8 @@ namespace PerfumeGPT.Application.Services
 				metadata.Operations.Count > 0 ? metadata : null);
 
 			var message = metadata.HasPartialFailure
-				? $"Product created successfully with {metadata.TotalFailed} media upload failure(s)."
-				: "Product created successfully";
+			  ? $"Tạo sản phẩm thành công nhưng có {metadata.TotalFailed} tệp media tải lên thất bại."
+				: "Tạo sản phẩm thành công";
 
 			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
 		}
@@ -84,13 +84,13 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<BulkActionResult<string>>> UpdateProductAsync(Guid productId, UpdateProductRequest request)
 		{
 			var product = await _unitOfWork.Products.GetProductAggregateForUpdateAsync(productId)
-				 ?? throw AppException.NotFound("Product not found");
+				?? throw AppException.NotFound("Không tìm thấy sản phẩm");
 
 			product.EnsureNotDeleted();
 
 			var attributeErrors = await _productAttributeService.ValidateAttributesAsync(request.Attributes);
 			if (attributeErrors.Count != 0)
-				throw AppException.BadRequest("Validation failed", attributeErrors);
+				throw AppException.BadRequest("Dữ liệu không hợp lệ", attributeErrors);
 
 			var metadata = new BulkActionMetadata { Operations = [] };
 
@@ -126,7 +126,7 @@ namespace PerfumeGPT.Application.Services
 
 			_unitOfWork.Products.Update(product);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to update product");
+			if (!saved) throw AppException.Internal("Cập nhật sản phẩm thất bại");
 
 
 
@@ -135,8 +135,8 @@ namespace PerfumeGPT.Application.Services
 				metadata.Operations.Count > 0 ? metadata : null);
 
 			var message = metadata.HasPartialFailure
-				? $"Product updated successfully with {metadata.TotalFailed} media operation failure(s)."
-				: "Product updated successfully";
+			   ? $"Cập nhật sản phẩm thành công nhưng có {metadata.TotalFailed} thao tác media thất bại."
+				: "Cập nhật sản phẩm thành công";
 
 			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
 		}
@@ -144,7 +144,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> DeleteProductAsync(Guid productId)
 		{
 			var product = await _unitOfWork.Products.GetByIdAsync(productId)
-				?? throw AppException.NotFound("Product not found");
+				?? throw AppException.NotFound("Không tìm thấy sản phẩm");
 
 			product.EnsureNotDeleted();
 
@@ -156,9 +156,9 @@ namespace PerfumeGPT.Application.Services
 
 			_unitOfWork.Products.Remove(product);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to delete product");
+			if (!saved) throw AppException.Internal("Xóa sản phẩm thất bại");
 
-			return BaseResponse<string>.Ok(productId.ToString(), "Product deleted successfully");
+			return BaseResponse<string>.Ok(productId.ToString(), "Xóa sản phẩm thành công");
 		}
 
 		public async Task<BaseResponse<ProductResponse>> GetProductAsync(Guid productId)
@@ -167,17 +167,17 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<ProductResponse>> GetAdminProductAsync(Guid productId)
 		{
 			var response = await _unitOfWork.Products.GetProductResponseAsync(productId)
-				?? throw AppException.NotFound("Product not found");
+				?? throw AppException.NotFound("Không tìm thấy sản phẩm");
 
-			return BaseResponse<ProductResponse>.Ok(response, "Product retrieved successfully");
+			return BaseResponse<ProductResponse>.Ok(response, "Lấy thông tin sản phẩm thành công");
 		}
 
 		public async Task<BaseResponse<PublicProductResponse>> GetPublicProductAsync(Guid productId)
 		{
 			var response = await _unitOfWork.Products.GetPublicProductResponseAsync(productId)
-				?? throw AppException.NotFound("Product not found");
+				?? throw AppException.NotFound("Không tìm thấy sản phẩm");
 
-			return BaseResponse<PublicProductResponse>.Ok(response, "Product details retrieved successfully");
+			return BaseResponse<PublicProductResponse>.Ok(response, "Lấy chi tiết sản phẩm thành công");
 		}
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetProductsAsync(GetPagedProductRequest request)
@@ -185,13 +185,13 @@ namespace PerfumeGPT.Application.Services
 			var (items, totalCount) = await _unitOfWork.Products.GetPagedProductListItemsAsync(request);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
-				"Products retrieved successfully");
+			 "Lấy danh sách sản phẩm thành công");
 		}
 
 		public async Task<BaseResponse<List<ProductLookupItem>>> GetProductLookupListAsync()
 		{
 			var lookupList = await _unitOfWork.Products.GetProductLookupListAsync();
-			return BaseResponse<List<ProductLookupItem>>.Ok(lookupList, "Product lookup list retrieved successfully");
+			return BaseResponse<List<ProductLookupItem>>.Ok(lookupList, "Lấy danh sách tra cứu sản phẩm thành công");
 		}
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetBestSellerProductsAsync(GetPagedProductRequest request)
@@ -199,7 +199,7 @@ namespace PerfumeGPT.Application.Services
 			var (items, totalCount) = await _unitOfWork.Products.GetBestSellerProductsAsync(request);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
-				"Best seller products retrieved successfully");
+			 "Lấy danh sách sản phẩm bán chạy thành công");
 		}
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetNewArrivalProductsAsync(GetPagedProductRequest request)
@@ -207,7 +207,7 @@ namespace PerfumeGPT.Application.Services
 			var (items, totalCount) = await _unitOfWork.Products.GetNewArrivalProductsAsync(request);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
-				"New arrival products retrieved successfully");
+			 "Lấy danh sách sản phẩm mới về thành công");
 		}
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetCampaignProductsAsync(Guid campaignId, GetPagedProductRequest request)
@@ -215,32 +215,32 @@ namespace PerfumeGPT.Application.Services
 			var (items, totalCount) = await _unitOfWork.Products.GetCampaignProductsAsync(campaignId, request);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
-				"Campaign products retrieved successfully");
+				"Lấy danh sách sản phẩm theo chiến dịch thành công");
 		}
 
 		public async Task<BaseResponse<ProductInforResponse>> GetProductInforAsync(Guid productId)
 		{
 			var response = await _unitOfWork.Products.GetProductInfoAsync(productId)
-				?? throw AppException.NotFound("Product not found");
+				?? throw AppException.NotFound("Không tìm thấy sản phẩm");
 
 			return BaseResponse<ProductInforResponse>.Ok(
-				response, "Product information retrieved successfully");
+				response, "Lấy thông tin sản phẩm thành công");
 		}
 
 		public async Task<BaseResponse<ProductFastLookResponse>> GetProductFastLookAsync(Guid productId)
 		{
 			var response = await _unitOfWork.Products.GetProductFastLookAsync(productId)
-				?? throw AppException.NotFound("Product not found");
+				?? throw AppException.NotFound("Không tìm thấy sản phẩm");
 
 			return BaseResponse<ProductFastLookResponse>.Ok(
-				response, "Product fast look retrieved successfully");
+			  response, "Lấy nhanh thông tin sản phẩm thành công");
 		}
 
 		#region Media Management
 		public async Task<BaseResponse<List<MediaResponse>>> GetProductImagesAsync(Guid productId)
 		{
 			var exists = await _unitOfWork.Products.AnyAsync(p => p.Id == productId);
-			if (!exists) throw AppException.NotFound("Product not found");
+			if (!exists) throw AppException.NotFound("Không tìm thấy sản phẩm");
 
 			return await _mediaService.GetMediaByEntityAsync(EntityType.Product, productId);
 		}
@@ -252,7 +252,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			var response = await _unitOfWork.Products.GetProductDailySaleFiguresAsync(date);
 			return BaseResponse<List<ProductDailySaleFigureResponse>>.Ok(
-				response, "Product daily sale figures retrieved successfully");
+			 response, "Lấy số liệu bán hàng theo ngày của sản phẩm thành công");
 		}
 
 

@@ -26,17 +26,17 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			_contactAddressService = contactAddressService;
 		}
 
-     public async Task SetupShippingInfoAsync(Order order, ContactAddressInformation? contactAddressRequest, Guid? customerId, Guid? savedAddressId, decimal? shippingFee = null)
+		public async Task SetupShippingInfoAsync(Order order, ContactAddressInformation? contactAddressRequest, Guid? customerId, Guid? savedAddressId, decimal? shippingFee = null)
 		{
 			// 1. Create contact address
 			var contactAddress = await _contactAddressService.CreateContactAddressAsync(contactAddressRequest, savedAddressId, customerId);
 			order.AttachContactAddress(contactAddress.Id);
 			// 2. Get lead time
 			var EstimatedDeliveryDate = await GetLeadTimeAsync(contactAddress.DistrictId, contactAddress.WardCode);
-            var resolvedShippingFee = shippingFee ?? await CalculateShippingFeeAsync(order, contactAddress);
+			var resolvedShippingFee = shippingFee ?? await CalculateShippingFeeAsync(order, contactAddress);
 
 			// 3. Create shipping info
-          var shippingInfo = ShippingInfo.Create(CarrierName.GHN, ShippingType.Forward, resolvedShippingFee, EstimatedDeliveryDate);
+			var shippingInfo = ShippingInfo.Create(CarrierName.GHN, ShippingType.Forward, resolvedShippingFee, EstimatedDeliveryDate);
 
 			await _unitOfWork.ShippingInfos.AddAsync(shippingInfo);
 
@@ -150,7 +150,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		public async Task<bool> CreateGHNShippingOrderAsync(Order order, ContactAddress contactAddress)
 		{
 			var shippingInfo = await _unitOfWork.ShippingInfos.GetByOrderIdAsync(order.Id)
-				  ?? throw AppException.NotFound("Shipping info not found.");
+				 ?? throw AppException.NotFound("Không tìm thấy thông tin vận chuyển.");
 
 			bool isPaid = order.PaymentStatus == PaymentStatus.Paid;
 			var codAmount = isPaid ? 0m : order.TotalAmount;
@@ -165,10 +165,10 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		public async Task<bool> CreateGHNShippingOrderAsync(OrderReturnRequest returnRequest, ContactAddress contactAddress)
 		{
 			if (!returnRequest.ReturnShippingId.HasValue)
-				throw AppException.BadRequest("Return shipping is not attached to the return request.");
+				throw AppException.BadRequest("Thông tin vận chuyển hoàn trả chưa được gắn với yêu cầu trả hàng.");
 
 			var shippingInfo = await _unitOfWork.ShippingInfos.GetByIdAsync(returnRequest.ReturnShippingId.Value)
-				?? throw AppException.NotFound("Return shipping info not found.");
+			  ?? throw AppException.NotFound("Không tìm thấy thông tin vận chuyển hoàn trả.");
 
 			return await CreateGHNShippingOrderInternalAsync(
 				returnRequest.OrderId,
@@ -185,7 +185,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		{
 			var orderWithDetails = await _unitOfWork.Orders.GetOrderWithDetailsForShippingAsync(orderId);
 			if (orderWithDetails?.OrderDetails == null || orderWithDetails.OrderDetails.Count == 0)
-				throw AppException.NotFound("Order details not found.");
+				throw AppException.NotFound("Không tìm thấy chi tiết đơn hàng.");
 
 			// Calculate total weight and dimensions from order items
 			int totalWeight = 0;
@@ -274,7 +274,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 			// Call GHN API to create shipping order
 			var ghnResponse = await _ghnService.CreateShippingOrderAsync(ghnRequest)
-				?? throw AppException.Internal("Failed to create GHN shipping order.");
+			 ?? throw AppException.Internal("Tạo đơn vận chuyển GHN thất bại.");
 
 			// Update shipping info with tracking number
 			shippingInfo.SetTrackingNumber(ghnResponse.OrderCode);

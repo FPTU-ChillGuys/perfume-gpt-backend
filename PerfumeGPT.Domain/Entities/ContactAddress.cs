@@ -31,28 +31,28 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdateAddress(ContactAddressPayload payload)
 		{
 			if (string.IsNullOrWhiteSpace(payload.ContactName))
-				throw DomainException.BadRequest("Contact name is required.");
+              throw DomainException.BadRequest("Tên người liên hệ là bắt buộc.");
 
 			if (string.IsNullOrWhiteSpace(payload.ContactPhoneNumber))
-				throw DomainException.BadRequest("Contact phone number is required.");
+              throw DomainException.BadRequest("Số điện thoại liên hệ là bắt buộc.");
 
 			if (payload.DistrictId <= 0)
-				throw DomainException.BadRequest("District ID must be greater than 0.");
+                throw DomainException.BadRequest("District ID phải lớn hơn 0.");
 
 			if (string.IsNullOrWhiteSpace(payload.DistrictName))
-				throw DomainException.BadRequest("District name is required.");
+             throw DomainException.BadRequest("Tên quận/huyện là bắt buộc.");
 
 			if (string.IsNullOrWhiteSpace(payload.WardCode))
-				throw DomainException.BadRequest("Ward code is required.");
+             throw DomainException.BadRequest("Mã phường/xã là bắt buộc.");
 
 			if (string.IsNullOrWhiteSpace(payload.WardName))
-				throw DomainException.BadRequest("Ward name is required.");
+             throw DomainException.BadRequest("Tên phường/xã là bắt buộc.");
 
 			if (string.IsNullOrWhiteSpace(payload.ProvinceName))
-				throw DomainException.BadRequest("Province name is required.");
+             throw DomainException.BadRequest("Tên tỉnh/thành là bắt buộc.");
 
 			if (string.IsNullOrWhiteSpace(payload.FullAddress))
-				throw DomainException.BadRequest("Full address is required.");
+              throw DomainException.BadRequest("Địa chỉ đầy đủ là bắt buộc.");
 
 			ContactName = payload.ContactName.Trim();
 			ContactPhoneNumber = payload.ContactPhoneNumber.Trim();

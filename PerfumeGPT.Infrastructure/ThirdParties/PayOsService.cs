@@ -25,9 +25,9 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 		public async Task<OrderCheckoutResponse> CreatePaymentUrlAsync(PayOsPaymentRequest request)
 		{
-			var clientId = _configuration["PayOs:ClientID"] ?? throw new InvalidOperationException("PayOs ClientID configuration is missing.");
-			var apiKey = _configuration["PayOs:ApiKey"] ?? throw new InvalidOperationException("PayOs ApiKey configuration is missing.");
-			var checksumKey = _configuration["PayOs:CheckSum"] ?? throw new InvalidOperationException("PayOs CheckSum configuration is missing.");
+			var clientId = _configuration["PayOs:ClientID"] ?? throw new InvalidOperationException("Thiếu cấu hình PayOs ClientID.");
+			var apiKey = _configuration["PayOs:ApiKey"] ?? throw new InvalidOperationException("Thiếu cấu hình PayOs ApiKey.");
+			var checksumKey = _configuration["PayOs:CheckSum"] ?? throw new InvalidOperationException("Thiếu cấu hình PayOs CheckSum.");
 
 			var returnUrl = _webHostEnvironment.EnvironmentName == Environments.Development
 				? _configuration["PayOs:ReturnUrl"]
@@ -71,7 +71,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			var response = await payOsClient.PaymentRequests.CreateAsync(paymentRequest);
 			if (string.IsNullOrWhiteSpace(response?.CheckoutUrl))
 			{
-				throw new InvalidOperationException("PayOs create payment failed: checkout url is missing.");
+				throw new InvalidOperationException("Thiếu URL thanh toán PayOs.");
 			}
 
 			return new OrderCheckoutResponse
@@ -83,9 +83,9 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 		public async Task<PayOsPaymentInfoResponse> GetPaymentInfoAsync(string orderCode, Guid paymentId)
 		{
-			var clientId = _configuration["PayOs:ClientID"] ?? throw new InvalidOperationException("PayOs ClientID configuration is missing.");
-			var apiKey = _configuration["PayOs:ApiKey"] ?? throw new InvalidOperationException("PayOs ApiKey configuration is missing.");
-			var checksumKey = _configuration["PayOs:CheckSum"] ?? throw new InvalidOperationException("PayOs CheckSum configuration is missing.");
+			var clientId = _configuration["PayOs:ClientID"] ?? throw new InvalidOperationException("Thiếu cấu hình PayOs ClientID.");
+			var apiKey = _configuration["PayOs:ApiKey"] ?? throw new InvalidOperationException("Thiếu cấu hình PayOs ApiKey.");
+			var checksumKey = _configuration["PayOs:CheckSum"] ?? throw new InvalidOperationException("Thiếu cấu hình PayOs CheckSum.");
 
 			var payOsClient = new PayOSClient(clientId, apiKey, checksumKey);
 			var resolvedOrderCode = ResolveOrderCode(orderCode, paymentId);
@@ -134,7 +134,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 					IsSuccess = true,
 					IsPaid = isPaid,
 					OrderCode = resolvedOrderCode,
-                    ExtractedOrderCode = extractedOrderCode,
+					ExtractedOrderCode = extractedOrderCode,
 					PosSessionId = posSessionId,
 					Amount = amount,
 					Status = status,
@@ -148,7 +148,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 					IsSuccess = false,
 					IsPaid = false,
 					OrderCode = resolvedOrderCode,
-                    ExtractedOrderCode = resolvedOrderCode.ToString(),
+					ExtractedOrderCode = resolvedOrderCode.ToString(),
 					Message = ex.Message
 				};
 			}

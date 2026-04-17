@@ -30,15 +30,15 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 		public async Task<OrderCheckoutResponse> CreatePaymentUrlAsync(HttpContext context, MomoPaymentRequest request)
 		{
-			var endpoint = _configuration["Momo:ApiUrl"] ?? throw new InvalidOperationException("Momo ApiUrl configuration is missing.");
-			var partnerCode = _configuration["Momo:PartnerCode"] ?? throw new InvalidOperationException("Momo PartnerCode configuration is missing.");
-			var accessKey = _configuration["Momo:AccessKey"] ?? throw new InvalidOperationException("Momo AccessKey configuration is missing.");
-			var secretKey = _configuration["Momo:SecretKey"] ?? throw new InvalidOperationException("Momo SecretKey configuration is missing.");
-			var requestType = _configuration["Momo:RequestType"] ?? throw new InvalidOperationException("Momo RequestType configuration is missing.");
+			var endpoint = _configuration["Momo:ApiUrl"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo ApiUrl hoặc Endpoint!");
+			var partnerCode = _configuration["Momo:PartnerCode"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo PartnerCode!");
+			var accessKey = _configuration["Momo:AccessKey"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo AccessKey!");
+			var secretKey = _configuration["Momo:SecretKey"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo SecretKey!");
+			var requestType = _configuration["Momo:RequestType"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo RequestType!");
 
 			if (string.IsNullOrWhiteSpace(partnerCode) || string.IsNullOrWhiteSpace(accessKey) || string.IsNullOrWhiteSpace(secretKey))
 			{
-				throw new InvalidOperationException("Momo configuration is missing required keys.");
+				throw new InvalidOperationException("Thiếu cấu hình Momo quan trọng (PartnerCode, AccessKey, SecretKey). Vui lòng kiểm tra lại cấu hình.");
 			}
 
 			var returnUrl = _webHostEnvironment.EnvironmentName == Environments.Development
@@ -85,7 +85,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			var responseContent = await response.Content.ReadAsStringAsync();
 			if (!response.IsSuccessStatusCode)
 			{
-				throw new InvalidOperationException($"Momo HTTP error: {responseContent}");
+				throw new InvalidOperationException($"Lỗi HTTP khi gọi API Momo: {response.StatusCode} - {responseContent}");
 			}
 
 			using var json = JsonDocument.Parse(responseContent);
@@ -96,7 +96,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			if (resultCode != 0 || string.IsNullOrWhiteSpace(payUrl))
 			{
-				throw new InvalidOperationException($"Momo create payment failed: {message}");
+				throw new InvalidOperationException($"Thiếu cấu hình Momo hoặc lỗi tạo payment URL: {message} (resultCode: {resultCode})");
 			}
 
 			return new OrderCheckoutResponse
@@ -108,8 +108,8 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 		public MomoPaymentResponse GetPaymentResponseAsync(IQueryCollection queryParameters)
 		{
-			var accessKey = _configuration["Momo:AccessKey"] ?? throw new InvalidOperationException("Momo AccessKey configuration is missing.");
-			var secretKey = _configuration["Momo:SecretKey"] ?? throw new InvalidOperationException("Momo SecretKey configuration is missing.");
+			var accessKey = _configuration["Momo:AccessKey"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo AccessKey.");
+			var secretKey = _configuration["Momo:SecretKey"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo SecretKey.");
 
 			var partnerCode = queryParameters.TryGetValue("partnerCode", out var partnerCodeVal) ? partnerCodeVal.ToString() : string.Empty;
 			var orderId = queryParameters.TryGetValue("orderId", out var orderIdVal) ? orderIdVal.ToString() : string.Empty;
@@ -131,7 +131,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return new MomoPaymentResponse
 				{
 					IsSuccess = false,
-					Message = "Invalid requestId (PaymentId) in MoMo response"
+					Message = "Sai định dạng requestId từ Momo.",
 				};
 			}
 
@@ -144,7 +144,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return new MomoPaymentResponse
 				{
 					IsSuccess = false,
-					Message = "Security Breach: Signature validation failed.",
+					Message = "Vi phạm bảo mật: Xác thực chữ ký thất bại.",
 					PaymentId = paymentId,
 					ResultCode = resultCode
 				};
@@ -157,10 +157,10 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			return new MomoPaymentResponse
 			{
 				IsSuccess = success,
-				Message = success ? "Payment successful" : message,
+				Message = success ? "Thanh toán thành công" : message,
 				PaymentId = paymentId,
 				ResultCode = resultCode,
-                OrderCode = extractedOrderCode,
+				OrderCode = extractedOrderCode,
 				PosSessionId = extractedPosSessionId,
 				TransactionNo = transId,
 				Amount = decimal.TryParse(amountRaw, out var amount) ? amount : 0
@@ -229,10 +229,10 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 		public async Task<MomoQueryResponse> QueryTransactionAsync(MomoQueryRequest request)
 		{
-			var endpoint = _configuration["Momo:QueryUrl"] ?? throw new InvalidOperationException("Momo QueryUrl or ApiUrl configuration is missing.");
-			var partnerCode = _configuration["Momo:PartnerCode"] ?? throw new InvalidOperationException("Momo PartnerCode configuration is missing.");
-			var accessKey = _configuration["Momo:AccessKey"] ?? throw new InvalidOperationException("Momo AccessKey configuration is missing.");
-			var secretKey = _configuration["Momo:SecretKey"] ?? throw new InvalidOperationException("Momo SecretKey configuration is missing.");
+			var endpoint = _configuration["Momo:QueryUrl"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo QueryUrl configuration is missing.");
+			var partnerCode = _configuration["Momo:PartnerCode"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo PartnerCode configuration is missing.");
+			var accessKey = _configuration["Momo:AccessKey"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo AccessKey configuration is missing.");
+			var secretKey = _configuration["Momo:SecretKey"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo SecretKey configuration is missing.");
 
 			var requestId = Guid.NewGuid().ToString("N");
 			var orderId = request.PaymentId.ToString();
@@ -261,7 +261,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return new MomoQueryResponse
 				{
 					IsSuccess = false,
-					Message = $"Momo query HTTP error: {response.StatusCode} - {responseContent}",
+					Message = $"Lỗi HTTP khi gọi API Momo query: {response.StatusCode} - {responseContent}",
 					PaymentId = request.PaymentId
 				};
 			}
@@ -284,7 +284,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return new MomoQueryResponse
 				{
 					IsSuccess = success,
-					Message = success ? "Payment successful" : message,
+					Message = success ? "Thanh toán thành công" : message,
 					PaymentId = request.PaymentId,
 					ResultCode = resultCode,
 					TransactionNo = transactionNo,
@@ -296,7 +296,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return new MomoQueryResponse
 				{
 					IsSuccess = false,
-					Message = "Invalid MoMo query response format.",
+					Message = "Định dạng phản hồi từ Momo không hợp lệ.",
 					PaymentId = request.PaymentId
 				};
 			}
@@ -304,17 +304,17 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 		public async Task<MomoRefundResponse> RefundAsync(HttpContext context, MomoRefundRequest request)
 		{
-			var endpoint = _configuration["Momo:RefundUrl"] ?? throw new InvalidOperationException("Momo RefundUrl configuration is missing.");
-			var partnerCode = _configuration["Momo:PartnerCode"] ?? throw new InvalidOperationException("Momo PartnerCode configuration is missing.");
-			var accessKey = _configuration["Momo:AccessKey"] ?? throw new InvalidOperationException("Momo AccessKey configuration is missing.");
-			var secretKey = _configuration["Momo:SecretKey"] ?? throw new InvalidOperationException("Momo SecretKey configuration is missing.");
+			var endpoint = _configuration["Momo:RefundUrl"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo RefundUrl configuration is missing.");
+			var partnerCode = _configuration["Momo:PartnerCode"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo PartnerCode configuration is missing.");
+			var accessKey = _configuration["Momo:AccessKey"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo AccessKey configuration is missing.");
+			var secretKey = _configuration["Momo:SecretKey"] ?? throw new InvalidOperationException("Thiếu cấu hình Momo SecretKey configuration is missing.");
 
 			if (!long.TryParse(request.TransactionNo, out var transId))
 			{
 				return new MomoRefundResponse
 				{
 					IsSuccess = false,
-					Message = "Invalid MoMo transaction number for refund.",
+					Message = "Số giao dịch MoMo không hợp lệ để hoàn tiền.",
 					PaymentId = request.PaymentId,
 					Amount = request.Amount
 				};
@@ -353,7 +353,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return new MomoRefundResponse
 				{
 					IsSuccess = false,
-					Message = $"Momo HTTP refund error: {response.StatusCode} - {responseContent}",
+					Message = $"Lỗi HTTP khi gọi API Momo refund: {response.StatusCode} - {responseContent}",
 					PaymentId = request.PaymentId,
 					Amount = request.Amount
 				};

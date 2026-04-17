@@ -31,7 +31,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PagedResult<ShippingInfoListItem>>> GetPagedShippingInfosByUserIdAsync(Guid userId, GetPagedShippingsRequest request)
 		{
 			if (userId == Guid.Empty)
-				return BaseResponse<PagedResult<ShippingInfoListItem>>.Fail("User ID is required.", ResponseErrorType.BadRequest);
+				return BaseResponse<PagedResult<ShippingInfoListItem>>.Fail("Bắt buộc cung cấp User ID.", ResponseErrorType.BadRequest);
 
 			var (items, totalCount) = await _unitOfWork.ShippingInfos.GetPagedByUserIdAsync(userId, request);
 
@@ -41,17 +41,17 @@ namespace PerfumeGPT.Application.Services
 				request.PageSize,
 				totalCount);
 
-			return BaseResponse<PagedResult<ShippingInfoListItem>>.Ok(pagedResult, "Shipping infos retrieved successfully.");
+			return BaseResponse<PagedResult<ShippingInfoListItem>>.Ok(pagedResult, "Lấy danh sách thông tin vận chuyển thành công.");
 		}
 
 		public async Task<BaseResponse<string>> SyncShippingStatusByUserIdAsync(Guid userId)
 		{
 			if (userId == Guid.Empty)
-				return BaseResponse<string>.Fail("User ID is required.", ResponseErrorType.BadRequest);
+				return BaseResponse<string>.Fail("Bắt buộc cung cấp User ID.", ResponseErrorType.BadRequest);
 
 			var candidates = await _unitOfWork.ShippingInfos.GetSyncCandidatesForGhnByUserIdAsync(userId);
 			if (candidates.Count == 0)
-				return BaseResponse<string>.Ok("Shipping status is up to date. No pending orders found.");
+				return BaseResponse<string>.Ok("Trạng thái vận chuyển đã được cập nhật. Không có đơn hàng chờ xử lý.");
 
 			var updatedCount = 0;
 
@@ -67,7 +67,7 @@ namespace PerfumeGPT.Application.Services
 				await Task.Delay(200);
 			}
 
-			return BaseResponse<string>.Ok($"Shipping status sync completed. Updated {updatedCount} record(s).");
+			return BaseResponse<string>.Ok($"Đồng bộ trạng thái vận chuyển hoàn tất. Đã cập nhật {updatedCount} bản ghi.");
 		}
 
 		public async Task<bool> SyncSingleShippingInfoAsync(ShippingInfo shippingInfo)

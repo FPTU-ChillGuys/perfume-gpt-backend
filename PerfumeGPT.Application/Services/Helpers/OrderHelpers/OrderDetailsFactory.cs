@@ -20,13 +20,13 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 		public async Task CreateOrderDetailsAsync(Order order, List<CartCheckoutItemDto> items)
 		{
-			if (order == null) throw AppException.BadRequest("Order is required.");
-			if (items == null || items.Count == 0) throw AppException.BadRequest("Order items are required.");
+			if (order == null) throw AppException.BadRequest("Đơn hàng là bắt buộc.");
+			if (items == null || items.Count == 0) throw AppException.BadRequest("Danh sách sản phẩm của đơn hàng là bắt buộc.");
 
 			// 1. Validate Tổng Tồn Kho
 			var stockItems = items.GroupBy(i => i.VariantId).Select(g => (VariantId: g.Key, Quantity: g.Sum(x => x.Quantity))).ToList();
 			var stockValidation = await _inventoryManager.ValidateStockAvailabilityAsync(stockItems);
-			if (!stockValidation) throw AppException.BadRequest("Stock validation failed.");
+			if (!stockValidation) throw AppException.BadRequest("Xác thực tồn kho thất bại.");
 
 			var variantIds = items.Select(i => i.VariantId).Distinct().ToList();
 			var variants = await _unitOfWork.Variants.GetVariantsWithDetailsByIdsAsync(variantIds);
@@ -38,7 +38,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			foreach (var item in items)
 			{
 				if (!variantDictionary.TryGetValue(item.VariantId, out var variant))
-					throw AppException.NotFound($"Product variant {item.VariantId} not found.");
+					throw AppException.NotFound($"Biến thể sản phẩm {item.VariantId} không tồn tại.");
 
 				// Lấy trực tiếp 2 số tiền giảm từ DTO do Engine tính toán
 				var totalVoucherDiscount = item.ApportionedVoucherDiscount;
@@ -50,10 +50,10 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				if (item.BatchId.HasValue)
 				{
 					var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b => b.Id == item.BatchId.Value && b.VariantId == item.VariantId)
-						?? throw AppException.NotFound($"Batch {item.BatchId.Value} not found.");
+						?? throw AppException.NotFound($"Lô hàng {item.BatchId.Value} cho biến thể {item.VariantId} không tồn tại.");
 
 					if (!batchStockTracker.ContainsKey(batch.Id)) batchStockTracker[batch.Id] = batch.AvailableInBatch;
-					if (batchStockTracker[batch.Id] < item.Quantity) throw AppException.Conflict($"Batch {batch.Id} stock shortage.");
+					if (batchStockTracker[batch.Id] < item.Quantity) throw AppException.Conflict($"Lô hàng {batch.BatchCode} không đủ tồn để cung cấp cho biến thể {item.VariantId}.");
 
 					batchStockTracker[batch.Id] -= item.Quantity;
 
@@ -92,7 +92,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					batchStockTracker[batch.Id] -= quantityFromBatch;
 				}
 
-				if (remainingToAllocate > 0) throw AppException.Conflict($"Stock shortage for variant {item.VariantId}.");
+				if (remainingToAllocate > 0) throw AppException.Conflict($"Tồn kho không đủ để cung cấp cho biến thể {item.VariantId}. Thiếu {remainingToAllocate} đơn vị.");
 
 				// Phân bổ 2 loại tiền giảm xuống cho các Lô con (Chỉ cần thiết nếu Voucher trải đều)
 				decimal allocatedPromo = 0m;

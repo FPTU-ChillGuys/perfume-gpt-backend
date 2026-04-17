@@ -8,17 +8,17 @@ namespace PerfumeGPT.Application.Validators.Payments
 		public ConfirmPaymentValidator()
 		{
 			RuleFor(x => x.IsSuccess)
-				.NotNull().WithMessage("Payment success status must be provided.");
+             .NotNull().WithMessage("Bắt buộc cung cấp trạng thái thanh toán thành công.");
 			When(x => !x.IsSuccess, () =>
 			{
 				RuleFor(x => x.FailureReason)
-					.NotEmpty().WithMessage("Failure reason must be provided when payment is not successful.");
+                 .NotEmpty().WithMessage("Bắt buộc cung cấp lý do thất bại khi thanh toán không thành công.");
 			});
 
 			When(x => x.IsSuccess, () =>
 			{
 				RuleFor(x => x.PosSessionId)
-					.NotEmpty().WithMessage("POS session ID must be provided when payment is successful.");
+                 .NotEmpty().WithMessage("Bắt buộc cung cấp POS session ID khi thanh toán thành công.");
 			});
 		}
 	}

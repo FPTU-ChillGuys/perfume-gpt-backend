@@ -63,7 +63,7 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 					order.CustomerId.Value,
 					points,
 					order.Id,
-					reason: "Points awarded after delivery + 10 days.");
+					reason: "Điểm thưởng cho đơn hàng đã giao và thanh toán thành công");
 			}
 		}
 	}

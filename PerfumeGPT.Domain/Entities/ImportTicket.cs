@@ -37,13 +37,13 @@ namespace PerfumeGPT.Domain.Entities
 		public static ImportTicket Create(Guid createdById, ImportHeader header)
 		{
 			if (createdById == Guid.Empty)
-				throw DomainException.BadRequest("Created by user is required.");
+				throw DomainException.BadRequest("Id người tạo là bắt buộc.");
 
 			if (header.SupplierId <= 0)
-				throw DomainException.BadRequest("Supplier is required.");
+				throw DomainException.BadRequest("Nhà cung cấp là bắt buộc và không được để trống.");
 
 			if (header.TotalCost < 0)
-				throw DomainException.BadRequest("Total cost cannot be negative.");
+				throw DomainException.BadRequest("Tổng chi phí không được âm.");
 
 			return new ImportTicket
 			{
@@ -59,7 +59,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void AddDetail(ImportDetail detail)
 		{
 			if (detail == null)
-				throw DomainException.BadRequest("Import detail is required.");
+				throw DomainException.BadRequest("Chi tiết nhập hàng là bắt buộc và không được để trống.");
 
 			ImportDetails.Add(detail);
 		}
@@ -68,7 +68,7 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			ImportDetails ??= [];
 			var detail = ImportDetails.FirstOrDefault(d => d.Id == detailId)
-				?? throw DomainException.NotFound($"Import detail with ID {detailId} does not exist in this ticket.");
+				?? throw DomainException.NotFound($"Chi tiết nhập hàng với ID {detailId} không tồn tại trong phiếu này.");
 
 			detail.UpdateExpected(info);
 		}
@@ -77,7 +77,7 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			ImportDetails ??= [];
 			var detail = ImportDetails.FirstOrDefault(d => d.Id == detailId)
-				?? throw DomainException.NotFound($"Import detail with ID {detailId} does not exist in this ticket.");
+				?? throw DomainException.NotFound($"Chi tiết nhập hàng với ID {detailId} không tồn tại trong phiếu này.");
 
 			ImportDetails.Remove(detail);
 		}
@@ -85,9 +85,9 @@ namespace PerfumeGPT.Domain.Entities
 		public void VerifyDetail(Guid detailId, DetailVerification verification)
 		{
 			if (Status != ImportStatus.InProgress)
-				throw DomainException.BadRequest("Cannot verify details unless the import ticket is in progress.");
+				throw DomainException.BadRequest("Không thể xác minh chi tiết nhập hàng trừ khi phiếu nhập đang trong tiến trình.");
 			ImportDetails ??= [];
-			var detail = ImportDetails.FirstOrDefault(d => d.Id == detailId) ?? throw DomainException.NotFound($"Import detail with ID {detailId} does not exist in this ticket.");
+			var detail = ImportDetails.FirstOrDefault(d => d.Id == detailId) ?? throw DomainException.NotFound($"Chi tiết nhập hàng với ID {detailId} không tồn tại trong phiếu này.");
 
 			detail.Verify(verification);
 		}
@@ -95,13 +95,13 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdateForPending(ImportHeader header)
 		{
 			if (Status != ImportStatus.Pending)
-				throw DomainException.BadRequest("Only pending import tickets can be updated.");
+				throw DomainException.BadRequest("Chỉ các phiếu nhập đang chờ xử lý mới có thể được cập nhật.");
 
 			if (header.SupplierId <= 0)
-				throw DomainException.BadRequest("Supplier is required.");
+				throw DomainException.BadRequest("Nhà cung cấp là bắt buộc và không được để trống.");
 
 			if (header.TotalCost < 0)
-				throw DomainException.BadRequest("Total cost cannot be negative.");
+				throw DomainException.BadRequest("Tổng chi phí không được âm.");
 
 			SupplierId = header.SupplierId;
 			ExpectedArrivalDate = header.ExpectedArrivalDate;
@@ -111,10 +111,10 @@ namespace PerfumeGPT.Domain.Entities
 		public void Complete(Guid verifiedById, DateTime actualImportDate)
 		{
 			if (Status != ImportStatus.InProgress)
-				throw DomainException.BadRequest("Only in progress import tickets can be verified.");
+				throw DomainException.BadRequest("Chỉ các phiếu nhập đang trong tiến trình mới có thể được xác minh.");
 
 			if (verifiedById == Guid.Empty)
-				throw DomainException.BadRequest("Verified by user is required.");
+				throw DomainException.BadRequest("Người xác minh là bắt buộc và không được để trống.");
 
 			VerifiedById = verifiedById;
 			ActualImportDate = actualImportDate;
@@ -124,16 +124,16 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdateStatus(ImportStatus newStatus)
 		{
 			if (Status == ImportStatus.Completed)
-				throw DomainException.BadRequest("Completed import tickets are immutable. Create an adjustment ticket if needed.");
+				throw DomainException.BadRequest("Các phiếu nhập đã hoàn thành không thể thay đổi. Tạo phiếu điều chỉnh nếu cần.");
 
 			if (Status == ImportStatus.Cancelled)
-				throw DomainException.BadRequest("Cancelled import tickets are read-only.");
+				throw DomainException.BadRequest("Các phiếu nhập đã hủy không thể chỉnh sửa.");
 
 			if (Status == ImportStatus.InProgress && newStatus != ImportStatus.Cancelled)
-				throw DomainException.BadRequest("Import ticket is locked while in progress. Complete verification or cancel it first.");
+				throw DomainException.BadRequest("Các phiếu nhập đang trong tiến trình không thể chỉnh sửa. Hoàn tất xác minh hoặc hủy trước.");
 
 			if (Status == ImportStatus.Pending && newStatus != ImportStatus.InProgress && newStatus != ImportStatus.Cancelled)
-				throw DomainException.BadRequest("Pending tickets can only transition to InProgress or Canceled status.");
+				throw DomainException.BadRequest("Các phiếu nhập đang chờ xử lý chỉ có thể chuyển sang trạng thái Đang tiến hành hoặc Đã hủy.");
 
 			Status = newStatus;
 		}
@@ -141,7 +141,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureIsPendingStatus()
 		{
 			if (Status != ImportStatus.Pending)
-				throw DomainException.BadRequest("Only pending import tickets can be deleted.");
+				throw DomainException.BadRequest("Chỉ các phiếu nhập đang chờ xử lý mới có thể bị xóa.");
 		}
 
 		// Records

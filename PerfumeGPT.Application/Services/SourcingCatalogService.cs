@@ -17,23 +17,23 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<IEnumerable<CatalogItemResponse>>> GetCatalogsAsync(int? supplierId, Guid? variantId)
 		{
 			var items = await _unitOfWork.VariantSuppliers.GetCatalogsAsync(supplierId, variantId);
-			return BaseResponse<IEnumerable<CatalogItemResponse>>.Ok(items, "Sourcing catalogs retrieved successfully");
+			return BaseResponse<IEnumerable<CatalogItemResponse>>.Ok(items, "Lấy danh mục nguồn cung thành công");
 		}
 
 		public async Task<BaseResponse<string>> CreateItemAsync(CreateCatalogItemRequest request)
 		{
 			var variant = await _unitOfWork.Variants.GetByIdAsync(request.ProductVariantId)
-				?? throw AppException.NotFound("Variant not found");
+				?? throw AppException.NotFound("Không tìm thấy biến thể");
 
 			variant.EnsureNotDeleted();
 
 			var supplierExists = await _unitOfWork.Suppliers.AnyAsync(s => s.Id == request.SupplierId);
 			if (!supplierExists)
-				throw AppException.NotFound("Supplier not found");
+				throw AppException.NotFound("Không tìm thấy nhà cung cấp");
 
 			var currentItems = await _unitOfWork.VariantSuppliers.GetByVariantIdAsync(request.ProductVariantId);
 			if (currentItems.Any(x => x.SupplierId == request.SupplierId))
-				throw AppException.Conflict("Catalog item already exists for this variant and supplier.");
+				throw AppException.Conflict("Mục danh mục đã tồn tại cho biến thể và nhà cung cấp này.");
 
 			var shouldBePrimary = request.IsPrimary || currentItems.Count == 0;
 			if (shouldBePrimary)
@@ -54,29 +54,29 @@ namespace PerfumeGPT.Application.Services
 			await _unitOfWork.VariantSuppliers.AddAsync(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to create sourcing catalog item");
+			if (!saved) throw AppException.Internal("Tạo mục danh mục nguồn cung thất bại");
 
-			return BaseResponse<string>.Ok(entity.Id.ToString(), "Sourcing catalog item created successfully");
+			return BaseResponse<string>.Ok(entity.Id.ToString(), "Tạo mục danh mục nguồn cung thành công");
 		}
 
 		public async Task<BaseResponse<string>> UpdateItemAsync(Guid id, UpdateCatalogItemRequest request)
 		{
 			var entity = await _unitOfWork.VariantSuppliers.GetByIdAsync(id)
-				?? throw AppException.NotFound("Sourcing catalog item not found");
+			  ?? throw AppException.NotFound("Không tìm thấy mục danh mục nguồn cung");
 
 			entity.UpdatePricing(request.NegotiatedPrice, request.EstimatedLeadTimeDays);
 			_unitOfWork.VariantSuppliers.Update(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to update sourcing catalog item");
+			if (!saved) throw AppException.Internal("Cập nhật mục danh mục nguồn cung thất bại");
 
-			return BaseResponse<string>.Ok(id.ToString(), "Sourcing catalog item updated successfully");
+			return BaseResponse<string>.Ok(id.ToString(), "Cập nhật mục danh mục nguồn cung thành công");
 		}
 
 		public async Task<BaseResponse<string>> SetAsPrimaryAsync(Guid id)
 		{
 			var target = await _unitOfWork.VariantSuppliers.GetByIdAsync(id)
-				?? throw AppException.NotFound("Sourcing catalog item not found");
+			  ?? throw AppException.NotFound("Không tìm thấy mục danh mục nguồn cung");
 
 			var sameVariantItems = await _unitOfWork.VariantSuppliers.GetByVariantIdAsync(target.ProductVariantId);
 			foreach (var item in sameVariantItems)
@@ -88,15 +88,15 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to set sourcing catalog primary item");
+			if (!saved) throw AppException.Internal("Thiết lập mục danh mục nguồn cung chính thất bại");
 
-			return BaseResponse<string>.Ok(id.ToString(), "Primary sourcing catalog item updated successfully");
+			return BaseResponse<string>.Ok(id.ToString(), "Cập nhật mục danh mục nguồn cung chính thành công");
 		}
 
 		public async Task<BaseResponse<string>> DeleteItemAsync(Guid id)
 		{
 			var target = await _unitOfWork.VariantSuppliers.GetByIdAsync(id)
-				?? throw AppException.NotFound("Sourcing catalog item not found");
+			  ?? throw AppException.NotFound("Không tìm thấy mục danh mục nguồn cung");
 
 			var sameVariantItems = await _unitOfWork.VariantSuppliers.GetByVariantIdAsync(target.ProductVariantId);
 			var nextPrimary = target.IsPrimary
@@ -108,9 +108,9 @@ namespace PerfumeGPT.Application.Services
 			nextPrimary?.SetAsPrimary();
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to delete sourcing catalog item");
+			if (!saved) throw AppException.Internal("Xóa mục danh mục nguồn cung thất bại");
 
-			return BaseResponse<string>.Ok(id.ToString(), "Sourcing catalog item deleted successfully");
+			return BaseResponse<string>.Ok(id.ToString(), "Xóa mục danh mục nguồn cung thành công");
 		}
 	}
 }

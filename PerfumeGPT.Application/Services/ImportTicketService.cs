@@ -39,7 +39,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> CreateImportTicketAsync(CreateImportTicketRequest request, Guid userId)
 		{
-			var supplier = await _unitOfWork.Suppliers.GetByIdAsync(request.SupplierId) ?? throw AppException.NotFound("Supplier not found.");
+			var supplier = await _unitOfWork.Suppliers.GetByIdAsync(request.SupplierId) ?? throw AppException.NotFound("Không tìm thấy nhà cung cấp.");
 
 			var variantIds = request.ImportDetails.Select(d => d.VariantId).ToList();
 			ValidateVariantDuplicates(variantIds);
@@ -66,7 +66,7 @@ namespace PerfumeGPT.Application.Services
 				  }
 
 				  await _unitOfWork.ImportTickets.AddAsync(importTicket);
-				  return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Import ticket created successfully.");
+				  return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Tạo phiếu nhập thành công.");
 			  });
 
 			if (response.Success)
@@ -90,20 +90,20 @@ namespace PerfumeGPT.Application.Services
 			// Validate Excel file
 			if (request.ExcelFile == null || request.ExcelFile.Length == 0)
 			{
-				throw AppException.BadRequest("Excel file is required.");
+				throw AppException.BadRequest("Bắt buộc tải lên tệp Excel.");
 			}
 
 			// Validate file extension
 			var fileExtension = Path.GetExtension(request.ExcelFile.FileName).ToLowerInvariant();
 			if (fileExtension != ".xlsx" && fileExtension != ".xls")
 			{
-				throw AppException.BadRequest("Only .xlsx and .xls files are supported.");
+				throw AppException.BadRequest("Chỉ hỗ trợ tệp .xlsx và .xls.");
 			}
 
 			// Validate file size (max 10MB)
 			if (request.ExcelFile.Length > 10 * 1024 * 1024)
 			{
-				throw AppException.BadRequest("File size cannot exceed 10MB.");
+				throw AppException.BadRequest("Dung lượng tệp không được vượt quá 10MB.");
 			}
 
 			// Parse Excel file
@@ -121,7 +121,7 @@ namespace PerfumeGPT.Application.Services
 
 				if (rows == null || !rows.Any())
 				{
-					throw AppException.BadRequest("Excel file is empty or has no data rows.");
+					throw AppException.BadRequest("Tệp Excel trống hoặc không có dòng dữ liệu.");
 				}
 
 				int rowNumber = 2; // Start from 2 (1 is header)
@@ -143,7 +143,7 @@ namespace PerfumeGPT.Application.Services
 						var quantityCell = row.Cell(4);
 						if (!quantityCell.TryGetValue(out int quantity) || quantity <= 0)
 						{
-							errors.Add($"Row {rowNumber}: Expected Quantity must be a positive number (found: '{quantityCell.GetString()}').");
+							errors.Add($"Dòng {rowNumber}: Số lượng dự kiến phải là số dương (giá trị hiện tại: '{quantityCell.GetString()}').");
 							rowNumber++;
 							continue;
 						}
@@ -152,7 +152,7 @@ namespace PerfumeGPT.Application.Services
 						var unitPriceCell = row.Cell(5);
 						if (!unitPriceCell.TryGetValue(out decimal unitPrice) || unitPrice <= 0)
 						{
-							errors.Add($"Row {rowNumber}: Unit Price must be a positive number (found: '{unitPriceCell.GetString()}').");
+							errors.Add($"Dòng {rowNumber}: Đơn giá phải là số dương (giá trị hiện tại: '{unitPriceCell.GetString()}').");
 							rowNumber++;
 							continue;
 						}
@@ -162,7 +162,7 @@ namespace PerfumeGPT.Application.Services
 
 						if (variant == null)
 						{
-							errors.Add($"Row {rowNumber}: Variant with SKU '{skuCell}' not found.");
+							errors.Add($"Dòng {rowNumber}: Không tìm thấy biến thể có SKU '{skuCell}'.");
 							rowNumber++;
 							continue;
 						}
@@ -179,7 +179,7 @@ namespace PerfumeGPT.Application.Services
 					}
 					catch (Exception ex)
 					{
-						errors.Add($"Row {rowNumber}: Error parsing row - {ex.Message}");
+						errors.Add($"Dòng {rowNumber}: Lỗi khi đọc dữ liệu - {ex.Message}");
 						rowNumber++;
 					}
 				}
@@ -189,13 +189,13 @@ namespace PerfumeGPT.Application.Services
 			if (errors.Count != 0)
 			{
 				var errorMessage = string.Join("; ", errors);
-				throw AppException.BadRequest($"Excel parsing errors: {errorMessage}");
+				throw AppException.BadRequest($"Lỗi khi đọc tệp Excel: {errorMessage}");
 			}
 
 			// Check if we have any details
 			if (importDetails.Count == 0)
 			{
-				throw AppException.BadRequest("No valid import details found in Excel file.");
+				throw AppException.BadRequest("Không tìm thấy chi tiết nhập hợp lệ trong tệp Excel.");
 			}
 
 			// Create the import ticket request
@@ -206,18 +206,18 @@ namespace PerfumeGPT.Application.Services
 				ImportDetails = importDetails
 			};
 
-			return BaseResponse<CreateImportTicketRequest>.Ok(createRequest, "Excel parsed successfully. Please confirm and submit import ticket.");
+			return BaseResponse<CreateImportTicketRequest>.Ok(createRequest, "Đọc tệp Excel thành công. Vui lòng xác nhận và gửi phiếu nhập.");
 		}
 
 		public async Task<BaseResponse<ExcelTemplateResponse>> GenerateImportTemplateAsync()
 		{
 			var response = await _excelTemplateGenerator.GenerateImportTemplateAsync();
-			return BaseResponse<ExcelTemplateResponse>.Ok(response, "Excel template generated successfully.");
+			return BaseResponse<ExcelTemplateResponse>.Ok(response, "Tạo mẫu Excel thành công.");
 		}
 
 		public async Task<BaseResponse<string>> VerifyImportTicketAsync(Guid ticketId, VerifyImportTicketRequest request, Guid verifiedByUserId)
 		{
-			var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAsync(ticketId) ?? throw AppException.NotFound("Import ticket not found.");
+			var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAsync(ticketId) ?? throw AppException.NotFound("Không tìm thấy phiếu nhập.");
 
 			// 1.Structural Validation
 			var detailMap = AlignAndValidateStructure(importTicket, request.ImportDetails);
@@ -244,20 +244,20 @@ namespace PerfumeGPT.Application.Services
 				importTicket.Complete(verifiedByUserId, DateTime.UtcNow);
 				_unitOfWork.ImportTickets.Update(importTicket);
 
-				return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Import ticket verified successfully.");
+				return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Xác nhận phiếu nhập thành công.");
 			});
 		}
 
 		private static Dictionary<Guid, ImportDetail> AlignAndValidateStructure(ImportTicket ticket, List<VerifyImportDetailRequest> requests)
 		{
 			if (ticket.Status != ImportStatus.InProgress)
-				throw AppException.BadRequest("Only in progress import tickets can be verified.");
+				throw AppException.BadRequest("Chỉ có thể xác nhận phiếu nhập đang ở trạng thái InProgress.");
 
 			var ticketDetailIds = ticket.ImportDetails.Select(d => d.Id).ToHashSet();
 			var requestDetailIds = requests.Select(r => r.ImportDetailId).ToHashSet();
 
 			if (!ticketDetailIds.SetEquals(requestDetailIds))
-				throw AppException.BadRequest("Request details do not match with ticket details (Missing, extra or duplicate IDs).");
+				throw AppException.BadRequest("Chi tiết request không khớp với chi tiết phiếu (thiếu, dư hoặc trùng ID).");
 
 			return ticket.ImportDetails.ToDictionary(d => d.Id);
 		}
@@ -277,7 +277,7 @@ namespace PerfumeGPT.Application.Services
 
 				if (req.RejectedQuantity > detail.ExpectedQuantity)
 				{
-					errors.Add($"Detail {detail.Id}: Rejected quantity exceeds expected.");
+					errors.Add($"Chi tiết {detail.Id}: Số lượng từ chối vượt quá số lượng dự kiến.");
 					continue;
 				}
 
@@ -285,9 +285,9 @@ namespace PerfumeGPT.Application.Services
 				if (acceptedQty > 0)
 				{
 					if (req.Batches is not { Count: > 0 })
-						errors.Add($"Detail {detail.Id}: Batches required for accepted quantity.");
+						errors.Add($"Chi tiết {detail.Id}: Bắt buộc có thông tin lô cho số lượng được nhận.");
 					else if (!IsTotalQuantityValid(req.Batches, acceptedQty))
-						errors.Add($"Detail {detail.Id}: Batch total does not match accepted quantity.");
+						errors.Add($"Chi tiết {detail.Id}: Tổng số lượng các lô không khớp với số lượng được nhận.");
 					else
 					{
 						mergedBatches = MergeBatchesBySameCode(req.Batches);
@@ -326,7 +326,7 @@ namespace PerfumeGPT.Application.Services
 				if (existingBatch.ManufactureDate.Date != batchRequest.ManufactureDate.Date
 					|| existingBatch.ExpiryDate.Date != batchRequest.ExpiryDate.Date)
 				{
-					errors.Add($"Batch code '{batchRequest.BatchCode}' does not match with existing batch (Dates mismatch) in stock.");
+					errors.Add($"Mã lô '{batchRequest.BatchCode}' không khớp với lô đã có trong kho (khác ngày sản xuất/hạn dùng).");
 				}
 			}
 		}
@@ -334,9 +334,9 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<ImportTicketResponse>> GetImportTicketByIdAsync(Guid id)
 		{
 			var response = await _unitOfWork.ImportTickets.GetResponseByIdAsync(id)
-				   ?? throw AppException.NotFound("Import ticket not found.");
+				 ?? throw AppException.NotFound("Không tìm thấy phiếu nhập.");
 
-			return BaseResponse<ImportTicketResponse>.Ok(response, "Import ticket retrieved successfully.");
+			return BaseResponse<ImportTicketResponse>.Ok(response, "Lấy thông tin phiếu nhập thành công.");
 		}
 
 		public async Task<BaseResponse<PagedResult<ImportTicketListItem>>> GetImportTicketsAsync(GetPagedImportTicketsRequest request)
@@ -350,23 +350,23 @@ namespace PerfumeGPT.Application.Services
 			totalCount
 			);
 
-			return BaseResponse<PagedResult<ImportTicketListItem>>.Ok(pagedResult, "Import tickets retrieved successfully.");
+			return BaseResponse<PagedResult<ImportTicketListItem>>.Ok(pagedResult, "Lấy danh sách phiếu nhập thành công.");
 		}
 
 		public async Task<BaseResponse<string>> UpdateImportStatusAsync(Guid id, UpdateImportStatusRequest request)
 		{
-			var importTicket = await _unitOfWork.ImportTickets.GetByIdAsync(id) ?? throw AppException.NotFound("Import ticket not found.");
+			var importTicket = await _unitOfWork.ImportTickets.GetByIdAsync(id) ?? throw AppException.NotFound("Không tìm thấy phiếu nhập.");
 			importTicket.UpdateStatus(request.Status);
 			_unitOfWork.ImportTickets.Update(importTicket);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Could not update import status.");
+			if (!saved) throw AppException.Internal("Không thể cập nhật trạng thái phiếu nhập.");
 
-			return BaseResponse<string>.Ok(id.ToString(), "Import ticket status updated successfully.");
+			return BaseResponse<string>.Ok(id.ToString(), "Cập nhật trạng thái phiếu nhập thành công.");
 		}
 
 		public async Task<BaseResponse<string>> UpdateImportTicketAsync(Guid id, UpdateImportRequest request)
 		{
-			_ = await _unitOfWork.Suppliers.GetByIdAsync(request.SupplierId) ?? throw AppException.NotFound("Supplier not found.");
+			_ = await _unitOfWork.Suppliers.GetByIdAsync(request.SupplierId) ?? throw AppException.NotFound("Không tìm thấy nhà cung cấp.");
 
 			var variantIds = request.ImportDetails.Select(d => d.VariantId).ToList();
 			ValidateVariantDuplicates(variantIds);
@@ -374,7 +374,7 @@ namespace PerfumeGPT.Application.Services
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAsync(id) ?? throw AppException.NotFound("Import ticket not found.");
+				var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAsync(id) ?? throw AppException.NotFound("Không tìm thấy phiếu nhập.");
 
 				var duplicateVariants = request.ImportDetails
 					.GroupBy(d => d.VariantId)
@@ -385,7 +385,7 @@ namespace PerfumeGPT.Application.Services
 				if (duplicateVariants.Count != 0)
 				{
 					var duplicateIds = string.Join(", ", duplicateVariants);
-					throw AppException.BadRequest($"Duplicate variant IDs found: {duplicateIds}. Each variant can only appear once per import ticket.");
+					throw AppException.BadRequest($"Phát hiện ID biến thể trùng: {duplicateIds}. Mỗi biến thể chỉ được xuất hiện một lần trong một phiếu nhập.");
 				}
 
 				// Calculate new total cost
@@ -396,7 +396,7 @@ namespace PerfumeGPT.Application.Services
 				SyncImportDetails(importTicket, request.ImportDetails);
 
 				_unitOfWork.ImportTickets.Update(importTicket);
-				return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Import ticket updated successfully.");
+				return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Cập nhật phiếu nhập thành công.");
 			});
 		}
 
@@ -407,7 +407,7 @@ namespace PerfumeGPT.Application.Services
 
 			var unknownIds = requestDetailIds.Except(currentDetailIds).ToList();
 			if (unknownIds.Count != 0)
-				throw AppException.BadRequest($"Unknown detail IDs: {string.Join(", ", unknownIds)}");
+				throw AppException.BadRequest($"ID chi tiết không tồn tại: {string.Join(", ", unknownIds)}");
 
 			var toRemove = ticket.ImportDetails.Where(d => !requestDetailIds.Contains(d.Id)).ToList();
 			foreach (var d in toRemove) ticket.RemoveDetail(d.Id);
@@ -427,7 +427,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAndBatchesAsync(id) ?? throw AppException.NotFound("Import ticket not found.");
+				var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAndBatchesAsync(id) ?? throw AppException.NotFound("Không tìm thấy phiếu nhập.");
 				importTicket.EnsureIsPendingStatus();
 
 				foreach (var detail in importTicket.ImportDetails)
@@ -437,7 +437,7 @@ namespace PerfumeGPT.Application.Services
 
 				_unitOfWork.ImportTickets.Remove(importTicket);
 
-				return BaseResponse<bool>.Ok(true, "Import ticket deleted successfully.");
+				return BaseResponse<bool>.Ok(true, "Xóa phiếu nhập thành công.");
 			});
 		}
 
@@ -453,7 +453,7 @@ namespace PerfumeGPT.Application.Services
 			if (duplicates.Count != 0)
 			{
 				throw AppException.BadRequest(
-					 $"Duplicate variant IDs found: {string.Join(", ", duplicates)}. Each variant can only appear once per import ticket.");
+					 $"Phát hiện ID biến thể trùng: {string.Join(", ", duplicates)}. Mỗi biến thể chỉ được xuất hiện một lần trong một phiếu nhập.");
 			}
 		}
 
@@ -465,7 +465,7 @@ namespace PerfumeGPT.Application.Services
 
 			if (missingIds.Count != 0)
 			{
-				throw AppException.NotFound($"Variants not found: {string.Join(", ", missingIds)}");
+				throw AppException.NotFound($"Không tìm thấy các biến thể: {string.Join(", ", missingIds)}");
 			}
 		}
 

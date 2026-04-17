@@ -43,7 +43,7 @@ namespace PerfumeGPT.Application.Services
 			var mediaList = await _unitOfWork.Media.GetMediaByEntityTypeAsync(entityType, entityId);
 			return BaseResponse<List<MediaResponse>>.Ok(
 				_mapper.Map<List<MediaResponse>>(mediaList),
-				"Media retrieved successfully");
+				"Lấy danh sách media thành công");
 		}
 
 		public async Task<BaseResponse<MediaResponse?>> GetPrimaryMediaAsync(EntityType entityType, Guid entityId)
@@ -51,14 +51,14 @@ namespace PerfumeGPT.Application.Services
 			var media = await _unitOfWork.Media.GetPrimaryMediaAsync(entityType, entityId);
 			return BaseResponse<MediaResponse?>.Ok(
 				media != null ? _mapper.Map<MediaResponse>(media) : null,
-				media != null ? "Primary media retrieved successfully" : "No primary media found");
+			 media != null ? "Lấy media chính thành công" : "Không tìm thấy media chính");
 		}
 
 		public async Task<BaseResponse<string>> SetPrimaryMediaAsync(Guid mediaId)
 		{
 			var media = await _unitOfWork.Media.GetByIdAsync(mediaId);
 			if (media == null || media.IsDeleted)
-				throw AppException.NotFound("Media not found");
+				throw AppException.NotFound("Không tìm thấy media");
 
 			var existingPrimary = await _unitOfWork.Media.GetPrimaryMediaAsync(media.EntityType, media.EntityId);
 			if (existingPrimary != null && existingPrimary.Id != mediaId)
@@ -71,19 +71,19 @@ namespace PerfumeGPT.Application.Services
 			_unitOfWork.Media.Update(media);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to set primary media");
+			if (!saved) throw AppException.Internal("Thiết lập media chính thất bại");
 
-			return BaseResponse<string>.Ok(mediaId.ToString(), "Primary media set successfully");
+			return BaseResponse<string>.Ok(mediaId.ToString(), "Thiết lập media chính thành công");
 		}
 
 		public async Task<BaseResponse<string>> DeleteMediaAsync(Guid mediaId)
 		{
 			var media = await _unitOfWork.Media.GetByIdAsync(mediaId)
-				?? throw AppException.NotFound("Media not found");
+			  ?? throw AppException.NotFound("Không tìm thấy media");
 
 			media.EnsureNotPrimary();
 
-			return await DeleteMediaInternalAsync(media, mediaId.ToString(), "Media deleted successfully");
+			return await DeleteMediaInternalAsync(media, mediaId.ToString(), "Xóa media thành công");
 		}
 
 		public async Task<BaseResponse<string>> DeleteAllMediaByEntityAsync(EntityType entityType, Guid entityId)
@@ -96,9 +96,9 @@ namespace PerfumeGPT.Application.Services
 
 			var count = await _unitOfWork.Media.DeleteAllMediaByEntityAsync(entityType, entityId);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to delete media");
+			if (!saved) throw AppException.Internal("Xóa media thất bại");
 
-			return BaseResponse<string>.Ok(count.ToString(), $"{count} media items deleted successfully");
+			return BaseResponse<string>.Ok(count.ToString(), $"Đã xóa thành công {count} media");
 		}
 		#endregion Media CRUD
 
@@ -153,7 +153,7 @@ namespace PerfumeGPT.Application.Services
 				stream, request.Avatar.FileName, GetBucketName(EntityType.User));
 
 			if (string.IsNullOrEmpty(url))
-				throw AppException.Internal("Failed to upload avatar image");
+				throw AppException.Internal("Tải lên ảnh đại diện thất bại");
 
 			var fileMetadata = new FileMetadata
 			{
@@ -183,11 +183,11 @@ namespace PerfumeGPT.Application.Services
 
 			// 5. Commit Transaction
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to save profile avatar");
+			if (!saved) throw AppException.Internal("Lưu ảnh đại diện hồ sơ thất bại");
 
 			var message = existingMedia != null
-				? "Profile avatar updated successfully"
-				: "Profile avatar uploaded successfully";
+			 ? "Cập nhật ảnh đại diện hồ sơ thành công"
+				: "Tải lên ảnh đại diện hồ sơ thành công";
 
 			return BaseResponse<string>.Ok(url, message);
 		}
@@ -195,9 +195,9 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> DeleteProfileAvatarAsync(Guid userId)
 		{
 			var existingMedia = await _unitOfWork.Media.GetPrimaryMediaAsync(EntityType.User, userId)
-				?? throw AppException.NotFound("Profile avatar not found");
+			 ?? throw AppException.NotFound("Không tìm thấy ảnh đại diện hồ sơ");
 
-			return await DeleteMediaInternalAsync(existingMedia, userId.ToString(), "Profile avatar deleted successfully");
+			return await DeleteMediaInternalAsync(existingMedia, userId.ToString(), "Xóa ảnh đại diện hồ sơ thành công");
 		}
 		#endregion Profile Avatar
 
@@ -310,12 +310,12 @@ namespace PerfumeGPT.Application.Services
 					stream, file.FileName, GetBucketName(entityType));
 
 				return string.IsNullOrEmpty(url)
-					? (null, $"Failed to upload {file.FileName}")
+				   ? (null, $"Tải lên {file.FileName} thất bại")
 					: (url, null);
 			}
 			catch (Exception ex)
 			{
-				return (null, $"Failed to upload {file.FileName}: {ex.Message}");
+				return (null, $"Tải lên {file.FileName} thất bại: {ex.Message}");
 			}
 		}
 
@@ -380,7 +380,7 @@ namespace PerfumeGPT.Application.Services
 
 			_unitOfWork.Media.Remove(media);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to delete media");
+			if (!saved) throw AppException.Internal("Xóa media thất bại");
 
 			return BaseResponse<string>.Ok(successData, successMessage);
 		}
@@ -422,14 +422,14 @@ namespace PerfumeGPT.Application.Services
 		private static string? ValidateImageFile(IFormFile? file)
 		{
 			if (file == null || file.Length == 0)
-				return "Empty or null image file";
+				return "Tệp ảnh rỗng hoặc null";
 
 			var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
 			if (!AllowedImageExtensions.Contains(extension))
-				return $"Invalid image format for {file.FileName}. Allowed: jpg, jpeg, png, gif, webp";
+				return $"Định dạng ảnh không hợp lệ cho {file.FileName}. Hỗ trợ: jpg, jpeg, png, gif, webp";
 
 			if (file.Length > MaxFileSize)
-				return $"Image size must be less than 5MB for {file.FileName}";
+				return $"Dung lượng ảnh phải nhỏ hơn 5MB cho {file.FileName}";
 
 			return null;
 		}
@@ -437,14 +437,14 @@ namespace PerfumeGPT.Application.Services
 		private static string? ValidateVideoFile(IFormFile? file)
 		{
 			if (file == null || file.Length == 0)
-				return "Empty or null video file";
+				return "Tệp video rỗng hoặc null";
 
 			var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
 			if (!AllowedVideoExtensions.Contains(extension))
-				return $"Invalid video format for {file.FileName}. Allowed: mp4, mov, webm, m4v";
+				return $"Định dạng video không hợp lệ cho {file.FileName}. Hỗ trợ: mp4, mov, webm, m4v";
 
 			if (file.Length > MaxVideoFileSize)
-				return $"Video size must be less than 100MB for {file.FileName}";
+				return $"Dung lượng video phải nhỏ hơn 100MB cho {file.FileName}";
 
 			return null;
 		}
@@ -452,7 +452,7 @@ namespace PerfumeGPT.Application.Services
 		private static string? ValidateOrderReturnMediaFile(IFormFile? file)
 		{
 			if (file == null || file.Length == 0)
-				return "Empty or null media file";
+				return "Tệp media rỗng hoặc null";
 
 			var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
 
@@ -462,7 +462,7 @@ namespace PerfumeGPT.Application.Services
 			if (AllowedVideoExtensions.Contains(extension))
 				return ValidateVideoFile(file);
 
-			return $"Invalid media format for {file.FileName}. Allowed images: jpg, jpeg, png, gif, webp. Allowed videos: mp4, mov, webm, m4v";
+			return $"Định dạng media không hợp lệ cho {file.FileName}. Ảnh hỗ trợ: jpg, jpeg, png, gif, webp. Video hỗ trợ: mp4, mov, webm, m4v";
 		}
 
 		private static BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>> BuildTemporaryMediaResponse(
@@ -472,22 +472,22 @@ namespace PerfumeGPT.Application.Services
 
 			if (uploadedMedia.Count == 0)
 				return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Fail(
-				  $"Failed to upload any {mediaTypePlural}",
+				  $"Không thể tải lên {mediaTypePlural} nào",
 					ResponseErrorType.BadRequest,
 					[.. bulkResult.FailedItems.Select(f => f.ErrorMessage)]);
 
 			var metadata = new BulkActionMetadata { Operations = [] };
 			if (bulkResult.TotalProcessed > 0)
 				metadata.Operations.Add(
-					BulkOperationResult.FromBulkActionResponse("Temporary Media Upload", bulkResult));
+				  BulkOperationResult.FromBulkActionResponse("Tải lên media tạm", bulkResult));
 
 			var result = new BulkActionResult<List<TemporaryMediaResponse>>(
 				uploadedMedia,
 				metadata.Operations.Count > 0 ? metadata : null);
 
 			var message = bulkResult.HasError
-			   ? $"Uploaded {uploadedMedia.Count} {mediaType}(s). {bulkResult.FailedItems.Count} failed. Expires in 24 hours."
-				: $"Uploaded {uploadedMedia.Count} temporary {mediaType}(s). Expires in 24 hours.";
+			 ? $"Đã tải lên {uploadedMedia.Count} {mediaType}. Có {bulkResult.FailedItems.Count} mục thất bại. Hết hạn sau 24 giờ."
+				: $"Đã tải lên {uploadedMedia.Count} {mediaType} tạm. Hết hạn sau 24 giờ.";
 
 			return BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>.Ok(result, message);
 		}

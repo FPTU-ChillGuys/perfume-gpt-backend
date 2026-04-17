@@ -39,7 +39,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<StockResponse>> GetStockByVariantIdAsync(Guid variantId)
 		{
 			var response = await _unitOfWork.Stocks.GetStockWithDetailsByVariantIdAsync(variantId)
-				?? throw AppException.NotFound($"Stock not found for variant {variantId}");
+			 ?? throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {variantId}");
 
 			return BaseResponse<StockResponse>.Ok(response);
 		}
@@ -71,7 +71,7 @@ namespace PerfumeGPT.Application.Services
 			var exists = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
 			if (exists != null)
 			{
-				throw AppException.Conflict($"Stock for variant {variantId} already exists.");
+				throw AppException.Conflict($"Tồn kho cho biến thể {variantId} đã tồn tại.");
 			}
 
 			var newStock = new Stock(variantId, initialQuantity, lowThreshold);

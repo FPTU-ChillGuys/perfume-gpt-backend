@@ -30,11 +30,11 @@ namespace PerfumeGPT.Domain.Entities
 		public static Notification CreateForUser(Guid userId, NotificationPayload payload)
 		{
 			if (userId == Guid.Empty)
-				throw DomainException.BadRequest("User ID is required.");
+               throw DomainException.BadRequest("User ID là bắt buộc.");
 			if (string.IsNullOrWhiteSpace(payload.Title))
-				throw DomainException.BadRequest("Title is required.");
+             throw DomainException.BadRequest("Tiêu đề là bắt buộc.");
 			if (string.IsNullOrWhiteSpace(payload.Message))
-				throw DomainException.BadRequest("Message is required.");
+               throw DomainException.BadRequest("Nội dung thông báo là bắt buộc.");
 
 			return new Notification
 			{
@@ -53,11 +53,11 @@ namespace PerfumeGPT.Domain.Entities
 		public static Notification CreateForRole(string targetRole, NotificationPayload payload)
 		{
 			if (string.IsNullOrWhiteSpace(targetRole))
-				throw DomainException.BadRequest("Target role is required.");
+               throw DomainException.BadRequest("Vai trò đích là bắt buộc.");
 			if (string.IsNullOrWhiteSpace(payload.Title))
-				throw DomainException.BadRequest("Title is required.");
+             throw DomainException.BadRequest("Tiêu đề là bắt buộc.");
 			if (string.IsNullOrWhiteSpace(payload.Message))
-				throw DomainException.BadRequest("Message is required.");
+               throw DomainException.BadRequest("Nội dung thông báo là bắt buộc.");
 
 			return new Notification
 			{

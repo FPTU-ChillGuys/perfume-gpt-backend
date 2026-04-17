@@ -35,11 +35,11 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		public async Task<PickListResponse> GetPickListAsync(Order order)
 		{
 			if (order.Type != OrderType.Online)
-				throw AppException.BadRequest("Pick list is only available for online orders.");
+				throw AppException.BadRequest("Phiếu soạn hàng chỉ áp dụng cho đơn hàng trực tuyến.");
 
 			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(order.Id);
 			if (reservations.Any(r => r.Status != ReservationStatus.Reserved))
-				throw AppException.BadRequest("Pick list can only be generated for orders with active reservations.");
+				throw AppException.BadRequest("Chỉ có thể tạo phiếu soạn hàng cho đơn có reservation đang hiệu lực.");
 
 			var pickListItems = await BuildPickListItemsAsync(order.OrderDetails, reservations);
 
@@ -125,7 +125,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 				var batchValidation = await ValidateScannedBatchCodesAsync(order, request);
 				if (!batchValidation.Success)
-					throw AppException.BadRequest(batchValidation.Message ?? "Batch validation failed.");
+					throw AppException.BadRequest(batchValidation.Message ?? "Xác thực lô hàng thất bại.");
 
 				await _stockReservationService.CommitReservationAsync(order.Id);
 
@@ -144,25 +144,25 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				var ghnOrderResult = await _shippingHelper.CreateGHNShippingOrderAsync(orderForGhn, contactAddressForGhn);
 				if (!ghnOrderResult)
 				{
-					return $"Order stock committed locally, BUT failed to create GHN order. Please check contact address and retry GHN sync manually.";
+					return $"Đã chốt tồn kho cục bộ cho đơn hàng, NHƯNG tạo đơn GHN thất bại. Vui lòng kiểm tra địa chỉ liên hệ và thử đồng bộ GHN thủ công.";
 				}
 
-				return "Order fulfilled successfully. Stock committed and GHN shipping order created.";
+				return "Hoàn tất đơn hàng thành công. Đã chốt tồn kho và tạo đơn vận chuyển GHN.";
 			}
 
-			return "Order fulfilled successfully. Stock committed.";
+			return "Hoàn tất đơn hàng thành công. Đã chốt tồn kho.";
 		}
 
 		private async Task<Order> ValidateOrderForFulfillmentAsync(Guid orderId)
 		{
 			var order = await _unitOfWork.Orders.GetOrderForFulfillmentAsync(orderId)
-			 ?? throw AppException.NotFound("Order not found.");
+			 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 			if (order.Status != OrderStatus.Preparing)
-				throw AppException.BadRequest($"Order must be in Preparing status. Current: {order.Status}");
+				throw AppException.BadRequest($"Đơn hàng phải ở trạng thái đang chuẩn bị. Hiện tại: {order.Status}");
 
 			if (order.Type != OrderType.Online)
-				throw AppException.BadRequest("Only online orders can be fulfilled through this method.");
+				throw AppException.BadRequest("Chỉ đơn hàng trực tuyến mới có thể được hoàn tất bằng phương thức này.");
 
 			return order;
 		}
@@ -173,7 +173,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			var activeReservations = reservations.Where(r => r.Status == ReservationStatus.Reserved).ToList();
 
 			if (activeReservations.Count == 0)
-				throw AppException.BadRequest("No active reservations found.");
+				throw AppException.BadRequest("Không tìm thấy reservation đang hiệu lực.");
 
 			var batchIds = activeReservations.Select(r => r.BatchId).Distinct().ToList();
 			var batches = await _unitOfWork.Batches.GetAllAsync(b => batchIds.Contains(b.Id), asNoTracking: true);
@@ -189,19 +189,19 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				var extraDetails = requestOrderDetailIds.Except(orderDetailIds).ToList();
 
 				if (missingDetails.Count > 0)
-					throw AppException.BadRequest($"Missing fulfillment items for order details: {string.Join(", ", missingDetails)}.");
+					throw AppException.BadRequest($"Thiếu mục hoàn tất cho các chi tiết đơn hàng: {string.Join(", ", missingDetails)}.");
 
 				if (extraDetails.Count > 0)
-					throw AppException.BadRequest($"Unknown order detail IDs provided: {string.Join(", ", extraDetails)}.");
+					throw AppException.BadRequest($"ID chi tiết đơn hàng không hợp lệ: {string.Join(", ", extraDetails)}.");
 			}
 
 			foreach (var item in request.Items)
 			{
-				var orderDetail = order.OrderDetails.FirstOrDefault(od => od.Id == item.OrderDetailId) ?? throw AppException.BadRequest($"Order detail {item.OrderDetailId} not found in order.");
+				var orderDetail = order.OrderDetails.FirstOrDefault(od => od.Id == item.OrderDetailId) ?? throw AppException.BadRequest($"Không tìm thấy chi tiết đơn hàng {item.OrderDetailId} trong đơn.");
 
 				// Validate quantity matches order detail quantity
 				if (item.Quantity != orderDetail.Quantity)
-					throw AppException.BadRequest($"Quantity mismatch for order detail {item.OrderDetailId}. Expected: {orderDetail.Quantity}, Provided: {item.Quantity}.");
+					throw AppException.BadRequest($"Số lượng không khớp cho chi tiết đơn hàng {item.OrderDetailId}. Kỳ vọng: {orderDetail.Quantity}, cung cấp: {item.Quantity}.");
 
 				Guid? expectedBatchId = null;
 				try
@@ -217,14 +217,14 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				if (expectedBatchId.HasValue)
 				{
 					if (!batchDictionary.TryGetValue(expectedBatchId.Value, out var expectedBatch))
-						throw AppException.Internal($"Database inconsistency: Expected batch with ID {expectedBatchId.Value} not found.");
+						throw AppException.Internal($"Dữ liệu không nhất quán: Không tìm thấy lô kỳ vọng có ID {expectedBatchId.Value}.");
 
 					if (expectedBatch.BatchCode != item.ScannedBatchCode)
-						throw AppException.BadRequest($"Scanned batch code '{item.ScannedBatchCode}' is incorrect for order detail {item.OrderDetailId}. Expected: '{expectedBatch.BatchCode}'.");
+						throw AppException.BadRequest($"Mã lô quét '{item.ScannedBatchCode}' không đúng cho chi tiết đơn hàng {item.OrderDetailId}. Kỳ vọng: '{expectedBatch.BatchCode}'.");
 
 					var exactReservation = activeReservations.FirstOrDefault(r => r.BatchId == expectedBatchId.Value && r.VariantId == orderDetail.VariantId);
 					if (exactReservation == null || exactReservation.ReservedQuantity < orderDetail.Quantity)
-						throw AppException.BadRequest($"Reservation mismatch or insufficient reserved quantity for batch '{expectedBatch.BatchCode}' and order detail {item.OrderDetailId}.");
+						throw AppException.BadRequest($"Dữ liệu giữ chỗ không khớp hoặc số lượng giữ chỗ không đủ cho lô '{expectedBatch.BatchCode}' và chi tiết đơn hàng {item.OrderDetailId}.");
 
 					order.FulfillOrderDetail(orderDetail.Id, expectedBatchId.Value);
 				}
@@ -241,10 +241,10 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 						.ToList();
 
 					if (matchedReservation == null)
-						throw AppException.BadRequest($"Scanned batch code '{item.ScannedBatchCode}' does not match any reserved batch for order detail {item.OrderDetailId}. Valid codes: {string.Join(", ", validBatchCodes)}.");
+						throw AppException.BadRequest($"Mã lô quét '{item.ScannedBatchCode}' không khớp với bất kỳ lô đã giữ chỗ nào cho chi tiết đơn hàng {item.OrderDetailId}. Mã hợp lệ: {string.Join(", ", validBatchCodes)}.");
 
 					if (matchedReservation.ReservedQuantity < orderDetail.Quantity)
-						throw AppException.BadRequest($"Reservation mismatch or insufficient reserved quantity for scanned batch '{item.ScannedBatchCode}' and order detail {item.OrderDetailId}.");
+						throw AppException.BadRequest($"Dữ liệu giữ chỗ không khớp hoặc số lượng giữ chỗ không đủ cho lô quét '{item.ScannedBatchCode}' và chi tiết đơn hàng {item.OrderDetailId}.");
 
 					order.FulfillOrderDetail(orderDetail.Id, matchedReservation.BatchId);
 				}
@@ -260,12 +260,12 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		public async Task<SwapDamagedStockResponse> SwapDamagedStockAsync(Guid orderId, Guid staffId, SwapDamagedStockRequest request)
 		{
 			if (request.DamagedQuantity <= 0)
-				throw AppException.BadRequest("Damaged quantity must be greater than 0.");
+				throw AppException.BadRequest("Số lượng hàng hỏng phải lớn hơn 0.");
 
 			var (order, damagedReservation, damagedBatch) = await ValidateSwapRequestAsync(orderId, request);
 
 			if (request.DamagedQuantity > damagedReservation.ReservedQuantity)
-				throw AppException.BadRequest($"Damaged quantity ({request.DamagedQuantity}) cannot exceed reserved quantity ({damagedReservation.ReservedQuantity}).");
+				throw AppException.BadRequest($"Số lượng hàng hỏng ({request.DamagedQuantity}) không được vượt quá số lượng đã giữ chỗ ({damagedReservation.ReservedQuantity}).");
 
 			var quantityToSwap = request.DamagedQuantity;
 			var variantId = damagedReservation.VariantId;
@@ -273,7 +273,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
-					?? throw AppException.NotFound("Stock not found.");
+				 ?? throw AppException.NotFound("Không tìm thấy tồn kho.");
 
 				StockReservation? primaryNewReservation = null;
 				Batch? primaryReplacementBatch = null;
@@ -289,7 +289,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					  StockTransactionType.Adjustment,
 					  orderId,
 					  staffId,
-					  request.DamageNote ?? $"Damaged stock swapped for order {order.Code}.");
+					request.DamageNote ?? $"Đổi lô hàng hỏng cho đơn hàng {order.Code}.");
 				_unitOfWork.Batches.Update(damagedBatch);
 
 				if (quantityToSwap == damagedReservation.ReservedQuantity)
@@ -321,7 +321,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				}
 
 				if (remainingToSwap > 0)
-					throw AppException.BadRequest($"Not enough stock across all batches to replace damaged items. Missing: {remainingToSwap}");
+					throw AppException.BadRequest($"Không đủ tồn kho trên tất cả các lô để thay thế hàng hỏng. Còn thiếu: {remainingToSwap}");
 
 				// 💥 BƯỚC 4 CẢI TIẾN: Thực xuất (Fulfill) trên OrderDetails
 				// Chỉ tìm các OrderDetail thuộc Variant này mà CHƯA ĐƯỢC FULFILL, hoặc đang Fulfill lô hỏng
@@ -347,14 +347,14 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					{
 						allocationIndex++;
 						if (allocationIndex >= replacementAllocations.Count)
-							throw AppException.Internal("Database inconsistency: Replacement allocation is insufficient for fulfillment.");
+							throw AppException.Internal("Dữ liệu không nhất quán: Phân bổ lô thay thế không đủ để hoàn tất xử lý.");
 
 						currentRepBatch = replacementAllocations[allocationIndex].Batch;
 						currentRepQtyRemaining = replacementAllocations[allocationIndex].Quantity;
 					}
 
 					if (od.Quantity > currentRepQtyRemaining)
-						throw AppException.BadRequest("Unable to assign replacement batch because one order detail quantity exceeds available quantity in a single replacement batch.");
+						throw AppException.BadRequest("Không thể gán lô thay thế vì số lượng của một chi tiết đơn hàng vượt quá số lượng khả dụng trong một lô thay thế.");
 
 					// Nếu đây là lúc soạn hàng (Preparation), tiến hành gán Batch xuất kho thực tế
 					if (currentRepQtyRemaining > 0)
@@ -392,7 +392,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				_unitOfWork.Stocks.Update(stock);
 
 				if (primaryNewReservation is null || primaryReplacementBatch is null)
-					throw AppException.Internal("Database inconsistency: Replacement reservation was not created.");
+					throw AppException.Internal("Dữ liệu không nhất quán: Chưa tạo được reservation thay thế.");
 
 				return new SwapDamagedStockResponse
 				{
@@ -402,7 +402,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 					NewLocation = primaryReplacementBatch.ImportDetail?.Note,
 					ReservedQuantity = primaryReservedQuantity,
 					ExpiryDate = primaryReplacementBatch.ExpiryDate,
-					Message = $"Successfully swapped {quantityToSwap} damaged items. System used {replacementAllocations.Count} replacement batch(es)."
+					Message = $"Đổi {quantityToSwap} sản phẩm hỏng thành công. Hệ thống đã sử dụng {replacementAllocations.Count} lô thay thế."
 				};
 			});
 		}
@@ -410,20 +410,20 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		private async Task<(Order, StockReservation, Batch)> ValidateSwapRequestAsync(Guid orderId, SwapDamagedStockRequest request)
 		{
 			var order = await _unitOfWork.Orders.GetOrderForSwapDamagedStockAsync(orderId)
-				 ?? throw AppException.NotFound("Order not found.");
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 			if (order.Status != OrderStatus.Preparing)
-				throw AppException.BadRequest($"Order must be in Preparing status.");
+				throw AppException.BadRequest($"Đơn hàng phải ở trạng thái đang chuẩn bị.");
 
 			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(order.Id);
 			var damagedReservation = reservations.FirstOrDefault(r => r.Id == request.DamagedReservationId)
-				?? throw AppException.NotFound("Damaged reservation not found.");
+			 ?? throw AppException.NotFound("Không tìm thấy lượt giữ chỗ hàng hỏng.");
 
 			if (damagedReservation.Status != ReservationStatus.Reserved)
-				throw AppException.BadRequest("Reservation is not in Reserved status.");
+				throw AppException.BadRequest("Lượt giữ chỗ không ở trạng thái đã giữ chỗ.");
 
 			var damagedBatch = damagedReservation.Batch
-				?? throw AppException.NotFound("Damaged batch not found.");
+			 ?? throw AppException.NotFound("Không tìm thấy lô hàng hỏng.");
 
 			return (order, damagedReservation, damagedBatch);
 		}
@@ -440,7 +440,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				 staffId,
 				 DateTime.UtcNow,
 				 StockAdjustmentReason.Damage,
-				 damageNote ?? $"Damaged during order picking for Order {orderId}");
+				 damageNote ?? $"Hàng hỏng trong quá trình soạn đơn hàng {orderId}");
 
 			var detailPayload = new StockAdjustmentDetailPayload
 			{

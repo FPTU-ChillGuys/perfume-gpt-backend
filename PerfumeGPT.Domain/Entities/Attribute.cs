@@ -21,7 +21,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static Attribute Create(AttributeCreationDetails details)
 		{
 			if (string.IsNullOrWhiteSpace(details.Name))
-				throw DomainException.BadRequest("Attribute name is required.");
+				throw DomainException.BadRequest("Tên thuộc tính không được để trống.");
 
 			string finalCode = string.IsNullOrWhiteSpace(details.InternalCode)
 				? GenerateInternalCode(details.Name)
@@ -39,7 +39,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void Update(AttributeUpdateDetails details)
 		{
 			if (string.IsNullOrWhiteSpace(details.Name))
-				throw DomainException.BadRequest("Attribute name cannot be empty.");
+				throw DomainException.BadRequest("Tên thuộc tính không được để trống.");
 
 			Name = details.Name.Trim();
 			Description = details.Description?.Trim();

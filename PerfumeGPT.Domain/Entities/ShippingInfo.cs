@@ -20,7 +20,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static ShippingInfo Create(CarrierName carrierName, ShippingType type, decimal shippingFee = 0, DateTime? EstimatedDeliveryDate = null)
 		{
 			if (shippingFee < 0)
-				throw DomainException.BadRequest("Shipping fee cannot be negative.");
+               throw DomainException.BadRequest("Phí vận chuyển không được âm.");
 
 			return new ShippingInfo
 			{
@@ -36,7 +36,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void MarkAsDelivered(DateTime? deliveredDateUtc = null)
 		{
 			if (Status != ShippingStatus.Delivering)
-				throw DomainException.BadRequest("Cannot mark as delivered if not in Delivering status.");
+              throw DomainException.BadRequest("Không thể đánh dấu đã giao khi không ở trạng thái đang giao.");
 
 			Status = ShippingStatus.Delivered;
 			ShippedDate = deliveredDateUtc ?? DateTime.UtcNow;
@@ -45,7 +45,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void Cancel()
 		{
 			if (Status == ShippingStatus.Delivered)
-				throw DomainException.BadRequest("Cannot cancel a shipment that has already been delivered.");
+              throw DomainException.BadRequest("Không thể hủy chuyến giao đã giao thành công.");
 
 			Status = ShippingStatus.Cancelled;
 		}
@@ -53,7 +53,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void MarkAsDelivering()
 		{
 			if (Status == ShippingStatus.Delivered)
-				throw DomainException.BadRequest("Cannot set shipment to delivering after it is delivered.");
+               throw DomainException.BadRequest("Không thể chuyển sang trạng thái đang giao sau khi đã giao thành công.");
 
 			Status = ShippingStatus.Delivering;
 		}
@@ -61,7 +61,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void MarkAsReturning()
 		{
             if (Status != ShippingStatus.Delivering && Status != ShippingStatus.ReadyToPick && Status != ShippingStatus.Delivered)
-				throw DomainException.BadRequest("Cannot mark as returning unless the shipment failed during delivery or pickup.");
+             throw DomainException.BadRequest("Chỉ có thể đánh dấu đang hoàn trả khi giao hàng hoặc lấy hàng thất bại.");
 
 			Status = ShippingStatus.Returning;
 		}
@@ -69,7 +69,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void MarkAsReturned()
 		{
 			if (Status != ShippingStatus.Returning && Status != ShippingStatus.Delivering && Status != ShippingStatus.ReadyToPick)
-				throw DomainException.BadRequest("Cannot mark as returned from the current status.");
+               throw DomainException.BadRequest("Không thể đánh dấu đã hoàn trả từ trạng thái hiện tại.");
 
 			Status = ShippingStatus.Returned;
 		}
@@ -77,7 +77,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void SetTrackingNumber(string trackingNumber)
 		{
 			if (string.IsNullOrWhiteSpace(trackingNumber))
-				throw DomainException.BadRequest("Tracking number is required.");
+               throw DomainException.BadRequest("Mã vận đơn là bắt buộc.");
 
 			TrackingNumber = trackingNumber.Trim();
 			Status = ShippingStatus.ReadyToPick;

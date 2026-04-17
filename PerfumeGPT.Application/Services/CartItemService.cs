@@ -24,7 +24,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> AddToCartAsync(Guid userId, CreateCartItemRequest request)
 		{
-			var variant = await _unitOfWork.Variants.GetByIdAsync(request.VariantId) ?? throw AppException.NotFound("Product variant not found");
+			var variant = await _unitOfWork.Variants.GetByIdAsync(request.VariantId) ?? throw AppException.NotFound("Không tìm thấy biến thể sản phẩm");
 
 			variant.EnsureAvailableForCart();
 
@@ -36,7 +36,7 @@ namespace PerfumeGPT.Application.Services
 			var hasStock = await _stockService.HasSufficientStockAsync(request.VariantId, totalQuantity);
 			if (!hasStock)
 			{
-				throw AppException.BadRequest("Insufficient stock for the requested quantity");
+				throw AppException.BadRequest("Không đủ tồn kho cho số lượng yêu cầu");
 			}
 
 			if (existing != null)
@@ -47,10 +47,10 @@ namespace PerfumeGPT.Application.Services
 
 				if (!updated)
 				{
-					throw AppException.Internal("Could not update cart item");
+					throw AppException.Internal("Không thể cập nhật sản phẩm trong giỏ hàng");
 				}
 
-				return BaseResponse<string>.Ok(existing.Id.ToString(), "Cart item quantity updated successfully");
+				return BaseResponse<string>.Ok(existing.Id.ToString(), "Cập nhật số lượng sản phẩm trong giỏ hàng thành công");
 			}
 
 			var cartItem = CartItem.Create(userId, request.VariantId, request.Quantity);
@@ -60,33 +60,33 @@ namespace PerfumeGPT.Application.Services
 
 			if (!saved)
 			{
-				throw AppException.Internal("Could not add item to cart");
+				throw AppException.Internal("Không thể thêm sản phẩm vào giỏ hàng");
 			}
 
-			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Item added to cart successfully");
+			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Thêm sản phẩm vào giỏ hàng thành công");
 		}
 
 		public async Task<BaseResponse<string>> RemoveFromCartAsync(Guid userId, Guid cartItemId)
 		{
-			var cartItem = await _unitOfWork.CartItems.GetByIdAsync(cartItemId) ?? throw AppException.NotFound("Cart item not found");
+			var cartItem = await _unitOfWork.CartItems.GetByIdAsync(cartItemId) ?? throw AppException.NotFound("Không tìm thấy sản phẩm trong giỏ hàng");
 			if (!cartItem.IsOwnedBy(userId))
-				throw AppException.Forbidden("Cart item does not belong to user");
+				throw AppException.Forbidden("Sản phẩm trong giỏ hàng không thuộc về người dùng");
 
 			_unitOfWork.CartItems.Remove(cartItem);
 			var saved = await _unitOfWork.SaveChangesAsync();
 
 			if (!saved)
 			{
-				throw AppException.Internal("Could not remove item from cart");
+				throw AppException.Internal("Không thể xóa sản phẩm khỏi giỏ hàng");
 			}
 
-			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Item removed from cart successfully");
+			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Xóa sản phẩm khỏi giỏ hàng thành công");
 		}
 
 		public async Task<BaseResponse<string>> UpdateCartItemAsync(Guid userId, Guid cartItemId, UpdateCartItemRequest request)
 		{
 			var cartItem = await _unitOfWork.CartItems.FirstOrDefaultAsync(
-					ci => ci.Id == cartItemId && ci.UserId == userId) ?? throw AppException.NotFound("Cart item not found");
+					ci => ci.Id == cartItemId && ci.UserId == userId) ?? throw AppException.NotFound("Không tìm thấy sản phẩm trong giỏ hàng");
 
 			if (request.Quantity <= 0)
 			{
@@ -94,15 +94,15 @@ namespace PerfumeGPT.Application.Services
 				var removed = await _unitOfWork.SaveChangesAsync();
 
 				if (!removed)
-					throw AppException.Internal("Could not remove cart item");
+					throw AppException.Internal("Không thể xóa sản phẩm trong giỏ hàng");
 
-				return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Item removed from cart successfully");
+				return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Xóa sản phẩm khỏi giỏ hàng thành công");
 			}
 
 			var hasStock = await _stockService.HasSufficientStockAsync(cartItem.VariantId, request.Quantity);
 			if (!hasStock)
 			{
-				throw AppException.BadRequest("Insufficient stock for the requested quantity");
+				throw AppException.BadRequest("Không đủ tồn kho cho số lượng yêu cầu");
 			}
 
 			cartItem.SetQuantity(request.Quantity);
@@ -111,10 +111,10 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
 			{
-				throw AppException.Internal("Could not update cart item");
+				throw AppException.Internal("Không thể cập nhật sản phẩm trong giỏ hàng");
 			}
 
-			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Cart item updated successfully");
+			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Cập nhật sản phẩm trong giỏ hàng thành công");
 		}
 	}
 }

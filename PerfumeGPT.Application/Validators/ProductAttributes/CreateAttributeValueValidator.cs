@@ -8,8 +8,8 @@ namespace PerfumeGPT.Application.Validators.ProductAttributes
 		public CreateAttributeValueValidator()
 		{
 			RuleFor(x => x.Value)
-				.NotEmpty().WithMessage("Value is required.")
-				.MaximumLength(200).WithMessage("Value must not exceed 200 characters.");
+               .NotEmpty().WithMessage("Giá trị là bắt buộc.")
+				.MaximumLength(200).WithMessage("Giá trị không được vượt quá 200 ký tự.");
 		}
 	}
 }

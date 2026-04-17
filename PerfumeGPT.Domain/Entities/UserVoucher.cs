@@ -28,7 +28,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static UserVoucher CreateAvailable(Guid? userId, Guid voucherId, string? guestIdentifier = null)
 		{
 			if (voucherId == Guid.Empty)
-				throw DomainException.BadRequest("Voucher ID is required.");
+				throw DomainException.BadRequest("Voucher ID là bắt buộc.");
 
 			return new UserVoucher
 			{
@@ -42,7 +42,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static UserVoucher CreateReserved(Guid? userId, Guid voucherId, Guid orderId, string? guestEmailOrPhone = null)
 		{
 			if (orderId == Guid.Empty)
-				throw DomainException.BadRequest("Order ID is required.");
+				throw DomainException.BadRequest("Order ID là bắt buộc.");
 
 			var userVoucher = CreateAvailable(userId, voucherId, guestEmailOrPhone);
 			userVoucher.Reserve(orderId);
@@ -53,13 +53,13 @@ namespace PerfumeGPT.Domain.Entities
 		public void Reserve(Guid orderId)
 		{
 			if (orderId == Guid.Empty)
-				throw DomainException.BadRequest("Order ID is required.");
+				throw DomainException.BadRequest("Order ID là bắt buộc.");
 
 			if (Status == UsageStatus.Used)
-				throw DomainException.BadRequest("Cannot reserve a used voucher.");
+				throw DomainException.BadRequest("Không thể giữ chỗ cho mã giảm giá đã dùng.");
 
 			if (Status != UsageStatus.Available)
-				throw DomainException.BadRequest("Voucher must be available before reserving.");
+				throw DomainException.BadRequest("Mã giảm giá phải ở trạng thái khả dụng trước khi giữ chỗ.");
 
 			OrderId = orderId;
 			Status = UsageStatus.Reserved;
@@ -68,7 +68,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void MarkUsed()
 		{
 			if (Status != UsageStatus.Reserved)
-				throw DomainException.BadRequest("Voucher must be reserved before marking as used.");
+				throw DomainException.BadRequest("Mã giảm giá phải được giữ chỗ trước khi đánh dấu đã sử dụng.");
 
 			Status = UsageStatus.Used;
 		}
@@ -76,7 +76,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void ReleaseReservation()
 		{
 			if (Status != UsageStatus.Reserved)
-				throw DomainException.BadRequest("Voucher is not reserved.");
+				throw DomainException.BadRequest("Mã giảm giá chưa được giữ chỗ.");
 
 			OrderId = null;
 			Status = UsageStatus.Available;
@@ -85,7 +85,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void RevertUsed()
 		{
 			if (Status != UsageStatus.Used)
-				throw DomainException.BadRequest("Cannot revert a voucher that is not used.");
+				throw DomainException.BadRequest("Không thể hoàn tác mã giảm giá chưa được sử dụng.");
 
 			OrderId = null;
 			Status = UsageStatus.Available;
@@ -94,7 +94,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void AssignToUser(Guid userId)
 		{
 			if (userId == Guid.Empty)
-				throw DomainException.BadRequest("User ID is required.");
+				throw DomainException.BadRequest("User ID là bắt buộc.");
 
 			UserId = userId;
 		}

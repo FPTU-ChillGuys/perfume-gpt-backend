@@ -31,13 +31,13 @@ namespace PerfumeGPT.Domain.Entities
 		public static TemporaryMedia Create(TemporaryMediaPayload payload)
 		{
 			if (string.IsNullOrWhiteSpace(payload.Url))
-				throw DomainException.BadRequest("Temporary media URL is required.");
+               throw DomainException.BadRequest("URL media tạm là bắt buộc.");
 
 			if (string.IsNullOrWhiteSpace(payload.FileName))
-				throw DomainException.BadRequest("Temporary media file name is required.");
+             throw DomainException.BadRequest("Tên tệp media tạm là bắt buộc.");
 
 			if (payload.FileSize <= 0)
-				throw DomainException.BadRequest("Temporary media file size must be greater than 0.");
+              throw DomainException.BadRequest("Kích thước tệp media tạm phải lớn hơn 0.");
 
 			return new TemporaryMedia
 			{
@@ -58,7 +58,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureNotExpired()
 		{
 			if (IsExpired)
-				throw DomainException.BadRequest("Temporary media has expired.");
+               throw DomainException.BadRequest("Media tạm đã hết hạn.");
 		}
 
 		private static string? GetMimeType(string fileName) =>

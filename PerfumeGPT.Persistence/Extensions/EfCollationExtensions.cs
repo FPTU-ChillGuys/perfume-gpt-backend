@@ -8,7 +8,7 @@ namespace PerfumeGPT.Persistence.Extensions
 		// use plain string.Contains method on the value expression (EF will translate to SQL LIKE)
 		private static readonly MethodInfo s_stringContains =
 			typeof(string).GetMethod(nameof(string.Contains), new[] { typeof(string) })
-			?? throw new InvalidOperationException("string.Contains method not found");
+			?? throw new InvalidOperationException("Không thể tìm thấy phương thức string.Contains(string).");
 
 		/// <summary>
 		/// Builds an expression: value != null && value.Contains(keyword)

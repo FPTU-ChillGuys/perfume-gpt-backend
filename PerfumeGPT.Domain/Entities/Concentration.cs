@@ -31,7 +31,7 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			var normalized = name?.Trim() ?? string.Empty;
 			if (string.IsNullOrWhiteSpace(normalized))
-				throw DomainException.BadRequest("Concentration name is required.");
+				throw DomainException.BadRequest("Tên nồng độ không được để trống.");
 			return normalized;
 		}
 	}

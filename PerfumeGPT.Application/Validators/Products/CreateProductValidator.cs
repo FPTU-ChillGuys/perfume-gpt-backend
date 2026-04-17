@@ -10,36 +10,36 @@ namespace PerfumeGPT.Application.Validators.Products
 			var maxAllowedReleaseYear = DateTime.UtcNow.Year + 1;
 
 			RuleFor(x => x.Name)
-				.NotEmpty().WithMessage("Product name is required.")
-				.MaximumLength(200).WithMessage("Product name must not exceed 200 characters.");
+                .NotEmpty().WithMessage("Tên sản phẩm là bắt buộc.")
+				.MaximumLength(200).WithMessage("Tên sản phẩm không được vượt quá 200 ký tự.");
 
 			RuleFor(x => x.BrandId)
-				.GreaterThan(0).WithMessage("BrandId must be a positive integer.");
+             .GreaterThan(0).WithMessage("BrandId phải là số nguyên dương.");
 
 			RuleFor(x => x.CategoryId)
-				.GreaterThan(0).WithMessage("CategoryId must be a positive integer.");
+              .GreaterThan(0).WithMessage("CategoryId phải là số nguyên dương.");
 
 			RuleFor(x => x.Origin)
-				.NotEmpty().WithMessage("Origin is required.")
-				.MaximumLength(100).WithMessage("Origin must not exceed 100 characters.");
+              .NotEmpty().WithMessage("Xuất xứ là bắt buộc.")
+				.MaximumLength(100).WithMessage("Xuất xứ không được vượt quá 100 ký tự.");
 
 			RuleFor(x => x.Gender)
-				.IsInEnum().WithMessage("Gender is invalid.");
+              .IsInEnum().WithMessage("Giới tính không hợp lệ.");
 
 			RuleFor(x => x.ReleaseYear)
 			  .InclusiveBetween(1900, maxAllowedReleaseYear)
-				.WithMessage("Invalid release year.");
+              .WithMessage("Năm phát hành không hợp lệ.");
 
 			RuleForEach(x => x.OlfactoryFamilyIds)
-				.GreaterThan(0).WithMessage("OlfactoryFamilyIds must be positive integers.");
+               .GreaterThan(0).WithMessage("OlfactoryFamilyIds phải là số nguyên dương.");
 
 			RuleForEach(x => x.ScentNotes)
 				.ChildRules(note =>
 				{
 					note.RuleFor(n => n.NoteId)
-						.GreaterThan(0).WithMessage("Scent note id must be a positive integer.");
+                       .GreaterThan(0).WithMessage("ID nốt hương phải là số nguyên dương.");
 					note.RuleFor(n => n.Type)
-						.IsInEnum().WithMessage("Scent note type is invalid.");
+                     .IsInEnum().WithMessage("Loại nốt hương không hợp lệ.");
 				});
 		}
 	}

@@ -39,15 +39,15 @@ namespace PerfumeGPT.Application.Services
 
 			await _unitOfWork.Addresses.AddAsync(address);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Could not create address");
+			if (!saved) throw AppException.Internal("Không thể tạo địa chỉ");
 
-			return BaseResponse<string>.Ok(address.Id.ToString(), "Address created successfully");
+			return BaseResponse<string>.Ok(address.Id.ToString(), "Tạo địa chỉ thành công");
 		}
 
 		public async Task<BaseResponse<string>> UpdateAddressAsync(Guid userId, Guid addressId, UpdateAddressRequest request)
 		{
 			var address = await _unitOfWork.Addresses.GetByIdAsync(addressId)
-				?? throw AppException.NotFound("Address not found");
+				?? throw AppException.NotFound("Không tìm thấy địa chỉ");
 
 			address.EnsureOwnedBy(userId);
 			var updatedDetails = _mapper.Map<AddressDetails>(request);
@@ -55,30 +55,30 @@ namespace PerfumeGPT.Application.Services
 			_unitOfWork.Addresses.Update(address);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Could not update address");
+			if (!saved) throw AppException.Internal("Không thể cập nhật địa chỉ");
 
-			return BaseResponse<string>.Ok(address.Id.ToString(), "Address updated successfully");
+			return BaseResponse<string>.Ok(address.Id.ToString(), "Cập nhật địa chỉ thành công");
 		}
 
 		public async Task<BaseResponse<string>> DeleteAddressAsync(Guid userId, Guid addressId)
 		{
 			var address = await _unitOfWork.Addresses.GetByIdAsync(addressId)
-				?? throw AppException.NotFound("Address not found");
+				?? throw AppException.NotFound("Không tìm thấy địa chỉ");
 
 			address.EnsureOwnedBy(userId);
 			address.EnsureNotAlreadyDefault();
 
 			_unitOfWork.Addresses.Remove(address);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Could not delete address");
+			if (!saved) throw AppException.Internal("Không thể xóa địa chỉ");
 
-			return BaseResponse<string>.Ok(addressId.ToString(), "Address deleted successfully");
+			return BaseResponse<string>.Ok(addressId.ToString(), "Xóa địa chỉ thành công");
 		}
 
 		public async Task<BaseResponse<string>> SetDefaultAddressAsync(Guid userId, Guid addressId)
 		{
 			var address = await _unitOfWork.Addresses.FirstOrDefaultAsync(a => a.Id == addressId && a.UserId == userId)
-				  ?? throw AppException.NotFound("Address not found or does not belong to this user");
+				?? throw AppException.NotFound("Không tìm thấy địa chỉ hoặc địa chỉ không thuộc về người dùng này");
 
 			address.EnsureNotAlreadyDefault();
 
@@ -90,25 +90,25 @@ namespace PerfumeGPT.Application.Services
 			_unitOfWork.Addresses.Update(address);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Could not set default address");
+			if (!saved) throw AppException.Internal("Không thể đặt địa chỉ mặc định");
 
-			return BaseResponse<string>.Ok(addressId.ToString(), "Default address set successfully");
+			return BaseResponse<string>.Ok(addressId.ToString(), "Đặt địa chỉ mặc định thành công");
 		}
 
 		public async Task<BaseResponse<AddressResponse>> GetAddressByIdAsync(Guid userId, Guid addressId)
 		{
 			var address = await _unitOfWork.Addresses.GetUserAddressById(userId, addressId)
-				  ?? throw AppException.NotFound("Address not found");
+				?? throw AppException.NotFound("Không tìm thấy địa chỉ");
 
-			return BaseResponse<AddressResponse>.Ok(address, "Address retrieved successfully");
+			return BaseResponse<AddressResponse>.Ok(address, "Lấy địa chỉ thành công");
 		}
 
 		public async Task<BaseResponse<AddressResponse>> GetDefaultAddressAsync(Guid userId)
 		{
 			var address = await _unitOfWork.Addresses.GetDefaultAddressAsync(userId)
-				   ?? throw AppException.NotFound("Default address not found");
+				?? throw AppException.NotFound("Không tìm thấy địa chỉ mặc định");
 
-			return BaseResponse<AddressResponse>.Ok(address, "Default address retrieved successfully");
+			return BaseResponse<AddressResponse>.Ok(address, "Lấy địa chỉ mặc định thành công");
 		}
 
 		public async Task<BaseResponse<List<AddressResponse>>> GetUserAddressesAsync(Guid userId)
@@ -116,8 +116,8 @@ namespace PerfumeGPT.Application.Services
 			var addresses = await _unitOfWork.Addresses.GetUserAddresses(userId);
 
 			return BaseResponse<List<AddressResponse>>.Ok(addresses, addresses.Count == 0
-				? "No addresses found"
-				: "User addresses retrieved successfully");
+			  ? "Không tìm thấy địa chỉ nào"
+				: "Lấy danh sách địa chỉ của người dùng thành công");
 		}
 	}
 }

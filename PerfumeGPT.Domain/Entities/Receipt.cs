@@ -22,10 +22,10 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			var receiptNumber = GenerateReceiptNumber();
 			if (transactionId == Guid.Empty)
-				throw DomainException.BadRequest("Transaction ID is required.");
+				throw DomainException.BadRequest("Transaction ID là bắt buộc.");
 
 			if (string.IsNullOrWhiteSpace(receiptNumber))
-				throw DomainException.BadRequest("Receipt number is required.");
+				throw DomainException.BadRequest("Số biên nhận là bắt buộc.");
 
 			return new Receipt
 			{

@@ -29,11 +29,11 @@ namespace PerfumeGPT.Application.Services
 			if (savedAddressId.HasValue == true)
 			{
 				if (!customerId.HasValue)
-					throw AppException.BadRequest("Customer ID required when using saved address.");
+					throw AppException.BadRequest("Bắt buộc có Customer ID khi dùng địa chỉ đã lưu.");
 
 				var savedAddress = await _unitOfWork.Addresses.GetUserAddressById(customerId.Value, savedAddressId.Value);
 				return savedAddress == null
-					? throw AppException.NotFound("Saved address not found.")
+				   ? throw AppException.NotFound("Không tìm thấy địa chỉ đã lưu.")
 					: _mapper.Map<ContactAddressInformation>(savedAddress);
 			}
 
@@ -44,7 +44,7 @@ namespace PerfumeGPT.Application.Services
 				if (!validationResult.IsValid)
 				{
 					var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-					throw AppException.BadRequest("Contact address information validation failed.", errors);
+					throw AppException.BadRequest("Xác thực thông tin địa chỉ liên hệ thất bại.", errors);
 				}
 
 				return contactAddressInfo;
@@ -54,14 +54,14 @@ namespace PerfumeGPT.Application.Services
 			if (customerId.HasValue)
 			{
 				var customerAddress = await _unitOfWork.Addresses.GetDefaultAddressAsync(customerId.Value)
-					?? throw AppException.NotFound("No default address found for customer.");
+				   ?? throw AppException.NotFound("Không tìm thấy địa chỉ mặc định của khách hàng.");
 
 				var response = _mapper.Map<ContactAddressInformation>(customerAddress);
 				return response;
 			}
 
 			// Nothing provided
-			throw AppException.BadRequest("Either contact address information or customer ID must be provided.");
+			throw AppException.BadRequest("Cần cung cấp thông tin địa chỉ liên hệ hoặc Customer ID.");
 		}
 
 		public async Task<ContactAddress> CreateContactAddressAsync(ContactAddressInformation? request, Guid? savedAddressId = null, Guid? customerId = null)

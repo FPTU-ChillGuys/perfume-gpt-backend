@@ -10,7 +10,7 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs.Commons
 
 			// Allow access only to authenticated users with Admin role
 			return httpContext.User.Identity?.IsAuthenticated == true
-				&& httpContext.User.IsInRole("Admin");
+				&& httpContext.User.IsInRole("admin");
 		}
 	}
 }

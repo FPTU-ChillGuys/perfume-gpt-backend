@@ -8,7 +8,7 @@ namespace PerfumeGPT.Application.Validators.Media
 		public ProductUploadMediaValidator()
 		{
 			RuleFor(x => x.Images)
-				.NotEmpty().WithMessage("At least one image is required.");
+				.NotEmpty().WithMessage("Bắt buộc phải có ít nhất một hình ảnh.")
 
 			RuleFor(x => x.Images).Custom((images, context) =>
 			{
@@ -18,7 +18,7 @@ namespace PerfumeGPT.Application.Validators.Media
 				var primaryCount = images.Count(i => i.IsPrimary);
 				if (primaryCount > 1)
 				{
-					context.AddFailure("Only one image can be marked as primary.");
+					context.AddFailure("Chỉ được phép đánh dấu một hình ảnh là chính.");
 				}
 
 				// Ensure no duplicate display orders
@@ -29,15 +29,15 @@ namespace PerfumeGPT.Application.Validators.Media
 
 				if (duplicateOrders.Count != 0)
 				{
-					context.AddFailure($"Duplicate display order values found: {string.Join(", ", duplicateOrders)}");
+					context.AddFailure($"Các giá trị thứ tự hiển thị trùng lặp được tìm thấy: {string.Join(", ", duplicateOrders)}");
 				}
 			});
 
 			// Validate each image item
 			RuleForEach(x => x.Images).ChildRules(item =>
 			{
-				item.RuleFor(i => i.ImageFile).NotNull().WithMessage("ImageFile is required.");
-				item.RuleFor(i => i.DisplayOrder).GreaterThanOrEqualTo(0).WithMessage("DisplayOrder must be >= 0.");
+				item.RuleFor(i => i.ImageFile).NotNull().WithMessage("Tệp hình ảnh là bắt buộc.");
+				item.RuleFor(i => i.DisplayOrder).GreaterThanOrEqualTo(0).WithMessage("Thứ tự hiển thị phải >= 0.");
 			});
 		}
 	}

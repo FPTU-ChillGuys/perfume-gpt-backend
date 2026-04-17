@@ -36,10 +36,10 @@ namespace PerfumeGPT.Domain.Entities
 		public static PaymentTransaction Create(Guid orderId, PaymentMethod method, decimal amount)
 		{
 			if (orderId == Guid.Empty)
-				throw DomainException.BadRequest("Order ID is required.");
+              throw DomainException.BadRequest("Order ID là bắt buộc.");
 
 			if (amount <= 0)
-				throw DomainException.BadRequest("Payment amount must be greater than 0.");
+             throw DomainException.BadRequest("Số tiền thanh toán phải lớn hơn 0.");
 
 			return new PaymentTransaction
 			{
@@ -56,13 +56,13 @@ namespace PerfumeGPT.Domain.Entities
 		public static PaymentTransaction CreateRefund(Guid orderId, Guid originalPaymentId, PaymentMethod method, decimal refundAmount)
 		{
 			if (orderId == Guid.Empty)
-				throw DomainException.BadRequest("Order ID is required.");
+              throw DomainException.BadRequest("Order ID là bắt buộc.");
 
 			if (originalPaymentId == Guid.Empty)
-				throw DomainException.BadRequest("Original Payment ID is required for a refund.");
+              throw DomainException.BadRequest("Original Payment ID là bắt buộc khi hoàn tiền.");
 
 			if (refundAmount <= 0)
-				throw DomainException.BadRequest("Refund amount must be greater than 0.");
+              throw DomainException.BadRequest("Số tiền hoàn phải lớn hơn 0.");
 
 			return new PaymentTransaction
 			{
@@ -83,7 +83,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsurePending()
 		{
 			if (!IsPending())
-				throw DomainException.BadRequest("Payment is not pending.");
+                throw DomainException.BadRequest("Giao dịch thanh toán không ở trạng thái chờ.");
 		}
 
 		public void MarkSuccess(string? gatewayTransactionNo = null)
@@ -114,7 +114,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void MarkCancelled(string reason)
 		{
 			if (!IsPending())
-				throw DomainException.BadRequest("Only pending payments can be cancelled.");
+                throw DomainException.BadRequest("Chỉ có thể hủy giao dịch thanh toán đang chờ.");
 
 			TransactionStatus = TransactionStatus.Cancelled;
 			FailureReason = reason;
@@ -123,7 +123,7 @@ namespace PerfumeGPT.Domain.Entities
 		public PaymentTransaction CreateRetry(PaymentMethod method)
 		{
 			if (TransactionStatus == TransactionStatus.Success)
-				throw DomainException.BadRequest("Cannot retry completed payments.");
+               throw DomainException.BadRequest("Không thể thử lại giao dịch thanh toán đã hoàn tất.");
 
 			return new PaymentTransaction
 			{

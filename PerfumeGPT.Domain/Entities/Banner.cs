@@ -39,8 +39,8 @@ namespace PerfumeGPT.Domain.Entities
 		// --- Factory Method ---
 		public static Banner Create(BannerCreationPayload payload)
 		{
-			if (string.IsNullOrWhiteSpace(payload.Title)) throw DomainException.BadRequest("Title is required.");
-			if (string.IsNullOrWhiteSpace(payload.ImageUrl)) throw DomainException.BadRequest("Image URL is required.");
+			if (string.IsNullOrWhiteSpace(payload.Title)) throw DomainException.BadRequest("Tiêu đề là bắt buộc.");
+			if (string.IsNullOrWhiteSpace(payload.ImageUrl)) throw DomainException.BadRequest("URL hình ảnh là bắt buộc.");
 
 			ValidateLink(payload.LinkType, payload.LinkTarget);
 
@@ -65,8 +65,8 @@ namespace PerfumeGPT.Domain.Entities
 		// Cập nhật nội dung hiển thị (Hình ảnh, Text)
 		public void UpdateContent(string title, string imageUrl, string? imagePublicId, string? mobileImageUrl, string? mobileImagePublicId, string? altText)
 		{
-			if (string.IsNullOrWhiteSpace(title)) throw DomainException.BadRequest("Title is required.");
-			if (string.IsNullOrWhiteSpace(imageUrl)) throw DomainException.BadRequest("Image URL is required.");
+			if (string.IsNullOrWhiteSpace(title)) throw DomainException.BadRequest("Tiêu đề là bắt buộc.");
+			if (string.IsNullOrWhiteSpace(imageUrl)) throw DomainException.BadRequest("URL hình ảnh là bắt buộc.");
 
 			Title = title.Trim();
 			ImageUrl = imageUrl.Trim();
@@ -87,7 +87,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdateSchedule(DateTime? startDate, DateTime? endDate)
 		{
 			if (startDate.HasValue && endDate.HasValue && startDate >= endDate)
-				throw DomainException.BadRequest("End date must be after start date.");
+				throw DomainException.BadRequest("Ngày kết thúc phải sau ngày bắt đầu.");
 
 			StartDate = startDate;
 			EndDate = endDate;
@@ -96,7 +96,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void ChangeOrder(int newOrder)
 		{
 			if (newOrder < 0)
-				throw DomainException.BadRequest("Display order cannot be negative.");
+				throw DomainException.BadRequest("Thứ tự hiển thị không được âm.");
 
 			DisplayOrder = newOrder;
 		}
@@ -115,12 +115,12 @@ namespace PerfumeGPT.Domain.Entities
 		private static void ValidateLink(BannerLinkType type, string? target)
 		{
 			if (string.IsNullOrWhiteSpace(target))
-				throw DomainException.BadRequest($"Link target is required when LinkType is {type}.");
+				throw DomainException.BadRequest($"Đích đến liên kết là bắt buộc khi LinkType là {type}.");
 
 			if ((type == BannerLinkType.Campaign || type == BannerLinkType.Product || type == BannerLinkType.ProductVariant)
 				&& !Guid.TryParse(target, out _))
 			{
-				throw DomainException.BadRequest($"LinkTarget must be a valid GUID for type {type}.");
+				throw DomainException.BadRequest($"LinkTarget phải là một GUID hợp lệ cho loại {type}.");
 			}
 		}
 

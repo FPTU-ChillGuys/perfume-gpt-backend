@@ -12,19 +12,19 @@ namespace PerfumeGPT.Application.Validators.Reviews
 		{
 			RuleFor(x => x.OrderDetailId)
 				.NotEmpty()
-				.WithMessage("Order detail ID is required.");
+               .WithMessage("Order detail ID là bắt buộc.");
 
 			RuleFor(x => x.Rating)
 				.InclusiveBetween(1, 5)
-				.WithMessage("Rating must be between 1 and 5 stars.");
+              .WithMessage("Đánh giá phải nằm trong khoảng từ 1 đến 5 sao.");
 
 			RuleFor(x => x.Comment)
 				.NotEmpty()
-				.WithMessage("Comment is required.")
+                .WithMessage("Nội dung đánh giá là bắt buộc.")
 				.MinimumLength(MinCommentLength)
-				.WithMessage($"Comment must be at least {MinCommentLength} characters.")
+                .WithMessage($"Nội dung đánh giá phải có ít nhất {MinCommentLength} ký tự.")
 				.MaximumLength(MaxCommentLength)
-				.WithMessage($"Comment must not exceed {MaxCommentLength} characters.");
+                .WithMessage($"Nội dung đánh giá không được vượt quá {MaxCommentLength} ký tự.");
 		}
 	}
 }

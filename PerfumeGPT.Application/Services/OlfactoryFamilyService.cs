@@ -39,7 +39,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			var result = await _unitOfWork.OlfactoryFamilies.GetOlfactoryFamilyByIdAsync(id);
 			return result == null
-				? throw AppException.NotFound("OlfactoryFamily not found")
+			  ? throw AppException.NotFound("Không tìm thấy nhóm hương")
 				: BaseResponse<OlfactoryFamilyResponse>.Ok(result);
 		}
 
@@ -49,13 +49,13 @@ namespace PerfumeGPT.Application.Services
 
 			var exists = await _unitOfWork.OlfactoryFamilies.AnyAsync(s => s.Name.ToLower() == normalizedName.ToLower());
 			if (exists)
-				throw AppException.Conflict("OlfactoryFamily name already exists.");
+				throw AppException.Conflict("Tên nhóm hương đã tồn tại.");
 
 			var entity = OlfactoryFamily.Create(request.Name);
 
 			await _unitOfWork.OlfactoryFamilies.AddAsync(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Could not create OlfactoryFamily.");
+			if (!saved) throw AppException.Internal("Không thể tạo nhóm hương.");
 			return BaseResponse<OlfactoryFamilyResponse>.Ok(_mapper.Map<OlfactoryFamilyResponse>(entity));
 		}
 
@@ -65,27 +65,27 @@ namespace PerfumeGPT.Application.Services
 
 			var exists = await _unitOfWork.OlfactoryFamilies.AnyAsync(s => s.Name.ToLower() == normalizedName.ToLower() && s.Id != id);
 			if (exists)
-				throw AppException.Conflict("OlfactoryFamily name already exists.");
+				throw AppException.Conflict("Tên nhóm hương đã tồn tại.");
 
-			var entity = await _unitOfWork.OlfactoryFamilies.GetByIdAsync(id) ?? throw AppException.NotFound("OlfactoryFamily not found");
+			var entity = await _unitOfWork.OlfactoryFamilies.GetByIdAsync(id) ?? throw AppException.NotFound("Không tìm thấy nhóm hương");
 			entity.Rename(request.Name);
 
 			_unitOfWork.OlfactoryFamilies.Update(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Could not update OlfactoryFamily.");
+			if (!saved) throw AppException.Internal("Không thể cập nhật nhóm hương.");
 
 			return BaseResponse<OlfactoryFamilyResponse>.Ok(_mapper.Map<OlfactoryFamilyResponse>(entity));
 		}
 
 		public async Task<BaseResponse<bool>> DeleteOlfactoryFamilyAsync(int id)
 		{
-			var entity = await _unitOfWork.OlfactoryFamilies.GetByIdAsync(id) ?? throw AppException.NotFound("OlfactoryFamily not found");
+			var entity = await _unitOfWork.OlfactoryFamilies.GetByIdAsync(id) ?? throw AppException.NotFound("Không tìm thấy nhóm hương");
 			var hasAssociations = await _unitOfWork.OlfactoryFamilies.HasAssociationsAsync(id);
-			if (!hasAssociations) throw AppException.Conflict("Cannot delete OlfactoryFamily with associated records.");
+			if (!hasAssociations) throw AppException.Conflict("Không thể xóa nhóm hương có dữ liệu liên kết.");
 
 			_unitOfWork.OlfactoryFamilies.Remove(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Could not delete OlfactoryFamily.");
+			if (!saved) throw AppException.Internal("Không thể xóa nhóm hương.");
 
 			return BaseResponse<bool>.Ok(true);
 		}

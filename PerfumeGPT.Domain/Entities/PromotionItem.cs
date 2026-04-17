@@ -39,16 +39,16 @@ namespace PerfumeGPT.Domain.Entities
 		public static PromotionItem Create(PromotionItemCreationFactor details)
 		{
 			if (details.CampaignId == Guid.Empty)
-				throw DomainException.BadRequest("Campaign ID is required.");
+               throw DomainException.BadRequest("Campaign ID là bắt buộc.");
 
 			if (details.ProductVariantId == Guid.Empty)
-				throw DomainException.BadRequest("Product variant ID is required.");
+                throw DomainException.BadRequest("Product variant ID là bắt buộc.");
 
 			if (details.MaxUsage.HasValue && details.MaxUsage.Value <= 0)
-				throw DomainException.BadRequest("Max usage must be greater than 0.");
+              throw DomainException.BadRequest("Số lượt dùng tối đa phải lớn hơn 0.");
 
 			if (details.DiscountValue <= 0)
-				throw DomainException.BadRequest("Discount value must be greater than 0.");
+             throw DomainException.BadRequest("Giá trị giảm giá phải lớn hơn 0.");
 
 			return new PromotionItem
 			{
@@ -68,13 +68,13 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdateConfiguration(PromotionItemUpdateFactor details)
 		{
 			if (details.ProductVariantId == Guid.Empty)
-				throw DomainException.BadRequest("Product variant ID is required.");
+                throw DomainException.BadRequest("Product variant ID là bắt buộc.");
 
 			if (details.MaxUsage.HasValue && details.MaxUsage.Value <= 0)
-				throw DomainException.BadRequest("Max usage must be greater than 0.");
+              throw DomainException.BadRequest("Số lượt dùng tối đa phải lớn hơn 0.");
 
 			if (details.DiscountValue <= 0)
-				throw DomainException.BadRequest("Discount value must be greater than 0.");
+             throw DomainException.BadRequest("Giá trị giảm giá phải lớn hơn 0.");
 
 			TargetProductVariantId = details.ProductVariantId;
 			BatchId = details.BatchId;
@@ -93,10 +93,10 @@ namespace PerfumeGPT.Domain.Entities
 		public void IncreaseCurrentUsage(int quantity)
 		{
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Usage quantity must be greater than 0.");
+             throw DomainException.BadRequest("Số lượng sử dụng phải lớn hơn 0.");
 
 			if (MaxUsage.HasValue && CurrentUsage + quantity > MaxUsage.Value)
-				throw DomainException.Conflict("Promotion usage limit has been reached.");
+              throw DomainException.Conflict("Đã đạt giới hạn sử dụng khuyến mãi.");
 
 			CurrentUsage += quantity;
 		}
@@ -104,7 +104,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void DecreaseCurrentUsage(int quantity)
 		{
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Usage quantity must be greater than 0.");
+             throw DomainException.BadRequest("Số lượng sử dụng phải lớn hơn 0.");
 
 			CurrentUsage = Math.Max(0, CurrentUsage - quantity);
 		}

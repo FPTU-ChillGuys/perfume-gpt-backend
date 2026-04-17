@@ -39,10 +39,10 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			// 2. Load Entity
 			var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
-				?? throw AppException.NotFound($"Stock for variant {variantId} not found.");
+				?? throw AppException.NotFound($"Không tìm thấy kho hàng cho biến thể sản phẩm với ID {variantId}.");
 
 			var variant = await _context.ProductVariants.FirstOrDefaultAsync(v => v.Id == variantId)
-				?? throw AppException.NotFound($"Variant {variantId} not found.");
+				?? throw AppException.NotFound($"Không tìm thấy biến thể sản phẩm với ID {variantId}.");
 
 			// 3. Sync quantity
 			stock.SyncQuantity(totalQuantity);

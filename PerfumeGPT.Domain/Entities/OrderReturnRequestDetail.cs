@@ -19,16 +19,16 @@ namespace PerfumeGPT.Domain.Entities
 		public static OrderReturnRequestDetail Create(ReturnRequestDetailPayload payload)
 		{
 			if (payload.OrderDetailId == Guid.Empty)
-				throw DomainException.BadRequest("Order detail ID is required.");
+               throw DomainException.BadRequest("Order detail ID là bắt buộc.");
 
 			if (payload.RequestedQuantity <= 0)
-				throw DomainException.BadRequest("Returned quantity must be greater than 0.");
+              throw DomainException.BadRequest("Số lượng trả phải lớn hơn 0.");
 
 			if (payload.OrderedQuantity <= 0)
-				throw DomainException.BadRequest("Ordered quantity must be greater than 0.");
+               throw DomainException.BadRequest("Số lượng đã đặt phải lớn hơn 0.");
 
 			if (payload.RequestedQuantity > payload.OrderedQuantity)
-				throw DomainException.BadRequest("Returned quantity cannot exceed ordered quantity.");
+              throw DomainException.BadRequest("Số lượng trả không được vượt quá số lượng đã đặt.");
 
 			return new OrderReturnRequestDetail
 			{

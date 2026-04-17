@@ -39,7 +39,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<List<BannerResponse>>> GetVisibleBannersAsync(BannerPosition? position = null)
 		{
 			var banners = await _unitOfWork.Banners.GetVisibleBannersAsync(position);
-			return BaseResponse<List<BannerResponse>>.Ok(banners, "Visible banners retrieved successfully.");
+			return BaseResponse<List<BannerResponse>>.Ok(banners, "Lấy danh sách banner hiển thị thành công.");
 		}
 
 		public async Task<BaseResponse<PagedResult<BannerResponse>>> GetPagedBannersAsync(GetPagedBannersRequest request)
@@ -47,15 +47,15 @@ namespace PerfumeGPT.Application.Services
 			var (items, totalCount) = await _unitOfWork.Banners.GetPagedBannersAsync(request);
 			var pagedResult = new PagedResult<BannerResponse>(items, request.PageNumber, request.PageSize, totalCount);
 
-			return BaseResponse<PagedResult<BannerResponse>>.Ok(pagedResult, "Banner list retrieved successfully.");
+			return BaseResponse<PagedResult<BannerResponse>>.Ok(pagedResult, "Lấy danh sách banner thành công.");
 		}
 
 		public async Task<BaseResponse<BannerResponse>> GetBannerByIdAsync(Guid bannerId)
 		{
 			var banner = await _unitOfWork.Banners.GetBannerByIdDtoAsync(bannerId)
-				?? throw AppException.NotFound("Banner not found.");
+				?? throw AppException.NotFound("Không tìm thấy banner.");
 
-			return BaseResponse<BannerResponse>.Ok(banner, "Banner retrieved successfully.");
+			return BaseResponse<BannerResponse>.Ok(banner, "Lấy thông tin banner thành công.");
 		}
 
 		public async Task<BaseResponse<string>> CreateBannerAsync(CreateBannerRequest request)
@@ -69,7 +69,7 @@ namespace PerfumeGPT.Application.Services
 
 			if (temporaryDesktopImage != null && temporaryMobileImage != null && temporaryDesktopImage.Id == temporaryMobileImage.Id)
 			{
-				throw AppException.BadRequest("Desktop and mobile temporary images must be different.");
+				throw AppException.BadRequest("Ảnh tạm cho desktop và mobile phải khác nhau.");
 			}
 
 			var creationPayload = _mapper.Map<Banner.BannerCreationPayload>(request) with
@@ -100,13 +100,13 @@ namespace PerfumeGPT.Application.Services
 
 			ScheduleBannerJobs(banner);
 
-			return BaseResponse<string>.Ok(banner.Id.ToString(), "Banner created successfully.");
+			return BaseResponse<string>.Ok(banner.Id.ToString(), "Tạo banner thành công.");
 		}
 
 		public async Task<BaseResponse<string>> UpdateBannerAsync(Guid bannerId, UpdateBannerRequest request)
 		{
 			var banner = await _unitOfWork.Banners.GetByIdAsync(bannerId)
-				?? throw AppException.NotFound("Banner not found.");
+				?? throw AppException.NotFound("Không tìm thấy banner.");
 
 			TemporaryMedia? temporaryDesktopImage = null;
 			TemporaryMedia? temporaryMobileImage = null;
@@ -123,7 +123,7 @@ namespace PerfumeGPT.Application.Services
 
 			if (temporaryDesktopImage != null && temporaryMobileImage != null && temporaryDesktopImage.Id == temporaryMobileImage.Id)
 			{
-				throw AppException.BadRequest("Desktop and mobile temporary images must be different.");
+				throw AppException.BadRequest("Ảnh tạm cho desktop và mobile phải khác nhau.");
 			}
 
 			if (temporaryDesktopImage != null && !string.IsNullOrWhiteSpace(banner.ImagePublicId) && !string.IsNullOrWhiteSpace(banner.ImageUrl))
@@ -164,28 +164,28 @@ namespace PerfumeGPT.Application.Services
 
 			ScheduleBannerJobs(banner);
 
-			return BaseResponse<string>.Ok(banner.Id.ToString(), "Banner updated successfully.");
+			return BaseResponse<string>.Ok(banner.Id.ToString(), "Cập nhật banner thành công.");
 		}
 
 		public async Task<BaseResponse<string>> DeleteBannerAsync(Guid bannerId)
 		{
 			var banner = await _unitOfWork.Banners.GetByIdAsync(bannerId)
-				?? throw AppException.NotFound("Banner not found.");
+				?? throw AppException.NotFound("Không tìm thấy banner.");
 
 			_unitOfWork.Banners.Remove(banner);
 			await _unitOfWork.SaveChangesAsync();
 
-			return BaseResponse<string>.Ok(bannerId.ToString(), "Banner deleted successfully.");
+			return BaseResponse<string>.Ok(bannerId.ToString(), "Xóa banner thành công.");
 		}
 
 		private async Task<TemporaryMedia> GetValidTemporaryBannerMediaAsync(Guid temporaryMediaId)
 		{
 			var temporaryMedia = await _unitOfWork.TemporaryMedia.GetByIdAsync(temporaryMediaId)
-				?? throw AppException.NotFound("Temporary media not found.");
+			   ?? throw AppException.NotFound("Không tìm thấy media tạm.");
 
 			if (temporaryMedia.TargetEntityType != EntityType.Banner)
 			{
-				throw AppException.BadRequest("Temporary media is not for banner.");
+				throw AppException.BadRequest("Media tạm không dành cho banner.");
 			}
 
 			temporaryMedia.EnsureNotExpired();
@@ -207,14 +207,14 @@ namespace PerfumeGPT.Application.Services
 
 		private async Task HandleDisplayOrderAsync(Banner banner, int requestedOrder)
 		{
-         var existingBanners = (await _unitOfWork.Banners.GetAllAsync(
-				filter: b => b.Position == banner.Position && b.Id != banner.Id,
-				orderBy: q => q.OrderBy(b => b.DisplayOrder)))
-				.ToList();
+			var existingBanners = (await _unitOfWork.Banners.GetAllAsync(
+				   filter: b => b.Position == banner.Position && b.Id != banner.Id,
+				   orderBy: q => q.OrderBy(b => b.DisplayOrder)))
+				   .ToList();
 
 			var maxOrder = existingBanners.Count == 0 ? 0 : existingBanners.Max(b => b.DisplayOrder);
 
-          if (requestedOrder <= 0)
+			if (requestedOrder <= 0)
 			{
 				banner.ChangeOrder(maxOrder + 1);
 				return;
@@ -222,12 +222,12 @@ namespace PerfumeGPT.Application.Services
 
 			var normalizedOrder = Math.Min(requestedOrder, maxOrder + 1);
 
-          var isCollision = existingBanners.Any(b => b.DisplayOrder == normalizedOrder);
+			var isCollision = existingBanners.Any(b => b.DisplayOrder == normalizedOrder);
 
 			if (isCollision)
 			{
 				var bannersToShift = existingBanners
-                   .Where(b => b.DisplayOrder >= normalizedOrder)
+				   .Where(b => b.DisplayOrder >= normalizedOrder)
 					.OrderBy(b => b.DisplayOrder)
 					.ToList();
 
@@ -238,7 +238,7 @@ namespace PerfumeGPT.Application.Services
 				}
 			}
 
-          banner.ChangeOrder(normalizedOrder);
+			banner.ChangeOrder(normalizedOrder);
 		}
 	}
 }

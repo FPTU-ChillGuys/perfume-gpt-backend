@@ -542,8 +542,8 @@ namespace PerfumeGPT.Persistence.Repositories
 				Total = order.TotalAmount,
 				PaymentMethod = latestPayment?.Method.ToString() ?? "N/A",
 				Note = order.Type == OrderType.Offline
-					? "Physical in-store invoice."
-					: "Online order invoice."
+					? "Hóa đơn mua hàng tại cửa hàng."
+					: "Hóa đơn mua hàng trực tuyến. Cảm ơn quý khách đã mua sắm tại PerfumeGPT!"
 			};
 		}
 

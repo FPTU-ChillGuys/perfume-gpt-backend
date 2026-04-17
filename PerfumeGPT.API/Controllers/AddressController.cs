@@ -150,7 +150,7 @@ namespace PerfumeGPT.API.Controllers
 			if (provinceId <= 0)
 			{
 				var badRequestResponse = BaseResponse<List<DistrictResponse>>.Fail(
-					"Province ID must be greater than 0",
+					"Province ID phải lớn hơn 0",
 					ResponseErrorType.BadRequest
 				);
 				return HandleResponse(badRequestResponse);
@@ -169,7 +169,7 @@ namespace PerfumeGPT.API.Controllers
 			if (districtId <= 0)
 			{
 				var badRequestResponse = BaseResponse<List<WardResponse>>.Fail(
-					"District ID must be greater than 0",
+					"District ID phải lớn hơn 0",
 					ResponseErrorType.BadRequest
 				);
 				return HandleResponse(badRequestResponse);

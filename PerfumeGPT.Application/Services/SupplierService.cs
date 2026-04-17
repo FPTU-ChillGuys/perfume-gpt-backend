@@ -31,7 +31,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<SupplierResponse>> GetSupplierByIdAsync(int id)
 		{
 			var supplier = await _unitOfWork.Suppliers.GetSupplierByIdAsync(id)
-				?? throw AppException.NotFound("Supplier not found");
+			   ?? throw AppException.NotFound("Không tìm thấy nhà cung cấp");
 
 			return BaseResponse<SupplierResponse>.Ok(supplier);
 		}
@@ -49,18 +49,18 @@ namespace PerfumeGPT.Application.Services
 
 			var nameExists = await _unitOfWork.Suppliers.AnyAsync(s => s.Name.ToUpper() == normalizedName);
 			if (nameExists)
-				throw AppException.Conflict("Supplier name already exists.");
+				throw AppException.Conflict("Tên nhà cung cấp đã tồn tại.");
 
 			var emailExists = await _unitOfWork.Suppliers.AnyAsync(s => s.ContactEmail.ToUpper() == normalizedEmail);
 			if (emailExists)
-				throw AppException.Conflict("Supplier contact email already exists.");
+				throw AppException.Conflict("Email liên hệ của nhà cung cấp đã tồn tại.");
 
 			var payload = _mapper.Map<Supplier.SupplierPayload>(request);
 			var entity = Supplier.Create(payload);
 			await _unitOfWork.Suppliers.AddAsync(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to create supplier");
+			if (!saved) throw AppException.Internal("Tạo nhà cung cấp thất bại");
 
 			return BaseResponse<SupplierResponse>.Ok(_mapper.Map<SupplierResponse>(entity));
 		}
@@ -68,25 +68,25 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<SupplierResponse>> UpdateSupplierAsync(int id, UpdateSupplierRequest request)
 		{
 			var entity = await _unitOfWork.Suppliers.GetByIdAsync(id)
-				?? throw AppException.NotFound("Supplier not found");
+			   ?? throw AppException.NotFound("Không tìm thấy nhà cung cấp");
 
 			var normalizedName = Supplier.NormalizeName(request.Name).ToUpperInvariant();
 			var normalizedEmail = Supplier.NormalizeEmail(request.ContactEmail).ToUpperInvariant();
 
 			var nameExists = await _unitOfWork.Suppliers.AnyAsync(s => s.Id != id && s.Name.ToUpper() == normalizedName);
 			if (nameExists)
-				throw AppException.Conflict("Supplier name already exists.");
+				throw AppException.Conflict("Tên nhà cung cấp đã tồn tại.");
 
 			var emailExists = await _unitOfWork.Suppliers.AnyAsync(s => s.Id != id && s.ContactEmail.ToUpper() == normalizedEmail);
 			if (emailExists)
-				throw AppException.Conflict("Supplier contact email already exists.");
+				throw AppException.Conflict("Email liên hệ của nhà cung cấp đã tồn tại.");
 
 			var payload = _mapper.Map<Supplier.SupplierPayload>(request);
 			entity.UpdateDetails(payload);
 			_unitOfWork.Suppliers.Update(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to update supplier");
+			if (!saved) throw AppException.Internal("Cập nhật nhà cung cấp thất bại");
 
 			return BaseResponse<SupplierResponse>.Ok(_mapper.Map<SupplierResponse>(entity));
 		}
@@ -94,15 +94,15 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<bool>> DeleteSupplierAsync(int id)
 		{
 			var entity = await _unitOfWork.Suppliers.GetByIdAsync(id)
-				?? throw AppException.NotFound("Supplier not found");
+			   ?? throw AppException.NotFound("Không tìm thấy nhà cung cấp");
 
 			var hasImportTickets = await _unitOfWork.Suppliers.HasImportTicketsAsync(id);
-			if (!hasImportTickets) throw AppException.Conflict("Cannot delete supplier with associated import tickets.");
+			if (!hasImportTickets) throw AppException.Conflict("Không thể xóa nhà cung cấp có liên kết phiếu nhập.");
 
 			_unitOfWork.Suppliers.Remove(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to delete supplier");
+			if (!saved) throw AppException.Internal("Xóa nhà cung cấp thất bại");
 
 			return BaseResponse<bool>.Ok(true);
 		}

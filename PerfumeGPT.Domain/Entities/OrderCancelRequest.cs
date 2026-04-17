@@ -41,16 +41,16 @@ namespace PerfumeGPT.Domain.Entities
 		public static OrderCancelRequest Create(Guid orderId, Guid requestedById, CancelRequestPayload payload)
 		{
 			if (orderId == Guid.Empty)
-				throw DomainException.BadRequest("Order ID is required.");
+              throw DomainException.BadRequest("Order ID là bắt buộc.");
 
 			if (requestedById == Guid.Empty)
-				throw DomainException.BadRequest("Requested by user is required.");
+             throw DomainException.BadRequest("Người gửi yêu cầu là bắt buộc.");
 
 			if (payload.IsRefundRequired && (!payload.RefundAmount.HasValue || payload.RefundAmount.Value < 0))
-				throw DomainException.BadRequest("Refund amount is invalid.");
+              throw DomainException.BadRequest("Số tiền hoàn không hợp lệ.");
 
 			if (payload.ProcessedById.HasValue && payload.ProcessedById.Value == Guid.Empty)
-				throw DomainException.BadRequest("Processed by user is invalid.");
+              throw DomainException.BadRequest("Người xử lý không hợp lệ.");
 
 			var refundBankName = payload.RefundBankName?.Trim();
 			var refundAccountNumber = payload.RefundAccountNumber?.Trim();
@@ -66,7 +66,7 @@ namespace PerfumeGPT.Domain.Entities
 					|| string.IsNullOrWhiteSpace(refundAccountNumber)
 					|| string.IsNullOrWhiteSpace(refundAccountName))
 				{
-					throw DomainException.BadRequest("Incomplete bank information. Bank name, account number, and account name are all required if requesting a manual refund.");
+                   throw DomainException.BadRequest("Thông tin ngân hàng chưa đầy đủ. Khi yêu cầu hoàn tiền thủ công, bắt buộc có tên ngân hàng, số tài khoản và tên chủ tài khoản.");
 				}
 			}
 
@@ -91,10 +91,10 @@ namespace PerfumeGPT.Domain.Entities
 		public void Process(Guid processedById, bool isApproved, string? staffNote)
 		{
 			if (Status != CancelRequestStatus.Pending)
-				throw DomainException.BadRequest("Cancel request is not pending.");
+             throw DomainException.BadRequest("Yêu cầu hủy không ở trạng thái chờ xử lý.");
 
 			if (processedById == Guid.Empty)
-				throw DomainException.BadRequest("Processed by user is required.");
+             throw DomainException.BadRequest("Người xử lý là bắt buộc.");
 
 			ProcessedById = processedById;
 			StaffNote = string.IsNullOrWhiteSpace(staffNote) ? null : staffNote.Trim();

@@ -23,13 +23,13 @@ namespace PerfumeGPT.Domain.Entities
 		public static StockAdjustmentDetail Create(StockAdjustmentDetailPayload payload)
 		{
 			if (payload.ProductVariantId == Guid.Empty)
-				throw DomainException.BadRequest("Product variant ID is required.");
+                throw DomainException.BadRequest("Product variant ID là bắt buộc.");
 
 			if (payload.BatchId == Guid.Empty)
-				throw DomainException.BadRequest("Batch ID is required.");
+              throw DomainException.BadRequest("Batch ID là bắt buộc.");
 
 			if (payload.AdjustmentQuantity == 0)
-				throw DomainException.BadRequest("Adjustment quantity cannot be 0.");
+               throw DomainException.BadRequest("Số lượng điều chỉnh không được bằng 0.");
 
 			return new StockAdjustmentDetail
 			{

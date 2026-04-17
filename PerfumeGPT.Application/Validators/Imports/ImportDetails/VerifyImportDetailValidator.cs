@@ -9,13 +9,13 @@ namespace PerfumeGPT.Application.Validators.Imports.ImportDetails
 		public VerifyImportDetailValidator()
 		{
 			RuleFor(x => x.ImportDetailId)
-				.NotEmpty().WithMessage("Import detail ID is required.");
+				.NotEmpty().WithMessage("ID chi tiết nhập hàng là bắt buộc.");
 
 			RuleFor(x => x.RejectedQuantity)
-				.GreaterThanOrEqualTo(0).WithMessage("Reject quantity cannot be negative.");
+				.GreaterThanOrEqualTo(0).WithMessage("Số lượng bị từ chối không được âm.");
 
 			RuleFor(x => x.Note)
-				.MaximumLength(500).WithMessage("Note must not exceed 500 characters.");
+				.MaximumLength(500).WithMessage("Ghi chú không được vượt quá 500 ký tự.");
 
 			RuleForEach(x => x.Batches).SetValidator(new CreateBatchValidator());
 		}

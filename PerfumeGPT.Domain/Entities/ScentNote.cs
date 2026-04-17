@@ -30,7 +30,7 @@ namespace PerfumeGPT.Domain.Entities
 		private static string NormalizeName(string name)
 		{
 			if (string.IsNullOrWhiteSpace(name))
-				throw DomainException.BadRequest("ScentNote name is required.");
+                throw DomainException.BadRequest("Tên nốt hương là bắt buộc.");
 
 			return name.Trim();
 		}

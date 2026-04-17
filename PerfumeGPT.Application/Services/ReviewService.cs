@@ -35,7 +35,7 @@ namespace PerfumeGPT.Application.Services
 			var canReview = await _unitOfWork.Reviews.CanUserReviewOrderDetailAsync(userId, request.OrderDetailId);
 			if (!canReview)
 			{
-				throw AppException.BadRequest("You cannot review this item. Either you haven't purchased it, the order is not delivered yet, or you've already reviewed it.");
+				throw AppException.BadRequest("Bạn không thể đánh giá sản phẩm này. Có thể bạn chưa mua, đơn hàng chưa được giao, hoặc bạn đã đánh giá trước đó.");
 			}
 
 			var review = Review.Create(userId, request.OrderDetailId, request.Rating, request.Comment);
@@ -44,7 +44,7 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 
 			if (!saved)
-				throw AppException.Internal("Failed to create review");
+				throw AppException.Internal("Tạo đánh giá thất bại");
 
 			var metadata = new BulkActionMetadata { Operations = [] };
 			if (request.TemporaryMediaIds != null && request.TemporaryMediaIds.Count != 0)
@@ -58,18 +58,18 @@ namespace PerfumeGPT.Application.Services
 
 			var result = new BulkActionResult<Guid>(review.Id, metadata.Operations.Count > 0 ? metadata : null);
 			var message = metadata.HasPartialFailure
-				? $"Review submitted successfully with {metadata.TotalFailed} media upload failure(s)."
-				: "Review submitted successfully.";
+			 ? $"Gửi đánh giá thành công nhưng có {metadata.TotalFailed} tệp media tải lên thất bại."
+				: "Gửi đánh giá thành công.";
 
 			return BaseResponse<BulkActionResult<Guid>>.Ok(result, message);
 		}
 
 		public async Task<BaseResponse<string>> DeleteReviewAsync(Guid userId, Guid reviewId, bool canDeleteAny = false)
 		{
-			var review = await _unitOfWork.Reviews.GetByIdAsync(reviewId) ?? throw AppException.NotFound("Review not found");
+			var review = await _unitOfWork.Reviews.GetByIdAsync(reviewId) ?? throw AppException.NotFound("Không tìm thấy đánh giá");
 
 			if (!canDeleteAny && !review.IsAuthor(userId))
-				throw AppException.Forbidden("You are not authorized to delete this review");
+				throw AppException.Forbidden("Bạn không có quyền xóa đánh giá này");
 
 			_unitOfWork.Reviews.Remove(review);
 
@@ -77,25 +77,25 @@ namespace PerfumeGPT.Application.Services
 
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
-				throw AppException.Internal("Failed to delete review");
+				throw AppException.Internal("Xóa đánh giá thất bại");
 
-			return BaseResponse<string>.Ok("Review deleted successfully");
+			return BaseResponse<string>.Ok("Xóa đánh giá thành công");
 		}
 
 		public async Task<BaseResponse<string>> AnswerReviewAsync(Guid reviewId, Guid staffId, AnswerReviewRequest request)
 		{
-			var review = await _unitOfWork.Reviews.GetByIdAsync(reviewId) ?? throw AppException.NotFound("Review not found");
+			var review = await _unitOfWork.Reviews.GetByIdAsync(reviewId) ?? throw AppException.NotFound("Không tìm thấy đánh giá");
 
 			if (review.HasStaffResponse())
-				throw AppException.BadRequest("This review already has a staff response.");
+				throw AppException.BadRequest("Đánh giá này đã có phản hồi từ nhân viên.");
 
 			review.AnswerByStaff(staffId, request.StaffFeedbackComment, DateTime.UtcNow);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
-				throw AppException.Internal("Failed to answer review");
+				throw AppException.Internal("Phản hồi đánh giá thất bại");
 
-			return BaseResponse<string>.Ok("Review answered successfully");
+			return BaseResponse<string>.Ok("Phản hồi đánh giá thành công");
 		}
 
 		public async Task<BaseResponse<PagedResult<ReviewListItem>>> GetReviewsAsync(GetPagedReviewsRequest request)
@@ -114,7 +114,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ReviewDetailResponse>> GetReviewByIdAsync(Guid reviewId)
 		{
-			var response = await _unitOfWork.Reviews.GetReviewWithDetailsAsync(reviewId) ?? throw AppException.NotFound("Review not found");
+			var response = await _unitOfWork.Reviews.GetReviewWithDetailsAsync(reviewId) ?? throw AppException.NotFound("Không tìm thấy đánh giá");
 			return BaseResponse<ReviewDetailResponse>.Ok(response);
 		}
 
@@ -152,7 +152,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<List<MediaResponse>>> GetReviewImagesAsync(Guid reviewId)
 		{
 			var existed = await _unitOfWork.Reviews.AnyAsync(rv => rv.Id == reviewId);
-			if (!existed) throw AppException.NotFound("Review not found");
+			if (!existed) throw AppException.NotFound("Không tìm thấy đánh giá");
 			return await _mediaService.GetMediaByEntityAsync(EntityType.Review, reviewId);
 		}
 	}

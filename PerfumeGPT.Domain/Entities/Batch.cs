@@ -39,16 +39,16 @@ namespace PerfumeGPT.Domain.Entities
 		public static Batch CreateForImport(CreateForImportDto dto)
 		{
 			if (string.IsNullOrWhiteSpace(dto.BatchCode))
-				throw DomainException.BadRequest("Batch code is required.");
+				throw DomainException.BadRequest("Mã lô là bắt buộc.");
 
 			if (dto.Quantity <= 0)
-				throw DomainException.BadRequest("Batch quantity must be greater than 0.");
+				throw DomainException.BadRequest("Số lượng lô phải lớn hơn 0.");
 
 			if (dto.ExpiryDate <= dto.ManufactureDate)
-				throw DomainException.BadRequest("Expiry date must be later than manufacture date.");
+				throw DomainException.BadRequest("Ngày hết hạn phải sau ngày sản xuất.");
 
 			if (dto.ExpiryDate <= DateTime.UtcNow)
-				throw DomainException.BadRequest("Expiry date must be in the future.");
+				throw DomainException.BadRequest("Ngày hết hạn phải ở tương lai.");
 
 			var batch = new Batch
 			{
@@ -70,7 +70,7 @@ namespace PerfumeGPT.Domain.Entities
 				batch.RemainingQuantity,
 				StockTransactionType.Import,
 				batch.ImportDetailId,
-				$"Import batch {batch.BatchCode} created with quantity {batch.ImportQuantity}.",
+				$"Lô hàng nhập mới với mã lô {batch.BatchCode}",
 				null
 			));
 
@@ -89,7 +89,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void IncreaseQuantity(int quantity, StockTransactionType type, Guid referenceId, Guid? actorId, string? reason = null)
 		{
 			if (!CanIncreaseQuantity(quantity))
-				throw DomainException.BadRequest($"Cannot increase quantity beyond import quantity of {ImportQuantity}.");
+				throw DomainException.BadRequest($"Không thể tăng số lượng vượt quá số lượng nhập {ImportQuantity}.");
 
 			RemainingQuantity += quantity;
 
@@ -110,7 +110,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void DecreaseQuantity(int quantity, StockTransactionType type, Guid referenceId, Guid? actorId, string? reason = null)
 		{
 			if (!CanDecreaseQuantity(quantity))
-				throw DomainException.BadRequest("Cannot decrease batch quantity below zero.");
+				throw DomainException.BadRequest("Không thể giảm số lượng lô xuống dưới 0.");
 
 			RemainingQuantity -= quantity;
 
@@ -130,18 +130,18 @@ namespace PerfumeGPT.Domain.Entities
 		public void Reserve(int quantity)
 		{
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Reserve quantity must be greater than 0.");
+				throw DomainException.BadRequest("Số lượng giữ chỗ phải lớn hơn 0.");
 			if (AvailableInBatch < quantity)
-				throw DomainException.BadRequest("Insufficient available quantity to reserve.");
+				throw DomainException.BadRequest("Số lượng khả dụng không đủ để giữ chỗ.");
 			ReservedQuantity += quantity;
 		}
 
 		public void Release(int quantity)
 		{
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Release quantity must be greater than 0.");
+				throw DomainException.BadRequest("Số lượng giải phóng phải lớn hơn 0.");
 			if (ReservedQuantity < quantity)
-				throw DomainException.BadRequest("Cannot release more than reserved quantity.");
+				throw DomainException.BadRequest("Không thể giải phóng vượt quá số lượng đã giữ chỗ.");
 			ReservedQuantity -= quantity;
 		}
 

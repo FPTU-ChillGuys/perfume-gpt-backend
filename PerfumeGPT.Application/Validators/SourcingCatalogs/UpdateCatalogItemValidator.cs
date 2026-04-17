@@ -8,10 +8,10 @@ namespace PerfumeGPT.Application.Validators.SourcingCatalogs
 		public UpdateCatalogItemValidator()
 		{
 			RuleFor(x => x.NegotiatedPrice)
-				.GreaterThan(0).WithMessage("NegotiatedPrice must be greater than 0.");
+             .GreaterThan(0).WithMessage("Giá thương lượng phải lớn hơn 0.");
 
 			RuleFor(x => x.EstimatedLeadTimeDays)
-				.GreaterThanOrEqualTo(0).WithMessage("EstimatedLeadTimeDays cannot be negative.");
+              .GreaterThanOrEqualTo(0).WithMessage("Số ngày giao hàng dự kiến không được âm.");
 		}
 	}
 }

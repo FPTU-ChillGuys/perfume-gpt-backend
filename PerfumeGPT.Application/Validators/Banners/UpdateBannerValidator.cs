@@ -9,39 +9,36 @@ namespace PerfumeGPT.Application.Validators.Banners
 		{
 			RuleFor(x => x.Title)
 				.Must(title => !string.IsNullOrWhiteSpace(title))
-				.WithMessage("Title is required.")
+				.WithMessage("Tiêu đề là bắt buộc.")
 				.MaximumLength(200)
-				.WithMessage("Title must not exceed 200 characters.");
+				.WithMessage("Tiêu đề không được vượt quá 200 ký tự.");
 
 			RuleFor(x => x.TemporaryImageId)
 				.Must(id => !id.HasValue || id.Value != Guid.Empty)
-				.WithMessage("TemporaryImageId must be a valid guid.");
-
+				.WithMessage("TemporaryImageId phải là một guid hợp lệ.");
 			RuleFor(x => x.TemporaryMobileImageId)
 				.Must(id => !id.HasValue || id.Value != Guid.Empty)
-				.WithMessage("TemporaryMobileImageId must be a valid guid.");
+				.WithMessage("TemporaryMobileImageId phải là một guid hợp lệ.");
 
 			RuleFor(x => x)
 				.Must(x => !x.TemporaryImageId.HasValue || !x.TemporaryMobileImageId.HasValue || x.TemporaryImageId.Value != x.TemporaryMobileImageId.Value)
-				.WithMessage("Desktop and mobile temporary images must be different.");
-
+				.WithMessage("Hình ảnh tạm thời cho desktop và mobile phải khác nhau.");
 			RuleFor(x => x.LinkTarget)
 				.Must(target => !string.IsNullOrWhiteSpace(target))
-				.WithMessage("Link target is required.");
+				.WithMessage("Link target là bắt buộc.");
 
 			RuleFor(x => x.DisplayOrder)
 				.GreaterThanOrEqualTo(0)
-				.WithMessage("Display order must be greater than or equal to 0.");
-
+				.WithMessage("Display order phải lớn hơn hoặc bằng 0.");
 			RuleFor(x => x.Position)
-				.IsInEnum().WithMessage("Invalid banner position.");
+				.IsInEnum().WithMessage("Vị trí banner không hợp lệ.");
 
 			RuleFor(x => x.LinkType)
-				.IsInEnum().WithMessage("Invalid banner link type.");
+				.IsInEnum().WithMessage("Loại liên kết banner không hợp lệ.");
 
 			RuleFor(x => x)
 				.Must(x => !x.StartDate.HasValue || !x.EndDate.HasValue || x.StartDate < x.EndDate)
-				.WithMessage("End date must be after start date.");
+				.WithMessage("Ngày kết thúc phải sau ngày bắt đầu.");
 		}
 	}
 }

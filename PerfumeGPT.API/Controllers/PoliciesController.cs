@@ -27,7 +27,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<SystemPolicyResponse>>> GetPolicyByCodeAsync([FromRoute] string policyCode)
 		{
 			if (string.IsNullOrWhiteSpace(policyCode))
-				throw AppException.BadRequest("Policy code must be provided.");
+             throw AppException.BadRequest("Bắt buộc cung cấp mã chính sách.");
 
 			var policy = await _systemPolicyService.GetByPolicyCodeAsync(policyCode);
 			return HandleResponse(policy);
@@ -41,7 +41,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<SystemPolicyResponse>>> UpdatePolicyAsync([FromRoute] string policyCode, [FromBody] SystemPolicyUpdateRequest request)
 		{
 			if (string.IsNullOrWhiteSpace(policyCode))
-				throw AppException.BadRequest("Policy code must be provided.");
+             throw AppException.BadRequest("Bắt buộc cung cấp mã chính sách.");
 			var updatedPolicy = await _systemPolicyService.UpdatePolicyAsync(policyCode, request);
 			return HandleResponse(updatedPolicy);
 		}

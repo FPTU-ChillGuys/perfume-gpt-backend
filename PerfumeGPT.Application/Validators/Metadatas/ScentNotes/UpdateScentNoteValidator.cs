@@ -8,8 +8,8 @@ namespace PerfumeGPT.Application.Validators.Metadatas.ScentNotes
 		public UpdateScentNoteValidator()
 		{
 			RuleFor(x => x.Name)
-				.NotEmpty().WithMessage("Name is required.")
-				.MaximumLength(100).WithMessage("Name must not exceed 100 characters.");
+				.NotEmpty().WithMessage("Tên nốt hương là bắt buộc.")
+				.MaximumLength(100).WithMessage("Tên nốt hương không được vượt quá 100 ký tự.");
 		}
 	}
 }

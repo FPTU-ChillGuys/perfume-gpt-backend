@@ -33,7 +33,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static ProductAttribute CreateForProduct(Guid productId, int attributeId, int valueId)
 		{
 			if (productId == Guid.Empty)
-				throw DomainException.BadRequest("Product ID is required.");
+                throw DomainException.BadRequest("Product ID là bắt buộc.");
 
 			ValidateCore(attributeId, valueId);
 
@@ -48,7 +48,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static ProductAttribute CreateForVariant(Guid variantId, int attributeId, int valueId)
 		{
 			if (variantId == Guid.Empty)
-				throw DomainException.BadRequest("Variant ID is required.");
+                throw DomainException.BadRequest("Variant ID là bắt buộc.");
 
 			ValidateCore(attributeId, valueId);
 
@@ -63,10 +63,10 @@ namespace PerfumeGPT.Domain.Entities
 		private static void ValidateCore(int attributeId, int valueId)
 		{
 			if (attributeId <= 0)
-				throw DomainException.BadRequest("Attribute ID must be greater than 0.");
+               throw DomainException.BadRequest("Attribute ID phải lớn hơn 0.");
 
 			if (valueId <= 0)
-				throw DomainException.BadRequest("Value ID must be greater than 0.");
+               throw DomainException.BadRequest("Value ID phải lớn hơn 0.");
 		}
 	}
 }

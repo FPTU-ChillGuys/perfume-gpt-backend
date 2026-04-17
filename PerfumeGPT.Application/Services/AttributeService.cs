@@ -26,7 +26,7 @@ namespace PerfumeGPT.Application.Services
 			var lookupList = await _unitOfWork.Attributes.GetLookupListAsync(isVariantLevel);
 			return BaseResponse<List<AttributeLookupItem>>.Ok(
 				lookupList,
-				"Attribute lookup list retrieved successfully.");
+			   "Lấy danh sách tra cứu thuộc tính thành công.");
 		}
 
 		public async Task<BaseResponse<string>> CreateAttributeAsync(CreateAttributeRequest request)
@@ -35,40 +35,40 @@ namespace PerfumeGPT.Application.Services
 			var entity = Attribute.Create(details);
 			await _unitOfWork.Attributes.AddAsync(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to create attribute");
+			if (!saved) throw AppException.Internal("Tạo thuộc tính thất bại");
 
-			return BaseResponse<string>.Ok(entity.Id.ToString(), "Attribute created successfully");
+			return BaseResponse<string>.Ok(entity.Id.ToString(), "Tạo thuộc tính thành công");
 		}
 
 		public async Task<BaseResponse<string>> UpdateAttributeAsync(int attributeId, UpdateAttributeRequest request)
 		{
 			var entity = await _unitOfWork.Attributes.GetByIdAsync(attributeId)
-				 ?? throw AppException.NotFound("Attribute not found");
+			  ?? throw AppException.NotFound("Không tìm thấy thuộc tính");
 
 			var details = _mapper.Map<AttributeUpdateDetails>(request);
 			entity.Update(details);
 			_unitOfWork.Attributes.Update(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to update attribute");
+			if (!saved) throw AppException.Internal("Cập nhật thuộc tính thất bại");
 
-			return BaseResponse<string>.Ok(attributeId.ToString(), "Attribute updated successfully");
+			return BaseResponse<string>.Ok(attributeId.ToString(), "Cập nhật thuộc tính thành công");
 		}
 
 		public async Task<BaseResponse<string>> DeleteAttributeAsync(int attributeId)
 		{
 			var entity = await _unitOfWork.Attributes.GetByIdAsync(attributeId)
-				 ?? throw AppException.NotFound("Attribute not found");
+			  ?? throw AppException.NotFound("Không tìm thấy thuộc tính");
 
 			var isInUse = await _unitOfWork.Attributes.IsInUseAsync(attributeId);
 			if (isInUse)
-				throw AppException.Conflict("Attribute is in use and cannot be deleted.");
+				throw AppException.Conflict("Thuộc tính đang được sử dụng và không thể xóa.");
 
 			_unitOfWork.Attributes.Remove(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to delete attribute");
+			if (!saved) throw AppException.Internal("Xóa thuộc tính thất bại");
 
-			return BaseResponse<string>.Ok(attributeId.ToString(), "Attribute deleted successfully");
+			return BaseResponse<string>.Ok(attributeId.ToString(), "Xóa thuộc tính thành công");
 		}
 	}
 }

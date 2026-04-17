@@ -51,10 +51,10 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdateStatus(CampaignStatus newStatus, DateTime nowUtc)
 		{
 			if (newStatus == CampaignStatus.Active && StartDate > nowUtc)
-				throw DomainException.BadRequest("Cannot activate campaign before its start date.");
+                throw DomainException.BadRequest("Không thể kích hoạt chiến dịch trước ngày bắt đầu.");
 
 			if (newStatus < Status && (newStatus != CampaignStatus.Active || Status != CampaignStatus.Paused))
-				throw DomainException.BadRequest("Cannot revert campaign to a previous status.");
+               throw DomainException.BadRequest("Không thể đưa chiến dịch về trạng thái trước đó.");
 
 			Status = newStatus;
 		}
@@ -118,12 +118,12 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdatePromotionItem(Guid itemId, PromotionItemConfigFactor details)
 		{
 			if (itemId == Guid.Empty)
-				throw DomainException.BadRequest("Campaign item ID is required.");
+              throw DomainException.BadRequest("Campaign item ID là bắt buộc.");
 
 			Items ??= [];
 
 			var item = Items.FirstOrDefault(x => x.Id == itemId)
-				?? throw DomainException.NotFound("Campaign item not found.");
+              ?? throw DomainException.NotFound("Không tìm thấy mục chiến dịch.");
 
 			item.UpdateConfiguration(new PromotionItemUpdateFactor
 			{
@@ -140,12 +140,12 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdateVoucher(Guid voucherId, VoucherConfigFactor details)
 		{
 			if (voucherId == Guid.Empty)
-				throw DomainException.BadRequest("Campaign voucher ID is required.");
+               throw DomainException.BadRequest("Campaign voucher ID là bắt buộc.");
 
 			Vouchers ??= [];
 
 			var voucher = Vouchers.FirstOrDefault(x => x.Id == voucherId)
-				?? throw DomainException.NotFound("Campaign voucher not found.");
+               ?? throw DomainException.NotFound("Không tìm thấy voucher của chiến dịch.");
 
 			voucher.UpdateCampaign(new VoucherCampaignConfigFactor
 			{
@@ -167,12 +167,12 @@ namespace PerfumeGPT.Domain.Entities
 		public void RemovePromotionItem(Guid itemId)
 		{
 			if (itemId == Guid.Empty)
-				throw DomainException.BadRequest("Campaign item ID is required.");
+              throw DomainException.BadRequest("Campaign item ID là bắt buộc.");
 
 			Items ??= [];
 
 			var item = Items.FirstOrDefault(x => x.Id == itemId)
-				?? throw DomainException.NotFound("Campaign item not found.");
+              ?? throw DomainException.NotFound("Không tìm thấy mục chiến dịch.");
 
 			Items.Remove(item);
 		}
@@ -180,12 +180,12 @@ namespace PerfumeGPT.Domain.Entities
 		public void RemoveVoucher(Guid voucherId)
 		{
 			if (voucherId == Guid.Empty)
-				throw DomainException.BadRequest("Campaign voucher ID is required.");
+               throw DomainException.BadRequest("Campaign voucher ID là bắt buộc.");
 
 			Vouchers ??= [];
 
 			var voucher = Vouchers.FirstOrDefault(x => x.Id == voucherId)
-				?? throw DomainException.NotFound("Campaign voucher not found.");
+               ?? throw DomainException.NotFound("Không tìm thấy voucher của chiến dịch.");
 
 			voucher.IsDeleted = true;
 			voucher.DeletedAt ??= DateTime.UtcNow;
@@ -303,20 +303,20 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureIsNotActive(string action = "modify")
 		{
 			if (Status == CampaignStatus.Active)
-				throw DomainException.BadRequest($"Cannot {action} an active campaign. Please pause the campaign before {action}ing.");
+             throw DomainException.BadRequest($"Không thể {action} chiến dịch đang hoạt động. Vui lòng tạm dừng chiến dịch trước khi thực hiện.");
 		}
 
 		// Private helpers
 		private static void ValidateName(string name)
 		{
 			if (string.IsNullOrWhiteSpace(name))
-				throw DomainException.BadRequest("Campaign name is required.");
+             throw DomainException.BadRequest("Tên chiến dịch là bắt buộc.");
 		}
 
 		private static void ValidateDateRange(DateTime startDate, DateTime endDate)
 		{
 			if (endDate <= startDate)
-				throw DomainException.BadRequest("Campaign end date must be after start date.");
+                throw DomainException.BadRequest("Ngày kết thúc chiến dịch phải sau ngày bắt đầu.");
 		}
 
 		// Records

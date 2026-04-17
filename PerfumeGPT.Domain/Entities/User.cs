@@ -46,10 +46,10 @@ namespace PerfumeGPT.Domain.Entities
 		public static User Create(UserCreationDetails details)
 		{
 			if (string.IsNullOrWhiteSpace(details.FullName))
-				throw DomainException.BadRequest("Full name is required.");
+				throw DomainException.BadRequest("Họ và tên là bắt buộc.");
 
 			if (string.IsNullOrWhiteSpace(details.Email))
-				throw DomainException.BadRequest("Email is required.");
+				throw DomainException.BadRequest("Email là bắt buộc.");
 
 			return new User
 			{
@@ -66,43 +66,43 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureActive()
 		{
 			if (!IsActive)
-				throw DomainException.Forbidden("User account is inactive.");
+				throw DomainException.Forbidden("Tài khoản người dùng đang bị vô hiệu hóa.");
 		}
 
 		public void EnsureEmailConfirmed()
 		{
 			if (!EmailConfirmed)
-				throw DomainException.Forbidden("Email has not been confirmed.");
+				throw DomainException.Forbidden("Email chưa được xác nhận.");
 		}
 
 		public void Activate()
 		{
 			if (IsActive)
-				throw DomainException.BadRequest("User is already active.");
+				throw DomainException.BadRequest("Người dùng đã ở trạng thái hoạt động.");
 			IsActive = true;
 		}
 
 		public void Deactivate()
 		{
 			if (!IsActive)
-				throw DomainException.BadRequest("User is already inactive.");
+				throw DomainException.BadRequest("Người dùng đã ở trạng thái không hoạt động.");
 			IsActive = false;
 		}
 
 		public void UpdateProfile(string fullName)
 		{
 			if (string.IsNullOrWhiteSpace(fullName))
-				throw DomainException.BadRequest("Full name cannot be empty.");
+				throw DomainException.BadRequest("Họ và tên không được để trống.");
 			FullName = fullName.Trim();
 		}
 
 		public void UpdateBasicInfo(string fullName, string phoneNumber)
 		{
 			if (string.IsNullOrWhiteSpace(fullName))
-				throw DomainException.BadRequest("Full name cannot be empty.");
+				throw DomainException.BadRequest("Họ và tên không được để trống.");
 
 			if (string.IsNullOrWhiteSpace(phoneNumber))
-				throw DomainException.BadRequest("Phone number cannot be empty.");
+				throw DomainException.BadRequest("Số điện thoại không được để trống.");
 
 			FullName = fullName.Trim();
 			PhoneNumber = phoneNumber.Trim();
@@ -126,7 +126,7 @@ namespace PerfumeGPT.Domain.Entities
 			EnsureActive();
 
 			if (PointBalance < info.Points)
-				throw DomainException.BadRequest($"Insufficient point balance. Current balance is {PointBalance}, but tried to spend {info.Points}.");
+				throw DomainException.BadRequest($"Số điểm hiện tại không đủ. Hiện có {PointBalance} điểm, nhưng đang cố sử dụng {info.Points} điểm.");
 
 			var transaction = LoyaltyTransaction.CreateSpend(this.Id, info);
 
@@ -142,7 +142,7 @@ namespace PerfumeGPT.Domain.Entities
 			EnsureActive();
 
 			if (info.TransactionType == LoyaltyTransactionType.Spend && PointBalance < info.Points)
-				throw DomainException.BadRequest($"Insufficient point balance for manual deduction. Current: {PointBalance}.");
+				throw DomainException.BadRequest($"Số điểm không đủ để trừ thủ công. Hiện có: {PointBalance}.");
 
 			var transaction = LoyaltyTransaction.CreateManual(this.Id, info);
 

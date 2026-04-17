@@ -19,22 +19,22 @@ namespace PerfumeGPT.Domain.Entities
 			return new SystemPolicy
 			{
 				Id = NormalizePolicyCode(policyCode),
-				Title = NormalizeRequiredText(title, "Policy title is required."),
-				HtmlContent = NormalizeRequiredText(htmlContent, "Policy HTML content is required.")
+              Title = NormalizeRequiredText(title, "Tiêu đề chính sách là bắt buộc."),
+				HtmlContent = NormalizeRequiredText(htmlContent, "Nội dung HTML của chính sách là bắt buộc.")
 			};
 		}
 
 		public void Update(string title, string htmlContent)
 		{
-			Title = NormalizeRequiredText(title, "Policy title is required.");
-			HtmlContent = NormalizeRequiredText(htmlContent, "Policy HTML content is required.");
+          Title = NormalizeRequiredText(title, "Tiêu đề chính sách là bắt buộc.");
+			HtmlContent = NormalizeRequiredText(htmlContent, "Nội dung HTML của chính sách là bắt buộc.");
 		}
 
 		private static string NormalizePolicyCode(string policyCode)
 		{
 			var normalized = policyCode?.Trim().ToUpperInvariant() ?? string.Empty;
 			if (string.IsNullOrWhiteSpace(normalized))
-				throw DomainException.BadRequest("Policy code is required.");
+               throw DomainException.BadRequest("Mã chính sách là bắt buộc.");
 
 			return normalized;
 		}

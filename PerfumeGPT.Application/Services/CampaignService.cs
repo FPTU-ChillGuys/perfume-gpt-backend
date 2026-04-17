@@ -39,13 +39,13 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<List<CampaignResponse>>> GetHomeCampaignsAsync()
 		{
 			var campaigns = await _unitOfWork.Campaigns.GetHomeCampaignsAsync();
-			return BaseResponse<List<CampaignResponse>>.Ok(campaigns, "Home campaigns retrieved successfully.");
+			return BaseResponse<List<CampaignResponse>>.Ok(campaigns, "Lấy danh sách chiến dịch trang chủ thành công.");
 		}
 
 		public async Task<BaseResponse<List<CampaignLookupItem>>> GetActiveCampaignLookupListAsync()
 		{
 			var campaigns = await _unitOfWork.Campaigns.GetActiveCampaignLookupListAsync();
-			return BaseResponse<List<CampaignLookupItem>>.Ok(campaigns, "Active campaign lookup list retrieved successfully.");
+			return BaseResponse<List<CampaignLookupItem>>.Ok(campaigns, "Lấy danh sách tra cứu chiến dịch đang hoạt động thành công.");
 		}
 
 		public async Task<BaseResponse<PagedResult<CampaignResponse>>> GetPagedCampaignsAsync(GetPagedCampaignsRequest request)
@@ -54,36 +54,36 @@ namespace PerfumeGPT.Application.Services
 
 			var pagedResult = new PagedResult<CampaignResponse>(items, request.PageNumber, request.PageSize, totalCount);
 
-			return BaseResponse<PagedResult<CampaignResponse>>.Ok(pagedResult, "Campaign list retrieved successfully.");
+			return BaseResponse<PagedResult<CampaignResponse>>.Ok(pagedResult, "Lấy danh sách chiến dịch thành công.");
 		}
 
 		public async Task<BaseResponse<CampaignResponse>> GetCampaignByIdAsync(Guid campaignId)
 		{
 			var campaign = await _unitOfWork.Campaigns.GetCampaignByIdDtoAsync(campaignId)
-				   ?? throw AppException.NotFound("Campaign not found.");
+				  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
-			return BaseResponse<CampaignResponse>.Ok(campaign, "Campaign retrieved successfully.");
+			return BaseResponse<CampaignResponse>.Ok(campaign, "Lấy thông tin chiến dịch thành công.");
 		}
 
 		public async Task<BaseResponse<List<CampaignPromotionItemResponse>>> GetCampaignItemsByCampaignIdAsync(Guid campaignId)
 		{
 			_ = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
-				?? throw AppException.NotFound("Campaign not found.");
+			  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			var items = await _unitOfWork.Campaigns.GetCampaignItemsAsync(campaignId, asNoTracking: true);
 
-			return BaseResponse<List<CampaignPromotionItemResponse>>.Ok(items, "Campaign items retrieved successfully.");
+			return BaseResponse<List<CampaignPromotionItemResponse>>.Ok(items, "Lấy danh sách mục chiến dịch thành công.");
 		}
 
 		public async Task<BaseResponse<CampaignPromotionItemResponse>> GetCampaignItemByIdAsync(Guid campaignId, Guid itemId)
 		{
 			_ = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
-				?? throw AppException.NotFound("Campaign not found.");
+			  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			var item = await _unitOfWork.Campaigns.GetCampaignItemByIdAsync(campaignId, itemId, asNoTracking: true)
-				?? throw AppException.NotFound("Campaign item not found.");
+			 ?? throw AppException.NotFound("Không tìm thấy mục chiến dịch.");
 
-			return BaseResponse<CampaignPromotionItemResponse>.Ok(item, "Campaign item retrieved successfully.");
+			return BaseResponse<CampaignPromotionItemResponse>.Ok(item, "Lấy thông tin mục chiến dịch thành công.");
 		}
 
 		public async Task<BaseResponse<string>> CreateCampaignAsync(CreateCampaignRequest request)
@@ -95,7 +95,7 @@ namespace PerfumeGPT.Application.Services
 				var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(voucherRequest.Code);
 				if (codeExists)
 				{
-					throw AppException.Conflict("Voucher code already exists");
+					throw AppException.Conflict("Mã giảm giá đã tồn tại");
 				}
 			}
 
@@ -118,14 +118,14 @@ namespace PerfumeGPT.Application.Services
 				_backgroundJobService.ScheduleCampaignStart(_logger, campaign.Id, campaign.StartDate);
 				_backgroundJobService.ScheduleCampaignEnd(_logger, campaign.Id, campaign.EndDate);
 
-				return BaseResponse<string>.Ok(campaign.Id.ToString(), "Campaign created successfully.");
+				return BaseResponse<string>.Ok(campaign.Id.ToString(), "Tạo chiến dịch thành công.");
 			});
 		}
 
 		public async Task<BaseResponse<string>> UpdateCampaignStatusAsync(Guid campaignId, UpdateCampaignStatusRequest request)
 		{
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
-				   ?? throw AppException.NotFound("Campaign not found.");
+				  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
@@ -139,7 +139,7 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				await _unitOfWork.SaveChangesAsync();
-				return BaseResponse<string>.Ok(campaignId.ToString(), "Campaign status updated successfully.");
+				return BaseResponse<string>.Ok(campaignId.ToString(), "Cập nhật trạng thái chiến dịch thành công.");
 			});
 		}
 
@@ -147,7 +147,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			// 1. Load Campaign + Items + Vouchers in a single query (requires .Include in repo)
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
-				   ?? throw AppException.NotFound("Campaign not found.");
+				  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			campaign.EnsureIsNotActive("update");
 
@@ -162,7 +162,7 @@ namespace PerfumeGPT.Application.Services
 					: null;
 
 				if (await _unitOfWork.Vouchers.CodeExistsAsync(voucherRequest.Code, existingVoucherId))
-					throw AppException.Conflict($"Voucher code '{voucherRequest.Code}' already exists.");
+					throw AppException.Conflict($"Mã giảm giá '{voucherRequest.Code}' đã tồn tại.");
 			}
 
 			// Guard: do not allow removing a voucher that has already been redeemed
@@ -178,7 +178,7 @@ namespace PerfumeGPT.Application.Services
 			foreach (var voucher in vouchersToRemove)
 			{
 				if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucher.Id && uv.Status == UsageStatus.Used))
-					throw AppException.BadRequest($"Cannot remove voucher '{voucher.Code}' because it has already been redeemed.");
+					throw AppException.BadRequest($"Không thể gỡ mã giảm giá '{voucher.Code}' vì đã được đổi bởi người dùng.");
 			}
 
 			// 3. Execute in transaction
@@ -197,21 +197,21 @@ namespace PerfumeGPT.Application.Services
 				campaign.SyncPromotionItems(itemFactors, campaign.Status == CampaignStatus.Active);
 				campaign.SyncVouchers(voucherFactors);
 
-				return BaseResponse<string>.Ok(campaignId.ToString(), "Campaign updated successfully.");
+				return BaseResponse<string>.Ok(campaignId.ToString(), "Cập nhật chiến dịch thành công.");
 			});
 		}
 
 		public async Task<BaseResponse<string>> DeleteCampaignAsync(Guid campaignId)
 		{
 			var campaign = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
-				?? throw AppException.NotFound("Campaign not found.");
+			  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			campaign.EnsureIsNotActive("delete");
 
 			_unitOfWork.Campaigns.Remove(campaign);
 			await _unitOfWork.SaveChangesAsync();
 
-			return BaseResponse<string>.Ok(campaignId.ToString(), "Campaign deleted successfully.");
+			return BaseResponse<string>.Ok(campaignId.ToString(), "Xóa chiến dịch thành công.");
 		}
 		#endregion Campaign Management
 
@@ -220,7 +220,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> AddCampaignItemAsync(Guid campaignId, CreateCampaignPromotionItemRequest request)
 		{
 			var campaign = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
-				?? throw AppException.NotFound("Campaign not found.");
+			  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			await ValidateCampaignItemAsync(request);
 
@@ -228,22 +228,22 @@ namespace PerfumeGPT.Application.Services
 
 			await _unitOfWork.SaveChangesAsync();
 
-			return BaseResponse<string>.Ok(item.Id.ToString(), "Campaign item added successfully.");
+			return BaseResponse<string>.Ok(item.Id.ToString(), "Thêm mục chiến dịch thành công.");
 		}
 
 		public async Task<BaseResponse<string>> UpdateCampaignItemAsync(Guid campaignId, Guid itemId, UpdateCampaignPromotionItemRequest request)
 		{
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
-				   ?? throw AppException.NotFound("Campaign not found.");
+				  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			if (campaign.Status == CampaignStatus.Active)
 			{
-				throw AppException.BadRequest("Cannot update items of an active campaign. Please pause the campaign before updating items.");
+				throw AppException.BadRequest("Không thể cập nhật mục của chiến dịch đang hoạt động. Vui lòng tạm dừng chiến dịch trước khi cập nhật.");
 			}
 
 			if (!campaign.Items.Any(x => x.Id == itemId))
 			{
-				throw AppException.NotFound("Campaign item not found.");
+				throw AppException.NotFound("Không tìm thấy mục chiến dịch.");
 			}
 
 			await ValidateCampaignItemAsync(request);
@@ -252,23 +252,23 @@ namespace PerfumeGPT.Application.Services
 
 			await _unitOfWork.SaveChangesAsync();
 
-			return BaseResponse<string>.Ok(itemId.ToString(), "Campaign item updated successfully.");
+			return BaseResponse<string>.Ok(itemId.ToString(), "Cập nhật mục chiến dịch thành công.");
 		}
 
 		public async Task<BaseResponse<string>> DeleteCampaignItemAsync(Guid campaignId, Guid itemId)
 		{
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
-				   ?? throw AppException.NotFound("Campaign not found.");
+				  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			if (!campaign.Items.Any(x => x.Id == itemId))
 			{
-				throw AppException.NotFound("Campaign item not found.");
+				throw AppException.NotFound("Không tìm thấy mục chiến dịch.");
 			}
 
 			campaign.RemovePromotionItem(itemId);
 			await _unitOfWork.SaveChangesAsync();
 
-			return BaseResponse<string>.Ok(itemId.ToString(), "Campaign item deleted successfully.");
+			return BaseResponse<string>.Ok(itemId.ToString(), "Xóa mục chiến dịch thành công.");
 		}
 		#endregion Promotion Item Management
 
@@ -277,60 +277,60 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> AddCampaignVoucherAsync(Guid campaignId, CreateCampaignVoucherRequest request)
 		{
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
-				   ?? throw AppException.NotFound("Campaign not found.");
+				  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			if (campaign.Vouchers.Any(v => !v.IsDeleted))
-				throw AppException.BadRequest("Campaign already has a voucher.");
+				throw AppException.BadRequest("Chiến dịch đã có mã giảm giá.");
 
 			var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code);
 			if (codeExists)
 			{
-				throw AppException.Conflict("Voucher code already exists");
+				throw AppException.Conflict("Mã giảm giá đã tồn tại");
 			}
 
 			var voucher = campaign.AddVoucher(_mapper.Map<Campaign.VoucherConfigFactor>(request));
 
 			await _unitOfWork.SaveChangesAsync();
 
-			return BaseResponse<string>.Ok(voucher.Id.ToString(), "Campaign voucher created successfully.");
+			return BaseResponse<string>.Ok(voucher.Id.ToString(), "Tạo mã giảm giá cho chiến dịch thành công.");
 		}
 
 		public async Task<BaseResponse<List<VoucherResponse>>> GetCampaignVouchersByCampaignIdAsync(Guid campaignId)
 		{
 			_ = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
-				?? throw AppException.NotFound("Campaign not found.");
+			  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			var vouchers = await _unitOfWork.Vouchers.GetByCampaignIdAsync(campaignId);
 
-			return BaseResponse<List<VoucherResponse>>.Ok(vouchers, "Campaign vouchers retrieved successfully.");
+			return BaseResponse<List<VoucherResponse>>.Ok(vouchers, "Lấy danh sách mã giảm giá của chiến dịch thành công.");
 		}
 
 		public async Task<BaseResponse<VoucherResponse>> GetCampaignVoucherByIdAsync(Guid campaignId, Guid voucherId)
 		{
 			_ = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
-				?? throw AppException.NotFound("Campaign not found.");
+			  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
 				   v => v.Id == voucherId && v.CampaignId == campaignId && !v.IsDeleted,
-				   asNoTracking: true) ?? throw AppException.NotFound("Campaign voucher not found.");
+				  asNoTracking: true) ?? throw AppException.NotFound("Không tìm thấy mã giảm giá của chiến dịch.");
 
 			var response = _mapper.Map<VoucherResponse>(voucher);
-			return BaseResponse<VoucherResponse>.Ok(response, "Campaign voucher retrieved successfully.");
+			return BaseResponse<VoucherResponse>.Ok(response, "Lấy thông tin mã giảm giá của chiến dịch thành công.");
 		}
 
 		public async Task<BaseResponse<string>> UpdateCampaignVoucherAsync(Guid campaignId, Guid voucherId, UpdateCampaignVoucherRequest request)
 		{
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
-				   ?? throw AppException.NotFound("Campaign not found.");
+				  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
-			var voucher = campaign.Vouchers.FirstOrDefault(v => v.Id == voucherId && !v.IsDeleted) ?? throw AppException.NotFound("Campaign voucher not found.");
+			var voucher = campaign.Vouchers.FirstOrDefault(v => v.Id == voucherId && !v.IsDeleted) ?? throw AppException.NotFound("Không tìm thấy mã giảm giá của chiến dịch.");
 
 			if (!string.Equals(voucher.Code, request.Code, StringComparison.OrdinalIgnoreCase))
 			{
 				var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code, voucherId);
 				if (codeExists)
 				{
-					throw AppException.Conflict("Voucher code already exists");
+					throw AppException.Conflict("Mã giảm giá đã tồn tại");
 				}
 			}
 
@@ -338,27 +338,29 @@ namespace PerfumeGPT.Application.Services
 
 			await _unitOfWork.SaveChangesAsync();
 
-			return BaseResponse<string>.Ok(voucherId.ToString(), "Campaign voucher updated successfully.");
+			return BaseResponse<string>.Ok(voucherId.ToString(), "Cập nhật mã giảm giá của chiến dịch thành công.");
 		}
 
 		public async Task<BaseResponse<string>> DeleteCampaignVoucherAsync(Guid campaignId, Guid voucherId)
 		{
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
-				   ?? throw AppException.NotFound("Campaign not found.");
+				  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
-			var voucher = campaign.Vouchers.FirstOrDefault(v => v.Id == voucherId && !v.IsDeleted) ?? throw AppException.NotFound("Campaign voucher not found.");
+			var voucher = campaign.Vouchers.FirstOrDefault(v => v.Id == voucherId && !v.IsDeleted) ?? throw AppException.NotFound("Không tìm thấy mã giảm giá của chiến dịch.");
 
 			if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && uv.Status == UsageStatus.Used))
 			{
-				throw AppException.BadRequest("Cannot delete voucher that has been redeemed by users");
+				throw AppException.BadRequest("Không thể xóa mã giảm giá đã được người dùng đổi");
 			}
 
 			campaign.RemoveVoucher(voucherId);
 			await _unitOfWork.SaveChangesAsync();
 
-			return BaseResponse<string>.Ok(voucherId.ToString(), "Campaign voucher deleted successfully.");
+			return BaseResponse<string>.Ok(voucherId.ToString(), "Xóa mã giảm giá của chiến dịch thành công.");
 		}
 		#endregion Campaign Voucher Management
+
+
 
 		#region Private Helpers
 		private async Task ValidateCampaignItemsAsync(
@@ -381,11 +383,11 @@ namespace PerfumeGPT.Application.Services
 
 		private async Task ValidateCampaignItemAsync(CreateCampaignPromotionItemRequest item)
 		{
-			_ = await _unitOfWork.Variants.GetByIdAsync(item.ProductVariantId) ?? throw AppException.NotFound($"Product variant not found: {item.ProductVariantId}");
+			_ = await _unitOfWork.Variants.GetByIdAsync(item.ProductVariantId) ?? throw AppException.NotFound($"Không tìm thấy biến thể sản phẩm: {item.ProductVariantId}");
 
 			if (item.BatchId.HasValue && item.MaxUsage.HasValue)
 			{
-				throw AppException.BadRequest("Max usage is only allowed when batch is not specified.");
+				throw AppException.BadRequest("Chỉ được thiết lập số lượt dùng tối đa khi không chỉ định lô.");
 			}
 
 			if (!item.BatchId.HasValue && item.MaxUsage.HasValue)
@@ -393,27 +395,27 @@ namespace PerfumeGPT.Application.Services
 				var hasSufficientStock = await _unitOfWork.Stocks.HasSufficientStockAsync(item.ProductVariantId, item.MaxUsage.Value);
 				if (!hasSufficientStock)
 				{
-					throw AppException.BadRequest($"Max usage ({item.MaxUsage.Value}) exceeds available stock quantity for variant {item.ProductVariantId}.");
+					throw AppException.BadRequest($"Số lượt dùng tối đa ({item.MaxUsage.Value}) vượt quá tồn kho khả dụng của biến thể {item.ProductVariantId}.");
 				}
 			}
 
 			if (item.BatchId.HasValue)
 			{
-				var batch = await _unitOfWork.Batches.GetByIdAsync(item.BatchId.Value) ?? throw AppException.NotFound($"Batch not found: {item.BatchId.Value}");
+				var batch = await _unitOfWork.Batches.GetByIdAsync(item.BatchId.Value) ?? throw AppException.NotFound($"Không tìm thấy lô: {item.BatchId.Value}");
 				if (batch.VariantId != item.ProductVariantId)
 				{
-					throw AppException.BadRequest("Batch does not belong to the specified product variant.");
+					throw AppException.BadRequest("Lô không thuộc biến thể sản phẩm đã chỉ định.");
 				}
 			}
 		}
 
 		private async Task ValidateCampaignItemAsync(UpdateCampaignPromotionItemRequest item)
 		{
-			_ = await _unitOfWork.Variants.GetByIdAsync(item.ProductVariantId) ?? throw AppException.NotFound($"Product variant not found: {item.ProductVariantId}");
+			_ = await _unitOfWork.Variants.GetByIdAsync(item.ProductVariantId) ?? throw AppException.NotFound($"Không tìm thấy biến thể sản phẩm: {item.ProductVariantId}");
 
 			if (item.BatchId.HasValue && item.MaxUsage.HasValue)
 			{
-				throw AppException.BadRequest("Max usage is only allowed when batch is not specified.");
+				throw AppException.BadRequest("Chỉ được thiết lập số lượt dùng tối đa khi không chỉ định lô.");
 			}
 
 			if (!item.BatchId.HasValue && item.MaxUsage.HasValue)
@@ -421,17 +423,17 @@ namespace PerfumeGPT.Application.Services
 				var hasSufficientStock = await _unitOfWork.Stocks.HasSufficientStockAsync(item.ProductVariantId, item.MaxUsage.Value);
 				if (!hasSufficientStock)
 				{
-					throw AppException.BadRequest($"Max usage ({item.MaxUsage.Value}) exceeds available stock quantity for variant {item.ProductVariantId}.");
+					throw AppException.BadRequest($"Số lượt dùng tối đa ({item.MaxUsage.Value}) vượt quá tồn kho khả dụng của biến thể {item.ProductVariantId}.");
 				}
 			}
 
 			if (item.BatchId.HasValue)
 			{
-				var batch = await _unitOfWork.Batches.GetByIdAsync(item.BatchId.Value) ?? throw AppException.NotFound($"Batch not found: {item.BatchId.Value}");
+				var batch = await _unitOfWork.Batches.GetByIdAsync(item.BatchId.Value) ?? throw AppException.NotFound($"Không tìm thấy lô: {item.BatchId.Value}");
 
 				if (batch.VariantId != item.ProductVariantId)
 				{
-					throw AppException.BadRequest("Batch does not belong to the specified product variant.");
+					throw AppException.BadRequest("Lô không thuộc biến thể sản phẩm đã chỉ định.");
 				}
 			}
 		}

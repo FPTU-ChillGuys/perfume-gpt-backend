@@ -8,9 +8,9 @@ namespace PerfumeGPT.Application.Validators.Media
 		public ProfileAvatarUploadValidator()
 		{
 			RuleFor(x => x.Avatar)
-				.NotNull().WithMessage("Avatar file is required.")
-				.Must(file => file != null && file.Length > 0).WithMessage("Avatar file cannot be empty.")
-				.Must(file => file.Length <= 5 * 1024 * 1024).WithMessage("Avatar file size must be less than or equal to 5MB.");
+				.NotNull().WithMessage("Ảnh đại diện là bắt buộc.")
+				.Must(file => file != null && file.Length > 0).WithMessage("Ảnh đại diện không được để trống.")
+				.Must(file => file.Length <= 5 * 1024 * 1024).WithMessage("Kích thước ảnh đại diện phải nhỏ hơn hoặc bằng 5MB.");
 		}
 	}
 }

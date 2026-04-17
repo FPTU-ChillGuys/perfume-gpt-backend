@@ -8,11 +8,11 @@ namespace PerfumeGPT.Application.Validators.GHNs
 		public GetOrderInfoRequestValidator()
 		{
 			RuleFor(x => x.TrackingNumbers)
-				.NotNull().WithMessage("Tracking numbers are required.")
-				.Must(x => x.Count > 0).WithMessage("Tracking numbers must contain at least one value.");
+				.NotNull().WithMessage("Mã vận đơn là bắt buộc.")
+				.Must(x => x.Count > 0).WithMessage("Mã vận đơn phải chứa ít nhất một giá trị.");
 
 			RuleForEach(x => x.TrackingNumbers)
-				.NotEmpty().WithMessage("Tracking number cannot be empty.");
+				.NotEmpty().WithMessage("Mã vận đơn không được để trống.");
 		}
 	}
 }

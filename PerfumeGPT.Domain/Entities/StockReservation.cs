@@ -29,7 +29,7 @@ namespace PerfumeGPT.Domain.Entities
 		public StockReservation(Guid orderId, Guid batchId, Guid variantId, int quantity, DateTime? expiresAt)
 		{
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Reservation quantity must be strictly positive.");
+				throw DomainException.BadRequest("Số lượng giữ chỗ phải lớn hơn 0.");
 
 			OrderId = orderId;
 			BatchId = batchId;
@@ -43,7 +43,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void Commit()
 		{
 			if (Status != ReservationStatus.Reserved)
-				throw DomainException.Conflict($"Cannot commit reservation. Current status is {Status}.");
+				throw DomainException.Conflict($"Không thể xác nhận giữ chỗ. Trạng thái hiện tại là {Status}.");
 
 			Status = ReservationStatus.Committed;
 		}
@@ -51,7 +51,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void Release()
 		{
 			if (Status != ReservationStatus.Reserved)
-				throw DomainException.Conflict($"Cannot release reservation. Current status is {Status}.");
+				throw DomainException.Conflict($"Không thể hủy giữ chỗ. Trạng thái hiện tại là {Status}.");
 
 			Status = ReservationStatus.Released;
 		}
@@ -59,7 +59,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void Restock()
 		{
 			if (Status != ReservationStatus.Committed)
-				throw DomainException.Conflict($"Cannot restock reservation. Current status is {Status}.");
+				throw DomainException.Conflict($"Không thể trả lại kho cho giữ chỗ. Trạng thái hiện tại là {Status}.");
 
 			Status = ReservationStatus.Released;
 		}
@@ -67,7 +67,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void DecreaseQuantity(int quantity)
 		{
 			if (quantity <= 0 || quantity > ReservedQuantity)
-				throw DomainException.BadRequest("Invalid decrease quantity.");
+				throw DomainException.BadRequest("Số lượng giảm không hợp lệ.");
 			ReservedQuantity -= quantity;
 		}
 

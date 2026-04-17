@@ -49,10 +49,10 @@ namespace PerfumeGPT.Domain.Entities
 		public void Verify(DetailVerification detail)
 		{
 			if (detail.RejectedQuantity < 0)
-				throw DomainException.BadRequest("Rejected quantity cannot be negative.");
+				throw DomainException.BadRequest("Số lượng bị từ chối không được âm.");
 
 			if (detail.RejectedQuantity > ExpectedQuantity)
-				throw DomainException.BadRequest("Rejected quantity cannot exceed expected quantity.");
+				throw DomainException.BadRequest("Số lượng bị từ chối không được vượt quá số lượng dự kiến.");
 
 			RejectedQuantity = detail.RejectedQuantity;
 			Note = string.IsNullOrWhiteSpace(detail.Note) ? null : detail.Note.Trim();
@@ -61,19 +61,19 @@ namespace PerfumeGPT.Domain.Entities
 		private static void ValidateVariantId(Guid productVariantId)
 		{
 			if (productVariantId == Guid.Empty)
-				throw DomainException.BadRequest("Product variant ID is required.");
+				throw DomainException.BadRequest("Product variant ID là bắt buộc và không được để trống.");
 		}
 
 		private static void ValidateExpectedQuantity(int expectedQuantity)
 		{
 			if (expectedQuantity <= 0)
-				throw DomainException.BadRequest("Expected quantity must be greater than 0.");
+				throw DomainException.BadRequest("Số lượng dự kiến phải lớn hơn 0.");
 		}
 
 		private static void ValidateUnitPrice(decimal unitPrice)
 		{
 			if (unitPrice <= 0)
-				throw DomainException.BadRequest("Unit price must be greater than 0.");
+				throw DomainException.BadRequest("Đơn giá phải lớn hơn 0.");
 		}
 
 		// Records

@@ -44,20 +44,20 @@ namespace PerfumeGPT.API.Controllers
 		{
 			try
 			{
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Thiếu web url trong cấu hình");
 
 				if (!Request.Query.ContainsKey("resultCode") ||
 					!Request.Query.ContainsKey("orderId"))
 				{
 					_logger.LogWarning("MoMo callback missing required parameters");
-					return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Invalid payment callback")}");
+					return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Thanh toán MoMo không hợp lệ")}");
 				}
 
 				var result = await _paymentService.ProcessMomoReturnAsync(Request.Query);
 
 				var resultCode = Request.Query["resultCode"].ToString();
 				bool isSuccess = result.IsSuccess && resultCode == "0";
-				var failureMessage = isSuccess ? null : "MoMo payment failed.";
+				var failureMessage = isSuccess ? null : "Thanh toán MoMo thất bại.";
 
 				var redirectUrl = BuildMomoRedirectUrl(
 					frontendUrl,
@@ -74,7 +74,7 @@ namespace PerfumeGPT.API.Controllers
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error processing MoMo callback");
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Thiếu web url trong cấu hình");
 				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
 			}
 		}
@@ -86,17 +86,17 @@ namespace PerfumeGPT.API.Controllers
 		{
 			try
 			{
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Thiếu web url trong cấu hình");
 
 				if (!Request.Query.ContainsKey("orderCode") && !Request.Query.ContainsKey("paymentId"))
 				{
 					_logger.LogWarning("PayOS callback missing required parameters");
-					return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Invalid payment callback")}");
+					return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Thanh toán PayOS không hợp lệ")}");
 				}
 
 				var result = await _paymentService.ProcessPayOsReturnAsync(Request.Query);
 				var status = result.IsSuccess ? "success" : "failure";
-				var failureMessage = result.IsSuccess ? null : "PayOS payment failed.";
+				var failureMessage = result.IsSuccess ? null : "PayOS thanh toán thất bại.";
 
 				var redirectUrl = BuildPayOsRedirectUrl(
 					frontendUrl,
@@ -112,7 +112,7 @@ namespace PerfumeGPT.API.Controllers
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error processing PayOS callback");
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Thiếu web url trong cấu hình");
 				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
 			}
 		}
@@ -123,7 +123,7 @@ namespace PerfumeGPT.API.Controllers
 		{
 			try
 			{
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Thiếu web url trong cấu hình");
 				var result = await _paymentService.ProcessPayOsReturnAsync(Request.Query, isCancelCallback: true);
 
 				var redirectUrl = BuildPayOsRedirectUrl(
@@ -141,7 +141,7 @@ namespace PerfumeGPT.API.Controllers
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error processing PayOS cancel callback");
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Thiếu web url trong cấu hình");
 				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
 			}
 		}
@@ -153,14 +153,14 @@ namespace PerfumeGPT.API.Controllers
 		{
 			try
 			{
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Thiếu web url trong cấu hình");
 
 				// Validate required parameters exist
 				if (!Request.Query.ContainsKey("vnp_ResponseCode") ||
 					!Request.Query.ContainsKey("vnp_TxnRef"))
 				{
 					_logger.LogWarning("VNPay callback missing required parameters");
-					return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Invalid payment callback")}");
+					return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Thanh toán VNPay không hợp lệ")}");
 				}
 
 				// Process VNPay callback
@@ -169,7 +169,7 @@ namespace PerfumeGPT.API.Controllers
 				// Determine success or failure
 				var responseCode = Request.Query["vnp_ResponseCode"].ToString();
 				bool isSuccess = result.IsSuccess && responseCode == "00";
-				var failureMessage = isSuccess ? null : "VNPay payment failed.";
+				var failureMessage = isSuccess ? null : "VNPay thanh toán thất bại.";
 
 				// Build redirect URL
 				var redirectUrl = BuildVnPayRedirectUrl(
@@ -187,7 +187,7 @@ namespace PerfumeGPT.API.Controllers
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error processing VNPay callback");
-				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Missing web url");
+				string frontendUrl = _configuration["Front-end:webUrl"] ?? throw new Exception("Thiếu web url trong cấu hình");
 				return Redirect($"{frontendUrl}/payment/failure?error={Uri.EscapeDataString("Payment processing error")}");
 			}
 		}

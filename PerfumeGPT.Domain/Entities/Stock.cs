@@ -26,9 +26,9 @@ namespace PerfumeGPT.Domain.Entities
 		public Stock(Guid variantId, int initialQuantity, int lowStockThreshold)
 		{
 			if (initialQuantity < 0)
-				throw DomainException.BadRequest("Initial quantity cannot be negative.");
+               throw DomainException.BadRequest("Số lượng ban đầu không được âm.");
 			if (lowStockThreshold < 0)
-				throw DomainException.BadRequest("Threshold cannot be negative.");
+              throw DomainException.BadRequest("Ngưỡng cảnh báo không được âm.");
 
 			VariantId = variantId;
 			TotalQuantity = initialQuantity;
@@ -42,7 +42,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void Increase(int quantity)
 		{
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Increase quantity must be strictly positive.");
+               throw DomainException.BadRequest("Số lượng tăng phải lớn hơn 0.");
 
 			TotalQuantity += quantity;
 			UpdateStatus();
@@ -51,10 +51,10 @@ namespace PerfumeGPT.Domain.Entities
 		public void Decrease(int quantity)
 		{
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Decrease quantity must be strictly positive.");
+               throw DomainException.BadRequest("Số lượng giảm phải lớn hơn 0.");
 
 			if (AvailableQuantity < quantity)
-				throw DomainException.BadRequest($"Insufficient stock. Available: {AvailableQuantity}, Requested: {quantity}");
+             throw DomainException.BadRequest($"Tồn kho không đủ. Khả dụng: {AvailableQuantity}, yêu cầu: {quantity}");
 
 			TotalQuantity -= quantity;
 			UpdateStatus();
@@ -63,10 +63,10 @@ namespace PerfumeGPT.Domain.Entities
 		public void Reserve(int quantity)
 		{
 			if (quantity <= 0)
-				throw DomainException.BadRequest("Reserve quantity must be strictly positive.");
+                throw DomainException.BadRequest("Số lượng giữ chỗ phải lớn hơn 0.");
 
 			if (AvailableQuantity < quantity)
-				throw DomainException.Conflict("Not enough available stock to reserve.");
+               throw DomainException.Conflict("Không đủ tồn kho khả dụng để giữ chỗ.");
 
 			ReservedQuantity += quantity;
 		}
@@ -74,7 +74,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void ReleaseReservation(int quantity)
 		{
 			if (quantity <= 0 || ReservedQuantity < quantity)
-				throw DomainException.BadRequest("Invalid release quantity.");
+              throw DomainException.BadRequest("Số lượng giải phóng không hợp lệ.");
 
 			ReservedQuantity -= quantity;
 		}
@@ -82,7 +82,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void SyncQuantity(int exactQuantity)
 		{
 			if (exactQuantity < 0)
-				throw DomainException.BadRequest("Synced quantity cannot be negative.");
+                throw DomainException.BadRequest("Số lượng đồng bộ không được âm.");
 
 			TotalQuantity = exactQuantity;
 			UpdateStatus();

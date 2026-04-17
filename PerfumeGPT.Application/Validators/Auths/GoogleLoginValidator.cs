@@ -8,8 +8,8 @@ namespace PerfumeGPT.Application.Validators.Auths
 		public GoogleLoginValidator()
 		{
 			RuleFor(x => x.IdToken)
-				.NotEmpty().WithMessage("Id token is required.")
-				.MaximumLength(2048).WithMessage("Id token must not exceed 2048 characters.");
+				.NotEmpty().WithMessage("Id token là bắt buộc.")
+				.MaximumLength(2048).WithMessage("Id token không được vượt quá 2048 ký tự.");
 		}
 	}
 }

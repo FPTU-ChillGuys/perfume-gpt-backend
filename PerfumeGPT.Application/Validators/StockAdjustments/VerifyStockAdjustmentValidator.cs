@@ -10,7 +10,7 @@ namespace PerfumeGPT.Application.Validators.StockAdjustments
 		{
 			RuleFor(x => x.AdjustmentDetails)
 				.NotEmpty()
-				.WithMessage("At least one adjustment detail is required.");
+				.WithMessage("Bắt buộc có ít nhất một chi tiết điều chỉnh.");
 
 			RuleForEach(x => x.AdjustmentDetails)
 				.SetValidator(new VerifyStockAdjustmentDetailValidator());

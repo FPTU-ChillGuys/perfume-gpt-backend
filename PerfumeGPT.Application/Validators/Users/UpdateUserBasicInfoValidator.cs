@@ -8,12 +8,12 @@ namespace PerfumeGPT.Application.Validators.Users
 		public UpdateUserBasicInfoValidator()
 		{
 			RuleFor(x => x.FullName)
-				.NotEmpty().WithMessage("Full name is required.")
-				.MaximumLength(100).WithMessage("Full name must not exceed 100 characters.");
+			   .NotEmpty().WithMessage("Họ và tên là bắt buộc.")
+				.MaximumLength(100).WithMessage("Họ và tên không được vượt quá 100 ký tự.");
 
 			RuleFor(x => x.PhoneNumber)
-				.NotEmpty().WithMessage("Phone number is required.")
-				.Matches("^[0-9+]{8,15}$").WithMessage("Phone number format is invalid.");
+				.NotEmpty().WithMessage("Số điện thoại là bắt buộc.")
+				.Matches("^[0-9+]{8,15}$").WithMessage("Định dạng số điện thoại không hợp lệ.");
 		}
 	}
 }

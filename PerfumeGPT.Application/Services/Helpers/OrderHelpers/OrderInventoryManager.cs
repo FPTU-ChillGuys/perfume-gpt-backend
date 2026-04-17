@@ -30,7 +30,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				{
 					var variantResponse = await _variantService.GetVariantByIdAsync(VariantId);
 					var productName = variantResponse.Payload != null ? $"Variant {variantResponse.Payload.Sku}" : "Unknown product";
-					throw AppException.BadRequest($"Insufficient stock for {productName}.");
+					throw AppException.BadRequest($"Không đủ hàng tồn kho cho {productName}.");
 				}
 
 				// Use BatchService to validate batch availability
@@ -39,7 +39,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				{
 					var variantResponse = await _variantService.GetVariantByIdAsync(VariantId);
 					var productName = variantResponse.Payload != null ? $"Variant {variantResponse.Payload.Sku}" : "Unknown product";
-					throw AppException.BadRequest($"Insufficient batch quantity for {productName}.");
+					throw AppException.BadRequest($"Không đủ hàng tồn kho trong lô cho {productName}.");
 				}
 			}
 

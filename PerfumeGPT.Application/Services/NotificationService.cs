@@ -46,7 +46,7 @@ namespace PerfumeGPT.Application.Services
 			await _unitOfWork.Notifications.AddAsync(notification);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to create role notification.");
+			if (!saved) throw AppException.Internal("Tạo thông báo cho vai trò thất bại.");
 
 			await _signalRService.SendNotificationToRoleAsync(role.ToString(), new
 			{
@@ -71,7 +71,7 @@ namespace PerfumeGPT.Application.Services
 			string? metadataJson = null)
 		{
 			if (userId == Guid.Empty)
-				throw AppException.BadRequest("User ID is required.");
+				throw AppException.BadRequest("Bắt buộc cung cấp User ID.");
 
 			var payload = new Notification.NotificationPayload
 			{
@@ -87,7 +87,7 @@ namespace PerfumeGPT.Application.Services
 			await _unitOfWork.Notifications.AddAsync(notification);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to create user notification.");
+			if (!saved) throw AppException.Internal("Tạo thông báo cho người dùng thất bại.");
 
 			await _signalRService.SendNotificationToUserAsync(userId, new
 			{
@@ -106,35 +106,35 @@ namespace PerfumeGPT.Application.Services
 		{
 			if (userId == Guid.Empty)
 			{
-				return BaseResponse<string>.Fail("User ID is required.", ResponseErrorType.BadRequest);
+				return BaseResponse<string>.Fail("Bắt buộc cung cấp User ID.", ResponseErrorType.BadRequest);
 			}
 
 			var (exists, allowed, changed) = await _unitOfWork.Notifications.MarkAsReadAsync(id, userId, targetRole);
 
 			if (!exists)
 			{
-				return BaseResponse<string>.Fail("Notification not found.", ResponseErrorType.NotFound);
+				return BaseResponse<string>.Fail("Không tìm thấy thông báo.", ResponseErrorType.NotFound);
 			}
 
 			if (!allowed)
 			{
-				return BaseResponse<string>.Fail("You do not have permission to mark this notification as read.", ResponseErrorType.Forbidden);
+				return BaseResponse<string>.Fail("Bạn không có quyền đánh dấu thông báo này là đã đọc.", ResponseErrorType.Forbidden);
 			}
 
 			if (changed)
 			{
 				var saved = await _unitOfWork.SaveChangesAsync();
-				if (!saved) throw AppException.Internal("Failed to mark notification as read.");
+				if (!saved) throw AppException.Internal("Đánh dấu thông báo đã đọc thất bại.");
 			}
 
-			return BaseResponse<string>.Ok(id.ToString(), "Notification marked as read.");
+			return BaseResponse<string>.Ok(id.ToString(), "Đã đánh dấu thông báo là đã đọc.");
 		}
 
 		public async Task<BaseResponse<PagedResult<NotificationListItemResponse>>> GetPagedAsync(GetPagedNotificationsRequest request)
 		{
 			if (request.UserId.HasValue && request.UserId.Value == Guid.Empty)
 			{
-				return BaseResponse<PagedResult<NotificationListItemResponse>>.Fail("User ID is invalid.", ResponseErrorType.BadRequest);
+				return BaseResponse<PagedResult<NotificationListItemResponse>>.Fail("User ID không hợp lệ.", ResponseErrorType.BadRequest);
 			}
 
 			var (items, totalCount) = await _unitOfWork.Notifications.GetPagedAsync(request);
@@ -147,14 +147,14 @@ namespace PerfumeGPT.Application.Services
 
 			return BaseResponse<PagedResult<NotificationListItemResponse>>.Ok(
 				pagedResult,
-				"Notifications retrieved successfully.");
+			   "Lấy danh sách thông báo thành công.");
 		}
 
 		public async Task<BaseResponse<string>> MarkAllAsReadAsync(Guid userId, string? targetRole)
 		{
 			if (userId == Guid.Empty)
 			{
-				return BaseResponse<string>.Fail("User ID is required.", ResponseErrorType.BadRequest);
+				return BaseResponse<string>.Fail("Bắt buộc cung cấp User ID.", ResponseErrorType.BadRequest);
 			}
 
 			var hasChanges = await _unitOfWork.Notifications.MarkAllAsReadAsync(userId, targetRole);
@@ -162,10 +162,10 @@ namespace PerfumeGPT.Application.Services
 			if (hasChanges)
 			{
 				var saved = await _unitOfWork.SaveChangesAsync();
-				if (!saved) throw AppException.Internal("Failed to mark all notifications as read.");
+				if (!saved) throw AppException.Internal("Đánh dấu tất cả thông báo là đã đọc thất bại.");
 			}
 
-			return BaseResponse<string>.Ok("All notifications were marked as read.");
+			return BaseResponse<string>.Ok("Đã đánh dấu tất cả thông báo là đã đọc.");
 		}
 	}
 }

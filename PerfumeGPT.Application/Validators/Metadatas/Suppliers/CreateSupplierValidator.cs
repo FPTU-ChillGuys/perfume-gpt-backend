@@ -8,21 +8,20 @@ namespace PerfumeGPT.Application.Validators.Metadatas.Suppliers
 		public CreateSupplierValidator()
 		{
 			RuleFor(x => x.Name)
-				.NotEmpty().WithMessage("Supplier name is required.")
-				.MaximumLength(150).WithMessage("Supplier name must not exceed 150 characters.");
+				.NotEmpty().WithMessage("Tên nhà cung cấp là bắt buộc.")
+				.MaximumLength(150).WithMessage("Tên nhà cung cấp không được vượt quá 150 ký tự.");
 
 			RuleFor(x => x.ContactEmail)
-				.NotEmpty().WithMessage("Supplier contact email is required.")
-				.EmailAddress().WithMessage("Supplier contact email is invalid.")
-				.MaximumLength(254).WithMessage("Supplier contact email must not exceed 254 characters.");
+				.NotEmpty().WithMessage("Email liên hệ của nhà cung cấp là bắt buộc.")
+				.EmailAddress().WithMessage("Email liên hệ của nhà cung cấp không hợp lệ.")
+				.MaximumLength(254).WithMessage("Email liên hệ của nhà cung cấp không được vượt quá 254 ký tự.");
 
 			RuleFor(x => x.Phone)
-				.NotEmpty().WithMessage("Supplier phone is required.")
-				.Matches(@"^(0)(3[2-9]|5[6789]|7[06789]|8[0-9]|9[0-9])[0-9]{7}$").WithMessage("Invalid phone number format.");
-
+				.NotEmpty().WithMessage("Số điện thoại của nhà cung cấp là bắt buộc.")
+				.Matches(@"^(0)(3[2-9]|5[6789]|7[06789]|8[0-9]|9[0-9])[0-9]{7}$").WithMessage("Định dạng số điện thoại không hợp lệ.");
 			RuleFor(x => x.Address)
-				.NotEmpty().WithMessage("Supplier address is required.")
-				.MaximumLength(255).WithMessage("Supplier address must not exceed 255 characters.");
+				.NotEmpty().WithMessage("Địa chỉ của nhà cung cấp là bắt buộc.")
+				.MaximumLength(255).WithMessage("Địa chỉ của nhà cung cấp không được vượt quá 255 ký tự.");
 		}
 	}
 }

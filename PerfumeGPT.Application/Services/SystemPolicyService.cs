@@ -16,7 +16,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<SystemPolicyResponse>> GetByPolicyCodeAsync(string policyCode)
 		{
 			var policy = await _unitOfWork.SystemPolicyRepository.GetResponseByPolicyCodeAsync(policyCode) ??
-				throw AppException.NotFound($"System policy with code '{policyCode}' not found.");
+				throw AppException.NotFound($"Hệ thống chính sách với mã '{policyCode}' không tồn tại.");
 
 			return BaseResponse<SystemPolicyResponse>.Ok(policy);
 		}
@@ -24,7 +24,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<SystemPolicyResponse>> UpdatePolicyAsync(string policyCode, SystemPolicyUpdateRequest request)
 		{
 			var policy = await _unitOfWork.SystemPolicyRepository.GetByPolicyCodeAsync(policyCode) ??
-				throw AppException.NotFound($"System policy with code '{policyCode}' not found.");
+				throw AppException.NotFound($"Hệ thống chính sách với mã '{policyCode}' không tồn tại.");
 
 			policy.Update(request.Title, request.HtmlContent);
 			_unitOfWork.SystemPolicyRepository.Update(policy);
@@ -34,8 +34,8 @@ namespace PerfumeGPT.Application.Services
 				PolicyCode = policy.Id,
 				Title = policy.Title,
 				HtmlContent = policy.HtmlContent,
-				LastUpdated = policy.UpdatedAt ?? policy.CreatedAt
-			}, "System policy updated successfully.");
+				LastUpdated = policy.UpdatedAt ?? policy.CreatedAt,
+			}, "Hệ thống chính sách đã được cập nhật thành công.");
 		}
 	}
 }

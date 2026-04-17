@@ -48,7 +48,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static ProductVariant Create(Guid productId, VariantPayload payload)
 		{
 			if (productId == Guid.Empty)
-				throw DomainException.BadRequest("Product ID is required.");
+                throw DomainException.BadRequest("Product ID là bắt buộc.");
 
 			ValidateCore(payload);
 
@@ -75,28 +75,28 @@ namespace PerfumeGPT.Domain.Entities
 			if (payload.Barcode != null)
 			{
 				if (string.IsNullOrWhiteSpace(payload.Barcode))
-					throw DomainException.BadRequest("Barcode cannot be empty.");
+                   throw DomainException.BadRequest("Mã vạch không được để trống.");
 				Barcode = payload.Barcode.Trim();
 			}
 
 			if (payload.Sku != null)
 			{
 				if (string.IsNullOrWhiteSpace(payload.Sku))
-					throw DomainException.BadRequest("SKU cannot be empty.");
+                   throw DomainException.BadRequest("SKU không được để trống.");
 				Sku = payload.Sku.Trim().ToUpperInvariant();
 			}
 
 			if (payload.VolumeMl.HasValue)
 			{
 				if (payload.VolumeMl.Value <= 0)
-					throw DomainException.BadRequest("Volume must be greater than 0.");
+                 throw DomainException.BadRequest("Dung tích phải lớn hơn 0.");
 				VolumeMl = payload.VolumeMl.Value;
 			}
 
 			if (payload.ConcentrationId.HasValue)
 			{
 				if (payload.ConcentrationId.Value <= 0)
-					throw DomainException.BadRequest("Invalid concentration.");
+                 throw DomainException.BadRequest("Nồng độ không hợp lệ.");
 				ConcentrationId = payload.ConcentrationId.Value;
 			}
 
@@ -107,14 +107,14 @@ namespace PerfumeGPT.Domain.Entities
 			if (payload.BasePrice.HasValue)
 			{
 				if (payload.BasePrice.Value <= 0)
-					throw DomainException.BadRequest("Base price must be greater than 0.");
+                 throw DomainException.BadRequest("Giá gốc phải lớn hơn 0.");
 				BasePrice = payload.BasePrice.Value;
 			}
 
 			if (payload.RetailPrice.HasValue)
 			{
 				if (payload.RetailPrice.Value <= 0)
-					throw DomainException.BadRequest("Retail price must be greater than 0.");
+                   throw DomainException.BadRequest("Giá bán lẻ phải lớn hơn 0.");
 				RetailPrice = payload.RetailPrice.Value;
 			}
 
@@ -133,7 +133,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureNotDeleted()
 		{
 			if (IsDeleted)
-				throw DomainException.BadRequest("Cannot update a deleted variant.");
+               throw DomainException.BadRequest("Không thể cập nhật biến thể đã bị xóa.");
 		}
 
 		public void SyncAttributes(IEnumerable<(int AttributeId, int ValueId)> newAttributes)
@@ -155,34 +155,34 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureAvailableForCart()
 		{
 			if (IsDeleted)
-				throw DomainException.BadRequest("This product variant is no longer available.");
+               throw DomainException.BadRequest("Biến thể sản phẩm này không còn khả dụng.");
 
 			if (Status == VariantStatus.Discontinued)
-				throw DomainException.BadRequest("This product variant has been discontinued.");
+                throw DomainException.BadRequest("Biến thể sản phẩm này đã ngừng kinh doanh.");
 
 			if (Status == VariantStatus.Inactive)
-				throw DomainException.BadRequest("This product variant is currently inactive.");
+                throw DomainException.BadRequest("Biến thể sản phẩm này hiện đang bị vô hiệu hóa.");
 		}
 
 		private static void ValidateCore(VariantPayload payload)
 		{
 			if (string.IsNullOrWhiteSpace(payload.Barcode))
-				throw DomainException.BadRequest("Barcode is required.");
+               throw DomainException.BadRequest("Mã vạch là bắt buộc.");
 
 			if (string.IsNullOrWhiteSpace(payload.Sku))
-				throw DomainException.BadRequest("SKU is required.");
+               throw DomainException.BadRequest("SKU là bắt buộc.");
 
 			if (payload.VolumeMl <= 0)
-				throw DomainException.BadRequest("Volume must be greater than 0.");
+             throw DomainException.BadRequest("Dung tích phải lớn hơn 0.");
 
 			if (payload.ConcentrationId <= 0)
-				throw DomainException.BadRequest("Invalid concentration.");
+             throw DomainException.BadRequest("Nồng độ không hợp lệ.");
 
 			if (payload.BasePrice <= 0)
-				throw DomainException.BadRequest("Base price must be greater than 0.");
+             throw DomainException.BadRequest("Giá gốc phải lớn hơn 0.");
 
 			if (payload.RetailPrice.HasValue && payload.RetailPrice.Value <= 0)
-				throw DomainException.BadRequest("Retail price must be greater than 0.");
+               throw DomainException.BadRequest("Giá bán lẻ phải lớn hơn 0.");
 		}
 
 		// Records

@@ -8,8 +8,8 @@ namespace PerfumeGPT.Application.Validators.Metadatas.Concentrations
 		public UpdateConcentrationValidator()
 		{
 			RuleFor(x => x.Name)
-				.NotEmpty().WithMessage("Name is required.")
-				.MaximumLength(100).WithMessage("Name must not exceed 100 characters.");
+				.NotEmpty().WithMessage("Tên nồng độ là bắt buộc.")
+				.MaximumLength(100).WithMessage("Tên nồng độ không được vượt quá 100 ký tự.");
 		}
 	}
 }

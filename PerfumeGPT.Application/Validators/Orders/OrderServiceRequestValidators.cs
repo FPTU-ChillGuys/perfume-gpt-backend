@@ -10,23 +10,23 @@ namespace PerfumeGPT.Application.Validators.Orders
 		public GetPagedOrdersRequestValidator()
 		{
 			RuleFor(x => x.PageNumber)
-				.GreaterThan(0).WithMessage("Page number must be greater than 0.");
+             .GreaterThan(0).WithMessage("Số trang phải lớn hơn 0.");
 
 			RuleFor(x => x.PageSize)
-				.GreaterThan(0).WithMessage("Page size must be greater than 0.")
-				.LessThanOrEqualTo(50).WithMessage("Page size must be less than or equal to 50.");
+                .GreaterThan(0).WithMessage("Kích thước trang phải lớn hơn 0.")
+				.LessThanOrEqualTo(50).WithMessage("Kích thước trang phải nhỏ hơn hoặc bằng 50.");
 
 			RuleFor(x => x.SortOrder)
 				.Must(order => string.Equals(order, "asc", StringComparison.OrdinalIgnoreCase)
 					|| string.Equals(order, "desc", StringComparison.OrdinalIgnoreCase))
-				.WithMessage("Sort order must be either 'asc' or 'desc'.");
+             .WithMessage("Thứ tự sắp xếp chỉ được là 'asc' hoặc 'desc'.");
 
 			RuleFor(x => x)
 				.Must(x => !x.FromDate.HasValue || !x.ToDate.HasValue || x.FromDate <= x.ToDate)
-				.WithMessage("From date must be less than or equal to to date.");
+               .WithMessage("Từ ngày phải nhỏ hơn hoặc bằng đến ngày.");
 
 			RuleFor(x => x.SearchTerm)
-				.MaximumLength(200).WithMessage("Search term must not exceed 200 characters.")
+              .MaximumLength(200).WithMessage("Từ khóa tìm kiếm không được vượt quá 200 ký tự.")
 				.When(x => !string.IsNullOrWhiteSpace(x.SearchTerm));
 		}
 	}
@@ -37,28 +37,28 @@ namespace PerfumeGPT.Application.Validators.Orders
 		{
 			RuleFor(x => x.ItemIds)
 				.Must(ids => ids.Distinct().Count() == ids.Count)
-				.WithMessage("Duplicate item IDs are not allowed.")
+             .WithMessage("Không cho phép ID sản phẩm trùng lặp.")
 				.When(x => x.ItemIds != null);
 
 			RuleFor(x => x.ExpectedTotalPrice)
-				.GreaterThanOrEqualTo(0).WithMessage("Expected total price must be greater than or equal to 0.")
+                .GreaterThanOrEqualTo(0).WithMessage("Tổng tiền kỳ vọng phải lớn hơn hoặc bằng 0.")
 				.When(x => x.ExpectedTotalPrice.HasValue);
 
 			RuleFor(x => x.DeliveryMethod)
-				.IsInEnum().WithMessage("Invalid delivery method.");
+                .IsInEnum().WithMessage("Phương thức giao hàng không hợp lệ.");
 
 			RuleFor(x => x.Payment)
-				.NotNull().WithMessage("Payment information is required.");
+             .NotNull().WithMessage("Thông tin thanh toán là bắt buộc.");
 
 			RuleFor(x => x.Payment.Method)
-				.IsInEnum().WithMessage("Invalid payment method.");
+             .IsInEnum().WithMessage("Phương thức thanh toán không hợp lệ.");
 
 			RuleFor(x => x)
 				.Must(x => x.DeliveryMethod != Domain.Enums.DeliveryMethod.Delivery || x.SavedAddressId.HasValue || x.Recipient != null)
-				.WithMessage("Delivery orders require a saved address ID or recipient information.");
+               .WithMessage("Đơn giao hàng cần có ID địa chỉ đã lưu hoặc thông tin người nhận.");
 
 			RuleFor(x => x.VoucherCode)
-				.MaximumLength(50).WithMessage("Voucher code must not exceed 50 characters.")
+               .MaximumLength(50).WithMessage("Mã giảm giá không được vượt quá 50 ký tự.")
 				.When(x => !string.IsNullOrWhiteSpace(x.VoucherCode));
 
 			When(x => x.Recipient != null, () =>
@@ -74,17 +74,17 @@ namespace PerfumeGPT.Application.Validators.Orders
 		public CreateInStoreOrderRequestValidator()
 		{
 			RuleFor(x => x.Payment)
-				.NotNull().WithMessage("Payment information is required.");
+             .NotNull().WithMessage("Thông tin thanh toán là bắt buộc.");
 
 			RuleFor(x => x.Payment.Method)
-				.IsInEnum().WithMessage("Invalid payment method.");
+             .IsInEnum().WithMessage("Phương thức thanh toán không hợp lệ.");
 
 			RuleFor(x => x)
 				.Must(x => x.IsPickupInStore || x.Recipient != null)
-				.WithMessage("Recipient information is required when not picking up in store.");
+                .WithMessage("Thông tin người nhận là bắt buộc khi không nhận tại cửa hàng.");
 
 			RuleFor(x => x.VoucherCode)
-				.MaximumLength(50).WithMessage("Voucher code must not exceed 50 characters.")
+               .MaximumLength(50).WithMessage("Mã giảm giá không được vượt quá 50 ký tự.")
 				.When(x => !string.IsNullOrWhiteSpace(x.VoucherCode));
 
 			When(x => x.Recipient != null, () =>
@@ -100,10 +100,10 @@ namespace PerfumeGPT.Application.Validators.Orders
 		public CreateOrderDetailRequestValidator()
 		{
 			RuleFor(x => x.VariantId)
-				.NotEmpty().WithMessage("Variant ID is required.");
+             .NotEmpty().WithMessage("Variant ID là bắt buộc.");
 
 			RuleFor(x => x.Quantity)
-				.GreaterThan(0).WithMessage("Quantity must be greater than 0.");
+                .GreaterThan(0).WithMessage("Số lượng phải lớn hơn 0.");
 		}
 	}
 
@@ -112,13 +112,13 @@ namespace PerfumeGPT.Application.Validators.Orders
 		public PreviewOrderRequestValidator()
 		{
 			RuleFor(x => x.BarCodes)
-				.NotEmpty().WithMessage("At least one barcode is required.");
+               .NotEmpty().WithMessage("Bắt buộc có ít nhất một mã vạch.");
 
 			RuleForEach(x => x.BarCodes)
-				.NotEmpty().WithMessage("Barcode cannot be empty.");
+                .NotEmpty().WithMessage("Mã vạch không được để trống.");
 
 			RuleFor(x => x.VoucherCode)
-				.MaximumLength(50).WithMessage("Voucher code must not exceed 50 characters.")
+               .MaximumLength(50).WithMessage("Mã giảm giá không được vượt quá 50 ký tự.")
 				.When(x => !string.IsNullOrWhiteSpace(x.VoucherCode));
 		}
 	}
@@ -127,18 +127,18 @@ namespace PerfumeGPT.Application.Validators.Orders
 	{
 		public UserCancelOrderRequestValidator()
 		{
-			RuleFor(x => x.Reason).IsInEnum().WithMessage("Invalid cancellation reason.");
+          RuleFor(x => x.Reason).IsInEnum().WithMessage("Lý do hủy không hợp lệ.");
 
 			RuleFor(x => x.RefundBankName)
-				.MaximumLength(255).WithMessage("Refund bank name must not exceed 255 characters.")
+             .MaximumLength(255).WithMessage("Tên ngân hàng hoàn tiền không được vượt quá 255 ký tự.")
 				.When(x => !string.IsNullOrWhiteSpace(x.RefundBankName));
 
 			RuleFor(x => x.RefundAccountNumber)
-				.MaximumLength(50).WithMessage("Refund account number must not exceed 50 characters.")
+              .MaximumLength(50).WithMessage("Số tài khoản hoàn tiền không được vượt quá 50 ký tự.")
 				.When(x => !string.IsNullOrWhiteSpace(x.RefundAccountNumber));
 
 			RuleFor(x => x.RefundAccountName)
-				.MaximumLength(255).WithMessage("Refund account name must not exceed 255 characters.")
+              .MaximumLength(255).WithMessage("Tên chủ tài khoản hoàn tiền không được vượt quá 255 ký tự.")
 				.When(x => !string.IsNullOrWhiteSpace(x.RefundAccountName));
 
 			RuleFor(x => x)
@@ -155,7 +155,7 @@ namespace PerfumeGPT.Application.Validators.Orders
 						&& !string.IsNullOrWhiteSpace(x.RefundAccountNumber)
 						&& !string.IsNullOrWhiteSpace(x.RefundAccountName);
 				})
-				.WithMessage("Incomplete bank information. Bank name, account number, and account name are all required if requesting a manual refund.");
+               .WithMessage("Thông tin ngân hàng chưa đầy đủ. Khi yêu cầu hoàn tiền thủ công, bắt buộc có tên ngân hàng, số tài khoản và tên chủ tài khoản.");
 		}
 	}
 
@@ -164,7 +164,7 @@ namespace PerfumeGPT.Application.Validators.Orders
 		public StaffCancelOrderRequestValidator()
 		{
 			RuleFor(x => x.Note)
-				.MaximumLength(1000).WithMessage("Note must not exceed 1000 characters.")
+               .MaximumLength(1000).WithMessage("Ghi chú không được vượt quá 1000 ký tự.")
 				.When(x => !string.IsNullOrWhiteSpace(x.Note));
 		}
 	}
@@ -174,11 +174,11 @@ namespace PerfumeGPT.Application.Validators.Orders
 		public FulfillOrderRequestValidator()
 		{
 			RuleFor(x => x.Items)
-				.NotEmpty().WithMessage("Fulfillment items are required.");
+             .NotEmpty().WithMessage("Danh sách sản phẩm hoàn tất đơn là bắt buộc.");
 
 			RuleFor(x => x.Items)
 				.Must(items => items.Select(i => i.OrderDetailId).Distinct().Count() == items.Count)
-				.WithMessage("Duplicate order detail IDs in fulfillment items are not allowed.");
+               .WithMessage("Không cho phép OrderDetail ID trùng lặp trong danh sách hoàn tất đơn.");
 
 			RuleForEach(x => x.Items)
 				.SetValidator(new FulfillOrderItemRequestValidator());
@@ -190,13 +190,13 @@ namespace PerfumeGPT.Application.Validators.Orders
 		public FulfillOrderItemRequestValidator()
 		{
 			RuleFor(x => x.OrderDetailId)
-				.NotEmpty().WithMessage("Order detail ID is required.");
+                .NotEmpty().WithMessage("Order detail ID là bắt buộc.");
 
 			RuleFor(x => x.ScannedBatchCode)
-				.NotEmpty().WithMessage("Scanned batch code is required.");
+             .NotEmpty().WithMessage("Mã lô đã quét là bắt buộc.");
 
 			RuleFor(x => x.Quantity)
-				.GreaterThan(0).WithMessage("Quantity must be greater than 0.");
+                .GreaterThan(0).WithMessage("Số lượng phải lớn hơn 0.");
 		}
 	}
 
@@ -205,10 +205,10 @@ namespace PerfumeGPT.Application.Validators.Orders
 		public SwapDamagedStockRequestValidator()
 		{
 			RuleFor(x => x.DamagedReservationId)
-				.NotEmpty().WithMessage("Damaged reservation ID is required.");
+             .NotEmpty().WithMessage("Damaged reservation ID là bắt buộc.");
 
 			RuleFor(x => x.DamageNote)
-				.MaximumLength(1000).WithMessage("Damage note must not exceed 1000 characters.")
+                .MaximumLength(1000).WithMessage("Ghi chú hư hỏng không được vượt quá 1000 ký tự.")
 				.When(x => !string.IsNullOrWhiteSpace(x.DamageNote));
 		}
 	}

@@ -9,11 +9,11 @@ namespace PerfumeGPT.Application.Validators.StockAdjustments.Details
 		{
 			RuleFor(x => x.DetailId)
 				.NotEmpty()
-				.WithMessage("Detail ID is required.");
+             .WithMessage("Detail ID là bắt buộc.");
 
 			RuleFor(x => x.ApprovedQuantity)
 				.NotEqual(0)
-				.WithMessage("Approved quantity cannot be zero.");
+              .WithMessage("Số lượng duyệt không được bằng 0.");
 		}
 	}
 }

@@ -35,7 +35,7 @@ namespace PerfumeGPT.Domain.Entities
 		public static StockAdjustment Create(Guid createdById, DateTime adjustmentDate, StockAdjustmentReason reason, string? note)
 		{
 			if (createdById == Guid.Empty)
-				throw DomainException.BadRequest("Created by user is required.");
+				throw DomainException.BadRequest("Người tạo là bắt buộc.");
 
 			return new StockAdjustment
 			{
@@ -67,13 +67,13 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureVerifiable()
 		{
 			if (Status != StockAdjustmentStatus.InProgress)
-				throw DomainException.BadRequest("Only in progress stock adjustments can be verified.");
+				throw DomainException.BadRequest("Chỉ phiếu điều chỉnh kho đang xử lý mới có thể được xác minh.");
 		}
 
 		public void Complete(Guid verifiedByUserId)
 		{
 			if (verifiedByUserId == Guid.Empty)
-				throw DomainException.BadRequest("Verified by user is required.");
+				throw DomainException.BadRequest("Người xác minh là bắt buộc.");
 
 			EnsureVerifiable();
 			VerifiedById = verifiedByUserId;
@@ -83,21 +83,21 @@ namespace PerfumeGPT.Domain.Entities
 		public void Cancel(string? cancelReason = null)
 		{
 			if (Status == StockAdjustmentStatus.Completed || Status == StockAdjustmentStatus.Cancelled)
-				throw DomainException.BadRequest($"Cannot cancel a stock adjustment that is already {Status}.");
+				throw DomainException.BadRequest($"Không thể hủy phiếu điều chỉnh kho đã ở trạng thái {Status}.");
 
 			Status = StockAdjustmentStatus.Cancelled;
 
 			if (!string.IsNullOrWhiteSpace(cancelReason))
 			{
 				var formattedReason = cancelReason.Trim();
-				Note = string.IsNullOrWhiteSpace(Note) ? $"Canceled: {formattedReason}" : $"{Note} | Canceled: {formattedReason}";
+				Note = string.IsNullOrWhiteSpace(Note) ? $"Hủy: {formattedReason}" : $"{Note} | Hủy: {formattedReason}";
 			}
 		}
 
 		public void UpdateStatus(StockAdjustmentStatus newStatus)
 		{
 			if (Status == newStatus)
-				throw DomainException.BadRequest("Stock adjustment is already in this status.");
+				throw DomainException.BadRequest("Phiếu điều chỉnh kho đã ở trạng thái này.");
 
 			var validTransitions = new Dictionary<StockAdjustmentStatus, List<StockAdjustmentStatus>>
 			{
@@ -108,7 +108,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 
 			if (!(validTransitions.ContainsKey(Status) && validTransitions[Status].Contains(newStatus)))
-				throw DomainException.BadRequest($"Cannot change status from {Status} to {newStatus}.");
+				throw DomainException.BadRequest($"Không thể thay đổi trạng thái từ {Status} sang {newStatus}.");
 
 			Status = newStatus;
 		}
@@ -116,7 +116,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureIsPending()
 		{
 			if (Status != StockAdjustmentStatus.Pending)
-				throw DomainException.BadRequest("Only pending stock adjustments can be deleted.");
+				throw DomainException.BadRequest("Chỉ phiếu điều chỉnh kho đang chờ mới có thể bị xóa.");
 		}
 	}
 }

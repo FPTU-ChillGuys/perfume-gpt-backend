@@ -8,8 +8,8 @@ namespace PerfumeGPT.Application.Validators.Metadatas.Categories
 		public UpdateCategoryValidator()
 		{
 			RuleFor(x => x.Name)
-				.NotEmpty().WithMessage("Category name is required.")
-				.MaximumLength(100).WithMessage("Category name must not exceed 100 characters.");
+				.NotEmpty().WithMessage("Tên danh mục là bắt buộc.")
+				.MaximumLength(100).WithMessage("Tên danh mục không được vượt quá 100 ký tự.");
 		}
 	}
 }

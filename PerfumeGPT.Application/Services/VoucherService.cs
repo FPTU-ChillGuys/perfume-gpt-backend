@@ -41,7 +41,7 @@ namespace PerfumeGPT.Application.Services
 			var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code);
 			if (codeExists)
 			{
-				throw AppException.Conflict("Voucher code already exists");
+				throw AppException.Conflict("Mã giảm giá đã tồn tại");
 			}
 
 			// ĐÃ FIX: Map vào VoucherRegularCreationFactor
@@ -63,9 +63,9 @@ namespace PerfumeGPT.Application.Services
 
 			await _unitOfWork.Vouchers.AddAsync(voucher);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to create voucher");
+			if (!saved) throw AppException.Internal("Tạo mã giảm giá thất bại");
 
-			return BaseResponse<string>.Ok(voucher.Id.ToString(), "Regular voucher created successfully");
+			return BaseResponse<string>.Ok(voucher.Id.ToString(), "Tạo mã giảm giá thường thành công");
 		}
 
 		public async Task<BaseResponse<string>> UpdateVoucherAsync(Guid voucherId, UpdateVoucherRequest request)
@@ -73,7 +73,7 @@ namespace PerfumeGPT.Application.Services
 			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
 			if (voucher == null || voucher.IsDeleted)
 			{
-				throw AppException.NotFound("Voucher not found");
+				throw AppException.NotFound("Không tìm thấy mã giảm giá");
 			}
 
 			if (request.Code != voucher.Code)
@@ -81,7 +81,7 @@ namespace PerfumeGPT.Application.Services
 				var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code, voucherId);
 				if (codeExists)
 				{
-					throw AppException.Conflict("Voucher code already exists");
+					throw AppException.Conflict("Mã giảm giá đã tồn tại");
 				}
 			}
 
@@ -105,9 +105,9 @@ namespace PerfumeGPT.Application.Services
 
 			_unitOfWork.Vouchers.Update(voucher);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to update voucher");
+			if (!saved) throw AppException.Internal("Cập nhật mã giảm giá thất bại");
 
-			return BaseResponse<string>.Ok(voucherId.ToString(), "Voucher updated successfully");
+			return BaseResponse<string>.Ok(voucherId.ToString(), "Cập nhật mã giảm giá thành công");
 		}
 
 		public async Task<BaseResponse<string>> DeleteVoucherAsync(Guid voucherId)
@@ -115,28 +115,28 @@ namespace PerfumeGPT.Application.Services
 			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
 			if (voucher == null || voucher.IsDeleted)
 			{
-				throw AppException.NotFound("Voucher not found");
+				throw AppException.NotFound("Không tìm thấy mã giảm giá");
 			}
 
 			if (await _unitOfWork.UserVouchers.AnyAsync(uv => uv.VoucherId == voucherId && uv.Status == UsageStatus.Used))
 			{
-				throw AppException.BadRequest("Cannot delete voucher that has been redeemed by users");
+				throw AppException.BadRequest("Không thể xóa mã giảm giá đã được người dùng đổi");
 			}
 
 			_unitOfWork.Vouchers.Remove(voucher);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to delete voucher");
+			if (!saved) throw AppException.Internal("Xóa mã giảm giá thất bại");
 
-			return BaseResponse<string>.Ok(voucherId.ToString(), "Voucher deleted successfully");
+			return BaseResponse<string>.Ok(voucherId.ToString(), "Xóa mã giảm giá thành công");
 		}
 
 		public async Task<BaseResponse<VoucherResponse>> GetVoucherByIdAsync(Guid voucherId)
 		{
 			var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(v => v.Id == voucherId && !v.IsDeleted, asNoTracking: true)
-				?? throw AppException.NotFound("Voucher not found");
+				?? throw AppException.NotFound("Không tìm thấy mã giảm giá");
 
 			var response = _mapper.Map<VoucherResponse>(voucher);
-			return BaseResponse<VoucherResponse>.Ok(response, "Voucher retrieved successfully");
+			return BaseResponse<VoucherResponse>.Ok(response, "Lấy thông tin mã giảm giá thành công");
 		}
 
 		public async Task<BaseResponse<PagedResult<VoucherResponse>>> GetPagedVouchersAsync(GetPagedVouchersRequest request)
@@ -152,7 +152,7 @@ namespace PerfumeGPT.Application.Services
 				totalCount
 			);
 
-			return BaseResponse<PagedResult<VoucherResponse>>.Ok(pagedResult, "Vouchers retrieved successfully");
+			return BaseResponse<PagedResult<VoucherResponse>>.Ok(pagedResult, "Lấy danh sách mã giảm giá thành công");
 		}
 		#endregion
 
@@ -168,7 +168,7 @@ namespace PerfumeGPT.Application.Services
 				request.PageSize,
 				totalCount
 			);
-			return BaseResponse<PagedResult<RedeemableVoucherResponse>>.Ok(pagedResult, "Redeemable vouchers retrieved successfully");
+			return BaseResponse<PagedResult<RedeemableVoucherResponse>>.Ok(pagedResult, "Lấy danh sách mã có thể đổi thành công");
 		}
 
 		public async Task<BaseResponse<string>> RedeemVoucherAsync(Guid userId, RedeemVoucherRequest request)
@@ -178,7 +178,7 @@ namespace PerfumeGPT.Application.Services
 				var voucher = await _unitOfWork.Vouchers.FirstOrDefaultAsync(
 					v => v.Id == request.VoucherId && !v.IsDeleted,
 					asNoTracking: false
-				) ?? throw AppException.NotFound("Voucher not found");
+			  ) ?? throw AppException.NotFound("Không tìm thấy mã giảm giá");
 
 				voucher.EnsureNotExpired(DateTime.UtcNow);
 
@@ -186,7 +186,7 @@ namespace PerfumeGPT.Application.Services
 				// Use repository method to check if user already redeemed this voucher
 				if (voucher.MaxUsagePerUser.HasValue && usageCount >= voucher.MaxUsagePerUser.Value)
 				{
-					throw AppException.Conflict($"You have reached the maximum usage limit ({voucher.MaxUsagePerUser.Value}) for this voucher.");
+					throw AppException.Conflict($"Bạn đã đạt giới hạn sử dụng tối đa ({voucher.MaxUsagePerUser.Value}) cho mã này.");
 				}
 
 				// Use LoyaltyPointService to deduct points
@@ -220,7 +220,7 @@ namespace PerfumeGPT.Application.Services
 
 				// Notification logic can be added here if needed
 
-				return BaseResponse<string>.Ok(userVoucher.Id.ToString(), "Voucher redeemed successfully");
+				return BaseResponse<string>.Ok(userVoucher.Id.ToString(), "Đổi mã giảm giá thành công");
 			});
 		}
 
@@ -237,7 +237,7 @@ namespace PerfumeGPT.Application.Services
 				totalCount
 			);
 
-			return BaseResponse<PagedResult<UserVoucherResponse>>.Ok(pagedResult, "User vouchers retrieved successfully");
+			return BaseResponse<PagedResult<UserVoucherResponse>>.Ok(pagedResult, "Lấy danh sách mã giảm giá của người dùng thành công");
 		}
 		#endregion
 
@@ -255,7 +255,7 @@ namespace PerfumeGPT.Application.Services
 
 			return BaseResponse<PagedResult<AvailableVoucherResponse>>.Ok(
 				pagedResult,
-				"Available vouchers retrieved successfully"
+			 "Lấy danh sách mã giảm giá khả dụng thành công"
 			);
 		}
 
@@ -264,13 +264,13 @@ namespace PerfumeGPT.Application.Services
 			var cartItems = NormalizeCartItems(request.CartItems);
 			if (cartItems.Count == 0)
 			{
-				return BaseResponse<List<ApplicableVoucherResponse>>.Ok([], "No cart items provided.");
+				return BaseResponse<List<ApplicableVoucherResponse>>.Ok([], "Chưa có sản phẩm trong giỏ hàng.");
 			}
 
 			var aggregatedVouchers = await AggregateVouchersForApplicabilityAsync(request.CustomerId);
 			if (aggregatedVouchers.Count == 0)
 			{
-				return BaseResponse<List<ApplicableVoucherResponse>>.Ok([], "No vouchers available for this cart.");
+				return BaseResponse<List<ApplicableVoucherResponse>>.Ok([], "Không có mã giảm giá phù hợp cho giỏ hàng này.");
 			}
 
 			var evaluations = await EvaluateVoucherApplicabilityAsync(aggregatedVouchers, request.CustomerId, cartItems, null);
@@ -288,7 +288,7 @@ namespace PerfumeGPT.Application.Services
 				})
 				.ToList();
 
-			return BaseResponse<List<ApplicableVoucherResponse>>.Ok(payload, "Applicable vouchers evaluated successfully");
+			return BaseResponse<List<ApplicableVoucherResponse>>.Ok(payload, "Đánh giá mã giảm giá áp dụng thành công");
 		}
 
 		public async Task EnsureVoucherApplicableAsync(string voucherCode, Guid? userId, IEnumerable<ApplicableVoucherCartItemRequest> cartItems, string? emailOrPhone = null)
@@ -305,23 +305,23 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode)
-				?? throw AppException.NotFound("Voucher not found");
+				?? throw AppException.NotFound("Không tìm thấy mã giảm giá");
 
 			var evaluation = (await EvaluateVoucherApplicabilityAsync([voucher], userId, normalizedCartItems, emailOrPhone)).First();
 			if (!evaluation.IsApplicable)
 			{
-				throw AppException.BadRequest(evaluation.IneligibleReason ?? "Voucher is not applicable for this cart.");
+				throw AppException.BadRequest(evaluation.IneligibleReason ?? "Mã giảm giá không áp dụng được cho giỏ hàng này.");
 			}
 		}
 
 		public async Task<bool> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null, IEnumerable<Guid>? cartVariantIds = null)
 		{
 			// 1. Validate voucher existence
-			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode) ?? throw AppException.NotFound("Voucher not found");
+			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode) ?? throw AppException.NotFound("Không tìm thấy mã giảm giá");
 
 			// 2. Check expiry
 			if (voucher.ExpiryDate < DateTime.UtcNow)
-				throw AppException.NotFound("Voucher not found or has expired");
+				throw AppException.NotFound("Không tìm thấy mã giảm giá hoặc mã đã hết hạn");
 
 			// 2.1 If voucher belongs to a campaign, validate campaign/item scope
 			await ValidateCampaignVoucherScopeAsync(voucher, cartVariantIds);
@@ -330,7 +330,7 @@ namespace PerfumeGPT.Application.Services
 			var minOrderValue = voucher.MinOrderValue ?? 0m;
 			if (orderAmount < minOrderValue)
 			{
-				throw AppException.BadRequest($"Order amount must be at least {minOrderValue:C} to use this voucher");
+				throw AppException.BadRequest($"Giá trị đơn hàng tối thiểu để dùng mã này là {FormatVietnameseCurrency(minOrderValue)}");
 			}
 
 			// 4. Determine user type and effective userId
@@ -349,14 +349,14 @@ namespace PerfumeGPT.Application.Services
 			{
 				if (isAnonymousGuest)
 				{
-					throw AppException.Unauthorized("Login required to use this reward voucher");
+					throw AppException.Unauthorized("Vui lòng đăng nhập để sử dụng mã đổi điểm này");
 				}
 
 				var ownedVoucher = await FindUserVoucherAsync(voucher.Id, effectiveUserId, emailOrPhone, isGuest, UsageStatus.Available)
 					?? throw AppException.Forbidden(
 						   requiredPoints > 0
-							   ? "You must redeem this voucher with points before using it"
-							   : "You do not own this private voucher");
+							? "Bạn cần đổi mã này bằng điểm trước khi sử dụng"
+							   : "Bạn không sở hữu mã giảm giá riêng tư này");
 			}
 			else if (voucher.IsMemberOnly)
 			{
@@ -374,7 +374,7 @@ namespace PerfumeGPT.Application.Services
 
 				if (currentUsageCount >= allowedUsage)
 				{
-					throw AppException.BadRequest($"You have reached the maximum usage limit ({allowedUsage}) for this promotion.");
+					throw AppException.BadRequest($"Bạn đã đạt giới hạn sử dụng tối đa ({allowedUsage}) cho khuyến mãi này.");
 				}
 			}
 
@@ -568,7 +568,7 @@ namespace PerfumeGPT.Application.Services
 			if (oldUserVoucher == null) return true;
 
 			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(oldUserVoucher.VoucherId)
-				?? throw AppException.NotFound("Voucher not found");
+				?? throw AppException.NotFound("Không tìm thấy mã giảm giá");
 
 			bool requiresPriorOwnership = !voucher.IsPublic || voucher.RequiredPoints > 0;
 
@@ -603,17 +603,17 @@ namespace PerfumeGPT.Application.Services
 
 			var campaign = await _unitOfWork.Campaigns.FirstOrDefaultAsync(
 				c => c.Id == voucher.CampaignId.Value && !c.IsDeleted,
-				asNoTracking: true) ?? throw AppException.NotFound("Campaign not found for this voucher");
+			  asNoTracking: true) ?? throw AppException.NotFound("Không tìm thấy chiến dịch cho mã giảm giá này");
 
 			var now = DateTime.UtcNow;
 			if (campaign.Status != CampaignStatus.Active || now < campaign.StartDate || now > campaign.EndDate)
 			{
-				throw AppException.BadRequest("Campaign is not active for this voucher");
+				throw AppException.BadRequest("Chiến dịch của mã giảm giá này hiện không hoạt động");
 			}
 
 			if (campaign.Status == CampaignStatus.Paused)
 			{
-				throw AppException.BadRequest("Campaign is currently paused, voucher cannot be applied");
+				throw AppException.BadRequest("Chiến dịch đang tạm dừng, không thể áp dụng mã giảm giá");
 			}
 
 			var cartVariantSet = cartVariantIds?
@@ -623,7 +623,7 @@ namespace PerfumeGPT.Application.Services
 
 			if (voucher.ApplyType == VoucherType.Product && (cartVariantSet == null || cartVariantSet.Count == 0))
 			{
-				throw AppException.BadRequest("Cart items are required for product-level voucher validation");
+				throw AppException.BadRequest("Cần có sản phẩm giỏ hàng để kiểm tra mã giảm giá theo sản phẩm");
 			}
 
 			var hasMatchingActiveItem = await _unitOfWork.PromotionItems.AnyAsync(
@@ -637,8 +637,8 @@ namespace PerfumeGPT.Application.Services
 			if (!hasMatchingActiveItem)
 			{
 				var message = voucher.ApplyType == VoucherType.Product
-					? "No active campaign product item matches this voucher"
-					: "No active campaign order item matches this voucher";
+					? "Không có sản phẩm khuyến mãi đang hoạt động phù hợp với mã này"
+					: "Không có khuyến mãi đơn hàng đang hoạt động phù hợp với mã này";
 				throw AppException.BadRequest(message);
 			}
 		}
@@ -648,7 +648,7 @@ namespace PerfumeGPT.Application.Services
 			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
 			if (voucher == null || voucher.IsDeleted)
 			{
-				throw AppException.NotFound("Voucher not found");
+				throw AppException.NotFound("Không tìm thấy mã giảm giá");
 			}
 
 			voucher.EnsureMemberEligible(userId);
@@ -662,14 +662,14 @@ namespace PerfumeGPT.Application.Services
 			{
 				if (isAnonymousGuest)
 				{
-					throw AppException.Unauthorized("Login required to use this reward voucher");
+					throw AppException.Unauthorized("Vui lòng đăng nhập để sử dụng mã đổi điểm này");
 				}
 
 				var userVoucher = await FindUserVoucherAsync(voucherId, effectiveUserId, emailOrPhone, isGuest, UsageStatus.Available)
 					?? throw AppException.Forbidden(
 						  voucher.RequiredPoints > 0
-							  ? "You must redeem this voucher with points before using it"
-							  : "You do not own this private voucher");
+							? "Bạn cần đổi mã này bằng điểm trước khi sử dụng"
+							  : "Bạn không sở hữu mã giảm giá riêng tư này");
 
 				// Mark as reserved
 				userVoucher.Reserve(orderId);
@@ -700,7 +700,7 @@ namespace PerfumeGPT.Application.Services
 
 					if (currentUsageCount >= allowedUsage)
 					{
-						throw AppException.BadRequest($"You have reached the maximum usage limit ({allowedUsage}) for this promotion");
+						throw AppException.BadRequest($"Bạn đã đạt giới hạn sử dụng tối đa ({allowedUsage}) cho khuyến mãi này");
 					}
 				}
 

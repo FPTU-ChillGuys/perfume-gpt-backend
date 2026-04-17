@@ -19,11 +19,11 @@ namespace PerfumeGPT.Persistence.Repositories
 		public AuthRepository(IConfiguration configuration)
 		{
 			var secretKey = configuration["Jwt:Key"]
-				  ?? throw new ArgumentNullException("Jwt:Key not found in configuration");
+				  ?? throw new ArgumentNullException("Không tìm thấy Jwt:Key trong cấu hình");
 			_issuer = configuration["Jwt:Issuer"]
-				  ?? throw new ArgumentNullException("Jwt:Issuer not found in configuration");
+				  ?? throw new ArgumentNullException("Không tìm thấy Jwt:Issuer trong cấu hình");
 			_audience = configuration["Jwt:Audience"]
-				  ?? throw new ArgumentNullException("Jwt:Audience not found in configuration");
+				  ?? throw new ArgumentNullException("Không tìm thấy Jwt:Audience trong cấu hình");
 
 			var privateKeyPem = secretKey.Replace("\\n", "\n");
 			var rsa = RSA.Create();

@@ -8,13 +8,13 @@ namespace PerfumeGPT.Application.Validators.Profiles
 		public UpdateProfileValidator()
 		{
 			RuleFor(x => x.MinBudget)
-				.GreaterThanOrEqualTo(0).WithMessage("MinBudget must be greater than or equal to 0.")
+               .GreaterThanOrEqualTo(0).WithMessage("Ngân sách tối thiểu phải lớn hơn hoặc bằng 0.")
 				.When(x => x.MinBudget.HasValue);
 			RuleFor(x => x.MaxBudget)
-				.GreaterThanOrEqualTo(0).WithMessage("MaxBudget must be greater than or equal to 0.");
+              .GreaterThanOrEqualTo(0).WithMessage("Ngân sách tối đa phải lớn hơn hoặc bằng 0.");
 			RuleFor(x => x.DateOfBirth)
 				.LessThan(DateTime.UtcNow.AddYears(16))
-				.When(x => x.DateOfBirth.HasValue).WithMessage("You must be at least 16 years old.");
+               .When(x => x.DateOfBirth.HasValue).WithMessage("Bạn phải từ 16 tuổi trở lên.");
 		}
 	}
 }

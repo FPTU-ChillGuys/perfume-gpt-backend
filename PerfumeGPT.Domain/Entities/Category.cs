@@ -31,7 +31,7 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			var normalized = name?.Trim() ?? string.Empty;
 			if (string.IsNullOrWhiteSpace(normalized))
-				throw DomainException.BadRequest("Category name is required.");
+				throw DomainException.BadRequest("Tên danh mục không được để trống.");
 			return normalized;
 		}
 	}

@@ -39,7 +39,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PreviewPosOrderResponse>> PreviewPosOrderAsync(PreviewPosOrderRequest request)
 		{
 			if (request.ScannedItems == null || request.ScannedItems.Count == 0)
-				throw AppException.BadRequest("No items scanned.");
+				throw AppException.BadRequest("Chưa có sản phẩm nào được quét.");
 
 			// 1. Gom nhóm và TÍNH TỔNG Quantity gửi lên
 			var groupedScans = request.ScannedItems
@@ -58,13 +58,13 @@ namespace PerfumeGPT.Application.Services
 			foreach (var scan in groupedScans)
 			{
 				var variantResponse = await _unitOfWork.Variants.GetByBarcodeAsync(scan.Barcode)
-					?? throw AppException.NotFound("Variant not found");
+					?? throw AppException.NotFound("Không tìm thấy biến thể sản phẩm");
 
 				var variant = variantResponse;
 
 				var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b =>
 					b.BatchCode == scan.BatchCode && b.VariantId == variant.Id)
-					?? throw AppException.NotFound($"Batch {scan.BatchCode} not found for product {variant.Sku}.");
+				 ?? throw AppException.NotFound($"Không tìm thấy lô {scan.BatchCode} cho sản phẩm {variant.Sku}.");
 
 				// BỔ SUNG RÀO CHẮN Ở ĐÂY: Chặn thu ngân quét lố số lượng tồn kho
 				// Giả định bạn có thuộc tính AvailableInBatch (hoặc RemainingQuantity - ReservedQuantity)
@@ -100,7 +100,7 @@ namespace PerfumeGPT.Application.Services
 			decimal subtotal;
 			decimal finalAmount;
 			string? voucherMessage;
-           List<string>? warnings = null;
+			List<string>? warnings = null;
 			var appliedVoucherCode = request.VoucherCode;
 
 			try
@@ -149,7 +149,7 @@ namespace PerfumeGPT.Application.Services
 					FinalTotal = lineTotalBeforeVoucher,
 
 					ImageUrl = item.ImageUrl ?? "",
-					BatchCode = item.BatchCode ?? throw AppException.BadRequest("Batch code is required for POS items.")
+					BatchCode = item.BatchCode ?? throw AppException.BadRequest("Mã lô là bắt buộc cho sản phẩm POS.")
 				};
 			}).ToList();
 
@@ -191,9 +191,9 @@ namespace PerfumeGPT.Application.Services
 			return new BaseResponse<PreviewPosOrderResponse>
 			{
 				Success = true,
-				Message = string.IsNullOrWhiteSpace(voucherMessage) ? "Order previewed successfully." : voucherMessage,
+				Message = string.IsNullOrWhiteSpace(voucherMessage) ? "Xem trước đơn hàng thành công." : voucherMessage,
 				Payload = response,
-                Errors = warnings
+				Errors = warnings
 			};
 		}
 
@@ -210,12 +210,12 @@ namespace PerfumeGPT.Application.Services
 					var saved = await _unitOfWork.SaveChangesAsync();
 					if (!saved)
 					{
-						throw AppException.Internal("Could not clear cart");
+						throw AppException.Internal("Không thể xóa giỏ hàng");
 					}
 				}
 			}
 
-			return BaseResponse<string>.Ok("Cart cleared successfully");
+			return BaseResponse<string>.Ok("Xóa giỏ hàng thành công");
 		}
 
 		public async Task<CartCheckoutResponse> GetCartForCheckoutAsync(Guid userId, GetCartTotalRequest request)
@@ -251,7 +251,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				return BaseResponse<GetCartItemsResponse>.Ok(
 					new GetCartItemsResponse { Items = [] },
-					"Cart is empty");
+				   "Giỏ hàng trống");
 			}
 
 			// 2. Chuyển đổi sang định dạng của Pricing Engine
@@ -293,7 +293,7 @@ namespace PerfumeGPT.Application.Services
 
 			return BaseResponse<GetCartItemsResponse>.Ok(
 			  new GetCartItemsResponse { Items = responseItems },
-				"Cart items retrieved successfully");
+			   "Lấy danh sách sản phẩm trong giỏ hàng thành công");
 		}
 
 		public async Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, GetCartTotalRequest request)
@@ -310,7 +310,7 @@ namespace PerfumeGPT.Application.Services
 						Discount = 0m,
 						TotalPrice = 0m
 					},
-					"Cart is empty");
+				   "Giỏ hàng trống");
 			}
 
 			// TÁCH BẠCH DISCOUNT VOUCHER VÀ PROMOTION
@@ -335,7 +335,7 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<GetCartTotalResponse>.Ok(
 				 response,
 				 string.IsNullOrWhiteSpace(voucherMessage)
-					 ? "Cart total calculated successfully"
+				  ? "Tính tổng tiền giỏ hàng thành công"
 					 : voucherMessage);
 		}
 
@@ -399,7 +399,7 @@ namespace PerfumeGPT.Application.Services
 			if (request.SavedAddressId.HasValue)
 			{
 				var savedAddress = await _unitOfWork.Addresses.GetUserAddressById(userId, request.SavedAddressId.Value)
-					?? throw AppException.NotFound("Saved address not found.");
+				 ?? throw AppException.NotFound("Không tìm thấy địa chỉ đã lưu.");
 
 				if (savedAddress.DistrictId <= 0 || string.IsNullOrWhiteSpace(savedAddress.WardCode))
 					return null;
@@ -439,13 +439,13 @@ namespace PerfumeGPT.Application.Services
 			await _voucherService.EnsureVoucherApplicableAsync(voucherCode, userId, evaluatorCartItems);
 
 			var voucher = await _voucherService.GetVoucherByCodeAsync(voucherCode)
-				?? throw AppException.NotFound("Voucher not found");
+				?? throw AppException.NotFound("Không tìm thấy mã giảm giá");
 
 			var voucherValidation = await _voucherService.CanUserApplyVoucherAsync(
 			   voucherCode, userId, subtotal, null, itemsAfterFlashSale.Select(x => x.VariantId));
 
 			if (!voucherValidation)
-				throw AppException.BadRequest("Voucher validation failed.");
+				throw AppException.BadRequest("Xác thực mã giảm giá thất bại.");
 
 			if (voucher.ApplyType == VoucherType.Product && voucher.CampaignId.HasValue)
 			{
@@ -489,19 +489,19 @@ namespace PerfumeGPT.Application.Services
 		{
 			if (!voucher.CampaignId.HasValue)
 			{
-				throw AppException.BadRequest("Product-level voucher must be associated with a campaign.");
+				throw AppException.BadRequest("Mã giảm giá theo sản phẩm phải được gắn với một chiến dịch.");
 			}
 
 			var variantIds = items.Select(x => x.VariantId).Distinct().ToList();
 			var promoItemsByVariant = await GetActivePromotionsByVariantAsync(voucher.CampaignId.Value, voucher.TargetItemType, variantIds);
 
 			if (promoItemsByVariant.Count == 0)
-				return (items, "No eligible product is in active promotion for this voucher");
+				return (items, "Không có sản phẩm hợp lệ đang thuộc khuyến mãi để áp dụng mã này");
 
 			var batchAvailability = await GetBatchAvailabilityAsync(promoItemsByVariant.SelectMany(x => x.Value));
 			var (allocations, eligibleSubtotal, messageLines) = EvaluateEligibleStock(items, promoItemsByVariant, batchAvailability);
 			if (eligibleSubtotal <= 0)
-				return (allocations.Select(x => x.Item).ToList(), "No quantity is available in promotion batch for voucher discount");
+				return (allocations.Select(x => x.Item).ToList(), "Không còn số lượng khả dụng trong lô khuyến mãi để áp dụng mã giảm giá");
 
 			var discountAmount = CalculateDiscountAmount(voucher, eligibleSubtotal);
 			var discountedItems = ApplyProportionalDiscount(allocations, discountAmount);
@@ -669,7 +669,8 @@ namespace PerfumeGPT.Application.Services
 						{
 							var ineligibleLine = CreateSplitItem(line, excludedQty, line.BatchId);
 							allocations.Add(new CheckoutLineAllocation(ineligibleLine, false));
-							messageLines.Add($"'{line.VariantName}' (Batch {line.BatchCode}): only {allowedQty} eligible for discount, {excludedQty} over promo limit.");
+							messageLines.Add($"'{line.VariantName}' (Batch {line.BatchCode}): chỉ {allowedQty} đủ điều kiện nhận giảm giá, {excludedQty} vượt quá giới hạn khuyến mãi.");
+
 						}
 					}
 					else
@@ -689,7 +690,7 @@ namespace PerfumeGPT.Application.Services
 				var excludedQtyOnline = line.Quantity - allowedQtyOnline;
 
 				if (excludedQtyOnline > 0)
-					messageLines.Add($"'{line.VariantName}': only {allowedQtyOnline} in promotion, {excludedQtyOnline} not.");
+					messageLines.Add($"'{line.VariantName}': chỉ {allowedQtyOnline} đủ điều kiện nhận giảm giá, {excludedQtyOnline} không.");
 			}
 
 			return (allocations, eligibleSubtotal, messageLines);

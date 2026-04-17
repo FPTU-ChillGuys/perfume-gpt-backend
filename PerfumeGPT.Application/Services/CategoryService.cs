@@ -30,7 +30,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<CategoryResponse>> GetCategoryByIdAsync(int id)
 		{
 			var result = await _unitOfWork.Categories.GetCategoryByIdAsync(id)
-				?? throw AppException.NotFound("Category not found");
+			   ?? throw AppException.NotFound("Không tìm thấy danh mục");
 			return BaseResponse<CategoryResponse>.Ok(result);
 		}
 
@@ -46,13 +46,13 @@ namespace PerfumeGPT.Application.Services
 			var exists = await _unitOfWork.Categories.AnyAsync(c => c.Name.ToUpper() == normalizedName);
 
 			if (exists)
-				throw AppException.Conflict("Category name already exists.");
+				throw AppException.Conflict("Tên danh mục đã tồn tại.");
 
 			var entity = Category.Create(normalizedName);
 			await _unitOfWork.Categories.AddAsync(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to create category");
+			if (!saved) throw AppException.Internal("Tạo danh mục thất bại");
 
 			return BaseResponse<CategoryResponse>.Ok(_mapper.Map<CategoryResponse>(entity));
 		}
@@ -60,18 +60,18 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<CategoryResponse>> UpdateCategoryAsync(int id, UpdateCategoryRequest request)
 		{
 			var entity = await _unitOfWork.Categories.GetByIdAsync(id)
-				?? throw AppException.NotFound("Category not found");
+			   ?? throw AppException.NotFound("Không tìm thấy danh mục");
 
 			var normalizedName = Category.NormalizeName(request.Name).ToUpperInvariant();
 			var exists = await _unitOfWork.Categories.AnyAsync(c => c.Id != id && c.Name.ToUpper() == normalizedName);
 			if (exists)
-				throw AppException.Conflict("Category name already exists.");
+				throw AppException.Conflict("Tên danh mục đã tồn tại.");
 
 			entity.Rename(normalizedName);
 			_unitOfWork.Categories.Update(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to update category");
+			if (!saved) throw AppException.Internal("Cập nhật danh mục thất bại");
 
 			return BaseResponse<CategoryResponse>.Ok(_mapper.Map<CategoryResponse>(entity));
 		}
@@ -79,14 +79,14 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<bool>> DeleteCategoryAsync(int id)
 		{
 			var entity = await _unitOfWork.Categories.GetByIdAsync(id)
-				   ?? throw AppException.NotFound("Category not found");
+				   ?? throw AppException.NotFound("Không tìm thấy danh mục");
 
 			var hasProducts = await _unitOfWork.Categories.HasProductsAsync(id);
-			if (!hasProducts) throw AppException.Conflict("Cannot delete category with associated products.");
+			if (!hasProducts) throw AppException.Conflict("Không thể xóa danh mục có sản phẩm liên kết.");
 
 			_unitOfWork.Categories.Remove(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved) throw AppException.Internal("Failed to delete category");
+			if (!saved) throw AppException.Internal("Xóa danh mục thất bại");
 
 			return BaseResponse<bool>.Ok(true);
 		}

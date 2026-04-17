@@ -11,7 +11,7 @@ namespace PerfumeGPT.Infrastructure.Hubs
 		public async Task JoinPosSession(string sessionId)
 		{
 			if (string.IsNullOrWhiteSpace(sessionId))
-				throw new HubException("SessionId is required.");
+				throw new HubException("Buộc phải cung cấp sessionId.");
 
 			await Groups.AddToGroupAsync(Context.ConnectionId, sessionId);
 		}
@@ -27,7 +27,7 @@ namespace PerfumeGPT.Infrastructure.Hubs
 		public async Task SendBarcodeFromMobile(string sessionId, string barcode)
 		{
 			if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(barcode))
-				throw new HubException("Invalid session or barcode.");
+				throw new HubException("Session và barcode không được để trống.");
 
 			await Clients.OthersInGroup(sessionId).ReceiveBarcode(barcode);
 		}
@@ -35,7 +35,7 @@ namespace PerfumeGPT.Infrastructure.Hubs
 		public async Task SyncCartToCustomerDisplay(string sessionId, CartDisplayDto cartData)
 		{
 			if (string.IsNullOrWhiteSpace(sessionId) || cartData == null)
-				throw new HubException("Invalid session or cart data.");
+				throw new HubException("Session không được để trống và cartData không được null.");
 
 			await Clients.OthersInGroup(sessionId).UpdateCustomerDisplay(cartData);
 		}
@@ -43,7 +43,7 @@ namespace PerfumeGPT.Infrastructure.Hubs
 		public async Task SyncOnlineOrderToCustomerDisplay(string sessionId, object orderData)
 		{
 			if (string.IsNullOrWhiteSpace(sessionId) || orderData == null)
-				throw new HubException("Invalid session or order data.");
+				throw new HubException("Session không được để trống và orderData không được null.");
 
 			await Clients.OthersInGroup(sessionId).ReceiveOnlineOrder(orderData);
 		}
@@ -51,7 +51,7 @@ namespace PerfumeGPT.Infrastructure.Hubs
 		public async Task NotifyPaymentSuccess(string sessionId, PosPaymentCompletedDto paymentData)
 		{
 			if (string.IsNullOrWhiteSpace(sessionId) || paymentData == null)
-				throw new HubException("Invalid session or payment data.");
+				throw new HubException("Session không được để trống và paymentData không được null.");
 
 			await Clients.OthersInGroup(sessionId).PaymentCompleted(paymentData);
 		}
@@ -59,7 +59,7 @@ namespace PerfumeGPT.Infrastructure.Hubs
 		public async Task NotifyPaymentFailed(string sessionId, PosPaymentCompletedDto paymentData)
 		{
 			if (string.IsNullOrWhiteSpace(sessionId) || paymentData == null)
-				throw new HubException("Invalid session or payment data.");
+				throw new HubException("Session không được để trống và paymentData không được null.");
 
 			await Clients.OthersInGroup(sessionId).PaymentFailed(paymentData);
 		}
@@ -67,7 +67,7 @@ namespace PerfumeGPT.Infrastructure.Hubs
 		public async Task NotifyPaymentLinkUpdated(string sessionId, PosPaymentLinkDto paymentData)
 		{
 			if (string.IsNullOrWhiteSpace(sessionId) || paymentData == null)
-				throw new HubException("Invalid session or payment data.");
+				throw new HubException("Session không được để trống và paymentData không được null.");
 
 			await Clients.OthersInGroup(sessionId).PaymentLinkUpdated(paymentData);
 		}
@@ -75,7 +75,7 @@ namespace PerfumeGPT.Infrastructure.Hubs
 		public async Task NotifyOrderDelivered(string sessionId, string orderCode)
 		{
 			if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(orderCode))
-				throw new HubException("Invalid session or order code.");
+				throw new HubException("Session và orderCode không được để trống.");
 
 			await Clients.OthersInGroup(sessionId).OrderDelivered(orderCode);
 		}
