@@ -183,6 +183,8 @@ namespace PerfumeGPT.Infrastructure.Extensions
 				var multiplexer = ConnectionMultiplexer.Connect(redisConfig);
 				services.AddSingleton<IConnectionMultiplexer>(multiplexer);
 				services.AddSingleton<IRedisPublisherService, RedisPublisherService>();
+				// RedisSubscriberService listens for incoming requests from the AI backend
+				services.AddHostedService<RedisSubscriberService>();
 				Console.WriteLine($"[Redis] Connected to {redisEndpoint}");
 			}
 			catch (Exception ex)
