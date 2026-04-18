@@ -22,7 +22,7 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime? PaidAt { get; private set; }
 		public Guid? ForwardShippingId { get; private set; }
 		public Guid? ContactAddressId { get; private set; }
-		//public string? GuestEmailOrPhone { get; private set; }
+		public string? GuestEmailOrPhone { get; private set; }
 
 		// Navigation properties
 		public virtual User? Customer { get; set; }
@@ -61,7 +61,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		public static Order CreateOffline(Guid? customerId, Guid staffId, decimal totalAmount)
+		public static Order CreateOffline(Guid? customerId, string? guestEmailOrPhone, Guid staffId, decimal totalAmount)
 		{
 			if (staffId == Guid.Empty)
 				throw DomainException.BadRequest("ID nhân viên là bắt buộc cho đơn hàng offline.");
@@ -71,6 +71,7 @@ namespace PerfumeGPT.Domain.Entities
 			return new Order
 			{
 				CustomerId = customerId,
+				GuestEmailOrPhone = guestEmailOrPhone,
 				StaffId = staffId,
 				Code = OrderCodeGenerator.Generate(OrderType.Offline),
 				Type = OrderType.Offline,

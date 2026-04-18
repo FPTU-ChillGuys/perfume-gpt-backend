@@ -13,10 +13,10 @@
   <ItemGroup>
 	<PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
 	<PackageReference Include="Hangfire.SqlServer" Version="1.8.23" />
-	<PackageReference Include="MailKit" Version="4.15.0" />
+	<PackageReference Include="MailKit" Version="4.16.0" />
 	<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3" />
 	<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.3" />
-	<PackageReference Include="MimeKit" Version="4.15.1" />
+	<PackageReference Include="MimeKit" Version="4.16.0" />
 	<PackageReference Include="payOS" Version="2.1.0" />
 	<PackageReference Include="StackExchange.Redis" Version="3.0.2-preview" />
 	<PackageReference Include="Supabase" Version="1.1.1" />

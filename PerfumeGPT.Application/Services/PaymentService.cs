@@ -134,6 +134,7 @@ namespace PerfumeGPT.Application.Services
 				return payload;
 			});
 		}
+
 		public async Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, ConfirmPaymentRequest request)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
@@ -214,146 +215,6 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		public async Task<BaseResponse<string>> RetryOrChangePaymentMethodAsync(Guid paymentId, PaymentInformation? newMethod = null)
-		{
-			return await ProcessPaymentRetryAsync(paymentId, newMethod, newMethod?.PosSessionId);
-		}
-
-		public async Task<BaseResponse<PaymentTransactionOverviewResponse>> GetTransactionsForManagementAsync(GetPaymentTransactionsFilterRequest request)
-		{
-			var response = await _unitOfWork.Payments.GetTransactionsForManagementAsync(request);
-			return BaseResponse<PaymentTransactionOverviewResponse>.Ok(response);
-		}
-
-		// MoMo methods
-		public async Task<MomoReturnResponse> ProcessMomoReturnAsync(IQueryCollection queryParameters)
-		{
-			var momoResponse = _momoService.GetPaymentResponseAsync(queryParameters);
-			var orderCode = momoResponse.OrderCode;
-			var posSessionId = momoResponse.PosSessionId;
-			if (momoResponse.PaymentId == Guid.Empty)
-			{
-				throw AppException.BadRequest("Thanh toán MoMo thất bại");
-			}
-
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			{
-				var payment = await _unitOfWork.Payments.GetByIdAsync(momoResponse.PaymentId)
-					?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
-
-				var payload = new MomoReturnResponse
-				{
-					PaymentId = payment.Id,
-					OrderId = payment.OrderId,
-					OrderCode = orderCode,
-					PosSessionId = posSessionId,
-					IsSuccess = momoResponse.IsSuccess
-				};
-
-				if (!payment.IsPending())
-				{
-					return payload with { IsSuccess = payment.TransactionStatus == TransactionStatus.Success };
-				}
-
-				if (payment.Amount != momoResponse.Amount)
-				{
-					throw AppException.BadRequest("Số tiền thanh toán không khớp.");
-				}
-
-				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
-				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
-
-				if (momoResponse.IsSuccess)
-				{
-					await CompleteSuccessfulPayment(payment, order, momoResponse.TransactionNo, posSessionId);
-					return payload;
-				}
-
-				await HandleFailedPayment(payment, order, momoResponse.Message, momoResponse.TransactionNo, posSessionId);
-				return payload;
-			});
-		}
-
-		// VnPay methods
-		public async Task<VnPayReturnResponse> ProcessVnPayReturnAsync(IQueryCollection queryParameters)
-		{
-			try
-			{
-				var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "Thanh toán VNPay thất bại");
-				var orderCode = vnPayResponse.OrderCode;
-				var posSessionId = vnPayResponse.PosSessionId;
-
-				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-				{
-					var payment = await _unitOfWork.Payments.GetByIdAsync(vnPayResponse.PaymentId)
-						?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
-
-					var payload = new VnPayReturnResponse
-					{
-						PaymentId = payment.Id,
-						OrderId = payment.OrderId,
-						OrderCode = orderCode ?? string.Empty,
-						PosSessionId = posSessionId,
-						IsSuccess = vnPayResponse.IsSuccess
-					};
-
-					if (!payment.IsPending())
-					{
-						return payload with { IsSuccess = payment.TransactionStatus == TransactionStatus.Success };
-					}
-
-					if (payment.Amount != vnPayResponse.Amount)
-					{
-						throw AppException.BadRequest("Số tiền thanh toán không khớp.");
-					}
-
-					var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
-					 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
-
-					if (vnPayResponse.IsSuccess)
-					{
-						await CompleteSuccessfulPayment(payment, order, vnPayResponse.TransactionNo, posSessionId);
-						return payload;
-					}
-
-					await HandleFailedPayment(payment, order, vnPayResponse.Message, vnPayResponse.TransactionNo, posSessionId);
-					return payload;
-				});
-			}
-			catch (DbUpdateConcurrencyException ex)
-			{
-				_logger.LogWarning(ex, "Giao dịch đã được xử lý bởi một luồng khác (Khả năng cao là IPN Webhook). Bỏ qua lỗi cập nhật.");
-
-				var vnPayResponse = GetValidatedVnPayResponse(queryParameters, "Thanh toán VNPay thất bại");
-				var fallbackOrderCode = vnPayResponse.OrderCode;
-				var fallbackPosSessionId = vnPayResponse.PosSessionId;
-				var latestPayment = await _unitOfWork.Payments.FirstOrDefaultAsync(p => p.Id == vnPayResponse.PaymentId);
-
-				return latestPayment == null
-				  ? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.")
-					: new VnPayReturnResponse
-					{
-						PaymentId = latestPayment.Id,
-						OrderId = latestPayment.OrderId,
-						OrderCode = fallbackOrderCode,
-						PosSessionId = fallbackPosSessionId,
-						IsSuccess = latestPayment.TransactionStatus == TransactionStatus.Success
-					};
-			}
-		}
-
-		private VnPaymentResponse GetValidatedVnPayResponse(IQueryCollection queryParameters, string invalidMessage)
-		{
-			var vnPayResponse = _vnPayService.GetPaymentResponseAsync(queryParameters);
-			if (vnPayResponse == null || vnPayResponse.PaymentId == Guid.Empty)
-			{
-				throw AppException.BadRequest(invalidMessage);
-			}
-
-			return vnPayResponse;
-		}
-
-		// private methods
-		private async Task<BaseResponse<string>> ProcessPaymentRetryAsync(Guid paymentId, PaymentInformation? newMethod = null, string? posSessionId = null)
 		{
 			var currentPayment = await _unitOfWork.Payments.GetByIdAsync(paymentId)
 				?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
@@ -464,15 +325,15 @@ namespace PerfumeGPT.Application.Services
 				? $" (đổi từ {payment.Method} sang {paymentMethod})"
 					: "";
 
-				var paymentResponse = await GeneratePaymentResponse(newPayment, order, newPayment.RetryAttempt, methodMessage, posSessionId);
+				var paymentResponse = await GeneratePaymentResponse(newPayment, order, newPayment.RetryAttempt, methodMessage, newMethod?.PosSessionId);
 
-				if (!string.IsNullOrWhiteSpace(posSessionId)
+				if (!string.IsNullOrWhiteSpace(newMethod?.PosSessionId)
 					&& !string.IsNullOrWhiteSpace(paymentResponse.Payload)
 					&& (paymentMethod == PaymentMethod.VnPay || paymentMethod == PaymentMethod.Momo || paymentMethod == PaymentMethod.PayOs))
 				{
 					try
 					{
-						await _signalRService.NotifyPosPaymentLinkUpdatedAsync(posSessionId, new PosPaymentLinkDto
+						await _signalRService.NotifyPosPaymentLinkUpdatedAsync(newMethod.PosSessionId, new PosPaymentLinkDto
 						{
 							OrderId = order.Id,
 							PaymentId = newPayment.Id,
@@ -482,7 +343,7 @@ namespace PerfumeGPT.Application.Services
 					}
 					catch (Exception ex)
 					{
-						_logger.LogWarning(ex, "Could not broadcast POS payment link update for order {OrderId} and session {SessionId}", order.Id, posSessionId);
+						_logger.LogWarning(ex, "Could not broadcast POS payment link update for order {OrderId} and session {SessionId}", order.Id, newMethod.PosSessionId);
 					}
 				}
 
@@ -490,6 +351,138 @@ namespace PerfumeGPT.Application.Services
 			});
 		}
 
+		public async Task<BaseResponse<PaymentTransactionOverviewResponse>> GetTransactionsForManagementAsync(GetPaymentTransactionsFilterRequest request)
+		{
+			var response = await _unitOfWork.Payments.GetTransactionsForManagementAsync(request);
+			return BaseResponse<PaymentTransactionOverviewResponse>.Ok(response);
+		}
+
+		// MoMo methods
+		public async Task<MomoReturnResponse> ProcessMomoReturnAsync(IQueryCollection queryParameters)
+		{
+			var momoResponse = _momoService.GetPaymentResponseAsync(queryParameters);
+			var orderCode = momoResponse.OrderCode;
+			var posSessionId = momoResponse.PosSessionId;
+			if (momoResponse.PaymentId == Guid.Empty)
+			{
+				throw AppException.BadRequest("Thanh toán MoMo thất bại");
+			}
+
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				var payment = await _unitOfWork.Payments.GetByIdAsync(momoResponse.PaymentId)
+					?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
+
+				var payload = new MomoReturnResponse
+				{
+					PaymentId = payment.Id,
+					OrderId = payment.OrderId,
+					OrderCode = orderCode,
+					PosSessionId = posSessionId,
+					IsSuccess = momoResponse.IsSuccess
+				};
+
+				if (!payment.IsPending())
+				{
+					return payload with { IsSuccess = payment.TransactionStatus == TransactionStatus.Success };
+				}
+
+				if (payment.Amount != momoResponse.Amount)
+				{
+					throw AppException.BadRequest("Số tiền thanh toán không khớp.");
+				}
+
+				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+
+				if (momoResponse.IsSuccess)
+				{
+					await CompleteSuccessfulPayment(payment, order, momoResponse.TransactionNo, posSessionId);
+					return payload;
+				}
+
+				await HandleFailedPayment(payment, order, momoResponse.Message, momoResponse.TransactionNo, posSessionId);
+				return payload;
+			});
+		}
+
+		// VnPay methods
+		public async Task<VnPayReturnResponse> ProcessVnPayReturnAsync(IQueryCollection queryParameters)
+		{
+			try
+			{
+				var vnPayResponse = _vnPayService.GetPaymentResponseAsync(queryParameters);
+				if (vnPayResponse == null || vnPayResponse.PaymentId == Guid.Empty)
+				{
+					throw AppException.BadRequest("Thanh toán VNPay thất bại");
+				}
+				var orderCode = vnPayResponse.OrderCode;
+				var posSessionId = vnPayResponse.PosSessionId;
+
+				return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+				{
+					var payment = await _unitOfWork.Payments.GetByIdAsync(vnPayResponse.PaymentId)
+						?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
+
+					var payload = new VnPayReturnResponse
+					{
+						PaymentId = payment.Id,
+						OrderId = payment.OrderId,
+						OrderCode = orderCode ?? string.Empty,
+						PosSessionId = posSessionId,
+						IsSuccess = vnPayResponse.IsSuccess
+					};
+
+					if (!payment.IsPending())
+					{
+						return payload with { IsSuccess = payment.TransactionStatus == TransactionStatus.Success };
+					}
+
+					if (payment.Amount != vnPayResponse.Amount)
+					{
+						throw AppException.BadRequest("Số tiền thanh toán không khớp.");
+					}
+
+					var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
+					 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+
+					if (vnPayResponse.IsSuccess)
+					{
+						await CompleteSuccessfulPayment(payment, order, vnPayResponse.TransactionNo, posSessionId);
+						return payload;
+					}
+
+					await HandleFailedPayment(payment, order, vnPayResponse.Message, vnPayResponse.TransactionNo, posSessionId);
+					return payload;
+				});
+			}
+			catch (DbUpdateConcurrencyException ex)
+			{
+				_logger.LogWarning(ex, "Giao dịch đã được xử lý bởi một luồng khác (Khả năng cao là IPN Webhook). Bỏ qua lỗi cập nhật.");
+
+				var vnPayResponse = _vnPayService.GetPaymentResponseAsync(queryParameters);
+				if (vnPayResponse == null || vnPayResponse.PaymentId == Guid.Empty)
+				{
+					throw AppException.BadRequest("Thanh toán VNPay thất bại");
+				}
+				var fallbackOrderCode = vnPayResponse.OrderCode;
+				var fallbackPosSessionId = vnPayResponse.PosSessionId;
+				var latestPayment = await _unitOfWork.Payments.FirstOrDefaultAsync(p => p.Id == vnPayResponse.PaymentId);
+
+				return latestPayment == null
+				  ? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.")
+					: new VnPayReturnResponse
+					{
+						PaymentId = latestPayment.Id,
+						OrderId = latestPayment.OrderId,
+						OrderCode = fallbackOrderCode,
+						PosSessionId = fallbackPosSessionId,
+						IsSuccess = latestPayment.TransactionStatus == TransactionStatus.Success
+					};
+			}
+		}
+
+		// private methods
 		private async Task<BaseResponse<string>?> TryCompletePayOsIfAlreadyPaidAsync(PaymentTransaction payment, string orderCode)
 		{
 			var paymentInfo = await _payOsService.GetPaymentInfoAsync(orderCode, payment.Id);
@@ -658,12 +651,7 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<bool>.Ok(true, "Xử lý thanh toán thành công.");
 		}
 
-		private async Task<BaseResponse<bool>> HandleFailedPayment(
-			PaymentTransaction payment,
-			Order order,
-			string? reason = null,
-			string? transactionNo = null,
-			string? posSessionId = null)
+		private async Task<BaseResponse<bool>> HandleFailedPayment(PaymentTransaction payment, Order order, string? reason = null, string? transactionNo = null, string? posSessionId = null)
 		{
 			payment.MarkFailed(reason, transactionNo);
 			order.MarkUnpaid();
@@ -697,12 +685,7 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<bool>.Fail(message, ResponseErrorType.BadRequest);
 		}
 
-		private async Task<BaseResponse<string>> GeneratePaymentResponse(
-			 PaymentTransaction payment,
-			 Order order,
-			 int retryAttempt,
-			 string methodMessage,
-			 string? posSessionId = null)
+		private async Task<BaseResponse<string>> GeneratePaymentResponse(PaymentTransaction payment, Order order, int retryAttempt, string methodMessage, string? posSessionId = null)
 		{
 			switch (payment.Method)
 			{
