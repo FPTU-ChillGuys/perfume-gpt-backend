@@ -925,6 +925,32 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<TemporaryMedia>()
 				.HasIndex(tm => tm.UploadedByUserId);
 
+			// Configure encryption for sensitive fields in OrderCancelRequest
+			builder.Entity<OrderCancelRequest>()
+				.Property(x => x.RefundBankName)
+				.HasConversion(encryptionConverter);
+
+			builder.Entity<OrderCancelRequest>()
+			.Property(x => x.RefundAccountNumber)
+			.HasConversion(encryptionConverter);
+
+			builder.Entity<OrderCancelRequest>()
+				.Property(x => x.RefundAccountName)
+				.HasConversion(encryptionConverter);
+
+			// Nếu OrderReturnRequest cũng có các trường này, hãy cấu hình luôn:
+			builder.Entity<OrderReturnRequest>()
+				.Property(x => x.RefundBankName)
+				.HasConversion(encryptionConverter);
+
+			builder.Entity<OrderReturnRequest>()
+				.Property(x => x.RefundAccountNumber)
+				.HasConversion(encryptionConverter);
+
+			builder.Entity<OrderReturnRequest>()
+				.Property(x => x.RefundAccountName)
+				.HasConversion(encryptionConverter);
+
 			// Decimal precision
 			foreach (var entityType in builder.Model.GetEntityTypes())
 			{
