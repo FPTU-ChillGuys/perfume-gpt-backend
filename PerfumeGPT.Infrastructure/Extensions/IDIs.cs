@@ -176,9 +176,10 @@ namespace PerfumeGPT.Infrastructure.Extensions
 				{
 					EndPoints = { redisEndpoint },
 					AbortOnConnectFail = false,
-					ConnectTimeout = 2000,
-					SyncTimeout = 2000,
-					ConnectRetry = 1,
+					ConnectTimeout = 10000,
+					SyncTimeout = 10000,
+					ConnectRetry = 5,
+					KeepAlive = 30
 				};
 				var multiplexer = ConnectionMultiplexer.Connect(redisConfig);
 				services.AddSingleton<IConnectionMultiplexer>(multiplexer);
