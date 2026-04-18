@@ -331,7 +331,7 @@ namespace PerfumeGPT.Application.Services
 					throw AppException.Conflict("Giá đã thay đổi so với lúc xem trước. Vui lòng làm mới và kiểm tra lại tổng tiền.");
 
 				// 4. TẠO ĐƠN HÀNG CHỜ (PENDING)
-				var order = Order.CreateOffline(request.CustomerId, staffId, finalAmount);
+				var order = Order.CreateOffline(request.CustomerId, request.GuestEmailOrPhoneNumber, staffId, finalAmount);
 
 				// CẬP NHẬT QUAN TRỌNG: Truyền pricedItems vào Factory
 				await _orderDetailsFactory.CreateOrderDetailsAsync(order, pricedItems);
@@ -469,8 +469,9 @@ namespace PerfumeGPT.Application.Services
 				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Preparing && order.Status != OrderStatus.ReadyToPick)
-					throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending hoặc Preparing.");
+					throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending hoặc Preparing hoặc ReadyToPick.");
 
+				bool isCashInStorePaid = order.Type == OrderType.Offline && order.PaymentTransactions.Any(p => p.Method == PaymentMethod.CashInStore && p.TransactionStatus == TransactionStatus.Success);
 				var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
 
 				if (isRefundRequired)
@@ -498,6 +499,12 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				await HandleOrderCancellationAsync(order, request.Reason);
+
+				if (isCashInStorePaid)
+				{
+					// Ví dụ: await _paymentService.CreateCashRefundTransactionAsync(order.Id, order.TotalAmount);
+				}
+
 				order.SetStaff(staffId);
 				_unitOfWork.Orders.Update(order);
 				customerIdToNotify = order.CustomerId;

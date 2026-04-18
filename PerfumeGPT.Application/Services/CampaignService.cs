@@ -281,9 +281,6 @@ namespace PerfumeGPT.Application.Services
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
 				  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
-			if (campaign.Vouchers.Any(v => !v.IsDeleted))
-				throw AppException.BadRequest("Chiến dịch đã có mã giảm giá.");
-
 			var codeExists = await _unitOfWork.Vouchers.CodeExistsAsync(request.Code);
 			if (codeExists)
 			{

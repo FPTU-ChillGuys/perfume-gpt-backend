@@ -281,36 +281,17 @@ namespace PerfumeGPT.Application.Services
 		{
 			var cartItems = NormalizeCartItems(request.CartItems);
 
-			// Dù giỏ hàng trống, VẪN CHO ĐI TIẾP để xem các voucher Applicable (nhưng chúng sẽ bị đánh dấu là Ineligible vì chưa mua đủ tiền)
-
 			var aggregatedVouchers = await AggregateVouchersForApplicabilityAsync(request.CustomerId);
 			if (aggregatedVouchers.Count == 0)
 			{
 				return BaseResponse<List<ApplicableVoucherResponse>>.Ok([], "Không có mã giảm giá.");
 			}
 
-			// Chuẩn bị dữ liệu Campaign cho Evaluator
-			var campaignIds = aggregatedVouchers.Where(v => v.CampaignId.HasValue).Select(v => v.CampaignId!.Value).Distinct().ToList();
+			// Chỉ cần gọi hàm trung gian, mọi thứ sẽ được tải tự động
+			var evaluations = await EvaluateVoucherApplicabilityAsync(aggregatedVouchers, request.CustomerId, cartItems, null);
 
-			var campaigns = await _unitOfWork.Campaigns.GetAllAsync(c => campaignIds.Contains(c.Id));
-			var campaignsById = campaigns.ToDictionary(c => c.Id, c => c);
-
-			var promotionItems = await _unitOfWork.PromotionItems.GetActiveByCampaignIdsAsync(campaignIds);
-			var promotionItemsByCampaign = promotionItems.GroupBy(x => x.CampaignId).ToDictionary(g => g.Key, g => g.ToList());
-
-			var (effectiveUserId, isGuest, isAnonymousGuest) = await ResolveEffectiveUserAsync(request.CustomerId, null);
-			var totalCartValue = cartItems.Sum(x => x.Price * x.Quantity);
-
-			var evaluations = new List<VoucherApplicabilityEvaluation>();
-			foreach (var voucher in aggregatedVouchers)
-			{
-				evaluations.Add(await EvaluateSingleVoucherAsync(
-					voucher, totalCartValue, cartItems, promotionItemsByCampaign, campaignsById, effectiveUserId, isGuest, isAnonymousGuest, null));
-			}
-
-			// LỌC BỎ CÁC MÃ HIDDEN, CHỈ TRẢ VỀ CÁC MÃ APPLICABLE HOẶC INELIGIBLE
 			var payload = evaluations
-				.Where(x => !x.IsHidden)
+				.Where(x => !x.IsHidden) // Lọc bỏ HIDDEN
 				.OrderByDescending(x => x.IsApplicable)
 				.ThenBy(x => x.Voucher.Code)
 				.Select(x => new ApplicableVoucherResponse
@@ -445,10 +426,10 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		private async Task<List<VoucherApplicabilityEvaluation>> EvaluateVoucherApplicabilityAsync(
-	IEnumerable<VoucherResponse> vouchers,
-	Guid? userId,
-	List<ApplicableVoucherCartItemRequest> cartItems,
-	string? emailOrPhone)
+			IEnumerable<VoucherResponse> vouchers,
+			Guid? userId,
+			List<ApplicableVoucherCartItemRequest> cartItems,
+			string? emailOrPhone)
 		{
 			var voucherList = vouchers
 				.Where(v => v.Id != Guid.Empty)
@@ -463,7 +444,7 @@ namespace PerfumeGPT.Application.Services
 				.Distinct()
 				.ToList();
 
-			// 💡 BỔ SUNG: Truy vấn Campaigns tại đây
+			// BỔ SUNG: Truy vấn Campaigns tại đây
 			var campaigns = await _unitOfWork.Campaigns.GetAllAsync(c => campaignIds.Contains(c.Id));
 			var campaignsById = campaigns.ToDictionary(c => c.Id, c => c);
 
@@ -482,7 +463,7 @@ namespace PerfumeGPT.Application.Services
 					totalCartValue,
 					cartItems,
 					promotionItemsByCampaign,
-					campaignsById, // 💡 Truyền dữ liệu thật vào đây
+					campaignsById,
 					effectiveUserId,
 					isGuest,
 					isAnonymousGuest,

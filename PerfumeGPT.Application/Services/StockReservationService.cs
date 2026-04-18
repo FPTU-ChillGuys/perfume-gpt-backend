@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -9,10 +10,12 @@ namespace PerfumeGPT.Application.Services
 	public class StockReservationService : IStockReservationService
 	{
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IVoucherService _voucherService;
 
-		public StockReservationService(IUnitOfWork unitOfWork)
+		public StockReservationService(IUnitOfWork unitOfWork, IVoucherService voucherService)
 		{
 			_unitOfWork = unitOfWork;
+			_voucherService = voucherService;
 		}
 
 		public async Task ReserveStockForOrderAsync(Guid orderId, List<(Guid VariantId, int Quantity)> items, DateTime? expiresAt)
@@ -235,6 +238,7 @@ namespace PerfumeGPT.Application.Services
 				var affectedOrders = new HashSet<Guid>();
 				var count = 0;
 
+				// 1. DUYỆT VÀ NHẢ RESERVATION
 				foreach (var reservation in expiredReservations)
 				{
 					if (reservation.Status != ReservationStatus.Reserved) continue;
@@ -261,6 +265,7 @@ namespace PerfumeGPT.Application.Services
 
 				if (count == 0) return 0;
 
+				// 2. HOÀN TRẢ TỒN KHO TỔNG (STOCK)
 				var stocksToUpdate = await _unitOfWork.Stocks
 					 .GetAllAsync(s => variantIds.Contains(s.VariantId));
 
@@ -273,20 +278,53 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 
+				// 3. XỬ LÝ HỦY ĐƠN HÀNG, HOÀN VOUCHER VÀ PROMOTION
 				if (affectedOrders.Count != 0)
 				{
+					// SỬA TẠI ĐÂY: Phải Include(o => o.OrderDetails) để có data tính Promotion
 					var ordersToUpdate = await _unitOfWork.Orders
-						 .GetAllAsync(o => affectedOrders.Contains(o.Id) && o.Status == OrderStatus.Pending);
+						 .GetAllAsync(o => affectedOrders.Contains(o.Id) && o.Status == OrderStatus.Pending,
+						 include: q => q.Include(o => o.OrderDetails));
 
 					var cancelledOrderIds = new List<Guid>();
+					var aggregatedPromoUsages = new Dictionary<Guid, int>(); // Gom nhóm Promo của tất cả đơn
 
 					foreach (var order in ordersToUpdate)
 					{
+						// Hủy đơn và Hoàn Voucher
 						order.SetStatus(OrderStatus.Cancelled);
 						_unitOfWork.Orders.Update(order);
 						cancelledOrderIds.Add(order.Id);
+						await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
+
+						// Gom nhóm Promotion của đơn hàng này
+						var orderPromos = order.OrderDetails
+							.Where(x => x.PromotionItemId.HasValue)
+							.GroupBy(x => x.PromotionItemId!.Value)
+							.Select(g => new { PromoId = g.Key, Qty = g.Sum(i => i.Quantity) }); // Đã đồng nhất số lượng theo thiết kế của bạn
+
+						// Cộng dồn vào rổ tổng
+						foreach (var promo in orderPromos)
+						{
+							if (aggregatedPromoUsages.ContainsKey(promo.PromoId))
+								aggregatedPromoUsages[promo.PromoId] += promo.Qty;
+							else
+								aggregatedPromoUsages[promo.PromoId] = promo.Qty;
+						}
 					}
 
+					// XỬ LÝ HOÀN TRẢ PROMOTION QUOTA HÀNG LOẠT
+					foreach (var usage in aggregatedPromoUsages)
+					{
+						var promo = await _unitOfWork.PromotionItems.GetByIdAsync(usage.Key);
+						if (promo != null)
+						{
+							promo.DecreaseCurrentUsage(usage.Value);
+							_unitOfWork.PromotionItems.Update(promo);
+						}
+					}
+
+					// 4. HỦY THANH TOÁN PENDING
 					if (cancelledOrderIds.Count != 0)
 					{
 						var pendingPayments = await _unitOfWork.Payments
