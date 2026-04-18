@@ -14,6 +14,8 @@ using Scalar.AspNetCore;
 using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 // Load .env file (search upward from current directory) and set environment variables
 static string? FindDotEnv(string startDir)
@@ -165,6 +167,22 @@ internal sealed class ServerUrlTransformer(string serverUrl) : IOpenApiDocumentT
 {
 	public Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
 	{
+		var httpContextAccessor = context.ApplicationServices.GetRequiredService<IHttpContextAccessor>();
+		var request = httpContextAccessor.HttpContext?.Request;
+
+		if (request != null && Uri.TryCreate(serverUrl, UriKind.Absolute, out var uriConfigured))
+		{
+			var currentHost = request.Host.Host;
+			var configuredHost = uriConfigured.Host;
+
+			// Compare hosts while ignoring protocol and case.
+			// If we are accessing via a different host (like localhost), we don't force the production server URL.
+			if (!string.Equals(currentHost, configuredHost, StringComparison.OrdinalIgnoreCase))
+			{
+				return Task.CompletedTask;
+			}
+		}
+
 		// Set the server URL to use HTTPS from Cloudflare Tunnel
 		document.Servers = [new OpenApiServer { Url = serverUrl }];
 		return Task.CompletedTask;
