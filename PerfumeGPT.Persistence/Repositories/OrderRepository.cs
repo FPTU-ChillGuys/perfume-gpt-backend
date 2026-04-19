@@ -23,6 +23,14 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(o => o.CustomerId == request.UserId.Value);
 			}
 
+			if (!string.IsNullOrWhiteSpace(request.OrderCode))
+			{
+				var orderCodeFilter = EfCollationExtensions.CollateContains<Order>(
+					o => o.Code,
+					request.OrderCode.Trim());
+				query = query.Where(orderCodeFilter);
+			}
+
 			if (request.Status.HasValue)
 			{
 				query = query.Where(o => o.Status == request.Status.Value);

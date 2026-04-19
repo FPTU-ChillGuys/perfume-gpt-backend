@@ -6,6 +6,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Orders
 	public record GetPagedOrdersRequest : PagingAndSortingQuery
 	{
 		public Guid? UserId { get; init; }
+		public string? OrderCode { get; init; }
 		public OrderStatus? Status { get; init; }
 		public OrderType? Type { get; init; }
 		public PaymentStatus? PaymentStatus { get; init; }
