@@ -121,8 +121,14 @@ namespace PerfumeGPT.Persistence.Repositories
 					 Id = x.Id,
 					 CampaignId = x.CampaignId,
 					 ProductVariantId = x.TargetProductVariantId,
+					 Sku = x.ProductVariant.Sku,
+					 PrimaryImageUrl = x.ProductVariant.Product.Media
+						 .Where(m => m.IsPrimary && !m.IsDeleted)
+						 .Select(i => i.Url)
+						 .FirstOrDefault(),
+					 ProductName = x.ProductVariant.Product.Name ?? string.Empty,
 					 BatchId = x.BatchId,
-					 Name = x.ProductVariant.Product.Name ?? string.Empty,
+					 BatchCode = x.Batch != null ? x.Batch.BatchCode : null,
 					 ItemType = x.ItemType,
 					 DiscountType = x.DiscountType,
 					 DiscountValue = x.DiscountValue,
@@ -150,8 +156,14 @@ namespace PerfumeGPT.Persistence.Repositories
 					Id = x.Id,
 					CampaignId = x.CampaignId,
 					ProductVariantId = x.TargetProductVariantId,
+					Sku = x.ProductVariant.Sku,
+					PrimaryImageUrl = x.ProductVariant.Product.Media
+						 .Where(m => m.IsPrimary && !m.IsDeleted)
+						 .Select(i => i.Url)
+						 .FirstOrDefault(),
+					ProductName = x.ProductVariant.Product.Name ?? string.Empty,
 					BatchId = x.BatchId,
-					Name = x.ProductVariant.Product.Name ?? string.Empty,
+					BatchCode = x.Batch != null ? x.Batch.BatchCode : null,
 					ItemType = x.ItemType,
 					DiscountType = x.DiscountType,
 					DiscountValue = x.DiscountValue,
