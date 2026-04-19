@@ -1,10 +1,11 @@
 ﻿using PerfumeGPT.Domain.Commons;
+using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Domain.Exceptions;
 
 namespace PerfumeGPT.Domain.Entities
 {
-	public class LoyaltyTransaction : BaseEntity<Guid>
+	public class LoyaltyTransaction : BaseEntity<Guid>, IHasCreatedAt
 	{
 		protected LoyaltyTransaction() { }
 
@@ -19,6 +20,9 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual User User { get; set; } = null!;
 		public virtual Voucher? Voucher { get; set; }
 		public virtual Order? Order { get; set; }
+
+		// IHasCreatedAt implementation
+		public DateTime CreatedAt { get; set; }
 
 		// Factory methods
 		public static LoyaltyTransaction CreateManual(Guid userId, ManualTransactionInfo info)
@@ -54,7 +58,8 @@ namespace PerfumeGPT.Domain.Entities
 				PointsChanged = info.Points,
 				Reason = string.IsNullOrWhiteSpace(info.Reason)
 					? info.OrderId.HasValue ? $"Đã nhận từ Đơn hàng {info.OrderId}" : "Thêm điểm thủ công"
-					: info.Reason.Trim()
+					: info.Reason.Trim(),
+				CreatedAt = DateTime.UtcNow
 			};
 		}
 
@@ -73,7 +78,8 @@ namespace PerfumeGPT.Domain.Entities
 					? info.VoucherId.HasValue
 						? $"Đã đổi cho Voucher {info.VoucherId}"
 						: info.OrderId.HasValue ? $"Đã đổi cho Đơn hàng {info.OrderId} trả lại" : "Đổi điểm thủ công"
-					: info.Reason.Trim()
+					: info.Reason.Trim(),
+				CreatedAt = DateTime.UtcNow
 			};
 		}
 

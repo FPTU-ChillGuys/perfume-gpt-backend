@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
+using System.Text.RegularExpressions;
 
 namespace PerfumeGPT.Application.Validators.ContactAddresses
 {
@@ -12,12 +13,13 @@ namespace PerfumeGPT.Application.Validators.ContactAddresses
 				.WithMessage("Tên liên hệ là bắt buộc");
 
 			RuleFor(r => r.ContactPhoneNumber)
-				.NotEmpty()
-				.WithMessage("Số điện thoại liên hệ là bắt buộc");
+				.Must(IsValidPhoneNumber)
+				.WithMessage("Số điện thoại liên hệ không hợp lệ");
 
 			RuleFor(r => r.DistrictId)
 				.GreaterThan(0)
 				.WithMessage("DistrictId là bắt buộc");
+
 			RuleFor(r => r.DistrictName)
 				.NotEmpty()
 				.WithMessage("Tên quận/huyện là bắt buộc");
@@ -40,5 +42,8 @@ namespace PerfumeGPT.Application.Validators.ContactAddresses
 				.NotEmpty()
 				.WithMessage("Địa chỉ đầy đủ là bắt buộc");
 		}
+
+		private static bool IsValidPhoneNumber(string value) =>
+			Regex.IsMatch(value, @"^(0)(3[2-9]|5[6789]|7[06789]|8[0-9]|9[0-9])[0-9]{7}$");
 	}
 }

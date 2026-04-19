@@ -1,13 +1,13 @@
 ﻿using PerfumeGPT.Domain.Commons;
+using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Domain.Entities
 {
-	public class InventoryLedger : BaseEntity<Guid>
+	public class InventoryLedger : BaseEntity<Guid>, IHasCreatedAt
 	{
 		protected InventoryLedger() { }
 
-		public DateTime CreatedAt { get; private set; }
 		public Guid VariantId { get; private set; }
 		public Guid BatchId { get; private set; }
 
@@ -20,6 +20,9 @@ namespace PerfumeGPT.Domain.Entities
 		public string? Description { get; private set; } // "Xuất bán cho đơn ORD-123"
 
 		public Guid? ActorId { get; private set; } // ID của nhân viên thao tác (Thủ kho)
+
+		// IHasCreatedAt implementation
+		public DateTime CreatedAt { get; set; }
 
 		public static InventoryLedger CreateLog(
 			Guid variantId,
