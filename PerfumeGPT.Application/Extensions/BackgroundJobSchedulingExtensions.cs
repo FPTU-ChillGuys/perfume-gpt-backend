@@ -19,22 +19,26 @@ namespace PerfumeGPT.Application.Extensions
 
 		public static bool ScheduleCampaignEnd(this IBackgroundJobService backgroundJobService, ILogger logger, Guid campaignId, DateTime endDate)
 		{
+			var normalizedEndDate = NormalizeToUtc(endDate);
+
 			return TrySchedule<ICampaignEndAppService>(
 				   backgroundJobService,
 				   logger,
 				   x => x.MarkCampaignAsEndedAsync(campaignId),
-				   endDate,
+				normalizedEndDate,
 				   "Unable to schedule campaign end job for campaign {CampaignId}.",
 				   campaignId);
 		}
 
 		public static bool ScheduleCampaignStart(this IBackgroundJobService backgroundJobService, ILogger logger, Guid campaignId, DateTime startDate)
 		{
+			var normalizedStartDate = NormalizeToUtc(startDate);
+
 			return TrySchedule<ICampaignStartAppService>(
 				   backgroundJobService,
 				   logger,
 				   x => x.MarkCampaignAsStartedAsync(campaignId),
-				   startDate,
+				  normalizedStartDate,
 				   "Unable to schedule campaign start job for campaign {CampaignId}.",
 				   campaignId);
 		}
@@ -119,6 +123,21 @@ namespace PerfumeGPT.Application.Extensions
 				logger.LogWarning(ex, warningMessage, args);
 				return false;
 			}
+		}
+
+		private static DateTime NormalizeToUtc(DateTime dateTime)
+		{
+			if (dateTime.Kind == DateTimeKind.Utc)
+			{
+				return dateTime;
+			}
+
+			if (dateTime.Kind == DateTimeKind.Local)
+			{
+				return dateTime.ToUniversalTime();
+			}
+
+			return DateTime.SpecifyKind(dateTime, DateTimeKind.Local).ToUniversalTime();
 		}
 	}
 }

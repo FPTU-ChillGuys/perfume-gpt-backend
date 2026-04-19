@@ -20,6 +20,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<PagedResult<UserVoucherResponse>>> GetUserVouchersAsync(Guid userId, GetPagedUserVouchersRequest request);
 		Task<BaseResponse<PagedResult<RedeemableVoucherResponse>>> GetRedeemableVouchersAsync(GetPagedRedeemableVouchersRequest request, Guid? userId = null);
 		Task<BaseResponse<List<ApplicableVoucherResponse>>> GetApplicableVouchersAsync(GetApplicableVouchersRequest request);
+		Task<BaseResponse<List<VoucherResponse>>> GetProductVariantVouchersAsync(Guid variantId, Guid? userId, string? emailOrPhone);
 
 		// Apply voucher logic
 		Task<bool> CanUserApplyVoucherAsync(string voucherCode, Guid? userId, decimal orderAmount, string? emailOrPhone = null, IEnumerable<Guid>? cartVariantIds = null);

@@ -121,6 +121,16 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpGet("variant/{variantId}/applicable")]
+		[ProducesResponseType(typeof(BaseResponse<List<ApplicableVoucherResponse>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<ApplicableVoucherResponse>>), StatusCodes.Status400BadRequest)]
+		public async Task<ActionResult<BaseResponse<List<ApplicableVoucherResponse>>>> GetApplicableVouchersForVariant([FromRoute] Guid variantId)
+		{
+			var userId = GetCurrentUserId();
+			var response = await _voucherService.GetProductVariantVouchersAsync(variantId, userId, null);
+			return HandleResponse(response);
+		}
+
 		[HttpGet("/api/user-vouchers/me")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<UserVoucherResponse>>), StatusCodes.Status200OK)]

@@ -96,6 +96,7 @@ namespace PerfumeGPT.Application.Services
 				_unitOfWork.TemporaryMedia.Remove(temporaryMobileImage);
 			}
 
+			await _unitOfWork.Banners.AddAsync(banner);
 			await _unitOfWork.SaveChangesAsync();
 
 			ScheduleBannerJobs(banner);

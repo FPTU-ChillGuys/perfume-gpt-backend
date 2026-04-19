@@ -203,12 +203,18 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> DeleteCampaignAsync(Guid campaignId)
 		{
-			var campaign = await _unitOfWork.Campaigns.GetByIdAsync(campaignId)
+			// BẮT BUỘC SỬA: Dùng GetCampaignWithDetailsAsync để load cả Items và Vouchers lên bộ nhớ
+			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId)
 			  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			campaign.EnsureIsNotActive("delete");
 
+			// Thực hiện đánh dấu xóa mềm cho tất cả các bản ghi con
+			campaign.SoftDeleteAllContents();
+
+			// Thực hiện đánh dấu xóa mềm cho bản ghi cha (Repository sẽ intercept và set IsDeleted = true)
 			_unitOfWork.Campaigns.Remove(campaign);
+
 			await _unitOfWork.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok(campaignId.ToString(), "Xóa chiến dịch thành công.");

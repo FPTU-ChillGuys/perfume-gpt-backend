@@ -3,6 +3,7 @@ using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
 
@@ -112,6 +113,57 @@ namespace PerfumeGPT.Persistence.Repositories
 				})
 				.AsNoTracking()
 				.ToListAsync();
+
+		// Thêm vào IVoucherRepository và VoucherRepository
+		public async Task<List<VoucherResponse>> GetPublicVouchersForVariantAsync(Guid variantId)
+		{
+			var now = DateTime.UtcNow;
+
+			return await _context.Vouchers
+				.Where(v =>
+					!v.IsDeleted
+					&& v.IsPublic
+					&& v.RequiredPoints == 0
+					&& v.ExpiryDate >= now
+					&& (!v.RemainingQuantity.HasValue || v.RemainingQuantity.Value > 0)
+					&& (
+						// 1. Lấy Voucher toàn đơn (vì mua sản phẩm này xong gộp vào đơn vẫn được giảm)
+						v.ApplyType == VoucherType.Order
+						||
+						// 2. Lấy Voucher theo sản phẩm NHƯNG bắt buộc chiến dịch phải chứa Variant này
+						(v.ApplyType == VoucherType.Product
+						 && v.CampaignId.HasValue
+						 && _context.Promotions.Any(p =>
+								p.CampaignId == v.CampaignId
+								&& p.TargetProductVariantId == variantId
+								&& p.ItemType == v.TargetItemType
+								&& !p.IsDeleted
+								&& p.IsActive))
+					))
+				.Select(v => new VoucherResponse
+				{
+					Id = v.Id,
+					Code = v.Code,
+					DiscountValue = v.DiscountValue,
+					DiscountType = v.DiscountType,
+					CampaignId = v.CampaignId,
+					ApplyType = v.ApplyType,
+					TargetItemType = v.TargetItemType ?? default,
+					RequiredPoints = v.RequiredPoints,
+					MaxDiscountAmount = v.MaxDiscountAmount,
+					MinOrderValue = v.MinOrderValue,
+					ExpiryDate = v.ExpiryDate,
+					IsExpired = false, // Đã lọc ở trên
+					TotalQuantity = v.TotalQuantity,
+					RemainingQuantity = v.RemainingQuantity,
+					MaxUsagePerUser = v.MaxUsagePerUser,
+					IsPublic = v.IsPublic,
+					IsMemberOnly = v.IsMemberOnly,
+					CreatedAt = v.CreatedAt
+				})
+				.AsNoTracking()
+				.ToListAsync();
+		}
 
 		public async Task<List<VoucherResponse>> GetPublicVouchersForApplicabilityAsync()
 		{

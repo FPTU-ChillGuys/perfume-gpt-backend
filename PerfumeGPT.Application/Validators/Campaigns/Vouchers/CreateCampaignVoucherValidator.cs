@@ -1,5 +1,6 @@
 using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Campaigns.Vouchers;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Validators.Campaigns.Vouchers
 {
@@ -14,6 +15,7 @@ namespace PerfumeGPT.Application.Validators.Campaigns.Vouchers
 
 			RuleFor(x => x.DiscountValue)
 				.GreaterThan(0).WithMessage("Giá trị giảm giá phải lớn hơn 0.");
+
 			RuleFor(x => x.DiscountType)
 				.IsInEnum().WithMessage("Loại giảm giá không hợp lệ.");
 
@@ -21,7 +23,14 @@ namespace PerfumeGPT.Application.Validators.Campaigns.Vouchers
 				.IsInEnum().WithMessage("Loại áp dụng không hợp lệ.");
 
 			RuleFor(x => x.TargetItemType)
-				.IsInEnum().WithMessage("Loại mục tiêu không hợp lệ.");
+			.NotNull().WithMessage("Bắt buộc chọn loại mục tiêu (TargetItemType) khi áp dụng voucher cho sản phẩm.")
+			.IsInEnum().WithMessage("Loại mục tiêu không hợp lệ.")
+			.When(x => x.ApplyType == VoucherType.Product);
+
+			// RÀNG BUỘC CHO VOUCHER TOÀN ĐƠN (Phải là null)
+			RuleFor(x => x.TargetItemType)
+				.Null().WithMessage("Voucher áp dụng toàn đơn hàng không được có loại mục tiêu (TargetItemType).")
+				.When(x => x.ApplyType == VoucherType.Order);
 
 			RuleFor(x => x.MinOrderValue)
 				.GreaterThanOrEqualTo(0).WithMessage("Giá trị đơn hàng tối thiểu phải lớn hơn hoặc bằng 0.");

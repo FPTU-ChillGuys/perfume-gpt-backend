@@ -34,27 +34,35 @@ namespace PerfumeGPT.Domain.Entities
 		public static Campaign Create(CampaignCreationFactor details)
 		{
 			ValidateName(details.Name);
-			ValidateDateRange(details.StartDate, details.EndDate);
+
+			var normalizedStartDate = NormalizeToUtc(details.StartDate);
+			var normalizedEndDate = NormalizeToUtc(details.EndDate);
+
+			ValidateDateRange(normalizedStartDate, normalizedEndDate);
+
+			var initialStatus = normalizedStartDate > DateTime.UtcNow
+				? CampaignStatus.Upcoming
+				: CampaignStatus.Active;
 
 			return new Campaign
 			{
 				Id = Guid.NewGuid(),
 				Name = details.Name.Trim(),
 				Description = string.IsNullOrWhiteSpace(details.Description) ? null : details.Description.Trim(),
-				StartDate = details.StartDate,
-				EndDate = details.EndDate,
+				StartDate = normalizedStartDate,
+				EndDate = normalizedEndDate,
 				Type = details.Type,
-				Status = details.Status
+				Status = initialStatus
 			};
 		}
 
 		public void UpdateStatus(CampaignStatus newStatus, DateTime nowUtc)
 		{
 			if (newStatus == CampaignStatus.Active && StartDate > nowUtc)
-                throw DomainException.BadRequest("Không thể kích hoạt chiến dịch trước ngày bắt đầu.");
+				throw DomainException.BadRequest("Không thể kích hoạt chiến dịch trước ngày bắt đầu.");
 
 			if (newStatus < Status && (newStatus != CampaignStatus.Active || Status != CampaignStatus.Paused))
-               throw DomainException.BadRequest("Không thể đưa chiến dịch về trạng thái trước đó.");
+				throw DomainException.BadRequest("Không thể đưa chiến dịch về trạng thái trước đó.");
 
 			Status = newStatus;
 		}
@@ -62,12 +70,16 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdateInfo(CampaignUpdateInfoFactor details)
 		{
 			ValidateName(details.Name);
-			ValidateDateRange(details.StartDate, details.EndDate);
+
+			var normalizedStartDate = NormalizeToUtc(details.StartDate);
+			var normalizedEndDate = NormalizeToUtc(details.EndDate);
+
+			ValidateDateRange(normalizedStartDate, normalizedEndDate);
 
 			Name = details.Name.Trim();
 			Description = string.IsNullOrWhiteSpace(details.Description) ? null : details.Description.Trim();
-			StartDate = details.StartDate;
-			EndDate = details.EndDate;
+			StartDate = normalizedStartDate;
+			EndDate = normalizedEndDate;
 			Type = details.Type;
 		}
 
@@ -118,12 +130,15 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdatePromotionItem(Guid itemId, PromotionItemConfigFactor details)
 		{
 			if (itemId == Guid.Empty)
-              throw DomainException.BadRequest("Campaign item ID là bắt buộc.");
+				throw DomainException.BadRequest("Campaign item ID là bắt buộc.");
 
 			Items ??= [];
 
 			var item = Items.FirstOrDefault(x => x.Id == itemId)
-              ?? throw DomainException.NotFound("Không tìm thấy mục chiến dịch.");
+			  ?? throw DomainException.NotFound("Không tìm thấy mục chiến dịch.");
+
+			if (item.CurrentUsage > details.MaxUsage)
+				throw DomainException.BadRequest("Số lần sử dụng đã vượt quá giới hạn mới.");
 
 			item.UpdateConfiguration(new PromotionItemUpdateFactor
 			{
@@ -140,12 +155,12 @@ namespace PerfumeGPT.Domain.Entities
 		public void UpdateVoucher(Guid voucherId, VoucherConfigFactor details)
 		{
 			if (voucherId == Guid.Empty)
-               throw DomainException.BadRequest("Campaign voucher ID là bắt buộc.");
+				throw DomainException.BadRequest("Campaign voucher ID là bắt buộc.");
 
 			Vouchers ??= [];
 
 			var voucher = Vouchers.FirstOrDefault(x => x.Id == voucherId)
-               ?? throw DomainException.NotFound("Không tìm thấy voucher của chiến dịch.");
+			   ?? throw DomainException.NotFound("Không tìm thấy voucher của chiến dịch.");
 
 			voucher.UpdateCampaign(new VoucherCampaignConfigFactor
 			{
@@ -167,12 +182,12 @@ namespace PerfumeGPT.Domain.Entities
 		public void RemovePromotionItem(Guid itemId)
 		{
 			if (itemId == Guid.Empty)
-              throw DomainException.BadRequest("Campaign item ID là bắt buộc.");
+				throw DomainException.BadRequest("Campaign item ID là bắt buộc.");
 
 			Items ??= [];
 
 			var item = Items.FirstOrDefault(x => x.Id == itemId)
-              ?? throw DomainException.NotFound("Không tìm thấy mục chiến dịch.");
+			  ?? throw DomainException.NotFound("Không tìm thấy mục chiến dịch.");
 
 			Items.Remove(item);
 		}
@@ -180,12 +195,12 @@ namespace PerfumeGPT.Domain.Entities
 		public void RemoveVoucher(Guid voucherId)
 		{
 			if (voucherId == Guid.Empty)
-               throw DomainException.BadRequest("Campaign voucher ID là bắt buộc.");
+				throw DomainException.BadRequest("Campaign voucher ID là bắt buộc.");
 
 			Vouchers ??= [];
 
 			var voucher = Vouchers.FirstOrDefault(x => x.Id == voucherId)
-               ?? throw DomainException.NotFound("Không tìm thấy voucher của chiến dịch.");
+			   ?? throw DomainException.NotFound("Không tìm thấy voucher của chiến dịch.");
 
 			voucher.IsDeleted = true;
 			voucher.DeletedAt ??= DateTime.UtcNow;
@@ -303,20 +318,59 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsureIsNotActive(string action = "modify")
 		{
 			if (Status == CampaignStatus.Active)
-             throw DomainException.BadRequest($"Không thể {action} chiến dịch đang hoạt động. Vui lòng tạm dừng chiến dịch trước khi thực hiện.");
+				throw DomainException.BadRequest($"Không thể {action} chiến dịch đang hoạt động. Vui lòng tạm dừng chiến dịch trước khi thực hiện.");
 		}
 
 		// Private helpers
 		private static void ValidateName(string name)
 		{
 			if (string.IsNullOrWhiteSpace(name))
-             throw DomainException.BadRequest("Tên chiến dịch là bắt buộc.");
+				throw DomainException.BadRequest("Tên chiến dịch là bắt buộc.");
 		}
 
 		private static void ValidateDateRange(DateTime startDate, DateTime endDate)
 		{
 			if (endDate <= startDate)
-                throw DomainException.BadRequest("Ngày kết thúc chiến dịch phải sau ngày bắt đầu.");
+				throw DomainException.BadRequest("Ngày kết thúc chiến dịch phải sau ngày bắt đầu.");
+		}
+
+		private static DateTime NormalizeToUtc(DateTime dateTime)
+		{
+			if (dateTime.Kind == DateTimeKind.Utc)
+			{
+				return dateTime;
+			}
+
+			if (dateTime.Kind == DateTimeKind.Local)
+			{
+				return dateTime.ToUniversalTime();
+			}
+
+			return DateTime.SpecifyKind(dateTime, DateTimeKind.Local).ToUniversalTime();
+		}
+
+		public void SoftDeleteAllContents()
+		{
+			// 1. Xóa mềm toàn bộ Promotion Items
+			if (Items != null)
+			{
+				foreach (var item in Items.Where(i => !i.IsDeleted))
+				{
+					item.IsDeleted = true;
+					item.DeletedAt = DateTime.UtcNow;
+					item.SetActive(false); // Vô hiệu hóa luôn cho an toàn
+				}
+			}
+
+			// 2. Xóa mềm toàn bộ Vouchers
+			if (Vouchers != null)
+			{
+				foreach (var voucher in Vouchers.Where(v => !v.IsDeleted))
+				{
+					voucher.IsDeleted = true;
+					voucher.DeletedAt = DateTime.UtcNow;
+				}
+			}
 		}
 
 		// Records

@@ -277,6 +277,62 @@ namespace PerfumeGPT.Application.Services
 
 
 		#region Apply Voucher Logic
+		// Thêm vào IVoucherService và VoucherService
+		public async Task<BaseResponse<List<VoucherResponse>>> GetProductVariantVouchersAsync(Guid variantId, Guid? userId, string? emailOrPhone)
+		{
+			// 1. Lấy danh sách Voucher Public (Order-level hoặc Product-level khớp với variant)
+			var vouchers = await _unitOfWork.Vouchers.GetPublicVouchersForVariantAsync(variantId);
+
+			if (vouchers.Count == 0)
+				return BaseResponse<List<VoucherResponse>>.Ok([], "Không có mã giảm giá cho sản phẩm này.");
+
+			// 2. Lọc bỏ các mã mà User/Guest đã dùng hết lượt (MaxUsagePerUser)
+			var (effectiveUserId, isGuest, isAnonymousGuest) = await ResolveEffectiveUserAsync(userId, emailOrPhone);
+
+			var validVouchers = new List<VoucherResponse>();
+
+			foreach (var voucher in vouchers)
+			{
+				// Bỏ qua mã yêu cầu đăng nhập nếu là khách vãng lai chưa cung cấp thông tin
+				if (voucher.IsMemberOnly && !effectiveUserId.HasValue)
+					continue;
+
+				// Kiểm tra lượt dùng
+				if (voucher.MaxUsagePerUser.HasValue)
+				{
+					int currentUsageCount = 0;
+
+					if (effectiveUserId.HasValue)
+					{
+						currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
+							uv.VoucherId == voucher.Id && uv.UserId == effectiveUserId.Value &&
+							(uv.Status == UsageStatus.Used || (uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow)));
+					}
+					else if (!isAnonymousGuest)
+					{
+						currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
+							uv.VoucherId == voucher.Id && uv.GuestIdentifier == emailOrPhone &&
+							(uv.Status == UsageStatus.Used || (uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow)));
+					}
+
+					if (currentUsageCount >= voucher.MaxUsagePerUser.Value)
+					{
+						// Khách đã dùng hết lượt mã này, không hiển thị ra cho họ thèm nữa
+						continue;
+					}
+				}
+
+				validVouchers.Add(voucher);
+			}
+
+			// Sắp xếp mã có giá trị giảm cao nhất lên đầu
+			var sortedVouchers = validVouchers
+				.OrderByDescending(v => v.DiscountValue)
+				.ToList();
+
+			return BaseResponse<List<VoucherResponse>>.Ok(sortedVouchers, "Lấy mã giảm giá sản phẩm thành công.");
+		}
+
 		public async Task<BaseResponse<List<ApplicableVoucherResponse>>> GetApplicableVouchersAsync(GetApplicableVouchersRequest request)
 		{
 			var cartItems = NormalizeCartItems(request.CartItems);
@@ -723,9 +779,7 @@ namespace PerfumeGPT.Application.Services
 		{
 			var voucher = await _unitOfWork.Vouchers.GetByIdAsync(voucherId);
 			if (voucher == null || voucher.IsDeleted)
-			{
 				throw AppException.NotFound("Không tìm thấy mã giảm giá");
-			}
 
 			voucher.EnsureMemberEligible(userId);
 
@@ -737,59 +791,59 @@ namespace PerfumeGPT.Application.Services
 			if (requiresPriorOwnership)
 			{
 				if (isAnonymousGuest)
-				{
 					throw AppException.Unauthorized("Vui lòng đăng nhập để sử dụng mã đổi điểm này");
-				}
 
 				var userVoucher = await FindUserVoucherAsync(voucherId, effectiveUserId, emailOrPhone, isGuest, UsageStatus.Available)
 					?? throw AppException.Forbidden(
-						  voucher.RequiredPoints > 0
+						voucher.RequiredPoints > 0
 							? "Bạn cần đổi mã này bằng điểm trước khi sử dụng"
-							  : "Bạn không sở hữu mã giảm giá riêng tư này");
+							: "Bạn không sở hữu mã giảm giá riêng tư này");
 
 				// Mark as reserved
 				userVoucher.Reserve(orderId);
 				_unitOfWork.UserVouchers.Update(userVoucher);
-
 				actionedUserVoucher = userVoucher;
 			}
 			else
 			{
-				if (voucher.IsMemberOnly)
+				// 1. Kiểm tra quyền Member
+				if (voucher.IsMemberOnly && !effectiveUserId.HasValue)
 				{
-					if (!effectiveUserId.HasValue)
+					throw AppException.BadRequest("Mã giảm giá này chỉ dành cho Khách hàng Thành viên. Vui lòng đăng ký tài khoản.");
+				}
+
+				// 2. 💥 FIX TẠI ĐÂY: Kiểm tra MaxUsage cho TẤT CẢ mọi người (Cả Member lẫn Guest)
+				if (voucher.MaxUsagePerUser.HasValue)
+				{
+					int currentUsageCount = 0;
+					if (effectiveUserId.HasValue)
 					{
-						throw AppException.BadRequest("Mã giảm giá này chỉ dành cho Khách hàng Thành viên. Vui lòng đăng ký tài khoản.");
+						currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
+							uv.VoucherId == voucherId && uv.UserId == effectiveUserId.Value &&
+							(uv.Status == UsageStatus.Used || (uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow)));
+					}
+					else if (!isAnonymousGuest)
+					{
+						currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
+							uv.VoucherId == voucherId && uv.GuestIdentifier == emailOrPhone &&
+							(uv.Status == UsageStatus.Used || (uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow)));
 					}
 
-					int currentUsageCount = await _unitOfWork.UserVouchers.CountAsync(uv =>
-						uv.VoucherId == voucherId &&
-						(
-							uv.Status == UsageStatus.Used ||
-							(uv.Status == UsageStatus.Reserved && uv.Order != null && uv.Order.PaymentExpiresAt > DateTime.UtcNow)
-						) &&
-					   effectiveUserId.HasValue &&
-						uv.UserId == effectiveUserId.Value
-					);
-
-					var allowedUsage = voucher.MaxUsagePerUser ?? 1;
-
-					if (currentUsageCount >= allowedUsage)
+					if (currentUsageCount >= voucher.MaxUsagePerUser.Value)
 					{
-						throw AppException.BadRequest($"Bạn đã đạt giới hạn sử dụng tối đa ({allowedUsage}) cho khuyến mãi này");
+						throw AppException.BadRequest($"Bạn đã đạt giới hạn sử dụng tối đa ({voucher.MaxUsagePerUser.Value}) cho khuyến mãi này");
 					}
 				}
 
-				// Create new UserVoucher and reserve
+				// 3. Tạo mới UserVoucher để giữ chỗ cho mã Public/Campaign
 				var publicUserVoucher = UserVoucher.CreateReserved(
-					   effectiveUserId,
-					   voucherId,
-					   orderId,
+					effectiveUserId,
+					voucherId,
+					orderId,
 					voucher.IsMemberOnly ? null : (isAnonymousGuest ? null : emailOrPhone));
 
 				await _unitOfWork.UserVouchers.AddAsync(publicUserVoucher);
 
-				// Decrement quantity
 				voucher.DecreaseRemainingQuantity();
 				_unitOfWork.Vouchers.Update(voucher);
 

@@ -16,10 +16,11 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 		public async Task MarkCampaignAsStartedAsync(Guid campaignId)
 		{
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId);
+			var nowUtc = DateTime.UtcNow;
 
-			if (campaign != null && campaign.Status == CampaignStatus.Upcoming)
+			if (campaign != null && campaign.Status == CampaignStatus.Upcoming && campaign.StartDate <= nowUtc)
 			{
-				campaign.UpdateStatus(CampaignStatus.Active, DateTime.UtcNow);
+				campaign.UpdateStatus(CampaignStatus.Active, nowUtc);
 				foreach (var item in campaign.Items)
 				{
 					item.SetActive(true);

@@ -14,6 +14,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<List<VoucherResponse>> GetPublicVouchersForApplicabilityAsync();
 		Task<(List<VoucherResponse> Items, int TotalCount)> GetPagedVouchersAsync(GetPagedVouchersRequest request);
 		Task<(List<RedeemableVoucherResponse> Items, int TotalCount)> GetPagedRedeemableVouchersAsync(GetPagedRedeemableVouchersRequest request, Guid? userId = null);
+		Task<List<VoucherResponse>> GetPublicVouchersForVariantAsync(Guid variantId);
 	}
 }
 
