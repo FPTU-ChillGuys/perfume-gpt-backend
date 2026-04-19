@@ -8,6 +8,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Campaigns
 		public Guid CampaignId { get; init; }
 		public Guid ProductVariantId { get; init; }
 		public Guid? BatchId { get; init; }
+		public string? BatchCode { get; init; }
 		public required string Name { get; init; }
 		public PromotionType ItemType { get; init; }
 		public DiscountType DiscountType { get; init; }

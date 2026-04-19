@@ -17,26 +17,33 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<bool> IsLowStockAsync(Guid variantId)
 		=> await _context.Stocks
-			.Where(s => s.VariantId == variantId)
+			.Where(s => s.VariantId == variantId && !s.ProductVariant.IsDeleted) // ADDED FILTER
 			.Select(s => s.TotalQuantity <= s.LowStockThreshold)
 			.FirstOrDefaultAsync();
 
 		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
 		=> await _context.Stocks
-			.Where(s => s.VariantId == variantId)
+			.Where(s => s.VariantId == variantId && !s.ProductVariant.IsDeleted) // ADDED FILTER
 			.Select(s => (s.TotalQuantity - s.ReservedQuantity) >= requiredQuantity)
 			.FirstOrDefaultAsync();
 
 		public async Task UpdateStockAsync(Guid variantId)
 		{
 			// 1. Calculate total quantity from batches
+			// Note: Depending on your logic, you might also want to exclude batches of deleted variants here,
+			// though typically if a variant is deleted, you wouldn't be updating its stock.
 			var totalQuantity = await _context.Batches
 				.Where(b => b.VariantId == variantId)
 				.SumAsync(b => b.RemainingQuantity);
 
-			// 2. Load Entity
-			var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
+			// 2. Load Entity (Include check for IsDeleted on the Variant)
+			var stock = await _context.Stocks
+				.Include(s => s.ProductVariant) // Ensure we have the variant to check
+				.FirstOrDefaultAsync(s => s.VariantId == variantId)
 				?? throw AppException.NotFound($"Không tìm thấy kho hàng cho biến thể sản phẩm với ID {variantId}.");
+
+			if (stock.ProductVariant.IsDeleted)
+				throw AppException.BadRequest($"Không thể cập nhật kho cho biến thể đã bị xóa (ID: {variantId}).");
 
 			var variant = await _context.ProductVariants.FirstOrDefaultAsync(v => v.Id == variantId)
 				?? throw AppException.NotFound($"Không tìm thấy biến thể sản phẩm với ID {variantId}.");
@@ -48,7 +55,9 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<(IEnumerable<StockResponse> Stocks, int TotalCount)> GetPagedInventoryAsync(GetPagedInventoryRequest request)
 		{
-			IQueryable<Stock> query = _context.Stocks.AsNoTracking();
+			IQueryable<Stock> query = _context.Stocks
+				.Where(s => !s.ProductVariant.IsDeleted) // ADDED FILTER: Exclude deleted variants globally for this query
+				.AsNoTracking();
 
 			if (request.CategoryId.HasValue)
 				query = query.Where(s => s.ProductVariant.Product.CategoryId == request.CategoryId.Value);
@@ -118,7 +127,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<StockResponse?> GetStockWithDetailsByVariantIdAsync(Guid variantId)
 		=> await _context.Stocks
 			.AsNoTracking()
-		 .Where(s => s.VariantId == variantId)
+			.Where(s => s.VariantId == variantId && !s.ProductVariant.IsDeleted) // ADDED FILTER
 			.Select(s => new StockResponse
 			{
 				Id = s.Id,
@@ -142,9 +151,12 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<(int TotalVariants, int TotalStockQuantity, int LowStockVariantsCount)> GetInventorySummaryDataAsync()
 		{
-			var totalVariants = await _context.Stocks.CountAsync();
-			var totalStockQuantity = await _context.Stocks.SumAsync(s => s.TotalQuantity);
-			var lowStockVariantsCount = await _context.Stocks.CountAsync(s => s.TotalQuantity <= s.LowStockThreshold);
+			// ADDED FILTERS to all summary calculations
+			var baseQuery = _context.Stocks.Where(s => !s.ProductVariant.IsDeleted);
+
+			var totalVariants = await baseQuery.CountAsync();
+			var totalStockQuantity = await baseQuery.SumAsync(s => s.TotalQuantity);
+			var lowStockVariantsCount = await baseQuery.CountAsync(s => s.TotalQuantity <= s.LowStockThreshold);
 
 			return (totalVariants, totalStockQuantity, lowStockVariantsCount);
 		}
@@ -152,7 +164,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<List<LowStockAlertItem>> GetLowStockAlertItemsAsync()
 		=> await _context.Stocks
 			.AsNoTracking()
-			.Where(s => s.TotalQuantity <= s.LowStockThreshold)
+			.Where(s => s.TotalQuantity <= s.LowStockThreshold && !s.ProductVariant.IsDeleted) // ADDED FILTER
 			.OrderBy(s => s.TotalQuantity)
 			.Select(s => new LowStockAlertItem
 			{
