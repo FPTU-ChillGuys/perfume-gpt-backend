@@ -18,9 +18,6 @@ namespace PerfumeGPT.Application.Validators.Vouchers
 			RuleFor(x => x.DiscountType)
 			  .IsInEnum().WithMessage("Loại giảm giá không hợp lệ.");
 
-			RuleFor(x => x.ApplyType)
-			 .IsInEnum().WithMessage("Loại áp dụng không hợp lệ.");
-
 			RuleFor(x => x.RequiredPoints)
 				.GreaterThanOrEqualTo(0).WithMessage("Điểm yêu cầu phải lớn hơn hoặc bằng 0.");
 

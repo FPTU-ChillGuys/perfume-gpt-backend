@@ -18,13 +18,13 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			using var smtp = new SmtpClient();
 			await smtp.ConnectAsync(
-				configuration["EmailSettings:SmtpServer"],
-				int.Parse(configuration["EmailSettings:SmtpPort"]!),
+				configuration["EmailSettings:SmtpServer"] ?? throw new ArgumentNullException("Thiếu cấu hình EmailSettings:SmtpServer"),
+				int.Parse(configuration["EmailSettings:SmtpPort"] ?? throw new ArgumentNullException("Thiếu cấu hình EmailSettings:SmtpPort")),
 				MailKit.Security.SecureSocketOptions.StartTls
 			);
 			await smtp.AuthenticateAsync(
-				configuration["EmailAccount:SmtpUser"],
-				configuration["EmailAccount:SmtpPass"]
+				configuration["EmailAccount:SmtpUser"] ?? throw new ArgumentNullException("Thiếu cấu hình EmailAccount:SmtpUser"),
+				configuration["EmailAccount:SmtpPass"] ?? throw new ArgumentNullException("Thiếu cấu hình EmailAccount:SmtpPass")
 			);
 			await smtp.SendAsync(email);
 			await smtp.DisconnectAsync(true);

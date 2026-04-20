@@ -60,7 +60,7 @@ namespace PerfumeGPT.Domain.Entities
 				Code = details.Code.Trim().ToUpperInvariant(),
 				DiscountValue = details.DiscountValue,
 				DiscountType = details.DiscountType,
-				ApplyType = details.ApplyType,
+				ApplyType = VoucherType.Order,
 				RequiredPoints = details.RequiredPoints,
 				MaxDiscountAmount = details.MaxDiscountAmount,
 				MinOrderValue = details.MinOrderValue,
@@ -130,7 +130,7 @@ namespace PerfumeGPT.Domain.Entities
 			Code = details.Code.Trim().ToUpperInvariant();
 			DiscountValue = details.DiscountValue;
 			DiscountType = details.DiscountType;
-			ApplyType = details.ApplyType;
+			ApplyType = VoucherType.Order;
 			RequiredPoints = details.RequiredPoints;
 			MaxDiscountAmount = details.MaxDiscountAmount;
 			MinOrderValue = details.MinOrderValue;
@@ -266,7 +266,6 @@ namespace PerfumeGPT.Domain.Entities
 			public required string Code { get; init; }
 			public required decimal DiscountValue { get; init; }
 			public required DiscountType DiscountType { get; init; }
-			public required VoucherType ApplyType { get; init; }
 			public required int RequiredPoints { get; init; }
 			public decimal? MaxDiscountAmount { get; init; }
 			public required decimal MinOrderValue { get; init; }
@@ -282,7 +281,6 @@ namespace PerfumeGPT.Domain.Entities
 			public required string Code { get; init; }
 			public required decimal DiscountValue { get; init; }
 			public required DiscountType DiscountType { get; init; }
-			public required VoucherType ApplyType { get; init; }
 			public required int RequiredPoints { get; init; }
 			public decimal? MaxDiscountAmount { get; init; }
 			public required decimal MinOrderValue { get; init; }
