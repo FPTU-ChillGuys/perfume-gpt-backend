@@ -14,8 +14,6 @@ using Scalar.AspNetCore;
 using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 
 // Load .env file (search upward from current directory) and set environment variables
 static string? FindDotEnv(string startDir)

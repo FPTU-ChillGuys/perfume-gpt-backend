@@ -55,8 +55,6 @@ namespace PerfumeGPT.Domain.Entities
 				details.TotalQuantity,
 				details.MaxUsagePerUser);
 
-			ValidateSemanticRules(details.IsPublic, details.IsMemberOnly, details.RequiredPoints);
-
 			return new Voucher
 			{
 				Code = details.Code.Trim().ToUpperInvariant(),
@@ -89,7 +87,6 @@ namespace PerfumeGPT.Domain.Entities
 			if (details.ExpiryDate <= DateTime.UtcNow)
 				throw DomainException.BadRequest("Ngày hết hạn phải ở tương lai.");
 
-			ValidateSemanticRules(details.IsPublic, details.IsMemberOnly, 0);
 			return new Voucher
 			{
 				Code = details.Code.Trim().ToUpperInvariant(),
@@ -123,8 +120,6 @@ namespace PerfumeGPT.Domain.Entities
 				details.ExpiryDate,
 				details.TotalQuantity,
 				details.MaxUsagePerUser);
-
-			ValidateSemanticRules(details.IsPublic, details.IsMemberOnly, details.RequiredPoints);
 
 			if (details.RemainingQuantity < 0)
 				throw DomainException.BadRequest("Số lượng còn lại phải lớn hơn hoặc bằng 0.");
@@ -263,21 +258,6 @@ namespace PerfumeGPT.Domain.Entities
 
 			if (maxUsagePerUser.HasValue && maxUsagePerUser.Value <= 0)
 				throw DomainException.BadRequest("Số lần sử dụng tối đa mỗi người dùng phải lớn hơn 0.");
-		}
-
-		private static void ValidateSemanticRules(bool isPublic, bool isMemberOnly, int requiredPoints)
-		{
-			// Nếu bắt đổi điểm, thì bắt buộc phải là MemberOnly
-			if (requiredPoints > 0 && !isMemberOnly)
-			{
-				throw DomainException.BadRequest("Mã giảm giá yêu cầu đổi điểm bắt buộc phải dành riêng cho Thành viên (IsMemberOnly = true).");
-			}
-
-			// Nếu đã là mã đổi điểm cá nhân, thì không nên Public (tùy nghiệp vụ, nhưng thường là vậy)
-			if (requiredPoints > 0 && isPublic)
-			{
-				throw DomainException.BadRequest("Mã giảm giá yêu cầu đổi điểm không được thiết lập công khai (IsPublic = false).");
-			}
 		}
 
 		// Records

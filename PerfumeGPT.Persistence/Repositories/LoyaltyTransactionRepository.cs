@@ -43,7 +43,8 @@ namespace PerfumeGPT.Persistence.Repositories
 					TransactionType = x.TransactionType,
 					PointsChanged = x.PointsChanged,
 					AbsolutePoints = x.PointsChanged < 0 ? -x.PointsChanged : x.PointsChanged,
-					Reason = x.Reason
+					Reason = x.Reason,
+					CreatedAt = x.CreatedAt,
 				})
 				.ToListAsync();
 
@@ -78,7 +79,8 @@ namespace PerfumeGPT.Persistence.Repositories
 					TransactionType = x.TransactionType,
 					PointsChanged = x.PointsChanged,
 					AbsolutePoints = x.PointsChanged < 0 ? -x.PointsChanged : x.PointsChanged,
-					Reason = x.Reason
+					Reason = x.Reason,
+					CreatedAt = x.CreatedAt,
 				})
 				.ToListAsync();
 

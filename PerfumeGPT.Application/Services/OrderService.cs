@@ -751,12 +751,7 @@ namespace PerfumeGPT.Application.Services
 			await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
 		}
 
-		private async Task<VoucherResponse> ValidateAndGetVoucherAsync(
-				 string voucherCode,
-			   Guid? userId,
-				 string? phoneNumber,
-				 decimal totalPrice,
-				 IEnumerable<Guid>? cartVariantIds = null)
+		private async Task<VoucherResponse> ValidateAndGetVoucherAsync(string voucherCode, Guid? userId, string? phoneNumber, decimal totalPrice, IEnumerable<Guid>? cartVariantIds = null)
 		{
 			// Get voucher details
 			var voucher = await _unitOfWork.Vouchers.GetByCodeAsync(voucherCode)

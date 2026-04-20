@@ -12,5 +12,6 @@ namespace PerfumeGPT.Application.DTOs.Responses.Loyalty
 		public int PointsChanged { get; init; }
 		public int AbsolutePoints { get; init; }
 		public required string Reason { get; init; }
+		public DateTime CreatedAt { get; init; }
 	}
 }

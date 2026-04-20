@@ -130,23 +130,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			return null;
 		}
 
-		public ShippingStatus? MapOrderStatusToShippingStatus(OrderStatus orderStatus)
-		{
-			return orderStatus switch
-			{
-				OrderStatus.Pending => ShippingStatus.UnAssigned,
-				OrderStatus.Preparing => ShippingStatus.UnAssigned,
-				OrderStatus.ReadyToPick => ShippingStatus.ReadyToPick,
-				OrderStatus.Delivering => ShippingStatus.Delivering,
-				OrderStatus.Delivered => ShippingStatus.Delivered,
-				OrderStatus.Cancelled => ShippingStatus.Cancelled,
-				OrderStatus.Returning => ShippingStatus.Returning,
-				OrderStatus.Returned => ShippingStatus.Returned,
-				OrderStatus.Partial_Returned => ShippingStatus.Returned,
-				_ => null
-			};
-		}
-
 		public async Task<bool> CreateGHNShippingOrderAsync(Order order, ContactAddress contactAddress)
 		{
 			var shippingInfo = await _unitOfWork.ShippingInfos.GetByOrderIdAsync(order.Id)
@@ -181,7 +164,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			Guid orderId,
 			decimal codAmount,
 			ShippingInfo shippingInfo,
-		   ContactAddress contactAddress)
+			ContactAddress contactAddress)
 		{
 			var orderWithDetails = await _unitOfWork.Orders.GetOrderWithDetailsForShippingAsync(orderId);
 			if (orderWithDetails?.OrderDetails == null || orderWithDetails.OrderDetails.Count == 0)
