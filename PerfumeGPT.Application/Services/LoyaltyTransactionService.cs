@@ -5,6 +5,7 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Domain.Enums;
 using static PerfumeGPT.Domain.Entities.LoyaltyTransaction;
 
 namespace PerfumeGPT.Application.Services
@@ -13,11 +14,16 @@ namespace PerfumeGPT.Application.Services
 	{
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IUserRepository _userRepository;
+		private readonly INotificationService _notificationService;
 
-		public LoyaltyTransactionService(IUnitOfWork unitOfWork, IUserRepository userRepository)
+		public LoyaltyTransactionService(
+			IUnitOfWork unitOfWork,
+			IUserRepository userRepository,
+			INotificationService notificationService)
 		{
 			_unitOfWork = unitOfWork;
 			_userRepository = userRepository;
+			_notificationService = notificationService;
 		}
 
 		public async Task<BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>> GetLoyaltyHistoryAsync(Guid userId, GetPagedUserLoyaltyTransactionsRequest request)
@@ -72,6 +78,14 @@ namespace PerfumeGPT.Application.Services
 				var saved = await _unitOfWork.SaveChangesAsync();
 				if (!saved)
 					throw AppException.Internal("Cộng điểm tích lũy thất bại.");
+
+				await _notificationService.SendToUserAsync(
+					userId,
+					"Điểm tích lũy được cộng",
+					$"Bạn vừa nhận được {points} điểm tích lũy. Tổng điểm hiện tại: {user.PointBalance}.",
+					NotificationType.Success,
+					orderId,
+					orderId.HasValue ? NotifiReferecneType.Order : null);
 			}
 
 			return true;
@@ -121,6 +135,15 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
 				throw AppException.Internal("Áp dụng thay đổi điểm tích lũy thủ công thất bại.");
+
+			if (transaction.TransactionType == LoyaltyTransactionType.Earn)
+			{
+				await _notificationService.SendToUserAsync(
+					userId,
+					"Điểm tích lũy được cộng",
+					$"Bạn vừa nhận được {request.Points} điểm tích lũy từ điều chỉnh thủ công. Tổng điểm hiện tại: {user.PointBalance}.",
+					NotificationType.Success);
+			}
 
 			return BaseResponse<string>.Ok(transaction.Id.ToString(), "Áp dụng thay đổi điểm tích lũy thủ công thành công.");
 		}

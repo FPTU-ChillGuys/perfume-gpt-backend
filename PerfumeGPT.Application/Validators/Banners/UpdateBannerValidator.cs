@@ -16,6 +16,7 @@ namespace PerfumeGPT.Application.Validators.Banners
 			RuleFor(x => x.TemporaryImageId)
 				.Must(id => !id.HasValue || id.Value != Guid.Empty)
 				.WithMessage("TemporaryImageId phải là một guid hợp lệ.");
+
 			RuleFor(x => x.TemporaryMobileImageId)
 				.Must(id => !id.HasValue || id.Value != Guid.Empty)
 				.WithMessage("TemporaryMobileImageId phải là một guid hợp lệ.");
@@ -23,6 +24,7 @@ namespace PerfumeGPT.Application.Validators.Banners
 			RuleFor(x => x)
 				.Must(x => !x.TemporaryImageId.HasValue || !x.TemporaryMobileImageId.HasValue || x.TemporaryImageId.Value != x.TemporaryMobileImageId.Value)
 				.WithMessage("Hình ảnh tạm thời cho desktop và mobile phải khác nhau.");
+
 			RuleFor(x => x.LinkTarget)
 				.Must(target => !string.IsNullOrWhiteSpace(target))
 				.WithMessage("Link target là bắt buộc.");
@@ -30,6 +32,7 @@ namespace PerfumeGPT.Application.Validators.Banners
 			RuleFor(x => x.DisplayOrder)
 				.GreaterThanOrEqualTo(0)
 				.WithMessage("Display order phải lớn hơn hoặc bằng 0.");
+
 			RuleFor(x => x.Position)
 				.IsInEnum().WithMessage("Vị trí banner không hợp lệ.");
 

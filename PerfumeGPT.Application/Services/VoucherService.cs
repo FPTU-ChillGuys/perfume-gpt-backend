@@ -748,30 +748,36 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Chiến dịch đang tạm dừng, không thể áp dụng mã giảm giá");
 			}
 
+			// 💥 FIX LÀ Ở ĐÂY: NẾU LÀ ORDER LEVEL, ĐẾN ĐÂY LÀ ĐỦ ĐIỀU KIỆN, KHÔNG CẦN CHECK ITEM BÊN DƯỚI NỮA
+			if (voucher.ApplyType == VoucherType.Order)
+			{
+				return;
+			}
+
+			// ==========================================
+			// TỪ ĐÂY TRỞ XUỐNG CHỈ DÀNH CHO PRODUCT LEVEL VOUCHER
+			// ==========================================
+
 			var cartVariantSet = cartVariantIds?
 				.Where(x => x != Guid.Empty)
 				.Distinct()
 				.ToHashSet();
 
-			if (voucher.ApplyType == VoucherType.Product && (cartVariantSet == null || cartVariantSet.Count == 0))
+			if (cartVariantSet == null || cartVariantSet.Count == 0)
 			{
-				throw AppException.BadRequest("Cần có sản phẩm giỏ hàng để kiểm tra mã giảm giá theo sản phẩm");
+				throw AppException.BadRequest("Cần có sản phẩm trong giỏ hàng để kiểm tra mã giảm giá theo sản phẩm");
 			}
 
 			var hasMatchingActiveItem = await _unitOfWork.PromotionItems.AnyAsync(
 				i => i.CampaignId == campaign.Id
 					&& !i.IsDeleted
-					&& i.ItemType == voucher.TargetItemType
-					&& (i.IsActive)
-					&& (voucher.ApplyType != VoucherType.Product
-						|| (cartVariantSet != null && cartVariantSet.Contains(i.TargetProductVariantId))));
+					&& i.ItemType == voucher.TargetItemType // Đã an toàn dùng 
+					&& i.IsActive
+					&& cartVariantSet.Contains(i.TargetProductVariantId)); // Bỏ luôn cái check voucher.ApplyType lằng nhằng bên trong query
 
 			if (!hasMatchingActiveItem)
 			{
-				var message = voucher.ApplyType == VoucherType.Product
-					? "Không có sản phẩm khuyến mãi đang hoạt động phù hợp với mã này"
-					: "Không có khuyến mãi đơn hàng đang hoạt động phù hợp với mã này";
-				throw AppException.BadRequest(message);
+				throw AppException.BadRequest("Không có sản phẩm khuyến mãi đang hoạt động phù hợp với mã này");
 			}
 		}
 

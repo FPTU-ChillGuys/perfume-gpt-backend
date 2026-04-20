@@ -16,6 +16,7 @@ namespace PerfumeGPT.Application.Validators.Banners
 			RuleFor(x => x.TemporaryImageId)
 				.NotEmpty()
 				.WithMessage("TemporaryImageId là bắt buộc.");
+
 			RuleFor(x => x.TemporaryMobileImageId)
 				.Must(id => !id.HasValue || id.Value != Guid.Empty)
 				.WithMessage("TemporaryMobileImageId phải là một guid hợp lệ.");
@@ -30,6 +31,7 @@ namespace PerfumeGPT.Application.Validators.Banners
 			RuleFor(x => x.DisplayOrder)
 				.GreaterThanOrEqualTo(0)
 				.WithMessage("Display order phải lớn hơn hoặc bằng 0.");
+
 			RuleFor(x => x.Position)
 				.IsInEnum().WithMessage("Vị trí banner không hợp lệ.");
 

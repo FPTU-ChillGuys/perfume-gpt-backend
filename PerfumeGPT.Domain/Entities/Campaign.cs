@@ -435,7 +435,7 @@ namespace PerfumeGPT.Domain.Entities
 			public required decimal DiscountValue { get; init; }
 			public required DiscountType DiscountType { get; init; }
 			public required VoucherType ApplyType { get; init; }
-			public required PromotionType TargetItemType { get; init; }
+			public PromotionType? TargetItemType { get; init; }
 			public decimal? MaxDiscountAmount { get; init; }
 			public required decimal MinOrderValue { get; init; }
 			public int? TotalQuantity { get; init; }

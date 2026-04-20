@@ -300,7 +300,7 @@ namespace PerfumeGPT.Domain.Entities
 			public required decimal DiscountValue { get; init; }
 			public required DiscountType DiscountType { get; init; }
 			public required VoucherType ApplyType { get; init; }
-			public required PromotionType TargetItemType { get; init; }
+			public PromotionType? TargetItemType { get; init; }
 			public required Guid CampaignId { get; init; }
 			public required DateTime ExpiryDate { get; init; }
 
