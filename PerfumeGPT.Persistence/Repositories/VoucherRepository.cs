@@ -263,6 +263,20 @@ namespace PerfumeGPT.Persistence.Repositories
 				}
 			}
 
+			if (request.IsRegular.HasValue)
+			{
+				{
+					if (request.IsRegular.Value)
+					{
+						query = query.Where(v => v.CampaignId == null);
+					}
+					else
+					{
+						query = query.Where(v => v.CampaignId != null);
+					}
+				}
+			}
+
 			if (!string.IsNullOrEmpty(request.Code))
 			{
 				query = query.Where(v => v.Code.Contains(request.Code));
@@ -301,5 +315,4 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 	}
 }
-
 

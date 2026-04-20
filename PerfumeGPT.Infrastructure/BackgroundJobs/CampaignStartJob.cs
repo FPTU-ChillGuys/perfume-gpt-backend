@@ -18,7 +18,7 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 			var campaign = await _unitOfWork.Campaigns.GetCampaignWithDetailsAsync(campaignId);
 			var nowUtc = DateTime.UtcNow;
 
-			if (campaign != null && campaign.Status == CampaignStatus.Upcoming && campaign.StartDate <= nowUtc)
+			if (campaign != null && campaign.Status == CampaignStatus.Upcoming && campaign.StartDate <= nowUtc.AddMinutes(1))
 			{
 				campaign.UpdateStatus(CampaignStatus.Active, nowUtc);
 				foreach (var item in campaign.Items)

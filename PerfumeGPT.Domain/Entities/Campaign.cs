@@ -336,17 +336,32 @@ namespace PerfumeGPT.Domain.Entities
 
 		private static DateTime NormalizeToUtc(DateTime dateTime)
 		{
+			// 1. Nếu Client đã cẩn thận gửi đúng UTC (có chữ Z), ta giữ nguyên.
 			if (dateTime.Kind == DateTimeKind.Utc)
 			{
 				return dateTime;
 			}
 
-			if (dateTime.Kind == DateTimeKind.Local)
+			// 2. Lấy thông tin Múi giờ Việt Nam (Hỗ trợ cả Windows và Linux/Docker)
+			TimeZoneInfo vietnamTimeZone;
+			try
 			{
-				return dateTime.ToUniversalTime();
+				// Định dạng IANA (Chuẩn của Linux/Mac/Docker và .NET 6+ trên Windows)
+				vietnamTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Ho_Chi_Minh");
+			}
+			catch (TimeZoneNotFoundException)
+			{
+				// Dự phòng cho các bản Windows Server cũ
+				vietnamTimeZone = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
 			}
 
-			return DateTime.SpecifyKind(dateTime, DateTimeKind.Local).ToUniversalTime();
+			// 3. Xóa bỏ mọi sự áp đặt của OS hiện tại (Nếu OS tự nhận là Local)
+			// Đưa nó về dạng "Trắng" (Unspecified) để ta tự xử lý.
+			var unspecifiedDateTime = DateTime.SpecifyKind(dateTime, DateTimeKind.Unspecified);
+
+			// 4. Ép hệ thống hiểu rằng: "Cái giờ Unspecified này LÀ GIỜ CỦA VIỆT NAM", 
+			// sau đó dịch nó sang UTC một cách chuẩn xác.
+			return TimeZoneInfo.ConvertTimeToUtc(unspecifiedDateTime, vietnamTimeZone);
 		}
 
 		public void SoftDeleteAllContents()
