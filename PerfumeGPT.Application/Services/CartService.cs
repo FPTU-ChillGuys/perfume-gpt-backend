@@ -302,22 +302,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, GetCartTotalRequest request)
 		{
-         List<CartCheckoutItemDto> items;
-			decimal finalAmount;
-			string? voucherMessage;
-			List<string>? warnings = null;
-			var effectiveRequest = request;
-
-			try
-			{
-				(items, _, finalAmount, voucherMessage) = await BuildCheckoutPricingAsync(userId, request);
-			}
-			catch (AppException ex) when (!string.IsNullOrWhiteSpace(request.VoucherCode))
-			{
-				effectiveRequest = request with { VoucherCode = null };
-				(items, _, finalAmount, voucherMessage) = await BuildCheckoutPricingAsync(userId, effectiveRequest);
-				warnings = [ex.Message];
-			}
+			var (items, _, finalAmount, voucherMessage) = await BuildCheckoutPricingAsync(userId, request);
 
 			if (items.Count == 0)
 			{
@@ -341,7 +326,7 @@ namespace PerfumeGPT.Application.Services
 
 			// 3. Discount hiển thị = Tiền Voucher (Sẽ ra đúng 100.000)
 			var voucherDiscount = items.Sum(x => x.ApportionedVoucherDiscount);
-          var shippingFee = await CalculateShippingFeeAsync(userId, effectiveRequest, items);
+			var shippingFee = await CalculateShippingFeeAsync(userId, request, items);
 
 			var response = new GetCartTotalResponse
 			{
@@ -351,15 +336,11 @@ namespace PerfumeGPT.Application.Services
 				TotalPrice = finalAmount + shippingFee
 			};
 
-           return new BaseResponse<GetCartTotalResponse>
-			{
-				Success = true,
-				Message = string.IsNullOrWhiteSpace(voucherMessage)
-					? "Tính tổng tiền giỏ hàng thành công"
-					: voucherMessage,
-				Payload = response,
-				Errors = warnings
-			};
+			return BaseResponse<GetCartTotalResponse>.Ok(
+				 response,
+				 string.IsNullOrWhiteSpace(voucherMessage)
+				  ? "Tính tổng tiền giỏ hàng thành công"
+					 : voucherMessage);
 		}
 
 		private async Task<decimal> CalculateShippingFeeAsync(Guid userId, GetCartTotalRequest request, List<CartCheckoutItemDto> items)
