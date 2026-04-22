@@ -279,8 +279,8 @@ namespace PerfumeGPT.Application.Services
 				{
 					// Cộng dồn toàn bộ tiền giảm của các dòng bị cắt
 					TotalDiscount = g.Sum(x => x.Discount),
-					// Cộng dồn FinalTotal của dòng được giảm + dòng không được giảm
-					TotalFinalAmount = g.Sum(x => x.FinalTotal)
+					// CỘNG DỒN SỐ LƯỢNG ĐƯỢC SALE TỪ CÁC DÒNG ĐÃ TÁCH
+					PromotionalQuantity = g.Sum(x => x.DiscountedQuantity)
 				});
 
 			// 4. Map kết quả từ Engine ngược lại vào Response Items
@@ -288,16 +288,29 @@ namespace PerfumeGPT.Application.Services
 			{
 				if (pricedItemByVariant.TryGetValue(rawItem.VariantId, out var pricedAggregated))
 				{
-					return rawItem with
+					var promoQty = pricedAggregated.PromotionalQuantity;
+
+					// Xử lý logic an toàn: Tránh trường hợp chia nhỏ bị lỗi âm số lượng
+					var safePromoQty = Math.Min(promoQty, rawItem.Quantity);
+					var safeRegularQty = Math.Max(0, rawItem.Quantity - safePromoQty);
+
+					// ĐÚNG CÔNG THỨC BẠN YÊU CẦU: finalTotal = subTotal - discount
+					var finalTotal = rawItem.SubTotal - pricedAggregated.TotalDiscount;
+
+					return rawItem with // Hoặc new CartItemResponse { ... } tùy cú pháp của bạn
 					{
-						// Gán giá trị đã cộng dồn
+						PromotionalQuantity = safePromoQty,
+						RegularQuantity = safeRegularQty,
 						Discount = pricedAggregated.TotalDiscount,
-						FinalTotal = pricedAggregated.TotalFinalAmount
+						FinalTotal = finalTotal
 					};
 				}
 
+				// Nếu sản phẩm không có khuyến mãi nào
 				return rawItem with
 				{
+					PromotionalQuantity = 0,
+					RegularQuantity = rawItem.Quantity,
 					Discount = 0m,
 					FinalTotal = rawItem.SubTotal
 				};

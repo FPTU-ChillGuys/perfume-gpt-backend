@@ -13,8 +13,12 @@ namespace PerfumeGPT.Application.DTOs.Responses.CartItems
 		public decimal VariantPrice { get; init; }
 		public int Quantity { get; init; }
 		public bool IsAvailable { get; init; }
+		public decimal SubTotal { get; init; }
+
+		public int PromotionalQuantity { get; set; }
+		public int RegularQuantity { get; set; }
+
 		public decimal Discount { get; init; }
 		public decimal FinalTotal { get; init; }
-		public decimal SubTotal => VariantPrice * Quantity;
 	}
 }
