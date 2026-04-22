@@ -275,29 +275,20 @@ namespace PerfumeGPT.Application.Services
 			// BƯỚC SỬA LỖI: Gộp các dòng bị cắt (Splitted Items) bằng cách SUM thay vì First()
 			var pricedItemByVariant = pricedItems
 				.GroupBy(x => x.VariantId)
-				.ToDictionary(g => g.Key, g => new
-				{
-					// Cộng dồn toàn bộ tiền giảm của các dòng bị cắt
-					TotalDiscount = g.Sum(x => x.Discount),
-					// ✅ Sum FinalTotal trực tiếp từ engine, không tính lại
-					TotalFinalAmount = g.Sum(x => x.FinalTotal),
-					PromotionalQuantity = g.Sum(x => x.DiscountedQuantity)
-				});
+				.ToDictionary(g => g.Key, g => g.First());
 
 			// 4. Map kết quả từ Engine ngược lại vào Response Items
 			var responseItems = rawItems.Select(rawItem =>
 			{
-				if (pricedItemByVariant.TryGetValue(rawItem.VariantId, out var agg))
+				if (pricedItemByVariant.TryGetValue(rawItem.VariantId, out var pricedItem))
 				{
 					var safePromoQty = Math.Min(agg.PromotionalQuantity, rawItem.Quantity);
 					var safeRegularQty = Math.Max(0, rawItem.Quantity - safePromoQty);
 
 					return rawItem with
 					{
-						PromotionalQuantity = safePromoQty,
-						RegularQuantity = safeRegularQty,
-						Discount = agg.TotalDiscount,
-						FinalTotal = agg.TotalFinalAmount // ✅ Dùng trực tiếp, không tính lại
+						Discount = pricedItem.Discount,
+						FinalTotal = pricedItem.FinalTotal
 					};
 				}
 
@@ -1017,39 +1008,33 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		//  Hàm Helper để code gọn gàng (Bạn thêm hàm này vào dưới hàm CalculateFlashSaleDiscount)
-		private static CartCheckoutItemDto ApplyDiscountToItem(
-			CartCheckoutItemDto item,
-			PromotionItem promo,
-			ref List<string> messageLines,
-			int discountedQuantity)
+		private static CartCheckoutItemDto ApplyDiscountToItem(CartCheckoutItemDto item, PromotionItem promo, ref List<string> messageLines, int discountedQuantity)
 		{
-			// ✅ Dùng SubTotal của item (đã đúng cho qty này sau CreateSplitItem)
-			var baseAmount = item.SubTotal;
+			// 1. Tính TỔNG GIÁ TRỊ GỐC của số lượng hàng được giảm giá
+			var baseAmountForDiscount = item.UnitPrice * discountedQuantity;
 
 			// 2. Tính số tiền giảm dựa trên cái TỔNG đó (và làm tròn 1 lần duy nhất ở đây)
 			decimal totalDiscountForLine;
 
 			if (promo.DiscountType == DiscountType.Percentage)
 			{
-				totalDiscountForLine = Math.Round(
-					baseAmount * (promo.DiscountValue / 100m),
-					0, MidpointRounding.AwayFromZero);
+				var rawDiscount = baseAmountForDiscount * (promo.DiscountValue / 100m);
+				totalDiscountForLine = Math.Round(rawDiscount, 0, MidpointRounding.AwayFromZero);
 			}
-			else
+			else // DiscountType.FixedAmount
 			{
 				// Nếu là giảm cứng 100k/sản phẩm thì cứ nhân số lượng lên
 				totalDiscountForLine = promo.DiscountValue * discountedQuantity;
 			}
 
-			totalDiscountForLine = Math.Min(totalDiscountForLine, baseAmount);
+			// Đảm bảo không giảm lố giá gốc của cả dòng (Vd: Sp 100k giảm 150k thì chỉ giảm 100k)
+			totalDiscountForLine = Math.Min(totalDiscountForLine, baseAmountForDiscount);
 
-			// ✅ Nhất quán: cùng dùng baseAmount
-			var newFinalTotal = baseAmount - totalDiscountForLine;
+			var newFinalTotal = item.SubTotal - totalDiscountForLine;
 
-			var avg = discountedQuantity > 0 ? totalDiscountForLine / discountedQuantity : 0;
-			messageLines.Add(
-				$"'{item.VariantName}' áp dụng {promo.Campaign.Name} " +
-				$"(Giảm ~{avg:N0}/sp cho {discountedQuantity} sản phẩm)");
+			// Để hiển thị tin nhắn log, tính ngược lại số tiền giảm bình quân cho 1 món
+			var averageDiscountPerItem = discountedQuantity > 0 ? totalDiscountForLine / discountedQuantity : 0;
+			messageLines.Add($"'{item.VariantName}' áp dụng {promo.Campaign.Name} (Giảm ~{averageDiscountPerItem:N0}/sp cho {discountedQuantity} sản phẩm)");
 
 			return item with
 			{
