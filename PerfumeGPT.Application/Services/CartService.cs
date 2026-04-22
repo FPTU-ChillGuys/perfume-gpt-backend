@@ -269,28 +269,41 @@ namespace PerfumeGPT.Application.Services
 				FinalTotal = item.SubTotal
 			}).ToList();
 
-			// 3. Chạy Pricing Engine (Truyền VoucherCode = null để chỉ lấy Promotion)
+			// 3. Chạy Pricing Engine (chỉ lấy Promotion, không Voucher)
 			var (pricedItems, _, _, _) = await CalculatePricingEngineAsync(checkoutItems, null, userId, null);
 
-			// BƯỚC SỬA LỖI: Gộp các dòng bị cắt (Splitted Items) bằng cách SUM thay vì First()
+			// 4. Gộp các dòng bị split cùng VariantId bằng Sum thay vì First()
 			var pricedItemByVariant = pricedItems
 				.GroupBy(x => x.VariantId)
-				.ToDictionary(g => g.Key, g => g.First());
+				.ToDictionary(g => g.Key, g => new
+				{
+					TotalDiscount = g.Sum(x => x.Discount),
+					TotalFinalAmount = g.Sum(x => x.FinalTotal),
+					PromotionalQuantity = g.Sum(x => x.DiscountedQuantity)
+				});
 
-			// 4. Map kết quả từ Engine ngược lại vào Response Items
+			// 5. Map ngược lại vào Response
 			var responseItems = rawItems.Select(rawItem =>
 			{
-				if (pricedItemByVariant.TryGetValue(rawItem.VariantId, out var pricedItem))
+				if (pricedItemByVariant.TryGetValue(rawItem.VariantId, out var agg))
 				{
+					var safePromoQty = Math.Min(agg.PromotionalQuantity, rawItem.Quantity);
+					var safeRegularQty = Math.Max(0, rawItem.Quantity - safePromoQty);
+
 					return rawItem with
 					{
-						Discount = pricedItem.Discount,
-						FinalTotal = pricedItem.FinalTotal
+						PromotionalQuantity = safePromoQty,
+						RegularQuantity = safeRegularQty,
+						Discount = agg.TotalDiscount,
+						FinalTotal = agg.TotalFinalAmount   // Sum trực tiếp từ engine, không tính lại
 					};
 				}
 
+				// Không có khuyến mãi
 				return rawItem with
 				{
+					PromotionalQuantity = 0,
+					RegularQuantity = rawItem.Quantity,
 					Discount = 0m,
 					FinalTotal = rawItem.SubTotal
 				};
