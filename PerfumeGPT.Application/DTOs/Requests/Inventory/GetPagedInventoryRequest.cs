@@ -10,5 +10,6 @@ namespace PerfumeGPT.Application.DTOs.Requests.Inventory
 		public string? SKU { get; init; }
 		public int? DaysUntilExpiry { get; init; }
 		public StockStatus? StockStatus { get; init; }
+		public bool? IsLowStock { get; init; }
 	}
 }

@@ -71,6 +71,9 @@ namespace PerfumeGPT.Persistence.Repositories
 			if (request.StockStatus != null)
 				query = query.Where(s => s.Status == request.StockStatus);
 
+			if (request.IsLowStock == true)
+				query = query.Where(s => s.TotalQuantity <= s.LowStockThreshold);
+
 			if (request.DaysUntilExpiry.HasValue)
 			{
 				var expiryDate = DateTime.UtcNow.AddDays(request.DaysUntilExpiry.Value);
@@ -117,6 +120,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				 TotalQuantity = s.TotalQuantity,
 				 AvailableQuantity = s.AvailableQuantity,
 				 LowStockThreshold = s.LowStockThreshold,
+				 BasePrice = s.ProductVariant.BasePrice,
 				 Status = s.Status
 			 })
 				.ToListAsync();
@@ -145,11 +149,12 @@ namespace PerfumeGPT.Persistence.Repositories
 				TotalQuantity = s.TotalQuantity,
 				AvailableQuantity = s.AvailableQuantity,
 				LowStockThreshold = s.LowStockThreshold,
+				BasePrice = s.ProductVariant.BasePrice,
 				Status = s.Status
 			})
 			.FirstOrDefaultAsync();
 
-		public async Task<(int TotalVariants, int TotalStockQuantity, int LowStockVariantsCount)> GetInventorySummaryDataAsync()
+		public async Task<(int TotalVariants, int TotalStockQuantity, int LowStockVariantsCount, int OutOfStockVariantsCount)> GetInventorySummaryDataAsync()
 		{
 			// ADDED FILTERS to all summary calculations
 			var baseQuery = _context.Stocks.Where(s => !s.ProductVariant.IsDeleted);
@@ -157,8 +162,9 @@ namespace PerfumeGPT.Persistence.Repositories
 			var totalVariants = await baseQuery.CountAsync();
 			var totalStockQuantity = await baseQuery.SumAsync(s => s.TotalQuantity);
 			var lowStockVariantsCount = await baseQuery.CountAsync(s => s.TotalQuantity <= s.LowStockThreshold);
+			var outOfStockVariantsCount = await baseQuery.CountAsync(s => s.TotalQuantity == 0);
 
-			return (totalVariants, totalStockQuantity, lowStockVariantsCount);
+			return (totalVariants, totalStockQuantity, lowStockVariantsCount, outOfStockVariantsCount);
 		}
 
 		public async Task<List<LowStockAlertItem>> GetLowStockAlertItemsAsync()

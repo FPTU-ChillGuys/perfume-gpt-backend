@@ -51,7 +51,7 @@ namespace PerfumeGPT.Application.Services
 			var now = DateTime.UtcNow;
 			var expiringSoonDate = now.AddDays(30);
 
-			var (totalVariants, totalStockQuantity, lowStockVariantsCount) = await _unitOfWork.Stocks.GetInventorySummaryDataAsync();
+			var (totalVariants, totalStockQuantity, lowStockVariantsCount, outOfStockVariantsCount) = await _unitOfWork.Stocks.GetInventorySummaryDataAsync();
 
 			var allBatches = await _unitOfWork.Batches.GetAllAsync(asNoTracking: true);
 
@@ -60,6 +60,7 @@ namespace PerfumeGPT.Application.Services
 				TotalVariants = totalVariants,
 				TotalStockQuantity = totalStockQuantity,
 				LowStockVariantsCount = lowStockVariantsCount,
+				OutOfStockVariantsCount = outOfStockVariantsCount,
 				TotalBatches = allBatches.Count(),
 				ExpiredBatchesCount = allBatches.Count(b => b.ExpiryDate < now),
 				ExpiringSoonCount = allBatches.Count(b => b.ExpiryDate >= now && b.ExpiryDate <= expiringSoonDate)

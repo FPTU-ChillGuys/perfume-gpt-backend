@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+		using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -16,6 +16,8 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 	public class RedisSubscriberService : BackgroundService
 	{
 		private const string CatalogRequestChannel = "catalog_request";
+		private const string InventoryRequestChannel = "inventory_data_request";
+		private const string ReviewRequestChannel = "review_data_request";
 
 		private readonly IConnectionMultiplexer _redis;
 		private readonly IServiceScopeFactory _scopeFactory;
@@ -44,7 +46,16 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 						RedisChannel.Literal(CatalogRequestChannel),
 						async (channel, message) => await HandleCatalogRequestAsync(message));
 
-					_logger.LogInformation("[Redis] Successfully subscribed to channel: {Channel}", CatalogRequestChannel);
+					await subscriber.SubscribeAsync(
+						RedisChannel.Literal(InventoryRequestChannel),
+						async (channel, message) => await HandleInventoryRequestAsync(message));
+
+					await subscriber.SubscribeAsync(
+						RedisChannel.Literal(ReviewRequestChannel),
+						async (channel, message) => await HandleReviewRequestAsync(message));
+
+					_logger.LogInformation("[Redis] Successfully subscribed to channels: {Catalog}, {Inventory}, {Review}", 
+						CatalogRequestChannel, InventoryRequestChannel, ReviewRequestChannel);
 
 					// Wait here while the subscription is active. 
 					// SE.Redis will handle re-subscriptions automatically if the connection drops.
@@ -75,15 +86,18 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 		{
 			var subscriber = _redis.GetSubscriber();
 			await subscriber.UnsubscribeAsync(RedisChannel.Literal(CatalogRequestChannel));
-			_logger.LogInformation("[Redis] Unsubscribed from channel: {Channel}", CatalogRequestChannel);
+			await subscriber.UnsubscribeAsync(RedisChannel.Literal(InventoryRequestChannel));
+			await subscriber.UnsubscribeAsync(RedisChannel.Literal(ReviewRequestChannel));
+			_logger.LogInformation("[Redis] Unsubscribed from all request channels.");
 			await base.StopAsync(cancellationToken);
 		}
 
-		private async Task HandleCatalogRequestAsync(RedisValue message)
+		private async Task ExecuteBaseHandlerAsync(
+			RedisValue message,
+			string channelName,
+			Func<IServiceScope, string, JsonElement, Task<object?>> processor)
 		{
-			if (message.IsNullOrEmpty)
-				return;
-
+			if (message.IsNullOrEmpty) return;
 			string? replyChannel = null;
 
 			try
@@ -91,65 +105,110 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				using var doc = JsonDocument.Parse(message.ToString());
 				var root = doc.RootElement;
 
-				// Parse variantId (required)
-				if (!root.TryGetProperty("variantId", out var variantIdElement)
-					|| !Guid.TryParse(variantIdElement.GetString(), out var variantId))
+				if (!root.TryGetProperty("replyChannel", out var replyChannelElement))
 				{
-					_logger.LogWarning("[Redis] catalog_request received but missing or invalid 'variantId'. Message: {Message}", message);
+					_logger.LogWarning("[Redis] {Channel} received but missing 'replyChannel'.", channelName);
 					return;
 				}
+				replyChannel = replyChannelElement.GetString();
+				if (string.IsNullOrEmpty(replyChannel)) return;
 
-				// Parse replyChannel (required for response routing)
-				if (!root.TryGetProperty("replyChannel", out var replyChannelElement)
-					|| string.IsNullOrWhiteSpace(replyChannelElement.GetString()))
-				{
-					_logger.LogWarning("[Redis] catalog_request received but missing 'replyChannel'. Message: {Message}", message);
-					return;
-				}
+				// Protocol refactor: Extract action and payload separately
+				string action = root.TryGetProperty("action", out var actionElement) ? actionElement.GetString() ?? "" : "";
+				JsonElement payload = root.TryGetProperty("payload", out var payloadElement) ? payloadElement : root;
 
-				replyChannel = replyChannelElement.GetString()!;
+				_logger.LogDebug("[Redis] Processing {Channel}:{Action} for replyChannel={ReplyChannel}", channelName, action, replyChannel);
 
-				_logger.LogInformation("[Redis] Handling catalog_request for variantId={VariantId}, replyChannel={ReplyChannel}", variantId, replyChannel);
-
-				// Resolve scoped services (ISourcingCatalogService depends on IUnitOfWork which is Scoped)
 				await using var scope = _scopeFactory.CreateAsyncScope();
-				var catalogService = scope.ServiceProvider.GetRequiredService<ISourcingCatalogService>();
+				var resultPayload = await processor(scope, action, payload);
 
-				var response = await catalogService.GetCatalogsAsync(supplierId: null, variantId: variantId);
-
-				var payload = JsonSerializer.Serialize(new
-				{
-					variantId = variantId.ToString(),
-					catalogs = response.Payload
-				}, new JsonSerializerOptions
-				{
-					PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-				});
+				var options = new JsonSerializerOptions 
+				{ 
+					PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+					WriteIndented = false 
+				};
+				var responseJson = JsonSerializer.Serialize(resultPayload, options);
 
 				var publisher = _redis.GetSubscriber();
-				await publisher.PublishAsync(RedisChannel.Literal(replyChannel), payload);
-
-				_logger.LogInformation("[Redis] Published catalog response to {ReplyChannel} ({Count} items)", replyChannel, response.Payload?.Count());
+				await publisher.PublishAsync(RedisChannel.Literal(replyChannel), responseJson);
 			}
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, "[Redis] Error handling catalog_request. Message: {Message}", message);
-
-				// Attempt to send an error response so AI backend doesn't hang
-				if (!string.IsNullOrWhiteSpace(replyChannel))
+				_logger.LogError(ex, "[Redis] Error handling {Channel}.", channelName);
+				if (!string.IsNullOrEmpty(replyChannel))
 				{
 					try
 					{
-						var errorPayload = JsonSerializer.Serialize(new { error = "Internal error processing catalog request." });
-						var publisher = _redis.GetSubscriber();
-						await publisher.PublishAsync(RedisChannel.Literal(replyChannel), errorPayload);
+						var errorPayload = JsonSerializer.Serialize(new { error = $"Internal error: {ex.Message}" }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+						await _redis.GetSubscriber().PublishAsync(RedisChannel.Literal(replyChannel), errorPayload);
 					}
-					catch
-					{
-						// Swallow — don't let error reporting crash anything
-					}
+					catch { /* Ignore fails during error reporting */ }
 				}
 			}
+		}
+
+		private async Task HandleCatalogRequestAsync(RedisValue message)
+		{
+			await ExecuteBaseHandlerAsync(message, CatalogRequestChannel, async (scope, action, payload) =>
+			{
+				if (!payload.TryGetProperty("variantId", out var variantIdElement)
+					|| !Guid.TryParse(variantIdElement.GetString(), out var variantId))
+				{
+					throw new ArgumentException("Missing or invalid 'variantId'");
+				}
+
+				var catalogService = scope.ServiceProvider.GetRequiredService<ISourcingCatalogService>();
+				var response = await catalogService.GetCatalogsAsync(supplierId: null, variantId: variantId);
+
+				return new
+				{
+					variantId = variantId.ToString(),
+					catalogs = response.Payload
+				};
+			});
+		}
+
+		private async Task HandleInventoryRequestAsync(RedisValue message)
+		{
+			await ExecuteBaseHandlerAsync(message, InventoryRequestChannel, async (scope, action, payload) =>
+			{
+				var stockService = scope.ServiceProvider.GetRequiredService<IStockService>();
+				var batchService = scope.ServiceProvider.GetRequiredService<IBatchService>();
+
+				var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+				return action switch
+				{
+					"getOverallStats" => (await stockService.GetInventorySummaryAsync()).Payload,
+					"getInventory" => (await stockService.GetInventoryAsync(JsonSerializer.Deserialize<PerfumeGPT.Application.DTOs.Requests.Inventory.GetPagedInventoryRequest>(payload.GetRawText(), options)!)).Payload,
+					"getBatches" => (await batchService.GetBatchesAsync(JsonSerializer.Deserialize<PerfumeGPT.Application.DTOs.Requests.Inventory.Batches.GetBatchesRequest>(payload.GetRawText(), options)!)).Payload,
+					_ => throw new ArgumentException($"Invalid action: {action}")
+				};
+			});
+		}
+
+		private async Task HandleReviewRequestAsync(RedisValue message)
+		{
+			await ExecuteBaseHandlerAsync(message, ReviewRequestChannel, async (scope, action, payload) =>
+			{
+				var reviewService = scope.ServiceProvider.GetRequiredService<IReviewService>();
+				var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+				return action switch
+				{
+					"getStats" => payload.TryGetProperty("variantId", out var vIdEl) && Guid.TryParse(vIdEl.GetString(), out var vId)
+						? (await reviewService.GetVariantReviewStatisticsAsync(vId)).Payload
+						: throw new ArgumentException("Missing or invalid variantId for stats"),
+
+					"getList" => (await reviewService.GetReviewsAsync(JsonSerializer.Deserialize<PerfumeGPT.Application.DTOs.Requests.Reviews.GetPagedReviewsRequest>(payload.GetRawText(), options)!)).Payload,
+
+					"getVariantReviews" => payload.TryGetProperty("variantId", out var vIdEl2) && Guid.TryParse(vIdEl2.GetString(), out var vId2)
+						? (await reviewService.GetVariantReviewsAsync(vId2)).Payload
+						: throw new ArgumentException("Missing or invalid variantId for reviews"),
+
+					_ => throw new ArgumentException($"Invalid action: {action}")
+				};
+			});
 		}
 	}
 }

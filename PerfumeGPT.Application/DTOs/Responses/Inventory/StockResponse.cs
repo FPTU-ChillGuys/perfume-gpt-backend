@@ -16,6 +16,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Inventory
 		public int TotalQuantity { get; init; }
 		public int AvailableQuantity { get; init; }
 		public int LowStockThreshold { get; init; }
+		public decimal BasePrice { get; init; }
 		public StockStatus Status { get; init; }
 	}
 }
