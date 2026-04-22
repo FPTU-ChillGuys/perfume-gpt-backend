@@ -201,7 +201,6 @@ namespace PerfumeGPT.Application.Services
 			};
 		}
 
-
 		public async Task<BaseResponse<string>> ClearCartAsync(Guid userId, List<Guid>? itemIds, bool saveChanges = true)
 		{
 			var hasItems = await _unitOfWork.CartItems.HasItemsAsync(userId);
@@ -255,7 +254,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				return BaseResponse<GetCartItemsResponse>.Ok(
 					new GetCartItemsResponse { Items = [] },
-				   "Giỏ hàng trống");
+				  "Giỏ hàng trống");
 			}
 
 			// 2. Chuyển đổi sang định dạng của Pricing Engine
@@ -272,28 +271,37 @@ namespace PerfumeGPT.Application.Services
 
 			// 3. Chạy Pricing Engine (Truyền VoucherCode = null để chỉ lấy Promotion)
 			var (pricedItems, _, _, _) = await CalculatePricingEngineAsync(checkoutItems, null, userId, null);
+
+			// BƯỚC SỬA LỖI: Gộp các dòng bị cắt (Splitted Items) bằng cách SUM thay vì First()
 			var pricedItemByVariant = pricedItems
 				.GroupBy(x => x.VariantId)
-				.ToDictionary(g => g.Key, g => g.First());
+				.ToDictionary(g => g.Key, g => new
+				{
+					// Cộng dồn toàn bộ tiền giảm của các dòng bị cắt
+					TotalDiscount = g.Sum(x => x.Discount),
+					// Cộng dồn FinalTotal của dòng được giảm + dòng không được giảm
+					TotalFinalAmount = g.Sum(x => x.FinalTotal)
+				});
 
 			// 4. Map kết quả từ Engine ngược lại vào Response Items
 			var responseItems = rawItems.Select(rawItem =>
-			 {
-				 if (pricedItemByVariant.TryGetValue(rawItem.VariantId, out var pricedItem))
-				 {
-					 return rawItem with
-					 {
-						 Discount = pricedItem.Discount,
-						 FinalTotal = pricedItem.FinalTotal
-					 };
-				 }
+			{
+				if (pricedItemByVariant.TryGetValue(rawItem.VariantId, out var pricedAggregated))
+				{
+					return rawItem with
+					{
+						// Gán giá trị đã cộng dồn
+						Discount = pricedAggregated.TotalDiscount,
+						FinalTotal = pricedAggregated.TotalFinalAmount
+					};
+				}
 
-				 return rawItem with
-				 {
-					 Discount = 0m,
-					 FinalTotal = rawItem.SubTotal
-				 };
-			 }).ToList();
+				return rawItem with
+				{
+					Discount = 0m,
+					FinalTotal = rawItem.SubTotal
+				};
+			}).ToList();
 
 			return BaseResponse<GetCartItemsResponse>.Ok(
 			  new GetCartItemsResponse { Items = responseItems },
