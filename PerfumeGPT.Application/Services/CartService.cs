@@ -282,9 +282,6 @@ namespace PerfumeGPT.Application.Services
 			{
 				if (pricedItemByVariant.TryGetValue(rawItem.VariantId, out var pricedItem))
 				{
-					var safePromoQty = Math.Min(agg.PromotionalQuantity, rawItem.Quantity);
-					var safeRegularQty = Math.Max(0, rawItem.Quantity - safePromoQty);
-
 					return rawItem with
 					{
 						Discount = pricedItem.Discount,
@@ -292,11 +289,8 @@ namespace PerfumeGPT.Application.Services
 					};
 				}
 
-				// Nếu sản phẩm không có khuyến mãi nào
 				return rawItem with
 				{
-					PromotionalQuantity = 0,
-					RegularQuantity = rawItem.Quantity,
 					Discount = 0m,
 					FinalTotal = rawItem.SubTotal
 				};
