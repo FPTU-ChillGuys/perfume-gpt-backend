@@ -103,7 +103,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			var stocks = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
-			 .Select(s => new StockResponse
+			 .Select(s => new AiStockResponse
 			 {
 				 Id = s.Id,
 				 VariantId = s.VariantId,
@@ -121,6 +121,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				 AvailableQuantity = s.AvailableQuantity,
 				 LowStockThreshold = s.LowStockThreshold,
 				 BasePrice = s.ProductVariant.BasePrice,
+				 Type = s.ProductVariant.Type,
 				 Status = s.Status
 			 })
 				.ToListAsync();
@@ -132,7 +133,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		=> await _context.Stocks
 			.AsNoTracking()
 			.Where(s => s.VariantId == variantId && !s.ProductVariant.IsDeleted) // ADDED FILTER
-			.Select(s => new StockResponse
+			.Select(s => new AiStockResponse
 			{
 				Id = s.Id,
 				VariantId = s.VariantId,
@@ -150,6 +151,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				AvailableQuantity = s.AvailableQuantity,
 				LowStockThreshold = s.LowStockThreshold,
 				BasePrice = s.ProductVariant.BasePrice,
+				Type = s.ProductVariant.Type,
 				Status = s.Status
 			})
 			.FirstOrDefaultAsync();

@@ -4,6 +4,10 @@ using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.Interfaces.Services;
 using StackExchange.Redis;
 using System.Text.Json;
+using PerfumeGPT.Application.DTOs.Responses.Analytics;
+using PerfumeGPT.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 
 namespace PerfumeGPT.Infrastructure.ThirdParties
 {
@@ -18,6 +22,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 		private const string CatalogRequestChannel = "catalog_request";
 		private const string InventoryRequestChannel = "inventory_data_request";
 		private const string ReviewRequestChannel = "review_data_request";
+		private const string SalesRequestChannel = "sales_data_request";
 
 		private readonly IConnectionMultiplexer _redis;
 		private readonly IServiceScopeFactory _scopeFactory;
@@ -51,11 +56,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 						async (channel, message) => await HandleInventoryRequestAsync(message));
 
 					await subscriber.SubscribeAsync(
-						RedisChannel.Literal(ReviewRequestChannel),
-						async (channel, message) => await HandleReviewRequestAsync(message));
+						RedisChannel.Literal(SalesRequestChannel),
+						async (channel, message) => await HandleSalesRequestAsync(message));
 
-					_logger.LogInformation("[Redis] Successfully subscribed to channels: {Catalog}, {Inventory}, {Review}", 
-						CatalogRequestChannel, InventoryRequestChannel, ReviewRequestChannel);
+					_logger.LogInformation("[Redis] Successfully subscribed to channels: {Catalog}, {Inventory}, {Review}, {Sales}", 
+						CatalogRequestChannel, InventoryRequestChannel, ReviewRequestChannel, SalesRequestChannel);
 
 					// Wait here while the subscription is active. 
 					// SE.Redis will handle re-subscriptions automatically if the connection drops.
@@ -88,6 +93,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			await subscriber.UnsubscribeAsync(RedisChannel.Literal(CatalogRequestChannel));
 			await subscriber.UnsubscribeAsync(RedisChannel.Literal(InventoryRequestChannel));
 			await subscriber.UnsubscribeAsync(RedisChannel.Literal(ReviewRequestChannel));
+			await subscriber.UnsubscribeAsync(RedisChannel.Literal(SalesRequestChannel));
 			_logger.LogInformation("[Redis] Unsubscribed from all request channels.");
 			await base.StopAsync(cancellationToken);
 		}
@@ -180,11 +186,24 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 				return action switch
 				{
 					"getOverallStats" => (await stockService.GetInventorySummaryAsync()).Payload,
-					"getInventory" => (await stockService.GetInventoryAsync(JsonSerializer.Deserialize<PerfumeGPT.Application.DTOs.Requests.Inventory.GetPagedInventoryRequest>(payload.GetRawText(), options)!)).Payload,
+					"getInventory" => await GetInventoryAsObjectAsync(stockService, payload, options),
 					"getBatches" => (await batchService.GetBatchesAsync(JsonSerializer.Deserialize<PerfumeGPT.Application.DTOs.Requests.Inventory.Batches.GetBatchesRequest>(payload.GetRawText(), options)!)).Payload,
 					_ => throw new ArgumentException($"Invalid action: {action}")
 				};
 			});
+		}
+
+		private async Task<object> GetInventoryAsObjectAsync(IStockService stockService, JsonElement payload, JsonSerializerOptions options)
+		{
+			var request = JsonSerializer.Deserialize<PerfumeGPT.Application.DTOs.Requests.Inventory.GetPagedInventoryRequest>(payload.GetRawText(), options)!;
+			var result = await stockService.GetInventoryAsync(request);
+			if (result.Payload == null) return new { totalCount = 0, items = new object[0] };
+			
+			// Cast Items to object so System.Text.Json serializes their runtime type (AiStockResponse)
+			return new {
+				TotalCount = result.Payload.TotalCount,
+				Items = result.Payload.Items.Cast<object>()
+			};
 		}
 
 		private async Task HandleReviewRequestAsync(RedisValue message)
@@ -209,6 +228,66 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 					_ => throw new ArgumentException($"Invalid action: {action}")
 				};
 			});
+		}
+		private async Task HandleSalesRequestAsync(RedisValue message)
+		{
+			await ExecuteBaseHandlerAsync(message, SalesRequestChannel, async (scope, action, payload) =>
+			{
+				var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+				return action switch
+				{
+					"getSalesAnalytics" => await HandleGetSalesAnalyticsAsync(unitOfWork, payload),
+					_ => throw new ArgumentException($"Invalid action: {action}")
+				};
+			});
+		}
+
+		private async Task<object> HandleGetSalesAnalyticsAsync(IUnitOfWork unitOfWork, JsonElement payload)
+		{
+			int months = payload.TryGetProperty("months", out var m) ? m.GetInt32() : 2;
+			var startDate = DateTime.UtcNow.AddMonths(-months);
+
+			// 1. Get all active variants with basic info
+			var stocks = await unitOfWork.Stocks.GetAllAsync(
+				s => !s.ProductVariant.IsDeleted && !s.ProductVariant.Product.IsDeleted,
+				include: q => q.Include(s => s.ProductVariant).ThenInclude(pv => pv.Product)
+							   .Include(s => s.ProductVariant).ThenInclude(pv => pv.Concentration),
+				asNoTracking: true
+			);
+
+			// 2. Get all order details from the last N months
+			var orders = await unitOfWork.Orders.GetAllAsync(
+				o => o.CreatedAt >= startDate && 
+					 o.Status != OrderStatus.Cancelled && 
+					 o.Status != OrderStatus.Returned,
+				include: q => q.Include(o => o.OrderDetails),
+				asNoTracking: true
+			);
+
+			// Group order details by variant and date
+			var dailySalesByVariant = orders
+				.SelectMany(o => o.OrderDetails.Select(od => new { od.VariantId, Date = o.CreatedAt.ToString("yyyy-MM-dd"), od.Quantity, od.UnitPrice }))
+				.GroupBy(x => new { x.VariantId, x.Date })
+				.Select(g => new { g.Key.VariantId, g.Key.Date, QuantitySold = g.Sum(x => x.Quantity), Revenue = g.Sum(x => x.Quantity * x.UnitPrice) })
+				.GroupBy(x => x.VariantId)
+				.ToDictionary(g => g.Key, g => g.ToList());
+
+			var results = stocks.Select(s => new VariantSalesAnalyticsResponse
+			{
+				VariantId = s.VariantId,
+				Sku = s.ProductVariant.Sku,
+				ProductName = s.ProductVariant.Product.Name,
+				VolumeMl = s.ProductVariant.VolumeMl,
+				Type = s.ProductVariant.Type.ToString(),
+				BasePrice = s.ProductVariant.BasePrice,
+				Status = s.ProductVariant.Status.ToString(),
+				ConcentrationName = s.ProductVariant.Concentration?.Name,
+				DailySales = dailySalesByVariant.TryGetValue(s.VariantId, out var sales) 
+					? sales.Select(ds => new DailySalesData { Date = ds.Date, QuantitySold = ds.QuantitySold, Revenue = (decimal)ds.Revenue }).ToList()
+					: new List<DailySalesData>()
+			}).ToList();
+
+			return results;
 		}
 	}
 }
