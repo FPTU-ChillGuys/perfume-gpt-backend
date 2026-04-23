@@ -17,15 +17,10 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs.Schedulers
 		{
 			using var scope = _serviceScopeFactory.CreateScope();
 
-			// Process expired stock reservations every 5 minutes
+			// Cleanup expired orders/reservations every minute
 			RecurringJob.AddOrUpdate<StockReservationJob>(
-				"process-expired-reservations",
-				job => job.ProcessExpiredReservationsAsync(),
-				"*/5 * * * *"); // Cron: every 5 minutes
-
-			RecurringJob.AddOrUpdate<StockReservationJob>(
-				"release-unpaid-deposit-orders",
-				job => job.ReleaseUnpaidDepositOrdersAsync(),
+			 "cleanup-expired-orders-and-reservations",
+				job => job.CleanupExpiredOrdersAndReservationsAsync(),
 				"* * * * *"); // Cron: every minute
 
 			// Cleanup expired temporary media every hour

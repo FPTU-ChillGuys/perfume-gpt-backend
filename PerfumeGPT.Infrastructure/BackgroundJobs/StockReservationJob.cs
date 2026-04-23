@@ -14,35 +14,19 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 			_logger = logger;
 		}
 
-		public async Task ProcessExpiredReservationsAsync()
+		public async Task CleanupExpiredOrdersAndReservationsAsync()
 		{
 			try
 			{
-				var result = await _stockReservationService.ProcessExpiredReservationsAsync();
+				var (ordersCleaned, reservationsCleaned) = await _stockReservationService.CleanupExpiredOrdersAndReservationsAsync();
 
-				if (result > 0)
-					_logger.LogInformation("Processed {Result} expired reservations.", result);
+				if (ordersCleaned > 0 || reservationsCleaned > 0)
+					_logger.LogInformation("Processed {OrdersCleaned} expired orders and {ReservationsCleaned} expired reservations.", ordersCleaned, reservationsCleaned);
 			}
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, "Error processing expired reservations.");
+				_logger.LogError(ex, "Error cleaning up expired orders/reservations.");
 				throw; // Re-throw for Hangfire retry
-			}
-		}
-
-		public async Task ReleaseUnpaidDepositOrdersAsync()
-		{
-			try
-			{
-				var result = await _stockReservationService.ReleaseUnpaidDepositOrdersAsync();
-
-				if (result > 0)
-					_logger.LogInformation("Released {Result} expired unpaid-deposit orders.", result);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Error releasing expired unpaid-deposit orders.");
-				throw;
 			}
 		}
 	}

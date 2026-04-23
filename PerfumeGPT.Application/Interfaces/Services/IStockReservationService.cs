@@ -6,7 +6,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task ReserveExactBatchStockForOrderAsync(Guid orderId, List<(Guid VariantId, Guid BatchId, int Quantity)> items, DateTime? expiresAt);
 		Task CommitReservationAsync(Guid orderId);
 		Task ReleaseOrRestockCancelledOrderAsync(Guid orderId);
-		Task<int> ProcessExpiredReservationsAsync();
-		Task<int> ReleaseUnpaidDepositOrdersAsync();
+		Task<(int OrdersCleaned, int ReservationsCleaned)> CleanupExpiredOrdersAndReservationsAsync();
 	}
 }
