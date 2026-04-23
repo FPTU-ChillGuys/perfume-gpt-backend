@@ -104,10 +104,23 @@ namespace PerfumeGPT.Domain.Entities
 		}
 
 		// Business logic methods
-		public void SetTotalAmount(decimal totalAmount)
+		public void RecalculateRequiredDeposit(StorePolicy currentSetting, bool isCodOrStoreOrder)
 		{
-			ValidateTotalAmount(totalAmount);
-			TotalAmount = totalAmount;
+			if (currentSetting is null)
+				throw DomainException.BadRequest("Cấu hình đặt cọc là bắt buộc.");
+
+			// Nếu khách chuyển sang trả Full (không phải COD/Store), xóa tiền cọc
+			if (!isCodOrStoreOrder || !currentSetting.IsDepositRequiredForCOD)
+			{
+				RequiredDepositAmount = 0;
+				// Lưu ý: Không nên set PaymentExpiresAt = null ở đây. 
+				// Vì nếu khách chọn VNPay full 100%, đơn hàng VẪN cần có PaymentExpiresAt (ví dụ 15 phút).
+				// Việc set Expiration Time sẽ được Service lo ở bước 5.
+				return;
+			}
+
+			// Tự động tính toán số tiền cọc dựa trên phần trăm
+			RequiredDepositAmount = decimal.Round(TotalAmount * currentSetting.RequiredDepositPercentage / 100m, 0, MidpointRounding.AwayFromZero);
 		}
 
 		public void AssignVoucher(UserVoucher userVoucher)

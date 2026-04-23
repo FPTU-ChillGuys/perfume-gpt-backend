@@ -220,19 +220,30 @@ namespace PerfumeGPT.Application.Services
 				bool isStillDepositFlow = false;
 				decimal remainingToCollectAfterDeposit = 0;
 
-				// 💥 ĐÃ SỬA LỖI BUG: Chỉ cần có value được gửi lên là tính là Đổi Phương Thức
 				if (request.NewPaymentMethod.HasValue)
 				{
 					var targetMethod = request.NewPaymentMethod.Value;
 					bool isCodOrStore = targetMethod == PaymentMethod.CashOnDelivery || targetMethod == PaymentMethod.CashInStore;
 
+					// BỔ SUNG LOGIC: TÁI TÍNH TOÁN TIỀN CỌC NẾU ĐƠN HÀNG ĐANG LÀ 0đ CỌC (TRẢ FULL -> CỌC)
+					// HOẶC KHÁCH TỪ CỌC -> TRẢ FULL (Cần set RequiredDepositAmount về 0)
+					if ((isCodOrStore && order.RequiredDepositAmount == 0) || (!isCodOrStore && order.RequiredDepositAmount > 0))
+					{
+						var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync()
+							?? throw AppException.NotFound("Không tìm thấy chính sách hệ thống.");
+
+						// Entity tự tính toán và cập nhật giá trị
+						order.RecalculateRequiredDeposit(storePolicy, isCodOrStore);
+					}
+
 					// RÀO CHẮN 1: Chọn trả Full nhưng lại đòi cọc
 					if (!isCodOrStore && request.NewDepositMethod.HasValue)
 						throw AppException.BadRequest("Đơn hàng thanh toán toàn bộ không được đính kèm cổng thanh toán cọc.");
 
+					// Lúc này order.RequiredDepositAmount đã được cập nhật thành số dương (nếu có chính sách)
 					if (isCodOrStore && order.RequiredDepositAmount > 0)
 					{
-						// KỊCH BẢN A: Đổi cổng Cọc (Ví dụ VNPay cọc -> Momo cọc)
+						// KỊCH BẢN A: Đổi cổng Cọc
 						if (!request.NewDepositMethod.HasValue)
 							throw AppException.BadRequest("Vui lòng chọn cổng thanh toán để đặt cọc.");
 
@@ -252,7 +263,7 @@ namespace PerfumeGPT.Application.Services
 					}
 					else
 					{
-						// KỊCH BẢN B: Đổi sang trả Full 100% (Ví dụ COD cọc -> VNPay full)
+						// KỊCH BẢN B: Đổi sang trả Full 100%
 						transactionMethod = targetMethod;
 						amountToPay = order.RemainingAmount > 0 ? order.RemainingAmount : order.TotalAmount;
 					}
