@@ -17,6 +17,7 @@ namespace PerfumeGPT.Domain.Entities
 		public OrderStatus Status { get; private set; }
 		public decimal TotalAmount { get; private set; }
 		public decimal RequiredDepositAmount { get; private set; }
+		public decimal PolicyDepositAmount { get; private set; }
 		public decimal PaidAmount { get; private set; } = 0;
 		public decimal RemainingAmount => TotalAmount - PaidAmount;
 		public PaymentStatus PaymentStatus { get; private set; }
@@ -55,9 +56,9 @@ namespace PerfumeGPT.Domain.Entities
 
 			ValidateTotalAmount(totalAmount);
 
-			decimal depositAmount = isCodOrder && currentSetting.IsDepositRequiredForCOD
-				  ? decimal.Round(totalAmount * currentSetting.RequiredDepositPercentage / 100m, 0, MidpointRounding.AwayFromZero)
-				  : 0;
+			// 2. TÁCH BẠCH: Tính mức cọc hệ thống (Policy) và Mức cọc thực tế (Required)
+			decimal policyDeposit = decimal.Round(totalAmount * currentSetting.RequiredDepositPercentage / 100m, 0, MidpointRounding.AwayFromZero);
+			decimal actualRequiredDeposit = isCodOrder && currentSetting.IsDepositRequiredForCOD ? policyDeposit : 0;
 
 			return new Order
 			{
@@ -67,9 +68,12 @@ namespace PerfumeGPT.Domain.Entities
 				Status = OrderStatus.Pending,
 				PaymentStatus = PaymentStatus.Unpaid,
 				TotalAmount = totalAmount,
-				RequiredDepositAmount = depositAmount,
+				RequiredDepositAmount = actualRequiredDeposit,
+				PolicyDepositAmount = policyDeposit, // Lưu cứng vào Database
 				PaidAmount = 0,
-				PaymentExpiresAt = depositAmount > 0 ? DateTime.UtcNow.AddMinutes(currentSetting.DepositTimeoutMinutes) : null
+
+				// 3. FIX BUG KẸT TỒN KHO: LUÔN LUÔN gán ExpirationTime (Dù trả cọc hay trả Full)
+				PaymentExpiresAt = DateTime.UtcNow.AddMinutes(currentSetting.DepositTimeoutMinutes)
 			};
 		}
 
@@ -81,10 +85,14 @@ namespace PerfumeGPT.Domain.Entities
 
 			ValidateTotalAmount(totalAmount);
 
-			// Tính tiền cọc nếu là đơn COD
-			decimal depositAmount = isCodOrder && currentSetting != null && currentSetting.IsDepositRequiredForCOD
-				  ? decimal.Round(totalAmount * currentSetting.RequiredDepositPercentage / 100m, 0, MidpointRounding.AwayFromZero)
-				  : 0;
+			// Tính toán tương tự cho Offline
+			decimal policyDeposit = currentSetting != null
+				? decimal.Round(totalAmount * currentSetting.RequiredDepositPercentage / 100m, 0, MidpointRounding.AwayFromZero)
+				: 0;
+
+			decimal actualRequiredDeposit = isCodOrder && currentSetting != null && currentSetting.IsDepositRequiredForCOD
+				? policyDeposit
+				: 0;
 
 			return new Order
 			{
@@ -96,31 +104,46 @@ namespace PerfumeGPT.Domain.Entities
 				Status = OrderStatus.Pending,
 				PaymentStatus = PaymentStatus.Unpaid,
 				TotalAmount = totalAmount,
-				RequiredDepositAmount = depositAmount,
+				RequiredDepositAmount = actualRequiredDeposit,
+				PolicyDepositAmount = policyDeposit, // Lưu cứng
 				PaidAmount = 0,
-				// Gán thời gian hết hạn thanh toán nếu có cọc
-				PaymentExpiresAt = depositAmount > 0 ? DateTime.UtcNow.AddMinutes(currentSetting!.DepositTimeoutMinutes) : null
+
+				// Với Offline CashInStore, nếu không cọc thì có thể thu tiền mặt ngay, 
+				// nhưng nếu trả qua Gateway thì vẫn cần Timeout. Để an toàn, cứ gán Timeout nếu có Setting.
+				PaymentExpiresAt = currentSetting != null ? DateTime.UtcNow.AddMinutes(currentSetting.DepositTimeoutMinutes) : null
 			};
 		}
 
 		// Business logic methods
+
+		public void ToggleDepositRequirement(bool isCodOrStoreOrder)
+		{
+			// Nếu chuyển sang trả Full (Không cọc)
+			if (!isCodOrStoreOrder)
+			{
+				RequiredDepositAmount = 0;
+				return;
+			}
+
+			// Nếu chuyển sang COD/Store -> Lấy đúng mức cọc đã lưu từ đầu ra gán vào!
+			RequiredDepositAmount = PolicyDepositAmount;
+		}
+
 		public void RecalculateRequiredDeposit(StorePolicy currentSetting, bool isCodOrStoreOrder)
 		{
 			if (currentSetting is null)
 				throw DomainException.BadRequest("Cấu hình đặt cọc là bắt buộc.");
 
-			// Nếu khách chuyển sang trả Full (không phải COD/Store), xóa tiền cọc
+			// Cập nhật lại Policy snapshot nếu TotalAmount có thay đổi
+			PolicyDepositAmount = decimal.Round(TotalAmount * currentSetting.RequiredDepositPercentage / 100m, 0, MidpointRounding.AwayFromZero);
+
 			if (!isCodOrStoreOrder || !currentSetting.IsDepositRequiredForCOD)
 			{
 				RequiredDepositAmount = 0;
-				// Lưu ý: Không nên set PaymentExpiresAt = null ở đây. 
-				// Vì nếu khách chọn VNPay full 100%, đơn hàng VẪN cần có PaymentExpiresAt (ví dụ 15 phút).
-				// Việc set Expiration Time sẽ được Service lo ở bước 5.
 				return;
 			}
 
-			// Tự động tính toán số tiền cọc dựa trên phần trăm
-			RequiredDepositAmount = decimal.Round(TotalAmount * currentSetting.RequiredDepositPercentage / 100m, 0, MidpointRounding.AwayFromZero);
+			RequiredDepositAmount = PolicyDepositAmount;
 		}
 
 		public void AssignVoucher(UserVoucher userVoucher)

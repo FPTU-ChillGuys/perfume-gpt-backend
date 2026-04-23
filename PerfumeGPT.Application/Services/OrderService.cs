@@ -586,11 +586,11 @@ namespace PerfumeGPT.Application.Services
 				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Preparing && order.Status != OrderStatus.ReadyToPick)
-					throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending hoặc Preparing hoặc ReadyToPick.");
+					throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending, Preparing hoặc ReadyToPick.");
 
-				bool isCashInStorePaid = order.Type == OrderType.Offline && order.PaymentTransactions.Any(p => p.Method == PaymentMethod.CashInStore && p.TransactionStatus == TransactionStatus.Success);
 				var isRefundRequired = order.PaidAmount > 0;
 
+				// MAKER-CHECKER: Nếu đã thu tiền, nhân viên không được tự hoàn tiền, phải tạo Request
 				if (isRefundRequired)
 				{
 					var hasPendingCancelRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(
@@ -603,7 +603,7 @@ namespace PerfumeGPT.Application.Services
 					{
 						Reason = request.Reason,
 						IsRefundRequired = true,
-						RefundAmount = order.PaidAmount,
+						RefundAmount = order.PaidAmount, // Cửa hàng hủy nên trả 100% không phạt
 						StaffNote = $"Cửa hàng chủ động hủy. Hoàn trả 100%. Lý do: {request.Note}"
 					};
 
@@ -612,15 +612,11 @@ namespace PerfumeGPT.Application.Services
 
 					await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
 					createdCancelRequestId = cancelRequest.Id;
-					return BaseResponse<string>.Ok("Gửi yêu cầu hủy đơn thành công.");
+					return BaseResponse<string>.Ok("Đơn hàng đã thanh toán. Đã tạo yêu cầu hủy chờ Quản lý duyệt hoàn tiền.");
 				}
 
+				// NẾU CHƯA THU TIỀN: Hủy trực tiếp ngay lập tức
 				await HandleOrderCancellationAsync(order, request.Reason);
-
-				if (isCashInStorePaid)
-				{
-					// Ví dụ: await _paymentService.CreateCashRefundTransactionAsync(order.Id, order.TotalAmount);
-				}
 
 				order.SetStaff(staffId);
 				_unitOfWork.Orders.Update(order);
@@ -634,8 +630,8 @@ namespace PerfumeGPT.Application.Services
 			{
 				await _notificationService.SendToRoleAsync(
 					UserRole.admin,
-					"Yêu cầu hủy đơn mới từ nhân viên",
-					$"Nhân viên yêu cầu duyệt hủy đơn #{orderId}.",
+					"Yêu cầu duyệt hoàn tiền (Từ nhân viên)",
+					$"Nhân viên yêu cầu duyệt hủy và hoàn tiền cho đơn #{orderId}.",
 					NotificationType.Warning,
 					referenceId: createdCancelRequestId,
 					referenceType: NotifiReferecneType.OrderCancelRequest);
@@ -646,7 +642,7 @@ namespace PerfumeGPT.Application.Services
 				await _notificationService.SendToUserAsync(
 					customerIdToNotify.Value,
 					"Đơn hàng đã bị hủy",
-					$"Đơn hàng #{orderId} đã bị hủy. Lý do: {request.Reason}.",
+					$"Đơn hàng #{orderId} của bạn đã bị hủy từ hệ thống. Lý do: {request.Reason}.",
 					NotificationType.Warning,
 					referenceId: orderId,
 					referenceType: NotifiReferecneType.Order);
@@ -660,63 +656,64 @@ namespace PerfumeGPT.Application.Services
 			Guid? createdCancelRequestId = null;
 
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			   {
-				   var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(orderId)
-					 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+			{
+				var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(orderId)
+					?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
-				   // Validate authorization
-				   order.EnsureOwnedBy(userId);
+				// Validate authorization
+				order.EnsureOwnedBy(userId);
 
-				   // Validate order type
-				   order.EnsureOnlineOrder();
+				// Validate order type
+				order.EnsureOnlineOrder();
 
-				   if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Preparing && order.Status != OrderStatus.ReadyToPick)
-					   throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending hoặc Preparing.");
+				if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Preparing && order.Status != OrderStatus.ReadyToPick)
+					throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending, Preparing hoặc ReadyToPick.");
 
-				   var penaltyAmount = 0m;
-				   if (order.Status == OrderStatus.Preparing || order.Status == OrderStatus.ReadyToPick)
-				   {
-					   penaltyAmount = order.RequiredDepositAmount; // Phạt bằng đúng tiền cọc
-				   }
+				// 💥 ĐÃ SỬA: Tận dụng Snapshot để lấy mức phạt chuẩn xác (O(1) - Không cần query DB)
+				var penaltyAmount = 0m;
+				if (order.Status == OrderStatus.Preparing || order.Status == OrderStatus.ReadyToPick)
+				{
+					penaltyAmount = order.PolicyDepositAmount; // Phạt bằng đúng mức cọc quy định lúc tạo đơn
+				}
 
-				   // Số tiền thực nhận lại = Tổng tiền đã trả - Tiền phạt
-				   var actualRefundAmount = Math.Max(0, order.PaidAmount - penaltyAmount);
-				   var isRefundRequired = actualRefundAmount > 0;
+				// Số tiền thực nhận lại = Tổng tiền đã trả - Tiền phạt
+				var actualRefundAmount = Math.Max(0, order.PaidAmount - penaltyAmount);
+				var isRefundRequired = actualRefundAmount > 0;
 
-				   // Pending + Unpaid => auto cancel immediately
-				   if (order.Status == OrderStatus.Pending && !isRefundRequired)
-				   {
-					   await HandleOrderCancellationAsync(order, request.Reason);
-					   _unitOfWork.Orders.Update(order);
+				// Pending + Unpaid => auto cancel immediately
+				if (order.Status == OrderStatus.Pending && !isRefundRequired)
+				{
+					await HandleOrderCancellationAsync(order, request.Reason);
+					_unitOfWork.Orders.Update(order);
 
-					   return BaseResponse<string>.Ok("Hủy đơn hàng thành công.");
-				   }
+					return BaseResponse<string>.Ok("Hủy đơn hàng thành công.");
+				}
 
-				   var hasPendingCancelRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(
-					   x => x.OrderId == order.Id && x.Status == CancelRequestStatus.Pending);
+				var hasPendingCancelRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(
+					x => x.OrderId == order.Id && x.Status == CancelRequestStatus.Pending);
 
-				   if (hasPendingCancelRequest)
-					   throw AppException.BadRequest("Đơn hàng này đã có yêu cầu hủy đang chờ xử lý.");
+				if (hasPendingCancelRequest)
+					throw AppException.BadRequest("Đơn hàng này đã có yêu cầu hủy đang chờ xử lý.");
 
-				   var payload = new CancelRequestPayload
-				   {
-					   Reason = request.Reason,
-					   IsRefundRequired = isRefundRequired,
-					   RefundAmount = isRefundRequired ? actualRefundAmount : null,
-					   StaffNote = penaltyAmount > 0 ? $"Khách hàng hủy khi đơn đang xử lý. Áp dụng phạt cọc: {penaltyAmount:N0}đ." : null,
-					   RefundBankName = request.RefundBankName,
-					   RefundAccountNumber = request.RefundAccountNumber,
-					   RefundAccountName = request.RefundAccountName
-				   };
+				var payload = new CancelRequestPayload
+				{
+					Reason = request.Reason,
+					IsRefundRequired = isRefundRequired,
+					RefundAmount = isRefundRequired ? actualRefundAmount : null,
+					StaffNote = penaltyAmount > 0 ? $"Khách hàng hủy khi đơn đang xử lý. Áp dụng phạt (tương đương cọc): {penaltyAmount:N0}đ." : null,
+					RefundBankName = request.RefundBankName,
+					RefundAccountNumber = request.RefundAccountNumber,
+					RefundAccountName = request.RefundAccountName
+				};
 
-				   var cancelRequest = OrderCancelRequest.Create(order.Id, userId, payload);
-				   cancelRequest.Order = order;
+				var cancelRequest = OrderCancelRequest.Create(order.Id, userId, payload);
+				cancelRequest.Order = order;
 
-				   await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
-				   createdCancelRequestId = cancelRequest.Id;
+				await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
+				createdCancelRequestId = cancelRequest.Id;
 
-				   return BaseResponse<string>.Ok("Gửi yêu cầu hủy đơn thành công.");
-			   });
+				return BaseResponse<string>.Ok("Gửi yêu cầu hủy đơn thành công.");
+			});
 
 			if (createdCancelRequestId.HasValue)
 			{
