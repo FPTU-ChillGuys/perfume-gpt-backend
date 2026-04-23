@@ -236,11 +236,11 @@ namespace PerfumeGPT.Application.Services
 				// ==========================================
 				// PHẦN 1: DỌN DẸP ĐƠN HÀNG HẾT HẠN THANH TOÁN
 				// ==========================================
-				// Tìm tất cả đơn hàng Pending có gài giờ hết hạn và đã lố giờ
 				var expiredOrders = await _unitOfWork.Orders.GetAllAsync(
 					o => o.Status == OrderStatus.Pending
+						&& o.PaymentStatus == PaymentStatus.Unpaid // BẢO VỆ ĐƠN ĐÃ CỌC: Chỉ quét đơn Unpaid
 						&& o.PaymentExpiresAt.HasValue
-					 && o.PaymentExpiresAt.Value < now,
+						 && o.PaymentExpiresAt.Value < now,
 					include: q => q.Include(o => o.OrderDetails));
 
 				foreach (var order in expiredOrders)
@@ -254,13 +254,13 @@ namespace PerfumeGPT.Application.Services
 						 p => p.OrderId == order.Id
 							 && p.TransactionStatus == TransactionStatus.Pending);
 
-					// 3. Hoàn trả Quota Khuyến mãi (Promotion)
 					foreach (var pendingPayment in pendingPayments)
 					{
 						pendingPayment.MarkCancelled("Đơn hàng đã bị hủy do hết hạn thanh toán.");
 						_unitOfWork.Payments.Update(pendingPayment);
 					}
 
+					// 3. Hoàn trả Quota Khuyến mãi (Promotion)
 					var promoUsageList = order.OrderDetails
 						.Where(x => x.PromotionItemId.HasValue)
 						.GroupBy(x => x.PromotionItemId!.Value)
@@ -276,7 +276,7 @@ namespace PerfumeGPT.Application.Services
 						}
 					}
 
-					// 4. Giải phóng Tồn kho (Sử dụng lại hàm siêu xịn bạn đã nâng cấp)
+					// 4. Giải phóng Tồn kho
 					await ReleaseOrRestockCancelledOrderAsync(order.Id);
 					cleanedOrderIds.Add(order.Id);
 
@@ -288,12 +288,14 @@ namespace PerfumeGPT.Application.Services
 				// ==========================================
 				// PHẦN 2: QUÉT RÁC RESERVATION BỊ KẸT (Orphaned)
 				// ==========================================
-				// Đề phòng trường hợp có Reservation được tạo mà Đơn hàng bị lỗi không lưu được,
-				// hoặc bị kẹt lại vì một bug nào đó trong quá khứ.
 				var orphanedReservations = await _unitOfWork.StockReservations.GetAllAsync(
 					 r => r.Status == ReservationStatus.Reserved
 						 && r.ExpiresAt.HasValue
-						 && r.ExpiresAt.Value < now,
+						 && r.ExpiresAt.Value < now
+						 // BẢO VỆ TỒN KHO CỦA ĐƠN ĐÃ CỌC/ĐÃ THANH TOÁN
+						 // Chỉ nhả kho nếu Reservation này không gắn với Order nào, 
+						 // HOẶC Order đó chưa trả tiền (Unpaid), HOẶC Order đó đã bị Hủy (Cancelled)
+						 && (r.Order == null || r.Order.PaymentStatus == PaymentStatus.Unpaid || r.Order.Status == OrderStatus.Cancelled),
 					 include: q => q.Include(r => r.Batch));
 
 				if (orphanedReservations.Any())
@@ -319,7 +321,7 @@ namespace PerfumeGPT.Application.Services
 							_unitOfWork.Stocks.Update(stock);
 						}
 
-						reservation.Release(); // Chuyển trạng thái sang Released
+						reservation.Release();
 						_unitOfWork.StockReservations.Update(reservation);
 						cleanedOrphanReservationsCount++;
 					}
