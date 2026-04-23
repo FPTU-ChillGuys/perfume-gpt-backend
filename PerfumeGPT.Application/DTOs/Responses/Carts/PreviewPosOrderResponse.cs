@@ -2,12 +2,13 @@
 
 namespace PerfumeGPT.Application.DTOs.Responses.Carts
 {
-	public class PreviewPosOrderResponse
+	public record PreviewPosOrderResponse
 	{
-		public List<PosOrderDetailListItem> Items { get; set; } = [];
-		public decimal SubTotal { get; set; }
-		public decimal ShippingFee { get; set; }
-		public decimal Discount { get; set; }
-		public decimal TotalPrice { get; set; }
+		public List<PosOrderDetailListItem> Items { get; init; } = [];
+		public decimal SubTotal { get; init; }
+		public decimal ShippingFee { get; init; }
+		public decimal Discount { get; init; }
+		public decimal TotalPrice { get; init; }
+		public decimal RequiredDepositAmount { get; init; }
 	}
 }
