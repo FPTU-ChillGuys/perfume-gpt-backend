@@ -28,7 +28,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<IEnumerable<CatalogItemResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<IEnumerable<CatalogItemResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<IEnumerable<CatalogItemResponse>>>> GetCatalogs(
 			[FromQuery] int? supplierId,
 			[FromQuery] Guid? variantId)
@@ -39,9 +39,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> CreateCatalogItem([FromBody] CreateCatalogItemRequest request)
 		{
 			var validation = await ValidateRequestAsync(_createValidator, request);
@@ -53,9 +51,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPut("{id:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateCatalogItem([FromRoute] Guid id, [FromBody] UpdateCatalogItemRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateValidator, request);
@@ -67,8 +63,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPut("{id:guid}/set-primary")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> SetAsPrimary([FromRoute] Guid id)
 		{
 			var result = await _sourcingCatalogService.SetAsPrimaryAsync(id);
@@ -77,8 +72,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpDelete("{id:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> DeleteCatalogItem([FromRoute] Guid id)
 		{
 			var result = await _sourcingCatalogService.DeleteItemAsync(id);

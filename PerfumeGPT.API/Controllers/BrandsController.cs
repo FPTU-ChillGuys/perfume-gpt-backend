@@ -28,6 +28,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("lookup")]
 		[ProducesResponseType(typeof(BaseResponse<List<BrandLookupItem>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<BrandLookupItem>>>> GetBrandLookupAsync()
 		{
 			var result = await _brandService.GetBrandLookupAsync();
@@ -36,6 +37,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<List<BrandResponse>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<BrandResponse>>>> GetAllBrandsAsync()
 		{
 			var result = await _brandService.GetAllBrandsAsync();
@@ -44,7 +46,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BrandResponse>>> GetBrandByIdAsync([FromRoute] int id)
 		{
 			var result = await _brandService.GetBrandByIdAsync(id);
@@ -53,6 +55,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost]
 		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BrandResponse>>> CreateBrandAsync([FromBody] CreateBrandRequest request)
 		{
 			var validation = await ValidateRequestAsync(_createValidator, request);
@@ -64,7 +67,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPut("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<BrandResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BrandResponse>>> UpdateBrandAsync([FromRoute] int id, [FromBody] UpdateBrandRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateValidator, request);
@@ -76,7 +79,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpDelete("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteBrandAsync([FromRoute] int id)
 		{
 			var result = await _brandService.DeleteBrandAsync(id);

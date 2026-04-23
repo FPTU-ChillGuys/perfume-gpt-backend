@@ -47,7 +47,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet]
 		[Authorize(Roles = "admin,staff")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderReturnRequestResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderReturnRequestResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<OrderReturnRequestResponse>>>> GetPagedReturnRequests([FromQuery] GetPagedReturnRequestsRequest request)
 		{
 			var response = await _returnRequestService.GetPagedReturnRequestsAsync(request);
@@ -57,7 +57,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("my-requests")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderReturnRequestResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderReturnRequestResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<OrderReturnRequestResponse>>>> GetMyReturnRequests([FromQuery] GetPagedUserReturnRequestsRequest request)
 		{
 			var userId = GetCurrentUserId();
@@ -68,9 +68,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("{id:guid}")]
 		[Authorize(Roles = "user,admin,staff")]
 		[ProducesResponseType(typeof(BaseResponse<OrderReturnRequestResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<OrderReturnRequestResponse>), StatusCodes.Status403Forbidden)]
-		[ProducesResponseType(typeof(BaseResponse<OrderReturnRequestResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<OrderReturnRequestResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<OrderReturnRequestResponse>>> GetReturnRequestById([FromRoute] Guid id)
 		{
 			var requesterId = GetCurrentUserId();
@@ -83,6 +81,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> CreateReturnRequest([FromBody] CreateReturnRequestDto request)
 		{
 			var validation = await ValidateRequestAsync(_createReturnRequestValidator, request);
@@ -96,6 +95,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{id:guid}")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateReturnRequest([FromRoute] Guid id, [FromBody] UpdateReturnRequestDto request)
 		{
 			var validation = await ValidateRequestAsync(_updateReturnRequestValidator, request);
@@ -109,6 +109,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{id:guid}/cancel")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> CancelReturnRequest([FromRoute] Guid id)
 		{
 			var customerId = GetCurrentUserId();
@@ -119,6 +120,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{id:guid}/review")]
 		[Authorize(Roles = "admin,staff")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> ProcessInitialRequest([FromRoute] Guid id, [FromBody] ProcessInitialReturnDto request)
 		{
 			var validation = await ValidateRequestAsync(_processInitialReturnValidator, request);
@@ -132,6 +134,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{id:guid}/start-inspection")]
 		[Authorize(Roles = "admin,staff")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> StartInspection([FromRoute] Guid id, [FromBody] StartInspectionDto request)
 		{
 			var validation = await ValidateRequestAsync(_startInspectionValidator, request);
@@ -145,6 +148,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{id:guid}/complete-inspection")]
 		[Authorize(Roles = "admin,staff")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> RecordInspectionResult([FromRoute] Guid id, [FromBody] RecordInspectionDto request)
 		{
 			var validation = await ValidateRequestAsync(_recordInspectionValidator, request);
@@ -158,6 +162,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{id:guid}/fail-inspection")]
 		[Authorize(Roles = "admin,staff")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> RejectAfterInspection([FromRoute] Guid id, [FromBody] RejectInspectionDto request)
 		{
 			var validation = await ValidateRequestAsync(_rejectInspectionValidator, request);
@@ -171,6 +176,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{id:guid}/refund")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> ProcessRefund([FromRoute] Guid id, [FromBody] ProcessRefundRequest request)
 		{
 			var financeAdminId = GetCurrentUserId();
@@ -183,8 +189,7 @@ namespace PerfumeGPT.API.Controllers
 		[RequestSizeLimit(104_857_600)]
 		[RequestFormLimits(MultipartBodyLengthLimit = 104_857_600)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryVideos([FromForm] OrderReturnRequestUploadMediaRequest request)
 		{
 			var userId = GetCurrentUserId();

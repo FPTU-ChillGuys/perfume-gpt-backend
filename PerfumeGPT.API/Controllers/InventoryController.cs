@@ -22,7 +22,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("stock")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<StockResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<StockResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<StockResponse>>>> GetInventory([FromQuery] GetPagedInventoryRequest request)
 		{
 			var response = await _stockService.GetInventoryAsync(request);
@@ -32,8 +32,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("stock/variant/{variantId:guid}")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<StockResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<StockResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<StockResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<StockResponse>>> GetStockByVariantId([FromRoute] Guid variantId)
 		{
 			var response = await _stockService.GetStockByVariantIdAsync(variantId);
@@ -43,7 +42,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("summary")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<InventorySummaryResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<InventorySummaryResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<InventorySummaryResponse>>> GetInventorySummary()
 		{
 			var response = await _stockService.GetInventorySummaryAsync();

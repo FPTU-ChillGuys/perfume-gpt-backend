@@ -7,7 +7,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	public interface IAttributeRepository : IGenericRepository<Attribute>
 	{
 		Task<List<int>> GetExistingIdsAsync(IEnumerable<int> ids);
-		Task<List<AttributeLookupItem>> GetLookupListAsync(bool? isVariantLevel = null);
+		Task<List<AttributeLookupItem>> GetLookupListAsync(bool isVariantLevel);
 		Task<List<Attribute>> GetByIdsAsync(IEnumerable<int> ids);
 		Task<bool> IsInUseAsync(int attributeId);
 	}

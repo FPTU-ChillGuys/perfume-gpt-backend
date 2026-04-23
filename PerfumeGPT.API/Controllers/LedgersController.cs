@@ -22,7 +22,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("cash-flow")]
 		[Authorize(Roles = "staff,admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<CashFlowLedgerItemResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<CashFlowLedgerItemResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<CashFlowLedgerItemResponse>>>> GetCashFlowLedgers([FromQuery] GetCashFlowLedgersRequest request)
 		{
 			var response = await _ledgerService.GetCashFlowLedgersAsync(request);
@@ -32,7 +32,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("inventory")]
 		[Authorize(Roles = "staff,admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<InventoryLedgerItemResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<InventoryLedgerItemResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<InventoryLedgerItemResponse>>>> GetInventoryLedgers([FromQuery] GetInventoryLedgersRequest request)
 		{
 			var response = await _ledgerService.GetInventoryLedgersAsync(request);

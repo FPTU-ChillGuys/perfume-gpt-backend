@@ -28,6 +28,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("lookup")]
 		[ProducesResponseType(typeof(BaseResponse<List<SupplierLookupItem>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<SupplierLookupItem>>>> GetSupplierLookupList()
 		{
 			var result = await _supplierService.GetSupplierLookupListAsync();
@@ -36,6 +37,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<List<SupplierResponse>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<SupplierResponse>>>> GetAllSuppliersAsync()
 		{
 			var result = await _supplierService.GetAllSuppliersAsync();
@@ -44,7 +46,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<SupplierResponse>>> GetSupplierByIdAsync([FromRoute] int id)
 		{
 			var result = await _supplierService.GetSupplierByIdAsync(id);
@@ -53,6 +55,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost]
 		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<SupplierResponse>>> CreateSupplierAsync([FromBody] CreateSupplierRequest request)
 		{
 			var validation = await ValidateRequestAsync(_createValidator, request);
@@ -64,7 +67,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPut("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<SupplierResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<SupplierResponse>>> UpdateSupplierAsync([FromRoute] int id, [FromBody] UpdateSupplierRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateValidator, request);
@@ -76,7 +79,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpDelete("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteSupplierAsync([FromRoute] int id)
 		{
 			var result = await _supplierService.DeleteSupplierAsync(id);

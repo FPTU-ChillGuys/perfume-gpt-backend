@@ -25,8 +25,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("me")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<ProfileResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ProfileResponse>>> GetProfile()
 		{
 			var userId = GetCurrentUserId();
@@ -37,9 +36,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateProfile([FromBody] UpdateProfileRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateProfileValidator, request);

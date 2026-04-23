@@ -20,13 +20,10 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<bool> IsInUseAsync(int attributeId)
 		=> await _context.ProductAttributes.AnyAsync(pa => pa.AttributeId == attributeId);
 
-		public async Task<List<AttributeLookupItem>> GetLookupListAsync(bool? isVariantLevel = null)
+		public async Task<List<AttributeLookupItem>> GetLookupListAsync(bool isVariantLevel)
 		{
 			var query = _context.Attributes.AsQueryable();
-			if (isVariantLevel.HasValue)
-			{
-				query = query.Where(a => a.IsVariantLevel == isVariantLevel.Value);
-			}
+			query = query.Where(a => a.IsVariantLevel == isVariantLevel);
 
 			return await query
 				  .Select(a => new AttributeLookupItem

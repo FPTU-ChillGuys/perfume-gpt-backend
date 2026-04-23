@@ -119,6 +119,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("payos-cancel")]
 		[ProducesResponseType(StatusCodes.Status302Found)]
+		[ProducesResponseType(StatusCodes.Status400BadRequest)]
 		public async Task<IActionResult> HandlePayOsCancelCallback()
 		{
 			try
@@ -194,9 +195,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost("{paymentId:guid}/retry")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> RetryPayment([FromRoute] Guid paymentId, [FromBody] PaymentInformation? newMethod = null)
 		{
 			var response = await _paymentService.RetryOrChangePaymentMethodAsync(paymentId, newMethod);
@@ -205,8 +204,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPut("{paymentId:guid}/confirm")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> ConfirmPayment([FromRoute] Guid paymentId, [FromBody] ConfirmPaymentRequest request)
 		{
 			var validation = await ValidateRequestAsync(_confirmPaymentValidator, request);
@@ -232,7 +230,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("management-transactions")]
 		[Authorize(Roles = "staff,admin")]
 		[ProducesResponseType(typeof(BaseResponse<PaymentTransactionOverviewResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PaymentTransactionOverviewResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PaymentTransactionOverviewResponse>>> GetTransactionsForManagement([FromQuery] GetPaymentTransactionsFilterRequest request)
 		{
 			var response = await _paymentService.GetTransactionsForManagementAsync(request);

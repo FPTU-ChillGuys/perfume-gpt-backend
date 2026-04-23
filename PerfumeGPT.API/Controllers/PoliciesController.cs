@@ -22,8 +22,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("{policyCode}")]
 		[ProducesResponseType(typeof(BaseResponse<SystemPolicyResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<SystemPolicyResponse>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<SystemPolicyResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<SystemPolicyResponse>>> GetPolicyByCodeAsync([FromRoute] string policyCode)
 		{
 			if (string.IsNullOrWhiteSpace(policyCode))
@@ -36,8 +35,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{policyCode}")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<SystemPolicyResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<SystemPolicyResponse>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<SystemPolicyResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<SystemPolicyResponse>>> UpdatePolicyAsync([FromRoute] string policyCode, [FromBody] SystemPolicyUpdateRequest request)
 		{
 			if (string.IsNullOrWhiteSpace(policyCode))

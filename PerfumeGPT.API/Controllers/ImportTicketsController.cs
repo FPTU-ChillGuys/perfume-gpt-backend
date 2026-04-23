@@ -39,9 +39,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> CreateImportTicket([FromBody] CreateImportTicketRequest request)
 		{
 			var validation = await ValidateRequestAsync(_createImportTicketValidator, request);
@@ -55,9 +53,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("excel-parser")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<CreateImportTicketRequest>>> UploadImportTicketFromExcel([FromForm] UploadImportTicketFromExcelRequest request)
 		{
 			var validation = await ValidateRequestAsync(_createImportTicketFromExcelValidator, request);
@@ -70,7 +66,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("excel-template/{supplierId:int}")]
 		[AllowAnonymous]
 		[ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ExcelTemplateResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<IActionResult> DownloadImportTemplate(int supplierId)
 		{
 			if (supplierId < 0)
@@ -91,9 +87,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{ticketId:guid}/verify")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> VerifyImportTicket([FromRoute] Guid ticketId, [FromBody] VerifyImportTicketRequest request)
 		{
 			var validation = await ValidateRequestAsync(_verifyImportTicketValidator, request);
@@ -106,8 +100,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("{id:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<ImportTicketResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ImportTicketResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<ImportTicketResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ImportTicketResponse>>> GetImportTicketById(Guid id)
 		{
 			var response = await _importTicketService.GetImportTicketByIdAsync(id);
@@ -116,7 +109,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ImportTicketListItem>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<ImportTicketListItem>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<ImportTicketListItem>>>> GetPagedImportTickets([FromQuery] GetPagedImportTicketsRequest request)
 		{
 			var response = await _importTicketService.GetImportTicketsAsync(request);
@@ -126,9 +119,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{id:guid}/status")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateImportStatus([FromRoute] Guid id, [FromBody] UpdateImportStatusRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateImportStatusValidator, request);
@@ -141,9 +132,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{id:guid}")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateImportTicket([FromRoute] Guid id, [FromBody] UpdateImportRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateImportValidator, request);
@@ -156,9 +145,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpDelete("{id:guid}")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteImportTicket([FromRoute] Guid id)
 		{
 			var response = await _importTicketService.DeleteImportTicketAsync(id);

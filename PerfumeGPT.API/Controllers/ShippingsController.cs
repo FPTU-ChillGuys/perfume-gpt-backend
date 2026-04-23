@@ -40,8 +40,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("user/{userId:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ShippingInfoListItem>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<ShippingInfoListItem>>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<ShippingInfoListItem>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<ShippingInfoListItem>>>> GetPagedShippingsByUserId([FromRoute] Guid userId, [FromQuery] GetPagedShippingsRequest request)
 		{
 			var response = await _shippingService.GetPagedShippingInfosByUserIdAsync(userId, request);
@@ -50,8 +49,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("me")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ShippingInfoListItem>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<ShippingInfoListItem>>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<ShippingInfoListItem>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<ShippingInfoListItem>>>> GetPagedShippingsForCurrentUser([FromQuery] GetPagedShippingsRequest request)
 		{
 			var userId = GetCurrentUserId();
@@ -62,8 +60,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost("user/{userId:guid}/sync-shipping-status")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> SyncShippingStatusByUserId([FromRoute] Guid userId)
 		{
 			var response = await _shippingService.SyncShippingStatusByUserIdAsync(userId);
@@ -144,8 +141,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost("order-info-url")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> GetOrderInfoUrlAsync([FromBody] GetOrderInfoRequest request)
 		{
 			var validation = await ValidateRequestAsync(_getOrderInfoRequestValidator, request);

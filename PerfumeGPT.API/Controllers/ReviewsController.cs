@@ -36,7 +36,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("me")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<List<ReviewResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<ReviewResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<ReviewResponse>>>> GetMyReviews()
 		{
 			var userId = GetCurrentUserId();
@@ -47,9 +47,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<Guid>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<Guid>>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<Guid>>), StatusCodes.Status403Forbidden)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<Guid>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BulkActionResult<Guid>>>> CreateReview([FromBody] CreateReviewRequest request)
 		{
 			var validation = await ValidateRequestAsync(_createValidator, request);
@@ -67,9 +65,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{reviewId:guid}/answer")]
 		[Authorize(Roles = "staff")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> AnswerReview([FromRoute] Guid reviewId, [FromBody] AnswerReviewRequest request)
 		{
 			var validation = await ValidateRequestAsync(_answerValidator, request);
@@ -86,8 +82,7 @@ namespace PerfumeGPT.API.Controllers
 		#region PUBLIC ENDPOINTS
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ReviewListItem>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<ReviewListItem>>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<ReviewListItem>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<ReviewListItem>>>> GetReviews([FromQuery] GetPagedReviewsRequest request)
 		{
 			var response = await _reviewService.GetReviewsAsync(request);
@@ -96,8 +91,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("{reviewId:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<ReviewDetailResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ReviewDetailResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<ReviewDetailResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ReviewDetailResponse>>> GetReviewById([FromRoute] Guid reviewId)
 		{
 			var response = await _reviewService.GetReviewByIdAsync(reviewId);
@@ -106,7 +100,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("variant/{variantId:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<List<ReviewResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<ReviewResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<ReviewResponse>>>> GetVariantReviews([FromRoute] Guid variantId)
 		{
 			var response = await _reviewService.GetVariantReviewsAsync(variantId);
@@ -115,7 +109,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("variant/{variantId:guid}/statistics")]
 		[ProducesResponseType(typeof(BaseResponse<ReviewStatisticsResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ReviewStatisticsResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ReviewStatisticsResponse>>> GetVariantStatistics([FromRoute] Guid variantId)
 		{
 			var response = await _reviewService.GetVariantReviewStatisticsAsync(variantId);
@@ -125,9 +119,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpDelete("{reviewId:guid}")]
 		[Authorize(Roles = "user,staff,admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> DeleteReview([FromRoute] Guid reviewId)
 		{
 			var userId = GetCurrentUserId();
@@ -143,8 +135,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("images/temporary")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages([FromForm] ReviewUploadMediaRequest request)
 		{
 			var userId = GetCurrentUserId();
@@ -154,8 +145,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("{reviewId:guid}/images")]
 		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<List<MediaResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<MediaResponse>>>> GetReviewImages([FromRoute] Guid reviewId)
 		{
 			var response = await _reviewService.GetReviewImagesAsync(reviewId);

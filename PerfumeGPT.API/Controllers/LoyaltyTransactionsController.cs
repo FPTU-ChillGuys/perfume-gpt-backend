@@ -27,7 +27,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("me/history")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>), StatusCodes.Status400BadRequest)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>>> GetMyLoyaltyHistory([FromQuery] GetPagedUserLoyaltyTransactionsRequest request)
 		{
 			var userId = GetCurrentUserId();
@@ -38,7 +38,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("me/total")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<LoyaltyTransactionTotalsResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<LoyaltyTransactionTotalsResponse>), StatusCodes.Status400BadRequest)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<LoyaltyTransactionTotalsResponse>>> GetMyLoyaltyTotals()
 		{
 			var userId = GetCurrentUserId();
@@ -50,7 +50,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>), StatusCodes.Status400BadRequest)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>>> GetLoyaltyTransactions([FromQuery] GetPagedLoyaltyTransactionsRequest request)
 		{
 			var response = await _loyaltyTransactionService.GetPagedLoyaltyTransactionsAsync(request);
@@ -60,7 +60,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{userId:guid}/manual-change")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> ManualChangePoints([FromRoute] Guid userId, [FromBody] ManualChangeRequest request)
 		{
 			var validation = await ValidateRequestAsync(_manualChangeValidator, request);

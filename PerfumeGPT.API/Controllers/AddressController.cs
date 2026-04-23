@@ -39,11 +39,11 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<List<AddressResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<AddressResponse>>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<List<AddressResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<AddressResponse>>>> GetUserAddressesAsync()
 		{
 			var userId = GetCurrentUserId();
+
 			var result = await _addressService.GetUserAddressesAsync(userId);
 			return HandleResponse(result);
 		}
@@ -51,24 +51,26 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("{id:guid}")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<AddressResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<AddressResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<AddressResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<AddressResponse>>> GetAddressByIdAsync([FromRoute] Guid id)
 		{
+			var validationError = ValidateNotEmptyGuid(id, "Address ID");
+			if (validationError != null) return validationError;
+
 			var userId = GetCurrentUserId();
+
 			var result = await _addressService.GetAddressByIdAsync(userId, id);
 			return HandleResponse(result);
 		}
 
-
 		[HttpGet("default")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<AddressResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<AddressResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<AddressResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<AddressResponse>>> GetDefaultAddressAsync()
 		{
 			var userId = GetCurrentUserId();
+
 			var result = await _addressService.GetDefaultAddressAsync(userId);
 			return HandleResponse(result);
 		}
@@ -76,14 +78,14 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> CreateAddressAsync([FromBody] CreateAddressRequest request)
 		{
 			var validation = await ValidateRequestAsync(_createValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
+
 			var result = await _addressService.CreateAddressAsync(userId, request);
 			return HandleResponse(result);
 		}
@@ -91,16 +93,17 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{id:guid}")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateAddressAsync([FromRoute] Guid id, [FromBody] UpdateAddressRequest request)
 		{
+			var validationError = ValidateNotEmptyGuid(id, "Address ID");
+			if (validationError != null) return validationError;
+
 			var validation = await ValidateRequestAsync(_updateValidator, request);
 			if (validation != null) return validation;
 
 			var userId = GetCurrentUserId();
+
 			var result = await _addressService.UpdateAddressAsync(userId, id, request);
 			return HandleResponse(result);
 		}
@@ -108,13 +111,14 @@ namespace PerfumeGPT.API.Controllers
 		[HttpDelete("{id:guid}")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> DeleteAddressAsync([FromRoute] Guid id)
 		{
+			var validationError = ValidateNotEmptyGuid(id, "Address ID");
+			if (validationError != null) return validationError;
+
 			var userId = GetCurrentUserId();
+
 			var result = await _addressService.DeleteAddressAsync(userId, id);
 			return HandleResponse(result);
 		}
@@ -122,19 +126,21 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{id:guid}/set-default")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> SetDefaultAddressAsync([FromRoute] Guid id)
 		{
+			var validationError = ValidateNotEmptyGuid(id, "Address ID");
+			if (validationError != null) return validationError;
+
 			var userId = GetCurrentUserId();
+
 			var result = await _addressService.SetDefaultAddressAsync(userId, id);
 			return HandleResponse(result);
 		}
 
 		[HttpGet("provinces")]
 		[ProducesResponseType(typeof(BaseResponse<List<ProvinceResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<ProvinceResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<ProvinceResponse>>>> GetProvincesAsync()
 		{
 			var response = await _ghnService.GetProvincesAsync();
@@ -143,18 +149,11 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("districts")]
 		[ProducesResponseType(typeof(BaseResponse<List<DistrictResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<DistrictResponse>>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<List<DistrictResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<DistrictResponse>>>> GetDistrictsByProvinceIdAsync([FromQuery] int provinceId)
 		{
-			if (provinceId <= 0)
-			{
-				var badRequestResponse = BaseResponse<List<DistrictResponse>>.Fail(
-					"Province ID phải lớn hơn 0",
-					ResponseErrorType.BadRequest
-				);
-				return HandleResponse(badRequestResponse);
-			}
+			var validationError = ValidatePositiveInt(provinceId, "Province ID");
+			if (validationError != null) return validationError;
 
 			var response = await _ghnService.GetDistrictsByProvinceIdAsync(provinceId);
 			return HandleResponse(response);
@@ -162,18 +161,11 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("wards")]
 		[ProducesResponseType(typeof(BaseResponse<List<WardResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<WardResponse>>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<List<WardResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<WardResponse>>>> GetWardsByDistrictIdAsync([FromQuery] int districtId)
 		{
-			if (districtId <= 0)
-			{
-				var badRequestResponse = BaseResponse<List<WardResponse>>.Fail(
-					"District ID phải lớn hơn 0",
-					ResponseErrorType.BadRequest
-				);
-				return HandleResponse(badRequestResponse);
-			}
+			var validationError = ValidatePositiveInt(districtId, "District ID");
+			if (validationError != null) return validationError;
 
 			var response = await _ghnService.GetWardsByDistrictIdAsync(districtId);
 			return HandleResponse(response);
@@ -181,8 +173,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("streets")]
 		[ProducesResponseType(typeof(BaseResponse<AddressLevel4Response>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<AddressLevel4Response>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<AddressLevel4Response>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<AddressLevel4Response>>> GetStreetsAsync([FromQuery] GetAddressLevel4Request request)
 		{
 			var response = await _ghtkService.GetAddressLevel4Async(request);

@@ -27,6 +27,8 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpGet("lookup")]
+		[ProducesResponseType(typeof(BaseResponse<List<ConcentrationLookupDto>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<ConcentrationLookupDto>>>> GetConcentrationLookup()
 		{
 			var response = await _concentrationService.GetConcentrationLookup();
@@ -35,6 +37,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<List<ConcentrationResponse>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<ConcentrationResponse>>>> GetAllConcentrationsAsync()
 		{
 			var result = await _concentrationService.GetAllConcentrationsAsync();
@@ -43,7 +46,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> GetConcentrationByIdAsync([FromRoute] int id)
 		{
 			var result = await _concentrationService.GetConcentrationByIdAsync(id);
@@ -52,6 +55,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost]
 		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> CreateConcentrationAsync([FromBody] CreateConcentrationRequest request)
 		{
 			var validation = await ValidateRequestAsync(_createValidator, request);
@@ -63,7 +67,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPut("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> UpdateConcentrationAsync([FromRoute] int id, [FromBody] UpdateConcentrationRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateValidator, request);
@@ -75,7 +79,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpDelete("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteConcentrationAsync([FromRoute] int id)
 		{
 			var result = await _concentrationService.DeleteConcentrationAsync(id);

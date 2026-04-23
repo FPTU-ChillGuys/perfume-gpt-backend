@@ -28,7 +28,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("lookup")]
 		[ProducesResponseType(typeof(BaseResponse<List<ScentNoteLookupResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<ScentNoteLookupResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<ScentNoteLookupResponse>>>> GetScentNoteLookupList()
 		{
 			var result = await _scentNoteService.GetScentNoteLookupListAsync();
@@ -37,6 +37,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<List<ScentNoteResponse>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<ScentNoteResponse>>>> GetAllScentNotesAsync()
 		{
 			var result = await _scentNoteService.GetAllScentNotesAsync();
@@ -45,7 +46,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> GetScentNoteByIdAsync([FromRoute] int id)
 		{
 			var result = await _scentNoteService.GetScentNoteByIdAsync(id);
@@ -54,6 +55,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost]
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> CreateScentNoteAsync([FromBody] CreateScentNoteRequest request)
 		{
 			var validation = await ValidateRequestAsync(_createValidator, request);
@@ -65,7 +67,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPut("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> UpdateScentNoteAsync([FromRoute] int id, [FromBody] UpdateScentNoteRequest request)
 		{
 			var validation = await ValidateRequestAsync(_updateValidator, request);
@@ -77,7 +79,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpDelete("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteScentNoteAsync([FromRoute] int id)
 		{
 			var result = await _scentNoteService.DeleteScentNoteAsync(id);

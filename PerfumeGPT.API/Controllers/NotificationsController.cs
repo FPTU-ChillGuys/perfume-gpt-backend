@@ -23,6 +23,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<NotificationListItemResponse>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<NotificationListItemResponse>>>> GetPaged([FromQuery] GetPagedNotificationsRequest request)
 		{
 			var effectiveRequest = request;
@@ -57,8 +58,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPatch("{id:guid}/read")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> MarkAsRead([FromRoute] Guid id)
 		{
 			var userId = GetCurrentUserId();
@@ -69,7 +69,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPatch("read-all")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> MarkAllAsRead()
 		{
 			var userId = GetCurrentUserId();
