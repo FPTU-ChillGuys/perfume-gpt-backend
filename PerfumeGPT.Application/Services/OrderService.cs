@@ -702,7 +702,7 @@ namespace PerfumeGPT.Application.Services
 				   {
 					   Reason = request.Reason,
 					   IsRefundRequired = isRefundRequired,
-					   RefundAmount = isRefundRequired ? order.TotalAmount : null,
+					   RefundAmount = isRefundRequired ? actualRefundAmount : null,
 					   StaffNote = penaltyAmount > 0 ? $"Khách hàng hủy khi đơn đang xử lý. Áp dụng phạt cọc: {penaltyAmount:N0}đ." : null,
 					   RefundBankName = request.RefundBankName,
 					   RefundAccountNumber = request.RefundAccountNumber,
