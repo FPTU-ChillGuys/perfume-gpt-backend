@@ -220,10 +220,10 @@ namespace PerfumeGPT.Application.Services
 				bool isStillDepositFlow = false;
 				decimal remainingToCollectAfterDeposit = 0;
 
-				// Ý định 1: ĐỔI PHƯƠNG THỨC 
-				// Sử dụng Pattern Matching (is var targetMethod) để vừa check null vừa gán biến luôn
-				if (request.NewPaymentMethod is { } targetMethod && targetMethod != payment.Method)
+				// 💥 ĐÃ SỬA LỖI BUG: Chỉ cần có value được gửi lên là tính là Đổi Phương Thức
+				if (request.NewPaymentMethod.HasValue)
 				{
+					var targetMethod = request.NewPaymentMethod.Value;
 					bool isCodOrStore = targetMethod == PaymentMethod.CashOnDelivery || targetMethod == PaymentMethod.CashInStore;
 
 					// RÀO CHẮN 1: Chọn trả Full nhưng lại đòi cọc
@@ -245,21 +245,21 @@ namespace PerfumeGPT.Application.Services
 							throw AppException.BadRequest("Cổng thanh toán đặt cọc chỉ hỗ trợ VNPay, Momo hoặc PayOs.");
 						}
 
-						transactionMethod = request.NewDepositMethod.Value;
+						transactionMethod = depositMethod;
 						amountToPay = order.RequiredDepositAmount;
 						isStillDepositFlow = true;
 						remainingToCollectAfterDeposit = order.TotalAmount - order.RequiredDepositAmount;
 					}
 					else
 					{
-						// KỊCH BẢN B: Đổi sang trả Full 100% (Ví dụ COD -> VNPay full)
+						// KỊCH BẢN B: Đổi sang trả Full 100% (Ví dụ COD cọc -> VNPay full)
 						transactionMethod = targetMethod;
 						amountToPay = order.RemainingAmount > 0 ? order.RemainingAmount : order.TotalAmount;
 					}
 				}
 				else
 				{
-					// Ý định 2: KỊCH BẢN C - CHỈ RETRY 
+					// Ý định 2: KỊCH BẢN C - CHỈ RETRY (Frontend truyền rỗng NewPaymentMethod)
 					transactionMethod = payment.Method;
 
 					// Giữ nguyên logic tính tiền của giao dịch cũ
