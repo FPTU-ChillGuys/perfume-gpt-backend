@@ -1,4 +1,3 @@
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -17,19 +16,13 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IReviewService _reviewService;
 		private readonly IMediaService _mediaService;
-		private readonly IValidator<CreateReviewRequest> _createValidator;
-		private readonly IValidator<AnswerReviewRequest> _answerValidator;
 
 		public ReviewsController(
 			IReviewService reviewService,
-			IMediaService mediaService,
-			IValidator<CreateReviewRequest> createValidator,
-			IValidator<AnswerReviewRequest> answerValidator)
+			IMediaService mediaService)
 		{
 			_reviewService = reviewService;
 			_mediaService = mediaService;
-			_createValidator = createValidator;
-			_answerValidator = answerValidator;
 		}
 
 		#region USER ENDPOINTS
@@ -50,9 +43,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BulkActionResult<Guid>>>> CreateReview([FromBody] CreateReviewRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 			var response = await _reviewService.CreateReviewAsync(userId, request);
 			return HandleResponse(response);
@@ -68,9 +58,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> AnswerReview([FromRoute] Guid reviewId, [FromBody] AnswerReviewRequest request)
 		{
-			var validation = await ValidateRequestAsync(_answerValidator, request);
-			if (validation != null) return validation;
-
 			var staffId = GetCurrentUserId();
 			var response = await _reviewService.AnswerReviewAsync(reviewId, staffId, request);
 			return HandleResponse(response);
@@ -123,6 +110,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<string>>> DeleteReview([FromRoute] Guid reviewId)
 		{
 			var userId = GetCurrentUserId();
+
 			var canDeleteAny = User.IsInRole("staff") || User.IsInRole("admin");
 			var response = await _reviewService.DeleteReviewAsync(userId, reviewId, canDeleteAny);
 			return HandleResponse(response);
@@ -139,6 +127,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages([FromForm] ReviewUploadMediaRequest request)
 		{
 			var userId = GetCurrentUserId();
+
 			var response = await _mediaService.UploadReviewTemporaryMediaAsync(userId, request);
 			return HandleResponse(response);
 		}

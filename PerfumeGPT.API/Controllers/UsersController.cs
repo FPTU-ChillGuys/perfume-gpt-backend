@@ -1,4 +1,3 @@
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -18,19 +17,13 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IUserService _userService;
 		private readonly IMediaService _mediaService;
-		private readonly IValidator<ProfileAvtarUploadRequest> _profileAvtarUploadValidator;
-		private readonly IValidator<UpdateUserBasicInfoRequest> _updateUserBasicInfoValidator;
 
 		public UsersController(
 			IUserService userService,
-			IMediaService mediaService,
-			IValidator<ProfileAvtarUploadRequest> profileAvtarUploadValidator,
-			IValidator<UpdateUserBasicInfoRequest> updateUserBasicInfoValidator)
+			IMediaService mediaService)
 		{
 			_userService = userService;
 			_mediaService = mediaService;
-			_profileAvtarUploadValidator = profileAvtarUploadValidator;
-			_updateUserBasicInfoValidator = updateUserBasicInfoValidator;
 		}
 
 		[HttpGet("me")]
@@ -50,9 +43,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateCurrentUserBasicInfo([FromBody] UpdateUserBasicInfoRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateUserBasicInfoValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 			var response = await _userService.UpdateUserBasicInfoAsync(userId, request);
 			return HandleResponse(response);
@@ -63,6 +53,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<CustomerForPosResponse>>> GetCustomerForPos([FromQuery] string phoneOrEmail)
 		{
+			var validationResult = ValidatePhoneOrEmail(phoneOrEmail, "SĐT/Email");
+			if (validationResult != null) return validationResult;
+
 			var response = await _userService.GetCustomerForPosAsync(phoneOrEmail);
 			return HandleResponse(response);
 		}
@@ -112,9 +105,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UploadAvatar([FromForm] ProfileAvtarUploadRequest request)
 		{
-			var validation = await ValidateRequestAsync(_profileAvtarUploadValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 
 			var result = await _mediaService.UploadProfileAvatarAsync(userId, request);

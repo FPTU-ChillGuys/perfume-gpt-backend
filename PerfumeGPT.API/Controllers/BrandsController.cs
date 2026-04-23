@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Brands;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -13,17 +12,10 @@ namespace PerfumeGPT.API.Controllers
 	public class BrandsController : BaseApiController
 	{
 		private readonly IBrandService _brandService;
-		private readonly IValidator<CreateBrandRequest> _createValidator;
-		private readonly IValidator<UpdateBrandRequest> _updateValidator;
 
-		public BrandsController(
-			IBrandService brandService,
-			IValidator<UpdateBrandRequest> updateValidator,
-			IValidator<CreateBrandRequest> createValidator)
+		public BrandsController(IBrandService brandService)
 		{
 			_brandService = brandService;
-			_updateValidator = updateValidator;
-			_createValidator = createValidator;
 		}
 
 		[HttpGet("lookup")]
@@ -49,6 +41,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BrandResponse>>> GetBrandByIdAsync([FromRoute] int id)
 		{
+			var validationResult = ValidatePositiveInt(id, "Brand ID");
+			if (validationResult != null) return validationResult;
+
 			var result = await _brandService.GetBrandByIdAsync(id);
 			return HandleResponse(result);
 		}
@@ -58,9 +53,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BrandResponse>>> CreateBrandAsync([FromBody] CreateBrandRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _brandService.CreateBrandAsync(request);
 			return HandleResponse(result);
 		}
@@ -70,8 +62,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BrandResponse>>> UpdateBrandAsync([FromRoute] int id, [FromBody] UpdateBrandRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateValidator, request);
-			if (validation != null) return validation;
+			var validationResult = ValidatePositiveInt(id, "Brand ID");
+			if (validationResult != null) return validationResult;
 
 			var result = await _brandService.UpdateBrandAsync(id, request);
 			return HandleResponse(result);
@@ -82,6 +74,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteBrandAsync([FromRoute] int id)
 		{
+			var validationResult = ValidatePositiveInt(id, "Brand ID");
+			if (validationResult != null) return validationResult;
+
 			var result = await _brandService.DeleteBrandAsync(id);
 			return HandleResponse(result);
 		}

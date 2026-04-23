@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Auths;
@@ -15,29 +14,10 @@ namespace PerfumeGPT.API.Controllers
 	public class AuthsController : BaseApiController
 	{
 		private readonly IAuthService _authService;
-		private readonly IValidator<RegisterRequest> _registerValidator;
-		private readonly IValidator<LoginRequest> _loginValidator;
-		private readonly IValidator<ResetPasswordRequest> _resetPasswordValidator;
-		private readonly IValidator<GoogleLoginRequest> _googleLoginValidator;
-		private readonly IValidator<ForgotPasswordRequest> _forgotPasswordValidator;
-		private readonly IValidator<VerifyEmailRequest> _verifyEmailValidator;
 
-		public AuthsController(
-			IAuthService authService,
-			IValidator<RegisterRequest> registerValidator,
-			IValidator<LoginRequest> loginValidator,
-			IValidator<ResetPasswordRequest> resetPasswordValidator,
-			IValidator<GoogleLoginRequest> googleLoginValidator,
-			IValidator<ForgotPasswordRequest> forgotPasswordValidator,
-			IValidator<VerifyEmailRequest> verifyEmailValidator)
+		public AuthsController(IAuthService authService)
 		{
 			_authService = authService;
-			_registerValidator = registerValidator;
-			_loginValidator = loginValidator;
-			_resetPasswordValidator = resetPasswordValidator;
-			_googleLoginValidator = googleLoginValidator;
-			_forgotPasswordValidator = forgotPasswordValidator;
-			_verifyEmailValidator = verifyEmailValidator;
 		}
 
 		[HttpPost("login")]
@@ -46,9 +26,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<TokenResponse>>> Login([FromBody] LoginRequest request)
 		{
-			var validation = await ValidateRequestAsync(_loginValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _authService.LoginAsync(request);
 			return HandleResponse(result);
 		}
@@ -59,9 +36,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> Register([FromBody] RegisterRequest request)
 		{
-			var validation = await ValidateRequestAsync(_registerValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _authService.RegisterAsync(request, null);
 			return HandleResponse(result);
 		}
@@ -72,9 +46,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> RegisterByAdmin([FromBody] RegisterRequest request, [FromQuery] UserRole role)
 		{
-			var validation = await ValidateRequestAsync(_registerValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _authService.RegisterAsync(request, role);
 			return HandleResponse(result);
 		}
@@ -85,9 +56,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> VerifyEmail([FromQuery] VerifyEmailRequest request)
 		{
-			var validation = await ValidateRequestAsync(_verifyEmailValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _authService.VerifyEmailAsync(request);
 			return HandleResponse(result);
 		}
@@ -98,9 +66,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<TokenResponse>>> GoogleLogin([FromBody] GoogleLoginRequest request)
 		{
-			var validation = await ValidateRequestAsync(_googleLoginValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _authService.LoginWithGoogleAsync(request);
 			return HandleResponse(result);
 		}
@@ -123,9 +88,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> ForgotPassword([FromBody] ForgotPasswordRequest request)
 		{
-			var validation = await ValidateRequestAsync(_forgotPasswordValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _authService.ForgotPasswordAsync(request);
 			return HandleResponse(result);
 		}
@@ -136,9 +98,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> ResetPassword([FromBody] ResetPasswordRequest request)
 		{
-			var validation = await ValidateRequestAsync(_resetPasswordValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _authService.ResetPasswordAsync(request);
 			return HandleResponse(result);
 		}

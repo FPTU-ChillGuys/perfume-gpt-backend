@@ -1,4 +1,3 @@
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -18,19 +17,13 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IBannerService _bannerService;
 		private readonly IMediaService _mediaService;
-		private readonly IValidator<CreateBannerRequest> _createValidator;
-		private readonly IValidator<UpdateBannerRequest> _updateValidator;
 
 		public BannersController(
 			IBannerService bannerService,
-			IMediaService mediaService,
-			IValidator<CreateBannerRequest> createValidator,
-			IValidator<UpdateBannerRequest> updateValidator)
+			IMediaService mediaService)
 		{
 			_bannerService = bannerService;
 			_mediaService = mediaService;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 		}
 
 		[HttpGet("home")]
@@ -69,9 +62,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> CreateBanner([FromBody] CreateBannerRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _bannerService.CreateBannerAsync(request);
 			return HandleResponse(response);
 		}
@@ -82,9 +72,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateBanner([FromRoute] Guid bannerId, [FromBody] UpdateBannerRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _bannerService.UpdateBannerAsync(bannerId, request);
 			return HandleResponse(response);
 		}

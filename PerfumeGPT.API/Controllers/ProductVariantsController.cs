@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Media;
@@ -18,22 +17,13 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IVariantService _variantService;
 		private readonly IMediaService _mediaService;
-		private readonly IValidator<CreateVariantRequest> _createVariantValidator;
-		private readonly IValidator<UpdateVariantRequest> _updateVariantValidator;
-		private readonly IValidator<VariantUploadMediaRequest> _variantUploadValidator;
 
 		public ProductVariantsController(
 			IVariantService variantService,
-			IMediaService mediaService,
-			IValidator<CreateVariantRequest> createVariantValidator,
-			IValidator<UpdateVariantRequest> updateVariantValidator,
-			IValidator<VariantUploadMediaRequest> variantUploadValidator)
+			IMediaService mediaService)
 		{
 			_variantService = variantService;
 			_mediaService = mediaService;
-			_createVariantValidator = createVariantValidator;
-			_updateVariantValidator = updateVariantValidator;
-			_variantUploadValidator = variantUploadValidator;
 		}
 
 		#region CRUD Endpoints
@@ -87,9 +77,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> CreateVariant([FromBody] CreateVariantRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createVariantValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _variantService.CreateVariantAsync(request);
 			return HandleResponse(result);
 		}
@@ -99,9 +86,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> UpdateVariant([FromRoute] Guid variantId, [FromBody] UpdateVariantRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateVariantValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _variantService.UpdateVariantAsync(variantId, request);
 			return HandleResponse(result);
 		}
@@ -152,10 +136,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages([FromForm] VariantUploadMediaRequest request)
 		{
-			var validation = await ValidateRequestAsync(_variantUploadValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
+
 			var response = await _mediaService.UploadVariantTemporaryMediaAsync(userId, request);
 			return HandleResponse(response);
 		}

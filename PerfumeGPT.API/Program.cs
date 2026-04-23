@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
+using PerfumeGPT.API.Filters;
 using PerfumeGPT.API.Middlewares;
 using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Infrastructure.Extensions;
@@ -62,7 +63,6 @@ if (envPath != null)
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
 builder.Services.AddFluentValidationRulesToOpenApi();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -110,7 +110,10 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 });
 
 // JSON options
-builder.Services.AddControllers().AddJsonOptions(options =>
+builder.Services.AddControllers(options =>
+{
+	options.Filters.Add<RequestValidationFilter>();
+}).AddJsonOptions(options =>
 {
 	options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 	// options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;

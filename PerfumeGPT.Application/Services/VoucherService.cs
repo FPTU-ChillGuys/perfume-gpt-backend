@@ -331,18 +331,18 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<List<VoucherResponse>>.Ok(sortedVouchers, "Lấy mã giảm giá sản phẩm thành công.");
 		}
 
-		public async Task<BaseResponse<List<ApplicableVoucherResponse>>> GetApplicableVouchersAsync(GetApplicableVouchersRequest request)
+		public async Task<BaseResponse<List<ApplicableVoucherResponse>>> GetApplicableVouchersAsync(Guid userId, GetApplicableVouchersRequest request)
 		{
 			var cartItems = NormalizeCartItems(request.CartItems);
 
-			var aggregatedVouchers = await AggregateVouchersForApplicabilityAsync(request.CustomerId);
+			var aggregatedVouchers = await AggregateVouchersForApplicabilityAsync(userId);
 			if (aggregatedVouchers.Count == 0)
 			{
 				return BaseResponse<List<ApplicableVoucherResponse>>.Ok([], "Không có mã giảm giá.");
 			}
 
 			// Chỉ cần gọi hàm trung gian, mọi thứ sẽ được tải tự động
-			var evaluations = await EvaluateVoucherApplicabilityAsync(aggregatedVouchers, request.CustomerId, cartItems, null);
+			var evaluations = await EvaluateVoucherApplicabilityAsync(aggregatedVouchers, userId, cartItems, null);
 
 			var payload = evaluations
 				.Where(x => !x.IsHidden) // Lọc bỏ HIDDEN

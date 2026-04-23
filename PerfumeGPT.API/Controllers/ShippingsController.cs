@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
@@ -19,21 +18,15 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IGHNService _ghnService;
 		private readonly ILogger<ShippingsController> _logger;
 		private readonly IConfiguration _configuration;
-		private readonly IValidator<GetOrderInfoRequest> _getOrderInfoRequestValidator;
-		private readonly IValidator<GhnOrderStatusWebhookRequest> _ghnOrderStatusWebhookRequestValidator;
 
 		public ShippingsController(
 			IShippingService shippingService,
 			IGHNService ghnService,
-			IValidator<GetOrderInfoRequest> getOrderInfoRequestValidator,
-			IValidator<GhnOrderStatusWebhookRequest> ghnOrderStatusWebhookRequestValidator,
 			ILogger<ShippingsController> logger,
 			IConfiguration configuration)
 		{
 			_shippingService = shippingService;
 			_ghnService = ghnService;
-			_getOrderInfoRequestValidator = getOrderInfoRequestValidator;
-			_ghnOrderStatusWebhookRequestValidator = ghnOrderStatusWebhookRequestValidator;
 			_logger = logger;
 			_configuration = configuration;
 		}
@@ -75,9 +68,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<BaseResponse<string>>> SyncShippingStatusFromGhnWebhook([FromBody] GhnOrderStatusWebhookRequest request)
 		{
-			var validation = await ValidateRequestAsync(_ghnOrderStatusWebhookRequestValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _shippingService.SyncShippingStatusByWebhookAsync(request.OrderCode, request.Status);
 			return HandleResponse(response);
 		}
@@ -89,9 +79,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("ghn/webhook-order-status/{token}")]
 		// SỬA ĐỔI 2: Xóa bỏ các ProducesResponseType lỗi, Webhook luôn trả về 200
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		public async Task<ActionResult> SyncShippingStatusFromGhnWebhook(
-			[FromRoute] string token,
-			[FromBody] GhnOrderStatusWebhookRequest request)
+		public async Task<ActionResult> SyncShippingStatusFromGhnWebhook([FromRoute] string token, [FromBody] GhnOrderStatusWebhookRequest request)
 		{
 			// 1. Kiểm tra Token bảo mật (Lấy từ appsettings.json)
 			var expectedToken = _configuration["GHN:WebhookSecret"];
@@ -110,14 +98,6 @@ namespace PerfumeGPT.API.Controllers
 
 			try
 			{
-				// Bạn có thể giữ validation nếu muốn, nhưng nếu lỗi thì vẫn trả 200
-				var validationResult = await _ghnOrderStatusWebhookRequestValidator.ValidateAsync(request);
-				if (!validationResult.IsValid)
-				{
-					_logger.LogWarning("GHN Webhook Payload không hợp lệ: {Errors}", validationResult.Errors);
-					return Ok(); // Ép GHN ngừng gửi
-				}
-
 				await _shippingService.SyncShippingStatusByWebhookAsync(request.OrderCode, request.Status);
 			}
 			catch (Exception ex)
@@ -144,9 +124,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> GetOrderInfoUrlAsync([FromBody] GetOrderInfoRequest request)
 		{
-			var validation = await ValidateRequestAsync(_getOrderInfoRequestValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _ghnService.GetOrderInfoUrlAsync(request);
 			return HandleResponse(response);
 		}

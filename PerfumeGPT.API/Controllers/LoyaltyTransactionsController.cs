@@ -1,4 +1,3 @@
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -14,14 +13,10 @@ namespace PerfumeGPT.API.Controllers
 	public class LoyaltyTransactionsController : BaseApiController
 	{
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
-		private readonly IValidator<ManualChangeRequest> _manualChangeValidator;
 
-		public LoyaltyTransactionsController(
-			ILoyaltyTransactionService loyaltyTransactionService,
-			IValidator<ManualChangeRequest> manualChangeValidator)
+		public LoyaltyTransactionsController(ILoyaltyTransactionService loyaltyTransactionService)
 		{
 			_loyaltyTransactionService = loyaltyTransactionService;
-			_manualChangeValidator = manualChangeValidator;
 		}
 
 		[HttpGet("me/history")]
@@ -31,6 +26,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>>> GetMyLoyaltyHistory([FromQuery] GetPagedUserLoyaltyTransactionsRequest request)
 		{
 			var userId = GetCurrentUserId();
+
 			var response = await _loyaltyTransactionService.GetLoyaltyHistoryAsync(userId, request);
 			return HandleResponse(response);
 		}
@@ -42,6 +38,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<LoyaltyTransactionTotalsResponse>>> GetMyLoyaltyTotals()
 		{
 			var userId = GetCurrentUserId();
+
 			var response = await _loyaltyTransactionService.GetLoyaltyTotalsAsync(userId);
 			return HandleResponse(response);
 		}
@@ -63,9 +60,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> ManualChangePoints([FromRoute] Guid userId, [FromBody] ManualChangeRequest request)
 		{
-			var validation = await ValidateRequestAsync(_manualChangeValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _loyaltyTransactionService.ManualChangeAsync(userId, request);
 			return HandleResponse(response);
 		}

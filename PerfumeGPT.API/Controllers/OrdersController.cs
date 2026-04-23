@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using PerfumeGPT.API.Controllers.Base;
@@ -18,34 +17,13 @@ namespace PerfumeGPT.API.Controllers
 	public class OrdersController : BaseApiController
 	{
 		private readonly IOrderService _orderService;
-		private readonly IValidator<GetPagedOrdersRequest> _pagedOrdersValidator;
-		private readonly IValidator<CreateOrderRequest> _checkoutValidator;
-		private readonly IValidator<CreateInStoreOrderRequest> _checkoutInStoreValidator;
-		private readonly IValidator<StaffCancelOrderRequest> _staffCancelOrderValidator;
-		private readonly IValidator<UserCancelOrderRequest> _cancelOrderValidator;
-		private readonly IValidator<FulfillOrderRequest> _fulfillOrderValidator;
-		private readonly IValidator<SwapDamagedStockRequest> _swapDamagedStockValidator;
 		private readonly IHubContext<PosHub, IPosClient> _posHubContext;
 
 		public OrdersController(
 			IOrderService orderService,
-			IValidator<GetPagedOrdersRequest> pagedOrdersValidator,
-			IValidator<CreateOrderRequest> checkoutValidator,
-			IValidator<CreateInStoreOrderRequest> checkoutInStoreValidator,
-			IValidator<StaffCancelOrderRequest> staffCancelOrderValidator,
-			IValidator<UserCancelOrderRequest> cancelOrderValidator,
-			IValidator<FulfillOrderRequest> fulfillOrderValidator,
-			IValidator<SwapDamagedStockRequest> swapDamagedStockValidator,
 			IHubContext<PosHub, IPosClient> posHubContext)
 		{
 			_orderService = orderService;
-			_pagedOrdersValidator = pagedOrdersValidator;
-			_checkoutValidator = checkoutValidator;
-			_checkoutInStoreValidator = checkoutInStoreValidator;
-			_staffCancelOrderValidator = staffCancelOrderValidator;
-			_cancelOrderValidator = cancelOrderValidator;
-			_fulfillOrderValidator = fulfillOrderValidator;
-			_swapDamagedStockValidator = swapDamagedStockValidator;
 			_posHubContext = posHubContext;
 		}
 
@@ -56,9 +34,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<OrderListItem>>>> GetMyOrders([FromQuery] GetPagedOrdersRequest request)
 		{
-			var validation = await ValidateRequestAsync(_pagedOrdersValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 			var requestWithUserId = request with { UserId = userId };
 
@@ -108,6 +83,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<OrderResponse>>> GetOrderForPosPickup([FromRoute] string code)
 		{
+			var validationResult = ValidateRequiredString(code, "Mã đơn hàng");
+			if (validationResult != null) return validationResult;
+
 			var response = await _orderService.GetOrderForPosPickupAsync(code);
 			return HandleResponse(response);
 		}
@@ -141,10 +119,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<CreatePaymentResponseDto>>> Checkout([FromBody] CreateOrderRequest request)
 		{
-			var validation = await ValidateRequestAsync(_checkoutValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
+
 			var response = await _orderService.Checkout(userId, request);
 			return HandleResponse(response);
 		}
@@ -155,10 +131,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<CreatePaymentResponseDto>>> CheckoutInStore([FromBody] CreateInStoreOrderRequest request)
 		{
-			var validation = await ValidateRequestAsync(_checkoutInStoreValidator, request);
-			if (validation != null) return validation;
-
 			var staffId = GetCurrentUserId();
+
 			var response = await _orderService.CheckoutInStore(staffId, request);
 			return HandleResponse(response);
 		}
@@ -174,6 +148,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<PickListResponse>>> UpdateOrderStatus([FromRoute] Guid orderId)
 		{
 			var staffId = GetCurrentUserId();
+
 			var response = await _orderService.UpdateOrderStatusToPreparingAsync(orderId, staffId);
 			return HandleResponse(response);
 		}
@@ -184,10 +159,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> CancelOrderByStaff([FromRoute] Guid orderId, [FromBody] StaffCancelOrderRequest request)
 		{
-			var validation = await ValidateRequestAsync(_staffCancelOrderValidator, request);
-			if (validation != null) return validation;
-
 			var staffId = GetCurrentUserId();
+
 			var response = await _orderService.CancelOrderByStaffAsync(orderId, staffId, request);
 			return HandleResponse(response);
 		}
@@ -198,10 +171,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> CancelOrder([FromRoute] Guid orderId, [FromBody] UserCancelOrderRequest request)
 		{
-			var validation = await ValidateRequestAsync(_cancelOrderValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
+
 			var response = await _orderService.CancelOrderAsync(orderId, userId, request);
 			return HandleResponse(response);
 		}
@@ -226,10 +197,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> FulfillOrder([FromRoute] Guid orderId, [FromBody] FulfillOrderRequest request)
 		{
-			var validation = await ValidateRequestAsync(_fulfillOrderValidator, request);
-			if (validation != null) return validation;
-
 			var staffId = GetCurrentUserId();
+
 			var response = await _orderService.FulfillOrderAsync(orderId, staffId, request);
 			return HandleResponse(response);
 		}
@@ -243,15 +212,8 @@ namespace PerfumeGPT.API.Controllers
 			var staffId = GetCurrentUserId();
 			var response = await _orderService.DeliverOrderToInStoreCustomerAsync(orderId, staffId);
 
-			if (response.Success && !string.IsNullOrWhiteSpace(request.PosSessionId))
-			{
-				var orderResponse = await _orderService.GetOrderByIdAsync(orderId);
-				if (orderResponse.Success && orderResponse.Payload != null)
-				{
-					await _posHubContext.Clients.Group(request.PosSessionId)
-						.OrderDelivered(orderResponse.Payload.Code);
-				}
-			}
+			if (response.Success && !string.IsNullOrWhiteSpace(request.PosSessionId) && !string.IsNullOrWhiteSpace(response.Payload))
+				await _posHubContext.Clients.Group(request.PosSessionId).OrderDelivered(response.Payload);
 
 			return HandleResponse(response);
 		}
@@ -262,10 +224,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<SwapDamagedStockResponse>>> SwapDamagedStock([FromRoute] Guid orderId, [FromBody] SwapDamagedStockRequest request)
 		{
-			var validation = await ValidateRequestAsync(_swapDamagedStockValidator, request);
-			if (validation != null) return validation;
-
 			var staffId = GetCurrentUserId();
+
 			var response = await _orderService.SwapDamagedStockAsync(orderId, staffId, request);
 			return HandleResponse(response);
 		}

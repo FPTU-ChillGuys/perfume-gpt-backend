@@ -1,4 +1,3 @@
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -18,22 +17,13 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IProductService _productService;
 		private readonly IMediaService _mediaService;
-		private readonly IValidator<CreateProductRequest> _createValidator;
-		private readonly IValidator<UpdateProductRequest> _updateValidator;
-		private readonly IValidator<ProductUploadMediaRequest> _productUploadValidator;
 
 		public ProductsController(
 			IProductService productService,
-			IMediaService mediaService,
-			IValidator<UpdateProductRequest> updateValidator,
-			IValidator<CreateProductRequest> createValidator,
-			IValidator<ProductUploadMediaRequest> productUploadValidator)
+			IMediaService mediaService)
 		{
 			_productService = productService;
 			_mediaService = mediaService;
-			_updateValidator = updateValidator;
-			_createValidator = createValidator;
-			_productUploadValidator = productUploadValidator;
 		}
 
 		#region CRUD Endpoints
@@ -97,9 +87,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> CreateProduct([FromBody] CreateProductRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _productService.CreateProductAsync(request);
 			return HandleResponse(response);
 		}
@@ -109,9 +96,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BulkActionResult<string>>>> UpdateProduct([FromRoute] Guid productId, [FromBody] UpdateProductRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _productService.UpdateProductAsync(productId, request);
 			return HandleResponse(response);
 		}
@@ -135,10 +119,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages([FromForm] ProductUploadMediaRequest request)
 		{
-			var validation = await ValidateRequestAsync(_productUploadValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
+
 			var response = await _mediaService.UploadProductTemporaryMediaAsync(userId, request);
 			return HandleResponse(response);
 		}

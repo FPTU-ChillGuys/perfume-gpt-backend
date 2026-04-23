@@ -36,6 +36,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<PagedResult<OrderCancelRequestResponse>>>> GetMyRequests([FromQuery] GetPagedCancelRequestsRequest request)
 		{
 			var userId = GetCurrentUserId();
+
 			var response = await _cancelRequestService.GetPagedUserRequestsAsync(userId, request);
 			return HandleResponse(response);
 		}
@@ -47,6 +48,7 @@ namespace PerfumeGPT.API.Controllers
 		public async Task<ActionResult<BaseResponse<OrderCancelRequestResponse>>> GetRequestById([FromRoute] Guid id)
 		{
 			var requesterId = GetCurrentUserId();
+
 			var isPrivilegedUser = User.IsInRole("admin") || User.IsInRole("staff");
 
 			var response = await _cancelRequestService.GetRequestByIdAsync(id, requesterId, isPrivilegedUser);
@@ -60,11 +62,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> ProcessRequest([FromRoute] Guid id, [FromBody] ProcessCancelRequest request)
 		{
-			var validation = ValidateRequestBody<ProcessCancelRequest>(request);
-			if (validation != null) return validation;
+			var (staffId, userRole) = GetCurrentUserContext();
+			if (userRole == null) return HandleResponse(BaseResponse<string>.Fail("Không có quyền truy cập.", ResponseErrorType.Unauthorized));
 
-			var staffId = GetCurrentUserId();
-			var userRole = User.IsInRole("admin") ? "admin" : "staff";
 			var response = await _cancelRequestService.ProcessRequestAsync(id, staffId, userRole, request);
 			return HandleResponse(response);
 		}

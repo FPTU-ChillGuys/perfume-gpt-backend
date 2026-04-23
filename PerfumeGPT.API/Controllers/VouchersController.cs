@@ -1,4 +1,3 @@
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -14,17 +13,11 @@ namespace PerfumeGPT.API.Controllers
 	public class VouchersController : BaseApiController
 	{
 		private readonly IVoucherService _voucherService;
-		private readonly IValidator<CreateVoucherRequest> _createValidator;
-		private readonly IValidator<UpdateVoucherRequest> _updateValidator;
 
 		public VouchersController(
-			IVoucherService voucherService,
-			IValidator<CreateVoucherRequest> createValidator,
-			IValidator<UpdateVoucherRequest> updateValidator)
+		 IVoucherService voucherService)
 		{
 			_voucherService = voucherService;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 		}
 
 		#region Admin Endpoints
@@ -34,9 +27,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> CreateVoucher([FromBody] CreateVoucherRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _voucherService.CreateRegularVoucherAsync(request);
 			return HandleResponse(response);
 		}
@@ -47,9 +37,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateVoucher([FromRoute] Guid voucherId, [FromBody] UpdateVoucherRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _voucherService.UpdateVoucherAsync(voucherId, request);
 			return HandleResponse(response);
 		}
@@ -91,10 +78,10 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("redeemable")]
 		[ProducesResponseType(typeof(BaseResponse<List<RedeemableVoucherResponse>>), StatusCodes.Status200OK)]
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
-		public async Task<ActionResult<BaseResponse<List<RedeemableVoucherResponse>>>> GetRedeemableVouchersV2([FromQuery] GetPagedRedeemableVouchersRequest request)
+		public async Task<ActionResult<BaseResponse<List<RedeemableVoucherResponse>>>> GetRedeemableVouchers([FromQuery] GetPagedRedeemableVouchersRequest request)
 		{
-			var currentUserId = User.Identity?.IsAuthenticated == true ? GetCurrentUserId() : Guid.Empty;
-			Guid? userId = currentUserId == Guid.Empty ? null : currentUserId;
+			var userId = GetCurrentUserId();
+
 			var response = await _voucherService.GetRedeemableVouchersAsync(request, userId);
 			return HandleResponse(response);
 		}
@@ -105,9 +92,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> RedeemVoucher([FromBody] RedeemVoucherRequest request)
 		{
-			var validation = ValidateRequestBody<RedeemVoucherRequest>(request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 			var response = await _voucherService.RedeemVoucherAsync(userId, request);
 			return HandleResponse(response);
@@ -139,14 +123,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<ApplicableVoucherResponse>>>> GetApplicableVouchers([FromBody] GetApplicableVouchersRequest request)
 		{
-			var validation = ValidateRequestBody<GetApplicableVouchersRequest>(request);
-			if (validation != null) return validation;
+			var currentUserId = GetCurrentUserId();
 
-			var currentUserId = User.Identity?.IsAuthenticated == true ? GetCurrentUserId() : Guid.Empty;
-			var resolvedCustomerId = request.CustomerId ?? (currentUserId == Guid.Empty ? null : currentUserId);
-			var effectiveRequest = request with { CustomerId = resolvedCustomerId };
-
-			var response = await _voucherService.GetApplicableVouchersAsync(effectiveRequest);
+			var response = await _voucherService.GetApplicableVouchersAsync(currentUserId, request);
 			return HandleResponse(response);
 		}
 		#endregion User Endpoints

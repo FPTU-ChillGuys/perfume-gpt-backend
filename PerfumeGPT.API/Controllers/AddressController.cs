@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Address;
@@ -20,20 +19,15 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IGHNService _ghnService;
 		private readonly IGHTKService _ghtkService;
 		private readonly IAddressService _addressService;
-		private readonly IValidator<CreateAddressRequest> _createValidator;
-		private readonly IValidator<UpdateAddressRequest> _updateValidator;
 
-		public AddressController(IGHNService ghnService,
+		public AddressController(
+			IGHNService ghnService,
 			IAddressService addressService,
-			IGHTKService ghtkService,
-			IValidator<CreateAddressRequest> createValidator,
-			IValidator<UpdateAddressRequest> updateValidator)
+			IGHTKService ghtkService)
 		{
 			_ghnService = ghnService;
 			_addressService = addressService;
 			_ghtkService = ghtkService;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 		}
 
 		[HttpGet]
@@ -54,9 +48,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<AddressResponse>>> GetAddressByIdAsync([FromRoute] Guid id)
 		{
-			var validationError = ValidateNotEmptyGuid(id, "Address ID");
-			if (validationError != null) return validationError;
-
 			var userId = GetCurrentUserId();
 
 			var result = await _addressService.GetAddressByIdAsync(userId, id);
@@ -81,9 +72,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> CreateAddressAsync([FromBody] CreateAddressRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 
 			var result = await _addressService.CreateAddressAsync(userId, request);
@@ -96,12 +84,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateAddressAsync([FromRoute] Guid id, [FromBody] UpdateAddressRequest request)
 		{
-			var validationError = ValidateNotEmptyGuid(id, "Address ID");
-			if (validationError != null) return validationError;
-
-			var validation = await ValidateRequestAsync(_updateValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 
 			var result = await _addressService.UpdateAddressAsync(userId, id, request);
@@ -114,9 +96,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> DeleteAddressAsync([FromRoute] Guid id)
 		{
-			var validationError = ValidateNotEmptyGuid(id, "Address ID");
-			if (validationError != null) return validationError;
-
 			var userId = GetCurrentUserId();
 
 			var result = await _addressService.DeleteAddressAsync(userId, id);
@@ -129,9 +108,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> SetDefaultAddressAsync([FromRoute] Guid id)
 		{
-			var validationError = ValidateNotEmptyGuid(id, "Address ID");
-			if (validationError != null) return validationError;
-
 			var userId = GetCurrentUserId();
 
 			var result = await _addressService.SetDefaultAddressAsync(userId, id);

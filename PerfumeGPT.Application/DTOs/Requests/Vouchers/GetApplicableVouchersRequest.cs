@@ -9,7 +9,6 @@ namespace PerfumeGPT.Application.DTOs.Requests.Vouchers
 
 	public record GetApplicableVouchersRequest
 	{
-		public Guid? CustomerId { get; init; }
 		public required List<ApplicableVoucherCartItemRequest> CartItems { get; init; }
 	}
 }

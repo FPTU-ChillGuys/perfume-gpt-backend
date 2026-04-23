@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using PerfumeGPT.API.Controllers.Base;
@@ -18,8 +17,6 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IPaymentService _paymentService;
 		private readonly IConfiguration _configuration;
-		private readonly IValidator<ConfirmPaymentRequest> _confirmPaymentValidator;
-		private readonly IValidator<RetryOrChangePaymentRequest> _retryPaymentValidator;
 		private readonly ILogger<PaymentsController> _logger;
 		private readonly IHubContext<PosHub, IPosClient> _posHubContext;
 
@@ -27,16 +24,12 @@ namespace PerfumeGPT.API.Controllers
 			IPaymentService paymentService,
 			IConfiguration configuration,
 			ILogger<PaymentsController> logger,
-			IValidator<ConfirmPaymentRequest> confirmPaymentValidator,
-			IHubContext<PosHub, IPosClient> posHubContext,
-			IValidator<RetryOrChangePaymentRequest> retryPaymentValidator)
+			IHubContext<PosHub, IPosClient> posHubContext)
 		{
 			_paymentService = paymentService;
 			_configuration = configuration;
 			_logger = logger;
-			_confirmPaymentValidator = confirmPaymentValidator;
 			_posHubContext = posHubContext;
-			_retryPaymentValidator = retryPaymentValidator;
 		}
 
 		[HttpGet("momo-return")]
@@ -200,9 +193,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> RetryPayment([FromRoute] Guid paymentId, [FromBody] RetryOrChangePaymentRequest newMethod)
 		{
-			var validation = await ValidateRequestAsync(_retryPaymentValidator, newMethod);
-			if (validation != null) return validation;
-
 			var response = await _paymentService.RetryOrChangePaymentMethodAsync(paymentId, newMethod);
 			return HandleResponse(response);
 		}
@@ -212,9 +202,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> ConfirmPayment([FromRoute] Guid paymentId, [FromBody] ConfirmPaymentRequest request)
 		{
-			var validation = await ValidateRequestAsync(_confirmPaymentValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _paymentService.UpdatePaymentStatusAsync(paymentId, request);
 
 			if (response.Success && request.IsSuccess && !string.IsNullOrWhiteSpace(request.PosSessionId))

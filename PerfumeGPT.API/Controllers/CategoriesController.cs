@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Categories;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -13,17 +12,10 @@ namespace PerfumeGPT.API.Controllers
 	public class CategoriesController : BaseApiController
 	{
 		private readonly ICategoryService _categoryService;
-		private readonly IValidator<CreateCategoryRequest> _createValidator;
-		private readonly IValidator<UpdateCategoryRequest> _updateValidator;
 
-		public CategoriesController(
-			ICategoryService categoryService,
-			IValidator<CreateCategoryRequest> createValidator,
-			IValidator<UpdateCategoryRequest> updateValidator)
+		public CategoriesController(ICategoryService categoryService)
 		{
 			_categoryService = categoryService;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 		}
 
 		[HttpGet("lookup")]
@@ -49,6 +41,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<CategoryResponse>>> GetCategoryByIdAsync([FromRoute] int id)
 		{
+			var validationResult = ValidatePositiveInt(id, "Category ID");
+			if (validationResult != null) return validationResult;
+
 			var result = await _categoryService.GetCategoryByIdAsync(id);
 			return HandleResponse(result);
 		}
@@ -58,9 +53,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<CategoryResponse>>> CreateCategoryAsync([FromBody] CreateCategoryRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _categoryService.CreateCategoryAsync(request);
 			return HandleResponse(result);
 		}
@@ -70,8 +62,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<CategoryResponse>>> UpdateCategoryAsync([FromRoute] int id, [FromBody] UpdateCategoryRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateValidator, request);
-			if (validation != null) return validation;
+			var validationResult = ValidatePositiveInt(id, "Category ID");
+			if (validationResult != null) return validationResult;
 
 			var result = await _categoryService.UpdateCategoryAsync(id, request);
 			return HandleResponse(result);
@@ -82,6 +74,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteCategoryAsync([FromRoute] int id)
 		{
+			var validationResult = ValidatePositiveInt(id, "Category ID");
+			if (validationResult != null) return validationResult;
+
 			var result = await _categoryService.DeleteCategoryAsync(id);
 			return HandleResponse(result);
 		}

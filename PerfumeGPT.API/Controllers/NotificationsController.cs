@@ -5,7 +5,6 @@ using PerfumeGPT.Application.DTOs.Requests.Notifications;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Notifications;
 using PerfumeGPT.Application.Interfaces.Services;
-using System.Security.Claims;
 
 namespace PerfumeGPT.API.Controllers
 {
@@ -26,33 +25,24 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<NotificationListItemResponse>>>> GetPaged([FromQuery] GetPagedNotificationsRequest request)
 		{
-			var effectiveRequest = request;
-			var currentUserId = GetCurrentUserId();
-			var currentRole = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
+			var (currentUserId, currentRole) = GetCurrentUserContext();
 
-			Guid? effectiveUserId = effectiveRequest.UserId;
-			var effectiveRole = effectiveRequest.TargetRole;
+			// Nếu request không truyền UserId (hoặc empty) → fallback về current user
+			var effectiveUserId = request.UserId is { } uid && uid != Guid.Empty
+				? uid
+				: (currentUserId == Guid.Empty ? (Guid?)null : currentUserId);
 
-			if (!effectiveUserId.HasValue || effectiveUserId.Value == Guid.Empty)
-			{
-				effectiveUserId = currentUserId == Guid.Empty ? null : currentUserId;
-			}
+			// Nếu request không truyền TargetRole, và đang query cho chính mình → dùng role hiện tại
+			var effectiveRole = !string.IsNullOrWhiteSpace(request.TargetRole)
+				? request.TargetRole
+				: (effectiveUserId.HasValue && effectiveUserId.Value == currentUserId ? currentRole : null);
 
-			if (string.IsNullOrWhiteSpace(effectiveRole)
-				&& effectiveUserId.HasValue
-				&& currentUserId != Guid.Empty
-				&& effectiveUserId.Value == currentUserId)
-			{
-				effectiveRole = currentRole;
-			}
-
-			effectiveRequest = effectiveRequest with
+			var response = await _notificationService.GetPagedAsync(request with
 			{
 				UserId = effectiveUserId,
 				TargetRole = effectiveRole
-			};
+			});
 
-			var response = await _notificationService.GetPagedAsync(effectiveRequest);
 			return HandleResponse(response);
 		}
 
@@ -61,8 +51,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> MarkAsRead([FromRoute] Guid id)
 		{
-			var userId = GetCurrentUserId();
-			var role = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
+			var (userId, role) = GetCurrentUserContext();
+
 			var response = await _notificationService.MarkAsReadAsync(id, userId, role);
 			return HandleResponse(response);
 		}
@@ -72,8 +62,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> MarkAllAsRead()
 		{
-			var userId = GetCurrentUserId();
-			var role = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
+			var (userId, role) = GetCurrentUserContext();
+
 			var response = await _notificationService.MarkAllAsReadAsync(userId, role);
 			return HandleResponse(response);
 		}

@@ -805,7 +805,7 @@ namespace PerfumeGPT.Application.Services
 
 				_unitOfWork.Orders.Update(order);
 
-				return BaseResponse<string>.Ok("Giao hàng cho khách tại cửa hàng thành công.");
+				return BaseResponse<string>.Ok(order.Code);
 			});
 		}
 

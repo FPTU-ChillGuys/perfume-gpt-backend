@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Concentrations;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -13,17 +12,10 @@ namespace PerfumeGPT.API.Controllers
 	public class ConcentrationsController : BaseApiController
 	{
 		public IConcentrationService _concentrationService;
-		private readonly IValidator<CreateConcentrationRequest> _createValidator;
-		private readonly IValidator<UpdateConcentrationRequest> _updateValidator;
 
-		public ConcentrationsController(
-			IConcentrationService concentrationService,
-			IValidator<CreateConcentrationRequest> createValidator,
-			IValidator<UpdateConcentrationRequest> updateValidator)
+		public ConcentrationsController(IConcentrationService concentrationService)
 		{
 			_concentrationService = concentrationService;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 		}
 
 		[HttpGet("lookup")]
@@ -49,6 +41,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> GetConcentrationByIdAsync([FromRoute] int id)
 		{
+			var validationResult = ValidatePositiveInt(id, "Concentration ID");
+			if (validationResult != null) return validationResult;
+
 			var result = await _concentrationService.GetConcentrationByIdAsync(id);
 			return HandleResponse(result);
 		}
@@ -58,9 +53,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> CreateConcentrationAsync([FromBody] CreateConcentrationRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _concentrationService.CreateConcentrationAsync(request);
 			return HandleResponse(result);
 		}
@@ -70,8 +62,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> UpdateConcentrationAsync([FromRoute] int id, [FromBody] UpdateConcentrationRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateValidator, request);
-			if (validation != null) return validation;
+			var validationResult = ValidatePositiveInt(id, "Concentration ID");
+			if (validationResult != null) return validationResult;
 
 			var result = await _concentrationService.UpdateConcentrationAsync(id, request);
 			return HandleResponse(result);
@@ -82,6 +74,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteConcentrationAsync([FromRoute] int id)
 		{
+			var validationResult = ValidatePositiveInt(id, "Concentration ID");
+			if (validationResult != null) return validationResult;
+
 			var result = await _concentrationService.DeleteConcentrationAsync(id);
 			return HandleResponse(result);
 		}

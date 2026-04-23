@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
@@ -15,19 +14,13 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly ICartService _cartService;
 		private readonly ICartItemService _cartItemService;
-		private readonly IValidator<CreateCartItemRequest> _createCartItemValidator;
-		private readonly IValidator<UpdateCartItemRequest> _updateCartItemValidator;
 
 		public CartController(
 			ICartService cartService,
-			ICartItemService cartItemService,
-			IValidator<CreateCartItemRequest> createCartItemValidator,
-			IValidator<UpdateCartItemRequest> updateCartItemValidator)
+			ICartItemService cartItemService)
 		{
 			_cartService = cartService;
 			_cartItemService = cartItemService;
-			_createCartItemValidator = createCartItemValidator;
-			_updateCartItemValidator = updateCartItemValidator;
 		}
 
 		[HttpPost("pos-preview")]
@@ -77,9 +70,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> AddToCartAsync([FromBody] CreateCartItemRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createCartItemValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 			var result = await _cartItemService.AddToCartAsync(userId, request);
 			return HandleResponse(result);
@@ -90,9 +80,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateCartItemAsync([FromRoute] Guid id, [FromBody] UpdateCartItemRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateCartItemValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 			var result = await _cartItemService.UpdateCartItemAsync(userId, id, request);
 			return HandleResponse(result);

@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Suppliers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -13,17 +12,10 @@ namespace PerfumeGPT.API.Controllers
 	public class SuppliersController : BaseApiController
 	{
 		private readonly ISupplierService _supplierService;
-		private readonly IValidator<CreateSupplierRequest> _createValidator;
-		private readonly IValidator<UpdateSupplierRequest> _updateValidator;
 
-		public SuppliersController(
-			ISupplierService supplierService,
-			IValidator<CreateSupplierRequest> createValidator,
-			IValidator<UpdateSupplierRequest> updateValidator)
+		public SuppliersController(ISupplierService supplierService)
 		{
 			_supplierService = supplierService;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 		}
 
 		[HttpGet("lookup")]
@@ -49,6 +41,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<SupplierResponse>>> GetSupplierByIdAsync([FromRoute] int id)
 		{
+			var validationResult = ValidatePositiveInt(id, "Supplier ID");
+			if (validationResult != null) return validationResult;
+
 			var result = await _supplierService.GetSupplierByIdAsync(id);
 			return HandleResponse(result);
 		}
@@ -58,9 +53,6 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<SupplierResponse>>> CreateSupplierAsync([FromBody] CreateSupplierRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _supplierService.CreateSupplierAsync(request);
 			return HandleResponse(result);
 		}
@@ -70,8 +62,8 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<SupplierResponse>>> UpdateSupplierAsync([FromRoute] int id, [FromBody] UpdateSupplierRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateValidator, request);
-			if (validation != null) return validation;
+			var validationResult = ValidatePositiveInt(id, "Supplier ID");
+			if (validationResult != null) return validationResult;
 
 			var result = await _supplierService.UpdateSupplierAsync(id, request);
 			return HandleResponse(result);
@@ -82,6 +74,9 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteSupplierAsync([FromRoute] int id)
 		{
+			var validationResult = ValidatePositiveInt(id, "Supplier ID");
+			if (validationResult != null) return validationResult;
+
 			var result = await _supplierService.DeleteSupplierAsync(id);
 			return HandleResponse(result);
 		}
