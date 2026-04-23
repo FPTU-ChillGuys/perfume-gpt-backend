@@ -339,6 +339,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				PaymentStatus = o.PaymentStatus,
 				TotalAmount = o.TotalAmount,
 				RequiredDepositAmount = o.RequiredDepositAmount,
+				DepositAmount = o.PolicyDepositAmount,
 				PaidAmount = o.PaidAmount,
 				RemainingAmount = o.TotalAmount - o.PaidAmount,
 				SubTotal = o.OrderDetails.Sum(od => (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount),
