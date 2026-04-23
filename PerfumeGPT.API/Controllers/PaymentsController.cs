@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using PerfumeGPT.API.Controllers.Base;
-using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Requests.Payments;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Payments;
@@ -20,6 +19,7 @@ namespace PerfumeGPT.API.Controllers
 		private readonly IPaymentService _paymentService;
 		private readonly IConfiguration _configuration;
 		private readonly IValidator<ConfirmPaymentRequest> _confirmPaymentValidator;
+		private readonly IValidator<RetryOrChangePaymentRequest> _retryPaymentValidator;
 		private readonly ILogger<PaymentsController> _logger;
 		private readonly IHubContext<PosHub, IPosClient> _posHubContext;
 
@@ -28,13 +28,15 @@ namespace PerfumeGPT.API.Controllers
 			IConfiguration configuration,
 			ILogger<PaymentsController> logger,
 			IValidator<ConfirmPaymentRequest> confirmPaymentValidator,
-			IHubContext<PosHub, IPosClient> posHubContext)
+			IHubContext<PosHub, IPosClient> posHubContext,
+			IValidator<RetryOrChangePaymentRequest> retryPaymentValidator)
 		{
 			_paymentService = paymentService;
 			_configuration = configuration;
 			_logger = logger;
 			_confirmPaymentValidator = confirmPaymentValidator;
 			_posHubContext = posHubContext;
+			_retryPaymentValidator = retryPaymentValidator;
 		}
 
 		[HttpGet("momo-return")]
@@ -196,8 +198,11 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{paymentId:guid}/retry")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
-		public async Task<ActionResult<BaseResponse<string>>> RetryPayment([FromRoute] Guid paymentId, [FromBody] PaymentInformation? newMethod = null)
+		public async Task<ActionResult<BaseResponse<string>>> RetryPayment([FromRoute] Guid paymentId, [FromBody] RetryOrChangePaymentRequest newMethod)
 		{
+			var validation = await ValidateRequestAsync(_retryPaymentValidator, newMethod);
+			if (validation != null) return validation;
+
 			var response = await _paymentService.RetryOrChangePaymentMethodAsync(paymentId, newMethod);
 			return HandleResponse(response);
 		}

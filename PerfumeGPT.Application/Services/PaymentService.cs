@@ -2,7 +2,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.DTOs.Requests.Momos;
-using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Requests.Payments;
 using PerfumeGPT.Application.DTOs.Requests.PayOs;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
@@ -142,7 +141,7 @@ namespace PerfumeGPT.Application.Services
 			return normalized == 0 ? 1 : normalized;
 		}
 
-		public async Task<BaseResponse<string>> RetryOrChangePaymentMethodAsync(Guid paymentId, PaymentInformation? newMethod = null)
+		public async Task<BaseResponse<string>> RetryOrChangePaymentMethodAsync(Guid paymentId, RetryOrChangePaymentRequest request)
 		{
 			var currentPayment = await _unitOfWork.Payments.GetByIdAsync(paymentId)
 				?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
@@ -197,14 +196,11 @@ namespace PerfumeGPT.Application.Services
 				var order = await _unitOfWork.Orders.GetByIdAsync(payment.OrderId)
 					 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
-				//if (order.Status != OrderStatus.Pending)
-				//	throw AppException.BadRequest($"Cannot change payment method or retry because the order is already being processed (Current status: {order.Status}).");
-
 				if (order.PaymentExpiresAt.HasValue && order.PaymentExpiresAt.Value < DateTime.UtcNow)
-				{
 					throw AppException.BadRequest("Thời gian thanh toán của đơn hàng này đã hết. Vui lòng tạo đơn hàng mới.");
-				}
 
+
+				// 1. HỦY TOÀN BỘ GIAO DỊCH PENDING HIỆN TẠI (Bao gồm cả cọc Gateway và COD chờ thu)
 				var existingPendingPayments = await _unitOfWork.Payments
 					.GetAllAsync(p => p.OrderId == order.Id &&
 									  p.TransactionType == payment.TransactionType &&
@@ -212,20 +208,94 @@ namespace PerfumeGPT.Application.Services
 
 				foreach (var pendingPayment in existingPendingPayments)
 				{
-					pendingPayment.MarkCancelled("Được thay thế bởi lần thử thanh toán mới.");
+					pendingPayment.MarkCancelled("Được thay thế bởi yêu cầu thanh toán mới.");
 					_unitOfWork.Payments.Update(pendingPayment);
 				}
 
-				var paymentMethod = newMethod?.Method ?? payment.Method;
-				var amountToPay = order.PaymentStatus == PaymentStatus.Unpaid && order.RequiredDepositAmount > 0
-					? order.RequiredDepositAmount
-					: (order.RemainingAmount > 0 ? order.RemainingAmount : order.TotalAmount);
+				// ======================================================================
+				// 2. LOGIC NÂNG CẤP: PHÂN TÍCH Ý ĐỊNH CHUYỂN ĐỔI THANH TOÁN
+				// ======================================================================
+				PaymentMethod transactionMethod;
+				decimal amountToPay;
+				bool isStillDepositFlow = false;
+				decimal remainingToCollectAfterDeposit = 0;
 
-				var newPayment = payment.CreateRetry(paymentMethod, amountToPay);
+				// Ý định 1: ĐỔI PHƯƠNG THỨC 
+				// Sử dụng Pattern Matching (is var targetMethod) để vừa check null vừa gán biến luôn
+				if (request.NewPaymentMethod is { } targetMethod && targetMethod != payment.Method)
+				{
+					bool isCodOrStore = targetMethod == PaymentMethod.CashOnDelivery || targetMethod == PaymentMethod.CashInStore;
 
+					// RÀO CHẮN 1: Chọn trả Full nhưng lại đòi cọc
+					if (!isCodOrStore && request.NewDepositMethod.HasValue)
+						throw AppException.BadRequest("Đơn hàng thanh toán toàn bộ không được đính kèm cổng thanh toán cọc.");
+
+					if (isCodOrStore && order.RequiredDepositAmount > 0)
+					{
+						// KỊCH BẢN A: Đổi cổng Cọc (Ví dụ VNPay cọc -> Momo cọc)
+						if (!request.NewDepositMethod.HasValue)
+							throw AppException.BadRequest("Vui lòng chọn cổng thanh toán để đặt cọc.");
+
+						// RÀO CHẮN 2: Chỉ cho phép các cổng Online làm cổng cọc
+						var depositMethod = request.NewDepositMethod.Value;
+						if (depositMethod != PaymentMethod.VnPay &&
+							depositMethod != PaymentMethod.Momo &&
+							depositMethod != PaymentMethod.PayOs)
+						{
+							throw AppException.BadRequest("Cổng thanh toán đặt cọc chỉ hỗ trợ VNPay, Momo hoặc PayOs.");
+						}
+
+						transactionMethod = request.NewDepositMethod.Value;
+						amountToPay = order.RequiredDepositAmount;
+						isStillDepositFlow = true;
+						remainingToCollectAfterDeposit = order.TotalAmount - order.RequiredDepositAmount;
+					}
+					else
+					{
+						// KỊCH BẢN B: Đổi sang trả Full 100% (Ví dụ COD -> VNPay full)
+						transactionMethod = targetMethod;
+						amountToPay = order.RemainingAmount > 0 ? order.RemainingAmount : order.TotalAmount;
+					}
+				}
+				else
+				{
+					// Ý định 2: KỊCH BẢN C - CHỈ RETRY 
+					transactionMethod = payment.Method;
+
+					// Giữ nguyên logic tính tiền của giao dịch cũ
+					if (payment.Amount == order.RequiredDepositAmount && order.PaymentStatus == PaymentStatus.Unpaid)
+					{
+						amountToPay = order.RequiredDepositAmount;
+						isStillDepositFlow = true;
+						remainingToCollectAfterDeposit = order.TotalAmount - order.RequiredDepositAmount;
+					}
+					else
+					{
+						amountToPay = payment.Amount;
+					}
+				}
+
+				// 3. TẠO GIAO DỊCH CHÍNH (Cọc hoặc Trả Full)
+				var newPayment = payment.CreateRetry(transactionMethod, amountToPay);
 				await _unitOfWork.Payments.AddAsync(newPayment);
 
-				var refreshedExpiration = GetPaymentExpiration(paymentMethod);
+				// 4. TÁI TẠO LẠI GIAO DỊCH PHỤ (Nếu vẫn nằm trong luồng Cọc)
+				if (isStillDepositFlow && remainingToCollectAfterDeposit > 0)
+				{
+					var primaryOrderMethod = request?.NewPaymentMethod ??
+						(order.Type == OrderType.Offline ? PaymentMethod.CashInStore : PaymentMethod.CashOnDelivery);
+
+					var pendingRemainingTransaction = PaymentTransaction.Create(
+						order.Id,
+						primaryOrderMethod,
+						remainingToCollectAfterDeposit);
+
+					await _unitOfWork.Payments.AddAsync(pendingRemainingTransaction);
+				}
+				// ======================================================================
+
+				// 5. CẬP NHẬT EXPIRATION TIME
+				var refreshedExpiration = GetPaymentExpiration(transactionMethod);
 				DateTime? finalExpirationToSet = order.PaymentExpiresAt;
 
 				if (!order.PaymentExpiresAt.HasValue)
@@ -249,33 +319,30 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 
-				//order.MarkUnpaid();
 				_unitOfWork.Orders.Update(order);
 
-				var methodChanged = payment.Method != paymentMethod;
-				var methodMessage = methodChanged
-				? $" (đổi từ {payment.Method} sang {paymentMethod})"
-					: "";
+				var methodChanged = payment.Method != transactionMethod;
+				var methodMessage = methodChanged ? $" (đổi từ {payment.Method} sang {transactionMethod})" : "";
 
-				var paymentResponse = await GeneratePaymentResponse(newPayment, order, newPayment.RetryAttempt, methodMessage, newMethod?.PosSessionId);
+				var paymentResponse = await GeneratePaymentResponse(newPayment, order, newPayment.RetryAttempt, methodMessage, request?.PosSessionId);
 
-				if (!string.IsNullOrWhiteSpace(newMethod?.PosSessionId)
+				if (!string.IsNullOrWhiteSpace(request?.PosSessionId)
 					&& !string.IsNullOrWhiteSpace(paymentResponse.Payload)
-					&& (paymentMethod == PaymentMethod.VnPay || paymentMethod == PaymentMethod.Momo || paymentMethod == PaymentMethod.PayOs))
+					&& (transactionMethod == PaymentMethod.VnPay || transactionMethod == PaymentMethod.Momo || transactionMethod == PaymentMethod.PayOs))
 				{
 					try
 					{
-						await _signalRService.NotifyPosPaymentLinkUpdatedAsync(newMethod.PosSessionId, new PosPaymentLinkDto
+						await _signalRService.NotifyPosPaymentLinkUpdatedAsync(request.PosSessionId, new PosPaymentLinkDto
 						{
 							OrderId = order.Id,
 							PaymentId = newPayment.Id,
-							Method = paymentMethod.ToString(),
+							Method = transactionMethod.ToString(),
 							PaymentUrl = paymentResponse.Payload
 						});
 					}
 					catch (Exception ex)
 					{
-						_logger.LogWarning(ex, "Could not broadcast POS payment link update for order {OrderId} and session {SessionId}", order.Id, newMethod.PosSessionId);
+						_logger.LogWarning(ex, "Could not broadcast POS payment link update...");
 					}
 				}
 
