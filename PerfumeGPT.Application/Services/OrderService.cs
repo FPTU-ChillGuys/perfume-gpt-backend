@@ -216,10 +216,10 @@ namespace PerfumeGPT.Application.Services
 
 				// Create order and populate details through aggregate methods
 				var order = Order.CreateOnline(
-					 userId,
-					 cartResponse.TotalPrice,
-					 storePolicy,
-					 request.Payment.Method == PaymentMethod.CashOnDelivery);
+					userId,
+					cartResponse.TotalPrice,
+					storePolicy,
+					requiresDepositForThisOrder);
 				await _orderDetailsFactory.CreateOrderDetailsAsync(order, [.. cartResponse.Items]);
 
 				// Validate voucher if provided (with subtotal + cart variant context)
