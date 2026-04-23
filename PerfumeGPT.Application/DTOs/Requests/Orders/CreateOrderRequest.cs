@@ -29,6 +29,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Orders
 	public record PaymentInformation
 	{
 		public PaymentMethod Method { get; init; }
+		public PaymentMethod? DepositGateway { get; init; }
 		public string? PosSessionId { get; init; }
 	}
 }

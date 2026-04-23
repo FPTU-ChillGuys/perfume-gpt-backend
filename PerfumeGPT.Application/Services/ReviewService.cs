@@ -9,6 +9,7 @@ using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using Microsoft.Extensions.Logging;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -17,6 +18,8 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 		private readonly IMediaService _mediaService;
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
+		private readonly ILogger<ReviewService> _logger;
 
 		private readonly MediaBulkActionHelper _helper;
 		private readonly IRedisPublisherService _redisPublisherService;
@@ -25,12 +28,16 @@ namespace PerfumeGPT.Application.Services
 			IMediaService mediaService,
 			MediaBulkActionHelper helper,
 			IUnitOfWork unitOfWork,
-			IRedisPublisherService redisPublisherService)
+			IRedisPublisherService redisPublisherService,
+			ILoyaltyTransactionService loyaltyTransactionService,
+			ILogger<ReviewService> logger)
 		{
 			_mediaService = mediaService;
 			_helper = helper;
 			_unitOfWork = unitOfWork;
 			_redisPublisherService = redisPublisherService;
+			_loyaltyTransactionService = loyaltyTransactionService;
+			_logger = logger;
 		}
 		#endregion Dependencies
 
@@ -46,17 +53,36 @@ namespace PerfumeGPT.Application.Services
 
 			var review = Review.Create(userId, request.OrderDetailId, request.Rating, request.Comment);
 
-            await _unitOfWork.Reviews.AddAsync(review);
+			await _unitOfWork.Reviews.AddAsync(review);
 			var saved = await _unitOfWork.SaveChangesAsync();
 
 			if (!saved)
 				throw AppException.Internal("Tạo đánh giá thất bại");
 
-            // Notify external services via Redis
-            var variantId = await _unitOfWork.Reviews.GetVariantIdByOrderDetailIdAsync(request.OrderDetailId);
-            await _redisPublisherService.PublishReviewCreatedAsync(variantId);
+			// Notify external services via Redis
+			var variantId = await _unitOfWork.Reviews.GetVariantIdByOrderDetailIdAsync(request.OrderDetailId);
+			await _redisPublisherService.PublishReviewCreatedAsync(variantId);
 
-            var metadata = new BulkActionMetadata { Operations = [] };
+			// BỔ SUNG LOGIC TẶNG ĐIỂM KHI ĐÁNH GIÁ THÀNH CÔNG
+			// Vì hàm này đã SaveChangesAsync ở trên, việc cộng điểm nên được thực hiện sau.
+			try
+			{
+				int reviewRewardPoints = 50; // Điểm thưởng cho mỗi review
+											 // Truyền orderId = null (hoặc lấy từ OrderDetail nếu muốn track cụ thể đơn nào)
+				await _loyaltyTransactionService.PlusPointAsync(
+					userId,
+					reviewRewardPoints,
+					null,
+					reason: $"Điểm thưởng từ việc đánh giá sản phẩm");
+			}
+			catch (Exception ex)
+			{
+				// Ghi log lỗi cộng điểm nhưng KHÔNG throw Exception, 
+				// để không làm gián đoạn việc lưu Media/trả về Response cho khách.
+				_logger.LogError(ex, "Lỗi khi cộng điểm thưởng Review cho User {UserId}", userId);
+			}
+
+			var metadata = new BulkActionMetadata { Operations = [] };
 			if (request.TemporaryMediaIds != null && request.TemporaryMediaIds.Count != 0)
 			{
 				var conversionResult = await _helper.ConvertTemporaryMediaToPermanentAsync(request.TemporaryMediaIds, EntityType.Review, review.Id);
@@ -69,7 +95,7 @@ namespace PerfumeGPT.Application.Services
 			var result = new BulkActionResult<Guid>(review.Id, metadata.Operations.Count > 0 ? metadata : null);
 			var message = metadata.HasPartialFailure
 			 ? $"Gửi đánh giá thành công nhưng có {metadata.TotalFailed} tệp media tải lên thất bại."
-				: "Gửi đánh giá thành công.";
+				: "Gửi đánh giá và nhận điểm thưởng thành công.";
 
 			return BaseResponse<BulkActionResult<Guid>>.Ok(result, message);
 		}

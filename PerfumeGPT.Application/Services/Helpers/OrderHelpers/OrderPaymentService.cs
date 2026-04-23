@@ -34,8 +34,9 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			_httpContextAccessor = httpContextAccessor;
 		}
 
-		public async Task<CreatePaymentResponseDto> CreatePaymentAndGenerateResponseAsync(Order order, decimal amount, PaymentMethod paymentMethod, string? posSessionId)
+		public async Task<CreatePaymentResponseDto> CreatePaymentAndGenerateResponseAsync(Order order, PaymentMethod paymentMethod, string? posSessionId)
 		{
+			var amount = ResolvePaymentAmount(order);
 			var payment = PaymentTransaction.Create(order.Id, paymentMethod, amount);
 
 			await _unitOfWork.Payments.AddAsync(payment);
@@ -108,6 +109,21 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				OrderId = order.Id,
 				PaymentUrl = null
 			};
+		}
+
+		private static decimal ResolvePaymentAmount(Order order)
+		{
+			if (order.PaymentStatus == PaymentStatus.Unpaid && order.RequiredDepositAmount > 0)
+			{
+				return order.RequiredDepositAmount;
+			}
+
+			if (order.RemainingAmount > 0)
+			{
+				return order.RemainingAmount;
+			}
+
+			return order.TotalAmount;
 		}
 	}
 }

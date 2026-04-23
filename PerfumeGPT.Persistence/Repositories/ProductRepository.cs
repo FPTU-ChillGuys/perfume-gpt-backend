@@ -225,7 +225,6 @@ namespace PerfumeGPT.Persistence.Repositories
 						{
 							DiscountedPrice = discountedPrice,
 							CampaignName = x.BestPromotion.CampaignName,
-							VoucherCode = x.AvailableVouchers.FirstOrDefault()
 						};
 					}
 
@@ -234,7 +233,6 @@ namespace PerfumeGPT.Persistence.Repositories
 						variant = variant with
 						{
 							DiscountedPrice = variant.BasePrice,
-							VoucherCode = x.AvailableVouchers.FirstOrDefault()
 						};
 					}
 

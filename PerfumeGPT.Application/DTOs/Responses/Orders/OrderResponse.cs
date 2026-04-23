@@ -16,6 +16,9 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public OrderStatus Status { get; init; }
 		public PaymentStatus PaymentStatus { get; init; }
 		public decimal TotalAmount { get; init; }
+		public decimal RequiredDepositAmount { get; init; }
+		public decimal PaidAmount { get; init; }
+		public decimal RemainingAmount { get; init; }
 		public decimal SubTotal { get; init; }
 		public decimal ShippingFee { get; init; }
 		public Guid? VoucherId { get; init; }

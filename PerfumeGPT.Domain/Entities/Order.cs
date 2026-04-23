@@ -16,6 +16,9 @@ namespace PerfumeGPT.Domain.Entities
 		public OrderType Type { get; private set; }
 		public OrderStatus Status { get; private set; }
 		public decimal TotalAmount { get; private set; }
+		public decimal RequiredDepositAmount { get; private set; }
+		public decimal PaidAmount { get; private set; } = 0;
+		public decimal RemainingAmount => TotalAmount - PaidAmount;
 		public PaymentStatus PaymentStatus { get; private set; }
 		public Guid? UserVoucherId { get; private set; }
 		public DateTime? PaymentExpiresAt { get; private set; }
@@ -42,12 +45,19 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime CreatedAt { get; set; }
 
 		// Factory methods
-		public static Order CreateOnline(Guid customerId, decimal totalAmount, DateTime? paymentExpiresAt)
+		public static Order CreateOnline(Guid customerId, decimal totalAmount, StorePolicy currentSetting, bool isCodOrder)
 		{
+			if (currentSetting is null)
+				throw DomainException.BadRequest("Cấu hình đặt cọc là bắt buộc.");
+
 			if (customerId == Guid.Empty)
 				throw DomainException.BadRequest("ID khách hàng là bắt buộc cho đơn hàng online.");
 
 			ValidateTotalAmount(totalAmount);
+
+			decimal depositAmount = isCodOrder && currentSetting.IsDepositRequiredForCOD
+				  ? decimal.Round(totalAmount * currentSetting.RequiredDepositPercentage / 100m, 0, MidpointRounding.AwayFromZero)
+				  : 0;
 
 			return new Order
 			{
@@ -57,16 +67,24 @@ namespace PerfumeGPT.Domain.Entities
 				Status = OrderStatus.Pending,
 				PaymentStatus = PaymentStatus.Unpaid,
 				TotalAmount = totalAmount,
-				PaymentExpiresAt = paymentExpiresAt
+				RequiredDepositAmount = depositAmount,
+				PaidAmount = 0,
+				PaymentExpiresAt = depositAmount > 0 ? DateTime.UtcNow.AddMinutes(currentSetting.DepositTimeoutMinutes) : null
 			};
 		}
 
-		public static Order CreateOffline(Guid? customerId, string? guestEmailOrPhone, Guid staffId, decimal totalAmount)
+		// Đã thêm storePolicy và isCodOrder vào tham số
+		public static Order CreateOffline(Guid? customerId, string? guestEmailOrPhone, Guid staffId, decimal totalAmount, StorePolicy? currentSetting, bool isCodOrder)
 		{
 			if (staffId == Guid.Empty)
 				throw DomainException.BadRequest("ID nhân viên là bắt buộc cho đơn hàng offline.");
 
 			ValidateTotalAmount(totalAmount);
+
+			// Tính tiền cọc nếu là đơn COD
+			decimal depositAmount = isCodOrder && currentSetting != null && currentSetting.IsDepositRequiredForCOD
+				  ? decimal.Round(totalAmount * currentSetting.RequiredDepositPercentage / 100m, 0, MidpointRounding.AwayFromZero)
+				  : 0;
 
 			return new Order
 			{
@@ -77,7 +95,11 @@ namespace PerfumeGPT.Domain.Entities
 				Type = OrderType.Offline,
 				Status = OrderStatus.Pending,
 				PaymentStatus = PaymentStatus.Unpaid,
-				TotalAmount = totalAmount
+				TotalAmount = totalAmount,
+				RequiredDepositAmount = depositAmount,
+				PaidAmount = 0,
+				// Gán thời gian hết hạn thanh toán nếu có cọc
+				PaymentExpiresAt = depositAmount > 0 ? DateTime.UtcNow.AddMinutes(currentSetting!.DepositTimeoutMinutes) : null
 			};
 		}
 
@@ -197,18 +219,35 @@ namespace PerfumeGPT.Domain.Entities
 			ContactAddressId = contactAddressId;
 		}
 
-		public void MarkPaid(DateTime paidAtUtc)
-		{
-			if (PaymentStatus == PaymentStatus.Paid)
-				throw DomainException.BadRequest("Đơn hàng đã được đánh dấu là đã thanh toán.");
-			PaymentStatus = PaymentStatus.Paid;
-			PaidAt = paidAtUtc;
-		}
+		//public void MarkPaid(DateTime paidAtUtc)
+		//{
+		//	RecordPayment(Math.Max(0, RemainingAmount), paidAtUtc);
+		//}
 
-		public void MarkUnpaid()
+		//public void MarkUnpaid()
+		//{
+		//	PaymentStatus = PaidAmount >= RequiredDepositAmount && PaidAmount > 0
+		//		  ? PaymentStatus.PartialPaid
+		//		  : PaymentStatus.Unpaid;
+		//}
+
+		public void RecordPayment(decimal amountReceived, DateTime paidAtUtc)
 		{
-			if (PaymentStatus == PaymentStatus.Unpaid)
-				PaymentStatus = PaymentStatus.Unpaid;
+			if (amountReceived <= 0)
+				throw DomainException.BadRequest("Số tiền phải lớn hơn 0.");
+
+			PaidAmount += amountReceived;
+
+			if (PaidAmount >= TotalAmount)
+			{
+				PaidAmount = TotalAmount;
+				PaymentStatus = PaymentStatus.Paid;
+				PaidAt = paidAtUtc;
+			}
+			else if (PaidAmount >= RequiredDepositAmount)
+			{
+				PaymentStatus = PaymentStatus.PartialPaid;
+			}
 		}
 
 		public void MarkRefunded()
@@ -218,7 +257,7 @@ namespace PerfumeGPT.Domain.Entities
 
 		public void MarkPartiallyRefunded()
 		{
-			PaymentStatus = PaymentStatus.Partial_Refunded;
+			PaymentStatus = PaymentStatus.PartialRefunded;
 		}
 
 		public void SetPaymentExpiration(DateTime? paymentExpiresAt)

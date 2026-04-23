@@ -253,6 +253,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<Campaign> Campaigns { get; set; }
 		public DbSet<Banner> Banners { get; set; }
 		public DbSet<SystemPolicy> SystemPolicies { get; set; }
+		public DbSet<StorePolicy> StorePolicies { get; set; }
 
 		protected override void OnModelCreating(ModelBuilder builder)
 		{
@@ -994,6 +995,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasColumnType("nvarchar(max)")
 				.IsRequired();
 
+			builder.Entity<StorePolicy>()
+				.ToTable("StorePolicies");
+
+			builder.Entity<StorePolicy>()
+				.Property(sp => sp.RequiredDepositPercentage)
+				.HasPrecision(18, 2);
+
 			// Configure NVarchar for string properties to avoid default max length issues
 			builder.Entity<Product>().Property(p => p.Description)
 				.HasColumnType("nvarchar(max)");
@@ -1014,6 +1022,8 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<IdentityUserRole<Guid>>().HasData(PerfumeDbContextSeed.SeedingUserRoles());
 			// Seed system policies
 			builder.Entity<SystemPolicy>().HasData(PerfumeDbContextSeed.SeedingSystemPolicies());
+			// Seed store policies
+			builder.Entity<StorePolicy>().HasData(PerfumeDbContextSeed.SeedingStorePolicies());
 		}
 
 		internal class PassThroughEncryptionProvider : IEncryptionProvider

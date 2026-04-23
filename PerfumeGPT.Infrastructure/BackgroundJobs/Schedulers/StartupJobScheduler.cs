@@ -23,6 +23,11 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs.Schedulers
 				job => job.ProcessExpiredReservationsAsync(),
 				"*/5 * * * *"); // Cron: every 5 minutes
 
+			RecurringJob.AddOrUpdate<StockReservationJob>(
+				"release-unpaid-deposit-orders",
+				job => job.ReleaseUnpaidDepositOrdersAsync(),
+				"* * * * *"); // Cron: every minute
+
 			// Cleanup expired temporary media every hour
 			RecurringJob.AddOrUpdate<TemporaryMediaCleanupJob>(
 				"cleanup-expired-temporary-media",

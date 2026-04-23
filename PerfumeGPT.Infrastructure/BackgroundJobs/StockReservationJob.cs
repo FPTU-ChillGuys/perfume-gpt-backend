@@ -29,5 +29,21 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 				throw; // Re-throw for Hangfire retry
 			}
 		}
+
+		public async Task ReleaseUnpaidDepositOrdersAsync()
+		{
+			try
+			{
+				var result = await _stockReservationService.ReleaseUnpaidDepositOrdersAsync();
+
+				if (result > 0)
+					_logger.LogInformation("Released {Result} expired unpaid-deposit orders.", result);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error releasing expired unpaid-deposit orders.");
+				throw;
+			}
+		}
 	}
 }

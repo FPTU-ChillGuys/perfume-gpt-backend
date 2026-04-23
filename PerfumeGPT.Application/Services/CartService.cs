@@ -217,7 +217,6 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 			}
-
 			return BaseResponse<string>.Ok("Xóa giỏ hàng thành công");
 		}
 
@@ -254,7 +253,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				return BaseResponse<GetCartItemsResponse>.Ok(
 					new GetCartItemsResponse { Items = [] },
-				  "Giỏ hàng trống");
+					"Giỏ hàng trống");
 			}
 
 			// 2. Chuyển đổi sang định dạng của Pricing Engine
@@ -310,13 +309,14 @@ namespace PerfumeGPT.Application.Services
 			}).ToList();
 
 			return BaseResponse<GetCartItemsResponse>.Ok(
-			  new GetCartItemsResponse { Items = responseItems },
-			   "Lấy danh sách sản phẩm trong giỏ hàng thành công");
+				new GetCartItemsResponse { Items = responseItems },
+				"Lấy danh sách sản phẩm trong giỏ hàng thành công");
 		}
 
 		public async Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, GetCartTotalRequest request)
 		{
 			var (items, _, finalAmount, voucherMessage) = await BuildCheckoutPricingAsync(userId, request);
+			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
 
 			if (items.Count == 0)
 			{
@@ -326,7 +326,14 @@ namespace PerfumeGPT.Application.Services
 						Subtotal = 0m,
 						ShippingFee = 0m,
 						Discount = 0m,
-						TotalPrice = 0m
+						TotalPrice = 0m,
+						DepositPolicy = new DepositPolicyPreviewResponse
+						{
+							IsDepositRequired = false,
+							DepositRate = 0m,
+							DepositAmount = 0m,
+							RemainingAmount = 0m
+						}
 					},
 				   "Giỏ hàng trống");
 			}
@@ -341,13 +348,28 @@ namespace PerfumeGPT.Application.Services
 			// 3. Discount hiển thị = Tiền Voucher (Sẽ ra đúng 100.000)
 			var voucherDiscount = items.Sum(x => x.ApportionedVoucherDiscount);
 			var shippingFee = await CalculateShippingFeeAsync(userId, request, items);
+			var totalPrice = finalAmount + shippingFee;
+
+			var isDepositRequired = storePolicy != null && storePolicy.IsDepositRequiredForCOD;
+			var depositRate = isDepositRequired ? storePolicy!.RequiredDepositPercentage : 0m;
+			var depositAmount = isDepositRequired
+				? decimal.Round(totalPrice * depositRate / 100m, 0, MidpointRounding.AwayFromZero)
+				: 0m;
+			var remainingAmount = totalPrice - depositAmount;
 
 			var response = new GetCartTotalResponse
 			{
 				Subtotal = subTotalAfterPromo,
 				ShippingFee = shippingFee,
 				Discount = voucherDiscount,
-				TotalPrice = finalAmount + shippingFee
+				TotalPrice = totalPrice,
+				DepositPolicy = new DepositPolicyPreviewResponse
+				{
+					IsDepositRequired = isDepositRequired,
+					DepositRate = depositRate,
+					DepositAmount = depositAmount,
+					RemainingAmount = remainingAmount
+				}
 			};
 
 			return BaseResponse<GetCartTotalResponse>.Ok(

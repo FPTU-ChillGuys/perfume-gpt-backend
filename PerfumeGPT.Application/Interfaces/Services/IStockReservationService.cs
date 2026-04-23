@@ -7,5 +7,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task CommitReservationAsync(Guid orderId);
 		Task ReleaseOrRestockCancelledOrderAsync(Guid orderId);
 		Task<int> ProcessExpiredReservationsAsync();
+		Task<int> ReleaseUnpaidDepositOrdersAsync();
 	}
 }

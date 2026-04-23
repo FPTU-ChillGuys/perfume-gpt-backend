@@ -36,10 +36,10 @@ namespace PerfumeGPT.Domain.Entities
 		public static PaymentTransaction Create(Guid orderId, PaymentMethod method, decimal amount)
 		{
 			if (orderId == Guid.Empty)
-              throw DomainException.BadRequest("Order ID là bắt buộc.");
+				throw DomainException.BadRequest("Order ID là bắt buộc.");
 
 			if (amount <= 0)
-             throw DomainException.BadRequest("Số tiền thanh toán phải lớn hơn 0.");
+				throw DomainException.BadRequest("Số tiền thanh toán phải lớn hơn 0.");
 
 			return new PaymentTransaction
 			{
@@ -56,13 +56,13 @@ namespace PerfumeGPT.Domain.Entities
 		public static PaymentTransaction CreateRefund(Guid orderId, Guid originalPaymentId, PaymentMethod method, decimal refundAmount)
 		{
 			if (orderId == Guid.Empty)
-              throw DomainException.BadRequest("Order ID là bắt buộc.");
+				throw DomainException.BadRequest("Order ID là bắt buộc.");
 
 			if (originalPaymentId == Guid.Empty)
-              throw DomainException.BadRequest("Original Payment ID là bắt buộc khi hoàn tiền.");
+				throw DomainException.BadRequest("Original Payment ID là bắt buộc khi hoàn tiền.");
 
 			if (refundAmount <= 0)
-              throw DomainException.BadRequest("Số tiền hoàn phải lớn hơn 0.");
+				throw DomainException.BadRequest("Số tiền hoàn phải lớn hơn 0.");
 
 			return new PaymentTransaction
 			{
@@ -83,7 +83,7 @@ namespace PerfumeGPT.Domain.Entities
 		public void EnsurePending()
 		{
 			if (!IsPending())
-                throw DomainException.BadRequest("Giao dịch thanh toán không ở trạng thái chờ.");
+				throw DomainException.BadRequest("Giao dịch thanh toán không ở trạng thái chờ.");
 		}
 
 		public void MarkSuccess(string? gatewayTransactionNo = null)
@@ -114,23 +114,27 @@ namespace PerfumeGPT.Domain.Entities
 		public void MarkCancelled(string reason)
 		{
 			if (!IsPending())
-                throw DomainException.BadRequest("Chỉ có thể hủy giao dịch thanh toán đang chờ.");
+				throw DomainException.BadRequest("Chỉ có thể hủy giao dịch thanh toán đang chờ.");
 
 			TransactionStatus = TransactionStatus.Cancelled;
 			FailureReason = reason;
 		}
 
-		public PaymentTransaction CreateRetry(PaymentMethod method)
+		public PaymentTransaction CreateRetry(PaymentMethod method, decimal? amount = null)
 		{
 			if (TransactionStatus == TransactionStatus.Success)
-               throw DomainException.BadRequest("Không thể thử lại giao dịch thanh toán đã hoàn tất.");
+				throw DomainException.BadRequest("Không thể thử lại giao dịch thanh toán đã hoàn tất.");
+
+			var retryAmount = amount ?? Amount;
+			if (retryAmount <= 0)
+				throw DomainException.BadRequest("Số tiền thanh toán phải lớn hơn 0.");
 
 			return new PaymentTransaction
 			{
 				Id = Guid.NewGuid(),
 				OrderId = OrderId,
 				Method = method,
-				Amount = Amount,
+				Amount = retryAmount,
 				TransactionType = TransactionType,
 				TransactionStatus = TransactionStatus.Pending,
 				OriginalPaymentId = OriginalPaymentId ?? Id,

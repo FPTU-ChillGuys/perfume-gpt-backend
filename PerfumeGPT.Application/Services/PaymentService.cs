@@ -63,78 +63,6 @@ namespace PerfumeGPT.Application.Services
 
 
 
-		public async Task<PayOsReturnResponse> ProcessPayOsReturnAsync(IQueryCollection queryParameters, bool isCancelCallback = false)
-		{
-			var payment = await ResolvePayOsPaymentFromCallbackAsync(queryParameters);
-			var orderCode = queryParameters.TryGetValue("orderCode", out var orderCodeValue)
-				? orderCodeValue.ToString()
-				: string.Empty;
-			var callbackPosSessionId = queryParameters.TryGetValue("posSessionId", out var queryPosSessionId)
-				? queryPosSessionId.ToString()
-				: (queryParameters.TryGetValue("sessionId", out var querySessionId) ? querySessionId.ToString() : null);
-
-			var payOsInfo = await _payOsService.GetPaymentInfoAsync(orderCode, payment.Id);
-			var extractedOrderCode = payOsInfo.ExtractedOrderCode ?? payOsInfo.OrderCode.ToString();
-			var extractedPosSessionId = payOsInfo.PosSessionId ?? callbackPosSessionId;
-
-			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			{
-				var latestPayment = await _unitOfWork.Payments.GetByIdAsync(payment.Id)
-					?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
-
-				var payload = new PayOsReturnResponse
-				{
-					PaymentId = latestPayment.Id,
-					OrderId = latestPayment.OrderId,
-					OrderCode = extractedOrderCode,
-					PosSessionId = extractedPosSessionId,
-					IsSuccess = false
-				};
-
-				if (!latestPayment.IsPending())
-				{
-					return payload with { IsSuccess = latestPayment.TransactionStatus == TransactionStatus.Success };
-				}
-
-				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(latestPayment.OrderId)
-				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
-
-				var isCancelled = isCancelCallback ||
-					(queryParameters.TryGetValue("cancel", out var cancelValue) &&
-					 bool.TryParse(cancelValue.ToString(), out var parsedCancel) &&
-					 parsedCancel);
-
-				if (isCancelled)
-				{
-					latestPayment.MarkCancelled("Thanh toán PayOS đã bị người dùng hủy.");
-					order.MarkUnpaid();
-					_unitOfWork.Payments.Update(latestPayment);
-					_unitOfWork.Orders.Update(order);
-					return payload;
-				}
-
-				if (!payOsInfo.IsSuccess)
-				{
-					await HandleFailedPayment(latestPayment, order, payOsInfo.Message ?? "Xác thực thanh toán PayOS thất bại.", payOsInfo.PaymentLinkId);
-					return payload;
-				}
-
-				if (payOsInfo.Amount > 0 && latestPayment.Amount != payOsInfo.Amount)
-				{
-					throw AppException.BadRequest("Số tiền thanh toán không khớp.");
-				}
-
-				if (payOsInfo.IsPaid)
-				{
-					await CompleteSuccessfulPayment(latestPayment, order, payOsInfo.PaymentLinkId, extractedPosSessionId);
-					return payload with { IsSuccess = true };
-				}
-
-				await HandleFailedPayment(latestPayment, order, $"Trạng thái thanh toán PayOS: {payOsInfo.Status ?? "KHÔNG_XÁC_ĐỊNH"}", payOsInfo.PaymentLinkId, extractedPosSessionId);
-				return payload;
-			});
-		}
-
 		public async Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, ConfirmPaymentRequest request)
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
@@ -289,7 +217,11 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				var paymentMethod = newMethod?.Method ?? payment.Method;
-				var newPayment = payment.CreateRetry(paymentMethod);
+				var amountToPay = order.PaymentStatus == PaymentStatus.Unpaid && order.RequiredDepositAmount > 0
+					? order.RequiredDepositAmount
+					: (order.RemainingAmount > 0 ? order.RemainingAmount : order.TotalAmount);
+
+				var newPayment = payment.CreateRetry(paymentMethod, amountToPay);
 
 				await _unitOfWork.Payments.AddAsync(newPayment);
 
@@ -317,7 +249,7 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 
-				order.MarkUnpaid();
+				//order.MarkUnpaid();
 				_unitOfWork.Orders.Update(order);
 
 				var methodChanged = payment.Method != paymentMethod;
@@ -355,6 +287,79 @@ namespace PerfumeGPT.Application.Services
 		{
 			var response = await _unitOfWork.Payments.GetTransactionsForManagementAsync(request);
 			return BaseResponse<PaymentTransactionOverviewResponse>.Ok(response);
+		}
+
+		// PayOs methods
+		public async Task<PayOsReturnResponse> ProcessPayOsReturnAsync(IQueryCollection queryParameters, bool isCancelCallback = false)
+		{
+			var payment = await ResolvePayOsPaymentFromCallbackAsync(queryParameters);
+			var orderCode = queryParameters.TryGetValue("orderCode", out var orderCodeValue)
+				? orderCodeValue.ToString()
+				: string.Empty;
+			var callbackPosSessionId = queryParameters.TryGetValue("posSessionId", out var queryPosSessionId)
+				? queryPosSessionId.ToString()
+				: (queryParameters.TryGetValue("sessionId", out var querySessionId) ? querySessionId.ToString() : null);
+
+			var payOsInfo = await _payOsService.GetPaymentInfoAsync(orderCode, payment.Id);
+			var extractedOrderCode = payOsInfo.ExtractedOrderCode ?? payOsInfo.OrderCode.ToString();
+			var extractedPosSessionId = payOsInfo.PosSessionId ?? callbackPosSessionId;
+
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				var latestPayment = await _unitOfWork.Payments.GetByIdAsync(payment.Id)
+					?? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.");
+
+				var payload = new PayOsReturnResponse
+				{
+					PaymentId = latestPayment.Id,
+					OrderId = latestPayment.OrderId,
+					OrderCode = extractedOrderCode,
+					PosSessionId = extractedPosSessionId,
+					IsSuccess = false
+				};
+
+				if (!latestPayment.IsPending())
+				{
+					return payload with { IsSuccess = latestPayment.TransactionStatus == TransactionStatus.Success };
+				}
+
+				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(latestPayment.OrderId)
+				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+
+				var isCancelled = isCancelCallback ||
+					(queryParameters.TryGetValue("cancel", out var cancelValue) &&
+					 bool.TryParse(cancelValue.ToString(), out var parsedCancel) &&
+					 parsedCancel);
+
+				if (isCancelled)
+				{
+					latestPayment.MarkCancelled("Thanh toán PayOS đã bị người dùng hủy.");
+					//order.MarkUnpaid();
+					_unitOfWork.Payments.Update(latestPayment);
+					_unitOfWork.Orders.Update(order);
+					return payload;
+				}
+
+				if (!payOsInfo.IsSuccess)
+				{
+					await HandleFailedPayment(latestPayment, order, payOsInfo.Message ?? "Xác thực thanh toán PayOS thất bại.", payOsInfo.PaymentLinkId);
+					return payload;
+				}
+
+				if (payOsInfo.Amount > 0 && latestPayment.Amount != payOsInfo.Amount)
+				{
+					throw AppException.BadRequest("Số tiền thanh toán không khớp.");
+				}
+
+				if (payOsInfo.IsPaid)
+				{
+					await CompleteSuccessfulPayment(latestPayment, order, payOsInfo.PaymentLinkId, extractedPosSessionId);
+					return payload with { IsSuccess = true };
+				}
+
+				await HandleFailedPayment(latestPayment, order, $"Trạng thái thanh toán PayOS: {payOsInfo.Status ?? "KHÔNG_XÁC_ĐỊNH"}", payOsInfo.PaymentLinkId, extractedPosSessionId);
+				return payload;
+			});
 		}
 
 		// MoMo methods
@@ -598,7 +603,7 @@ namespace PerfumeGPT.Application.Services
 		private async Task<BaseResponse<bool>> CompleteSuccessfulPayment(PaymentTransaction payment, Order order, string? transactionNo = null, string? posSessionId = null)
 		{
 			payment.MarkSuccess(transactionNo);
-			order.MarkPaid(DateTime.UtcNow);
+			order.RecordPayment(payment.Amount, DateTime.UtcNow);
 
 			if (order.UserVoucher != null)
 			{
@@ -654,7 +659,7 @@ namespace PerfumeGPT.Application.Services
 		private async Task<BaseResponse<bool>> HandleFailedPayment(PaymentTransaction payment, Order order, string? reason = null, string? transactionNo = null, string? posSessionId = null)
 		{
 			payment.MarkFailed(reason, transactionNo);
-			order.MarkUnpaid();
+			//order.MarkUnpaid();
 
 			_unitOfWork.Payments.Update(payment);
 			_unitOfWork.Orders.Update(order);

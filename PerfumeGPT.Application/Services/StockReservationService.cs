@@ -242,7 +242,7 @@ namespace PerfumeGPT.Application.Services
 				foreach (var reservation in expiredReservations)
 				{
 					if (reservation.Status != ReservationStatus.Reserved) continue;
-					if (reservation.Order != null && reservation.Order.PaymentStatus == PaymentStatus.Paid) continue;
+					if (reservation.Order != null && reservation.Order.PaymentStatus != PaymentStatus.Unpaid) continue;
 
 					if (!reservedByVariant.ContainsKey(reservation.VariantId))
 						reservedByVariant[reservation.VariantId] = 0;
@@ -342,6 +342,48 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				return count;
+			});
+		}
+
+		public async Task<int> ReleaseUnpaidDepositOrdersAsync()
+		{
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				var now = DateTime.UtcNow;
+				var expiredOrders = await _unitOfWork.Orders.GetAllAsync(
+					o => o.Status == OrderStatus.Pending
+						&& o.PaymentStatus == PaymentStatus.Unpaid
+						&& o.RequiredDepositAmount > 0
+						&& o.PaymentExpiresAt.HasValue
+						&& o.PaymentExpiresAt.Value < now);
+
+				var expiredOrderIds = expiredOrders.Select(o => o.Id).ToList();
+				if (expiredOrderIds.Count == 0)
+				{
+					return 0;
+				}
+
+				foreach (var order in expiredOrders)
+				{
+					order.SetStatus(OrderStatus.Cancelled);
+					_unitOfWork.Orders.Update(order);
+
+					var pendingPayments = await _unitOfWork.Payments.GetAllAsync(
+						p => p.OrderId == order.Id
+							&& p.TransactionType == TransactionType.Payment
+							&& p.TransactionStatus == TransactionStatus.Pending);
+
+					foreach (var pendingPayment in pendingPayments)
+					{
+						pendingPayment.MarkCancelled("Đơn hàng quá hạn thanh toán tiền cọc.");
+						_unitOfWork.Payments.Update(pendingPayment);
+					}
+
+					await ReleaseOrRestockCancelledOrderAsync(order.Id);
+					await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
+				}
+
+				return expiredOrderIds.Count;
 			});
 		}
 	}
