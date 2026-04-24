@@ -22,6 +22,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 
 
 		Task<List<ProductDailySaleFigureResponse>> GetProductDailySaleFiguresAsync(DateOnly date);
+		Task<(List<ProductListItem> Items, int TotalCount)> GetAiSearchProductsAsync(AiProductSearchRequest request);
 	}
 }
 

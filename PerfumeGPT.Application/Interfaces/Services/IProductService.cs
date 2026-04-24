@@ -27,6 +27,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 
 		// Semantic search
 		Task<BaseResponse<List<ProductDailySaleFigureResponse>>> GetProductDailySaleFiguresAsync(DateOnly date);
+		Task<BaseResponse<PagedResult<ProductListItem>>> GetAiSearchProductsAsync(AiProductSearchRequest request);
 
 	}
 }

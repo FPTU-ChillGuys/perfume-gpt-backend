@@ -908,7 +908,8 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			var startDate = date.ToDateTime(TimeOnly.MinValue);
 			var endDate = date.ToDateTime(TimeOnly.MaxValue);
-			var dailyFigures = await _context.Products
+
+			return await _context.Products
 				.Where(p => !p.IsDeleted)
 				.Select(p => new ProductDailySaleFigureResponse
 				{
@@ -927,10 +928,154 @@ namespace PerfumeGPT.Persistence.Repositories
 						})
 						.ToList()
 				})
+				.Where(p => p.DailySaleFigures.Any(v => v.QuantitySold > 0))
+				.AsNoTracking()
+				.ToListAsync();
+		}
+
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetAiSearchProductsAsync(AiProductSearchRequest request)
+		{
+			var now = DateTime.UtcNow;
+			var query = _context.Products
+				.Where(p => !p.IsDeleted)
+				.AsQueryable();
+
+			// 1. Gender Filter
+			if (request.GenderValues?.Count > 0)
+			{
+				var genders = new List<Gender>();
+				foreach (var g in request.GenderValues)
+				{
+					if (Enum.TryParse<Gender>(g, true, out var genderEnum))
+						genders.Add(genderEnum);
+				}
+				if (genders.Count > 0)
+					query = query.Where(p => genders.Contains(p.Gender));
+			}
+
+			// 2. Scent Notes Filter
+			if (request.ScentNotes?.Count > 0)
+			{
+				foreach (var note in request.ScentNotes)
+				{
+					var n = note.ToLower();
+					query = query.Where(p => p.ProductScentMaps.Any(psm => psm.ScentNote.Name.ToLower().Contains(n)));
+				}
+			}
+
+			// 3. Olfactory Families Filter
+			if (request.OlfactoryFamilies?.Count > 0)
+			{
+				foreach (var family in request.OlfactoryFamilies)
+				{
+					var f = family.ToLower();
+					query = query.Where(p => p.ProductFamilyMaps.Any(pfm => pfm.OlfactoryFamily.Name.ToLower().Contains(f)));
+				}
+			}
+
+			// 4. Budget Filter
+			if (request.MinBudget.HasValue)
+				query = query.Where(p => p.Variants.Any(v => !v.IsDeleted && v.BasePrice >= request.MinBudget.Value));
+			if (request.MaxBudget.HasValue)
+				query = query.Where(p => p.Variants.Any(v => !v.IsDeleted && v.BasePrice <= request.MaxBudget.Value));
+
+			// 5. Product Names Filter
+			if (request.ProductNames?.Count > 0)
+			{
+				foreach (var name in request.ProductNames)
+				{
+					var n = name.ToLower();
+					query = query.Where(p => p.Name.ToLower().Contains(n));
+				}
+			}
+
+			// 6. Sorting
+			if (request.SortPriceAscending.HasValue)
+			{
+				if (request.SortPriceAscending.Value)
+					query = query.OrderBy(p => p.Variants.Where(v => !v.IsDeleted).Min(v => (decimal?)v.BasePrice) ?? decimal.MaxValue);
+				else
+					query = query.OrderByDescending(p => p.Variants.Where(v => !v.IsDeleted).Max(v => (decimal?)v.BasePrice) ?? 0);
+			}
+			else
+			{
+				query = query.OrderByDescending(p => p.CreatedAt);
+			}
+
+			var totalCount = await query.CountAsync();
+
+			var itemsWithTags = await query
+				.Skip((request.PageNumber - 1) * request.PageSize)
+				.Take(request.PageSize)
+				.Select(p => new
+				{
+					Item = new ProductListItem
+					{
+						Id = p.Id,
+						Name = p.Name,
+						BrandId = p.BrandId,
+						BrandName = p.Brand.Name,
+						CategoryId = p.CategoryId,
+						CategoryName = p.Category.Name,
+						Description = p.Description,
+						NumberOfVariants = p.Variants.Count(v => !v.IsDeleted),
+						VariantPrices = p.Variants
+							.Where(v => !v.IsDeleted)
+							.Select(v => v.BasePrice)
+							.ToList(),
+						PrimaryImage = p.Media
+							.Where(m => m.IsPrimary && !m.IsDeleted)
+							.Select(m => new MediaResponse
+							{
+								Id = m.Id,
+								Url = m.Url,
+								AltText = m.AltText,
+								IsPrimary = m.IsPrimary,
+								DisplayOrder = m.DisplayOrder,
+								MimeType = m.MimeType,
+								FileSize = m.FileSize
+							})
+							.FirstOrDefault()
+					},
+					HasSaleTag = p.Variants.Any(v =>
+						!v.IsDeleted &&
+						v.PromotionItems.Any(pi =>
+							!pi.IsDeleted &&
+							!pi.Campaign.IsDeleted &&
+							pi.Campaign.Status == CampaignStatus.Active &&
+							pi.Campaign.StartDate <= now &&
+							pi.Campaign.EndDate >= now &&
+							pi.IsActive)),
+					HasNewTag = p.Variants.Any(v =>
+						!v.IsDeleted &&
+						v.PromotionItems.Any(pi =>
+							!pi.IsDeleted &&
+							!pi.Campaign.IsDeleted &&
+							pi.ItemType == PromotionType.NewArrival &&
+							pi.Campaign.Status == CampaignStatus.Active &&
+							pi.Campaign.StartDate <= now &&
+							pi.Campaign.EndDate >= now &&
+							pi.IsActive))
+				})
+				.AsSplitQuery()
 				.AsNoTracking()
 				.ToListAsync();
 
-			return dailyFigures.Where(df => df.DailySaleFigures.Any(v => v.QuantitySold > 0)).ToList();
+			var items = itemsWithTags
+				.Select(x =>
+				{
+					var tags = new List<string>();
+					if (x.HasSaleTag) tags.Add("sale");
+					if (x.HasNewTag) tags.Add("new");
+
+					return x.Item with
+					{
+						Tags = tags.Count != 0 ? tags : null
+					};
+				})
+				.ToList();
+
+			return (items, totalCount);
 		}
 	}
 }

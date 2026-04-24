@@ -41,21 +41,25 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats.Handlers
         {
             var pageNumber = payload.TryGetProperty("pagination", out var p) && p.TryGetProperty("pageNumber", out var pn) ? pn.GetInt32() : 1;
             var pageSize = payload.TryGetProperty("pagination", out var p2) && p2.TryGetProperty("pageSize", out var ps) ? ps.GetInt32() : 10;
-            
-            var request = new GetPagedProductRequest
+
+            var request = new AiProductSearchRequest
             {
                 PageNumber = pageNumber,
-                PageSize = pageSize
+                PageSize = pageSize,
+                GenderValues = payload.TryGetProperty("genderValues", out var g) ? g.EnumerateArray().Select(x => x.GetString()!).ToList() : null,
+                ScentNotes = payload.TryGetProperty("scentNotesValues", out var sn) ? sn.EnumerateArray().Select(x => x.GetString()!).ToList() : null,
+                OlfactoryFamilies = payload.TryGetProperty("olfactoryFamiliesValues", out var of) ? of.EnumerateArray().Select(x => x.GetString()!).ToList() : null,
+                ProductNames = payload.TryGetProperty("productNames", out var pn2) ? pn2.EnumerateArray().Select(x => x.GetString()!).ToList() : null,
+                SortPriceAscending = payload.TryGetProperty("sorting", out var s) && s.TryGetProperty("isDescending", out var id) ? !id.GetBoolean() : (bool?)null
             };
 
             if (payload.TryGetProperty("budget", out var b))
             {
-                if (b.TryGetProperty("min", out var min) && min.ValueKind != JsonValueKind.Null) request = request with { FromPrice = min.GetDecimal() };
-                if (b.TryGetProperty("max", out var max) && max.ValueKind != JsonValueKind.Null) request = request with { ToPrice = max.GetDecimal() };
+                if (b.TryGetProperty("min", out var min) && min.ValueKind != JsonValueKind.Null) request = request with { MinBudget = min.GetDecimal() };
+                if (b.TryGetProperty("max", out var max) && max.ValueKind != JsonValueKind.Null) request = request with { MaxBudget = max.GetDecimal() };
             }
 
-            return (await productService.GetProductsAsync(request)).Payload;
+            return (await productService.GetAiSearchProductsAsync(request)).Payload;
         }
     }
 }
-

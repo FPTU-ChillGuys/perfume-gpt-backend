@@ -260,6 +260,14 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<List<ProductDailySaleFigureResponse>>.Ok(
 			 response, "Lấy số liệu bán hàng theo ngày của sản phẩm thành công");
 		}
+
+		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetAiSearchProductsAsync(AiProductSearchRequest request)
+		{
+			var (items, totalCount) = await _unitOfWork.Products.GetAiSearchProductsAsync(request);
+			return BaseResponse<PagedResult<ProductListItem>>.Ok(
+				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
+				"Tìm kiếm sản phẩm theo yêu cầu AI thành công");
+		}
 		#endregion Semantic Search
 
 
