@@ -470,7 +470,7 @@ namespace PerfumeGPT.Application.Services
 					? request.Payment.DepositGateway!.Value
 					: request.Payment.Method;
 
-				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, paymentMethodForGateway, null);
+				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, paymentMethodForGateway, request.PosSessionId);
 
 				// ======================================================================
 				// 9.2. ĐOẠN CODE BỔ SUNG: TẠO SẴN GIAO DỊCH COD CHO PHẦN CÒN LẠI (900k)
