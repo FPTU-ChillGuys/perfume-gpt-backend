@@ -61,6 +61,70 @@ namespace PerfumeGPT.Application.Services
 		#endregion Dependencies
 
 
+		public async Task<BaseResponse<string>> CreatePaymentForInStorePickupAsync(Guid orderId, CreatePickupPaymentRequest request)
+		{
+			var order = await _unitOfWork.Orders.GetByIdAsync(orderId)
+				?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+
+			if (order.Type != OrderType.Online)
+				throw AppException.BadRequest("Thao tác này chỉ hỗ trợ đơn hàng trực tuyến (BOPIS).");
+
+			if (order.Status != OrderStatus.ReadyToPick)
+				throw AppException.BadRequest($"Đơn hàng phải ở trạng thái ReadyToPick. Hiện tại đang là {order.Status}.");
+
+			if (order.ForwardShippingId != null)
+				throw AppException.BadRequest("Đơn hàng này được cấu hình giao tận nơi.");
+
+			if (order.RemainingAmount <= 0)
+				throw AppException.BadRequest("Đơn hàng đã được thanh toán đầy đủ, không cần tạo mã thanh toán.");
+
+			if (request.PaymentMethod != PaymentMethod.VnPay &&
+				request.PaymentMethod != PaymentMethod.Momo &&
+				request.PaymentMethod != PaymentMethod.PayOs &&
+				request.PaymentMethod != PaymentMethod.CashInStore)
+			{
+				throw AppException.BadRequest("Chỉ hỗ trợ thanh toán qua VNPay, MoMo, PayOS hoặc Tiền mặt tại quầy.");
+			}
+
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				// 1. HỦY CÁC GIAO DỊCH PENDING CŨ (Ví dụ: Giao dịch chờ thu COD bị sai lệch)
+				var existingPendingPayments = await _unitOfWork.Payments
+					.GetAllAsync(p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Pending);
+
+				foreach (var pendingPayment in existingPendingPayments)
+				{
+					pendingPayment.MarkCancelled("Hủy để tạo yêu cầu thanh toán mới tại quầy.");
+					_unitOfWork.Payments.Update(pendingPayment);
+				}
+
+				// 2. TẠO GIAO DỊCH MỚI
+				var newPayment = PaymentTransaction.Create(
+					order.Id,
+					request.PaymentMethod,
+					order.RemainingAmount); // Lấy đúng số tiền còn thiếu
+
+				await _unitOfWork.Payments.AddAsync(newPayment);
+
+				// 3. XỬ LÝ EXPIRATION TIME
+				// Nếu là mã QR thì gia hạn 15 phút, nếu là tiền mặt thì không cần timeout
+				if (request.PaymentMethod != PaymentMethod.CashInStore)
+				{
+					order.SetPaymentExpiration(DateTime.UtcNow.AddMinutes(15));
+					_unitOfWork.Orders.Update(order);
+				}
+
+				// 4. GỌI SERVICE TẠO PHẢN HỒI
+				var paymentResponse = await GeneratePaymentResponse(
+					newPayment,
+					order,
+					1,
+					" (Thanh toán phần còn lại tại cửa hàng)",
+					request.PosSessionId);
+
+				return paymentResponse;
+			});
+		}
 
 		public async Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, ConfirmPaymentRequest request)
 		{

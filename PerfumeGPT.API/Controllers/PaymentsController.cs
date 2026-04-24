@@ -188,6 +188,16 @@ namespace PerfumeGPT.API.Controllers
 			}
 		}
 
+		[HttpPost("{orderId:guid}/pickup-payment")]
+		[Authorize(Roles = "staff, admin")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		public async Task<ActionResult<BaseResponse<string>>> CreatePickupPaymentAsync([FromRoute] Guid orderId, [FromBody] CreatePickupPaymentRequest request)
+		{
+			var result = await _paymentService.CreatePaymentForInStorePickupAsync(orderId, request);
+
+			return HandleResponse(result);
+		}
+
 		[HttpPost("{paymentId:guid}/retry")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesDefaultResponseType(typeof(BaseResponse))]

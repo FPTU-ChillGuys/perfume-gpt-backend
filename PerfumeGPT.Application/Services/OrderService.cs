@@ -768,31 +768,23 @@ namespace PerfumeGPT.Application.Services
 				if (order.Status != OrderStatus.ReadyToPick)
 					throw AppException.BadRequest($"Đơn hàng phải ở trạng thái ReadyToPick. Hiện tại: {order.Status}.");
 
-				if (order.ForwardShipping != null)
+				if (order.ForwardShippingId != null)
 					throw AppException.BadRequest("Đơn hàng này được cấu hình giao tận nơi. Vui lòng dùng quy trình giao hàng để hoàn tất.");
+
+				// ======================================================================
+				// RÀO CHẮN NGHIỆP VỤ (Thay thế cho việc tự động RecordPayment sai lầm)
+				// Bắt buộc đơn hàng phải ở trạng thái Đã Thanh Toán toàn bộ!
+				// ======================================================================
+				if (order.PaymentStatus != PaymentStatus.Paid || order.RemainingAmount > 0)
+				{
+					throw AppException.BadRequest($"Đơn hàng chưa được thanh toán đầy đủ (Còn thiếu {order.RemainingAmount:N0}đ). Vui lòng hoàn tất thu tiền trước khi giao hàng.");
+				}
 
 				// 1. CẬP NHẬT TRẠNG THÁI VÀ NHÂN VIÊN GIAO HÀNG
 				order.SetStatus(OrderStatus.Delivered);
 				order.SetStaff(staffId);
 
-				// 2. XỬ LÝ DÒNG TIỀN (NẾU KHÁCH CHỌN TRẢ SAU/COD)
-				if (order.PaymentStatus != PaymentStatus.Paid && order.RemainingAmount > 0)
-				{
-					// SỬA LỖI 3: Chỉ ghi nhận đúng số tiền còn thiếu
-					order.RecordPayment(order.RemainingAmount, DateTime.UtcNow);
-				}
-
-				var pendingTx = order.PaymentTransactions.FirstOrDefault(t =>
-					t.TransactionStatus == TransactionStatus.Pending &&
-					(t.Method == PaymentMethod.CashInStore || t.Method == PaymentMethod.CashOnDelivery));
-
-				if (pendingTx != null)
-				{
-					pendingTx.MarkSuccess("Khách hàng đã thanh toán phần còn lại và nhận hàng tại cửa hàng.");
-					_unitOfWork.Payments.Update(pendingTx);
-				}
-
-				// 3. Schedule loyalty points after return window (Delivered + 10 days)
+				// 2. CỘNG ĐIỂM THƯỞNG
 				if (order.CustomerId.HasValue)
 				{
 					int points = (int)(order.TotalAmount * 0.01m);
@@ -804,7 +796,7 @@ namespace PerfumeGPT.Application.Services
 
 				_unitOfWork.Orders.Update(order);
 
-				return BaseResponse<string>.Ok(order.Code);
+				return BaseResponse<string>.Ok(order.Code, "Giao hàng cho khách thành công.");
 			});
 		}
 
