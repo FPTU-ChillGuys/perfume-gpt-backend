@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
+using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.CartItems;
@@ -43,7 +44,7 @@ namespace PerfumeGPT.Application.Services
 			if (request.ScannedItems == null || request.ScannedItems.Count == 0)
 				throw AppException.BadRequest("Chưa có sản phẩm nào được quét.");
 
-			// BƯỚC MỚI: LẤY CHÍNH SÁCH ĐẶT CỌC CỦA HỆ THỐNG
+			// LẤY CHÍNH SÁCH HỆ THỐNG
 			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync()
 				?? throw AppException.NotFound("Không tìm thấy cấu hình hệ thống.");
 
@@ -54,7 +55,7 @@ namespace PerfumeGPT.Application.Services
 				{
 					g.Key.Barcode,
 					g.Key.BatchCode,
-					Quantity = g.Sum(item => item.Quantity) // Cộng dồn số lượng
+					Quantity = g.Sum(item => item.Quantity)
 				})
 				.ToList();
 
@@ -66,13 +67,10 @@ namespace PerfumeGPT.Application.Services
 				var variantResponse = await _unitOfWork.Variants.GetByBarcodeAsync(scan.Barcode)
 					?? throw AppException.NotFound("Không tìm thấy biến thể sản phẩm");
 
-				var variant = variantResponse;
-
 				var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b =>
-					b.BatchCode == scan.BatchCode && b.VariantId == variant.Id)
-					?? throw AppException.NotFound($"Không tìm thấy lô {scan.BatchCode} cho sản phẩm {variant.Sku}.");
+					b.BatchCode == scan.BatchCode && b.VariantId == variantResponse.Id)
+					?? throw AppException.NotFound($"Không tìm thấy lô {scan.BatchCode} cho sản phẩm {variantResponse.Sku}.");
 
-				// BỔ SUNG RÀO CHẮN Ở ĐÂY: Chặn thu ngân quét lố số lượng tồn kho
 				if (scan.Quantity > batch.AvailableInBatch)
 				{
 					throw AppException.BadRequest(
@@ -81,77 +79,66 @@ namespace PerfumeGPT.Application.Services
 						$"Vui lòng kiểm tra lại hàng hóa thực tế trên tay!");
 				}
 
-				var subTotal = variant.BasePrice * scan.Quantity;
+				var subTotal = variantResponse.BasePrice * scan.Quantity;
 
 				checkoutItems.Add(new CartCheckoutItemDto
 				{
-					VariantId = variant.Id,
+					VariantId = variantResponse.Id,
 					BatchId = batch.Id,
-					VariantName = $"{variant.Sku} - {variant.VolumeMl}ml - {variant.Type}",
+					VariantName = $"{variantResponse.Sku} - {variantResponse.VolumeMl}ml - {variantResponse.Type}",
 					Quantity = scan.Quantity,
-					UnitPrice = variant.BasePrice,
+					UnitPrice = variantResponse.BasePrice,
 					SubTotal = subTotal,
 					Discount = 0m,
 					FinalTotal = subTotal,
-					ImageUrl = variant.Media?.FirstOrDefault(m => m.IsPrimary)?.Url ?? string.Empty,
+					ImageUrl = variantResponse.Media?.FirstOrDefault(m => m.IsPrimary)?.Url ?? string.Empty,
 					BatchCode = batch.BatchCode
 				});
 			}
 
-			// 3. ĐƯA VÀO CỖ MÁY TÍNH TIỀN CHUNG (Shared Pricing Engine)
+			// 3. SỬ DỤNG HÀM TỔNG HỢP TỪ CART SERVICE (Sạch sẽ hơn Try/Catch lồng nhau rất nhiều)
 			List<CartCheckoutItemDto> pricedItems;
 			decimal subtotal;
-			decimal finalAmount;
+			decimal shippingFee;
+			decimal finalTotalPrice;
 			string? voucherMessage;
 			List<string>? warnings = null;
 			var appliedVoucherCode = request.VoucherCode;
 
+			// Giả định nếu không truyền Recipient nghĩa là lấy tại quầy (IsPickupInStore = true)
+			bool isPickupInStore = request.Recipient == null;
+
 			try
 			{
-				(pricedItems, subtotal, finalAmount, voucherMessage) = await CalculatePricingEngineAsync(
+				(pricedItems, subtotal, shippingFee, finalTotalPrice, voucherMessage) = await CalculateFullCheckoutPricingAsync(
 					checkoutItems,
 					request.VoucherCode,
 					request.CustomerId,
-					request.GuestEmailOrPhoneNumber);
+					request.GuestEmailOrPhoneNumber,
+					request.Recipient,
+					isPickupInStore);
 			}
 			catch (AppException ex) when (!string.IsNullOrWhiteSpace(request.VoucherCode))
 			{
-				try
-				{
-					(pricedItems, subtotal, finalAmount, voucherMessage) = await CalculatePricingEngineAsync(
-						checkoutItems,
-						null,
-						request.CustomerId,
-						request.GuestEmailOrPhoneNumber);
+				// Nếu voucher lỗi, gọi lại không có voucher
+				(pricedItems, subtotal, shippingFee, finalTotalPrice, voucherMessage) = await CalculateFullCheckoutPricingAsync(
+					checkoutItems,
+					null,
+					request.CustomerId,
+					request.GuestEmailOrPhoneNumber,
+					request.Recipient,
+					isPickupInStore);
 
-					appliedVoucherCode = null;
-					warnings = [ex.Message];
-				}
-				catch
-				{
-					throw;
-				}
+				appliedVoucherCode = null;
+				warnings = [ex.Message];
 			}
 
-			// 4. TÍNH PHÍ SHIP VÀ TỔNG TIỀN CUỐI CÙNG
-			var shippingRequest = new GetCartTotalRequest
-			{
-				Recipient = request.Recipient
-			};
-
-			var shippingFee = await CalculateShippingFeeAsync(Guid.Empty, shippingRequest, pricedItems);
-
-			// Tổng tiền khách phải thanh toán (bao gồm hàng + ship - giảm giá)
-			var finalTotalPrice = finalAmount + shippingFee;
-
-			// BƯỚC MỚI: TÍNH TOÁN SỐ TIỀN CỌC (REQUIRED DEPOSIT)
+			// 4. TÍNH TOÁN SỐ TIỀN CỌC 
 			decimal requiredDepositAmount = 0m;
 
-			// Kiểm tra xem POS đang chọn Phương thức giao hàng COD và chính sách có yêu cầu cọc COD hay không
-			// (Lưu ý: Bạn cần đảm bảo PreviewPosOrderRequest có truyền lên PaymentMethod)
+			// Yêu cầu `request.PaymentMethod` tồn tại (Enum PaymentMethod)
 			if (request.PaymentMethod == PaymentMethod.CashOnDelivery && storePolicy.IsDepositRequiredForCOD)
 			{
-				// Tính % cọc dựa trên TỔNG TIỀN (finalTotalPrice)
 				requiredDepositAmount = decimal.Round(finalTotalPrice * storePolicy.RequiredDepositPercentage / 100m, 0, MidpointRounding.AwayFromZero);
 			}
 
@@ -176,17 +163,21 @@ namespace PerfumeGPT.Application.Services
 				};
 			}).ToList();
 
+			// Tính tổng tiền giảm do Voucher
+			decimal totalItemsFinalAmount = pricedItems.Sum(x => x.FinalTotal);
+			decimal voucherDiscountAmount = subtotal - totalItemsFinalAmount;
+
 			var response = new PreviewPosOrderResponse
 			{
 				Items = responseItems,
 				SubTotal = subtotal,
-				Discount = subtotal - finalAmount, // Tiền giảm của Voucher
+				Discount = voucherDiscountAmount,
 				ShippingFee = shippingFee,
 				TotalPrice = finalTotalPrice,
-				RequiredDepositAmount = requiredDepositAmount // TRẢ VỀ DỮ LIỆU CỌC
+				RequiredDepositAmount = requiredDepositAmount // 💥 DỮ LIỆU CỌC
 			};
 
-			// 6. BẮN SIGNALR LÊN MÀN HÌNH KHÁCH HÀNG (CUSTOMER DISPLAY)
+			// 6. BẮN SIGNALR LÊN MÀN HÌNH KHÁCH HÀNG
 			if (!string.IsNullOrWhiteSpace(request.SessionId))
 			{
 				var customerDisplayData = new CartDisplayDto
@@ -197,7 +188,7 @@ namespace PerfumeGPT.Application.Services
 					Discount = response.Discount,
 					TotalPrice = response.TotalPrice,
 					VoucherCode = appliedVoucherCode,
-					RequiredDepositAmount = requiredDepositAmount // 💥 TRẢ VỀ DỮ LIỆU CỌC CHO MÀN HÌNH KHÁCH
+					RequiredDepositAmount = requiredDepositAmount // 💥 DỮ LIỆU CỌC CHO MÀN HÌNH KHÁCH
 				};
 
 				await _signalRService.UpdateCustomerDisplayAsync(request.SessionId, customerDisplayData);
@@ -388,6 +379,36 @@ namespace PerfumeGPT.Application.Services
 				 string.IsNullOrWhiteSpace(voucherMessage)
 				  ? "Tính tổng tiền giỏ hàng thành công"
 					 : voucherMessage);
+		}
+
+		// Thêm hàm này vào CartService.cs
+		public async Task<(List<CartCheckoutItemDto> PricedItems, decimal Subtotal, decimal ShippingFee, decimal FinalTotalPrice, string? VoucherMessage)> CalculateFullCheckoutPricingAsync(
+			List<CartCheckoutItemDto> checkoutItems,
+			string? voucherCode,
+			Guid? customerId,
+			string? guestEmailOrPhoneNumber,
+			ContactAddressInformation? recipient,
+			bool isPickupInStore)
+		{
+			// 1. Tính tiền hàng & Voucher (Gọi hàm nội bộ)
+			var (pricedItems, subtotal, finalAmount, voucherMessage) = await CalculatePricingEngineAsync(
+				checkoutItems,
+				voucherCode,
+				customerId,
+				guestEmailOrPhoneNumber);
+
+			// 2. Tính phí Ship (Gọi hàm private nội bộ)
+			decimal shippingFee = 0m;
+			if (!isPickupInStore && recipient != null)
+			{
+				var shippingRequest = new GetCartTotalRequest { Recipient = recipient };
+				shippingFee = await CalculateShippingFeeAsync(customerId ?? Guid.Empty, shippingRequest, pricedItems);
+			}
+
+			// 3. Tổng tiền cuối cùng
+			var finalTotalPrice = finalAmount + shippingFee;
+
+			return (pricedItems, subtotal, shippingFee, finalTotalPrice, voucherMessage);
 		}
 
 		private async Task<decimal> CalculateShippingFeeAsync(Guid userId, GetCartTotalRequest request, List<CartCheckoutItemDto> items)

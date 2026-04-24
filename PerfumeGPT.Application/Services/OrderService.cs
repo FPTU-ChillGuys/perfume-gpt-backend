@@ -326,7 +326,7 @@ namespace PerfumeGPT.Application.Services
 			if (request.ScannedItems == null || request.ScannedItems.Count == 0)
 				throw AppException.BadRequest("Không có sản phẩm trong đơn hàng.");
 
-			// 1. KIỂM TRA CHÍNH SÁCH ĐẶT CỌC (BỔ SUNG MỚI)
+			// 1. KIỂM TRA CHÍNH SÁCH ĐẶT CỌC 
 			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync()
 				  ?? throw AppException.NotFound("Không tìm thấy cấu hình đặt cọc hệ thống.");
 
@@ -336,8 +336,9 @@ namespace PerfumeGPT.Application.Services
 			if (requiresDepositForThisOrder)
 			{
 				if (!request.Payment.DepositGateway.HasValue)
-					throw AppException.BadRequest("Đơn COD bắt buộc chọn cổng thanh toán để khách đặt cọc (VNPay/MoMo/PayOs).");
+					throw AppException.BadRequest("Đơn COD bắt buộc chọn cổng thanh toán để khách đặt cọc.");
 
+				// MỞ KHÓA: Cho phép CashInStore làm cổng cọc
 				if (request.Payment.DepositGateway != PaymentMethod.VnPay
 					&& request.Payment.DepositGateway != PaymentMethod.Momo
 					&& request.Payment.DepositGateway != PaymentMethod.PayOs
@@ -395,22 +396,25 @@ namespace PerfumeGPT.Application.Services
 					});
 				}
 
-				// 3. TÍNH TIỀN CHUNG (PRICING ENGINE)
-				var (pricedItems, subtotal, finalAmount, voucherMessage) = await _cartService.CalculatePricingEngineAsync(
+				// 3. SỬ DỤNG HÀM TÍNH TOÁN TỔNG HỢP (BAO GỒM CẢ SHIP)
+				var (pricedItems, subtotal, shippingFee, finalTotalPrice, voucherMessage) = await _cartService.CalculateFullCheckoutPricingAsync(
 					checkoutItems,
 					request.VoucherCode,
 					request.CustomerId,
-					request.GuestEmailOrPhoneNumber);
+					request.GuestEmailOrPhoneNumber,
+					request.Recipient,
+					request.IsPickupInStore);
 
-				if (request.ExpectedTotalPrice.HasValue && Math.Abs(request.ExpectedTotalPrice.Value - finalAmount) > 0.0001m)
+				// So sánh với finalTotalPrice đã có tiền ship
+				if (request.ExpectedTotalPrice.HasValue && Math.Abs(request.ExpectedTotalPrice.Value - finalTotalPrice) > 0.0001m)
 					throw AppException.Conflict("Giá đã thay đổi so với lúc xem trước. Vui lòng làm mới và kiểm tra lại tổng tiền.");
 
-				// 4. TẠO ĐƠN HÀNG CHỜ (PENDING) - BỔ SUNG THAM SỐ CỌC
+				// 4. TẠO ĐƠN HÀNG CHỜ (PENDING) 
 				var order = Order.CreateOffline(
 					request.CustomerId,
 					request.GuestEmailOrPhoneNumber,
 					staffId,
-					finalAmount,
+					finalTotalPrice, // Truyền FinalTotalPrice đã có ship
 					storePolicy,
 					request.Payment.Method == PaymentMethod.CashOnDelivery);
 
@@ -435,6 +439,7 @@ namespace PerfumeGPT.Application.Services
 				// 6. XỬ LÝ VOUCHER AN TOÀN
 				if (!string.IsNullOrEmpty(request.VoucherCode))
 				{
+					// Truyền subtotal để check điều kiện đơn hàng tối thiểu
 					var voucher = await ValidateAndGetVoucherAsync(
 						request.VoucherCode,
 						request.CustomerId,
@@ -454,7 +459,8 @@ namespace PerfumeGPT.Application.Services
 				// 7. GIAO HÀNG (Nếu không lấy tại cửa hàng)
 				if (!request.IsPickupInStore && request.Recipient != null)
 				{
-					await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, request.CustomerId, null);
+					// 💥 Truyền thêm tham số shippingFee để lưu vào DB
+					await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, request.CustomerId, null, shippingFee);
 				}
 
 				// 8. GIỮ KHO CHÍNH XÁC THEO LÔ 
@@ -466,31 +472,26 @@ namespace PerfumeGPT.Application.Services
 				await _stockReservationService.ReserveExactBatchStockForOrderAsync(order.Id, posReservationItems, order.PaymentExpiresAt);
 
 				// 9. TẠO GIAO DỊCH THANH TOÁN (PENDING)
-				// 9.1. GỌI HÀM CŨ ĐỂ TẠO GIAO DỊCH CỌC (Ví dụ: VNPay 100k) VÀ LẤY URL
 				var paymentMethodForGateway = requiresDepositForThisOrder
 					? request.Payment.DepositGateway!.Value
 					: request.Payment.Method;
 
 				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, paymentMethodForGateway, request.PosSessionId);
 
-				// ======================================================================
-				// 9.2. ĐOẠN CODE BỔ SUNG: TẠO SẴN GIAO DỊCH COD CHO PHẦN CÒN LẠI (900k)
-				// ======================================================================
+				// 9.2. TẠO SẴN GIAO DỊCH COD CHO PHẦN CÒN LẠI
 				if (requiresDepositForThisOrder && (request.Payment.Method == PaymentMethod.CashOnDelivery || request.Payment.Method == PaymentMethod.CashInStore))
 				{
 					var remainingToCollect = order.TotalAmount - order.RequiredDepositAmount;
 					if (remainingToCollect > 0)
 					{
-						// Khởi tạo giao dịch Pending cho số tiền còn lại
 						var pendingRemainingTransaction = PaymentTransaction.Create(
 							order.Id,
-							request.Payment.Method, // CashOnDelivery hoặc CashInStore
+							request.Payment.Method,
 							remainingToCollect);
 
 						await _unitOfWork.Payments.AddAsync(pendingRemainingTransaction);
 					}
 				}
-				// ======================================================================
 
 				// Publish event
 				if (request.CustomerId.HasValue)
