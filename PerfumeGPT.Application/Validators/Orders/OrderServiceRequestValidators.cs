@@ -86,6 +86,14 @@ namespace PerfumeGPT.Application.Validators.Orders
 			RuleFor(x => x.Payment.Method)
 			 .IsInEnum().WithMessage("Phương thức thanh toán không hợp lệ.");
 
+			RuleFor(x => x.Payment.DepositGateway)
+				.Must(gateway => !gateway.HasValue
+					|| gateway == Domain.Enums.PaymentMethod.CashInStore
+					|| gateway == Domain.Enums.PaymentMethod.VnPay
+					|| gateway == Domain.Enums.PaymentMethod.Momo
+					|| gateway == Domain.Enums.PaymentMethod.PayOs)
+				.WithMessage("Cổng thanh toán đặt cọc chỉ hỗ trợ CashInStore, VNPay, Momo hoặc PayOs.");
+
 			RuleFor(x => x)
 				.Must(x => x.IsPickupInStore || x.Recipient != null)
 				.WithMessage("Thông tin người nhận là bắt buộc khi không nhận tại cửa hàng.");
