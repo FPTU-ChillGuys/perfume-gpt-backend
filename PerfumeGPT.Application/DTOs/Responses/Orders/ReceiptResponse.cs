@@ -12,6 +12,8 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public required string RecipientAddress { get; init; }
 		public required List<ReceiptItemDto> Items { get; init; }
 		public decimal Subtotal { get; init; }
+		public decimal DepositeAmount { get; init; }
+		public decimal RemainingAmount { get; init; }
 		public decimal ShippingFee { get; init; }
 		public decimal Discount { get; init; }
 		public decimal Tax { get; init; }

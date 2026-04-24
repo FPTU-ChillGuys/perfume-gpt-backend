@@ -494,7 +494,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		private Task<Order?> GetOrderForInvoiceAsync(Guid orderId, Guid? userId = null)
 		{
-			var query = _context.Orders
+			var query = _context.Orders.AsNoTracking()
 				.Include(o => o.Customer)
 				.Include(o => o.Staff)
 				.Include(o => o.ContactAddress)
@@ -554,8 +554,10 @@ namespace PerfumeGPT.Persistence.Repositories
 				CustomerName = order.Customer?.FullName ?? order.ContactAddress?.ContactName ?? "Guest customer",
 				RecipientPhone = order.ContactAddress?.ContactPhoneNumber ?? order.Customer?.PhoneNumber ?? "N/A",
 				RecipientAddress = recipientAddress,
-				Items = order.OrderDetails.Select(MapToReceiptItem).ToList(),
+				Items = [.. order.OrderDetails.Select(MapToReceiptItem)],
 				Subtotal = subtotal,
+				DepositeAmount = order.PolicyDepositAmount,
+				RemainingAmount = order.TotalAmount - order.PaidAmount,
 				ShippingFee = shippingFee,
 				Discount = discount,
 				Tax = 0,
