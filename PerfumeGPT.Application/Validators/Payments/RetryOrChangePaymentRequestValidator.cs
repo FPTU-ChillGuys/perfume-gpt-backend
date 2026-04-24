@@ -16,13 +16,15 @@ namespace PerfumeGPT.Application.Validators.Payments
 			RuleFor(x => x)
 				.Must(x =>
 				{
-					// Nếu không đổi phương thức (Chỉ Retry) -> Bỏ qua
 					if (!x.NewPaymentMethod.HasValue) return true;
 
+					// Vì ở tầng Validator chúng ta không có "order.Type" để biết là Online hay Offline, 
+					// nên ta tạm thời cho phép cả COD và CashInStore mang theo DepositMethod qua cửa.
+					// Service ở bên trong sẽ kiểm tra lại sự hợp lệ (Online/Offline) một lần nữa.
 					bool isCodOrStore = x.NewPaymentMethod.Value == Domain.Enums.PaymentMethod.CashOnDelivery ||
 										x.NewPaymentMethod.Value == Domain.Enums.PaymentMethod.CashInStore;
 
-					// Nếu KHÔNG PHẢI đơn COD/Tại quầy (nghĩa là trả Full), thì KHÔNG ĐƯỢC gửi NewDepositMethod
+					// Nếu chắc chắn trả Full (như VNPay, MoMo) thì tuyệt đối cấm đính kèm DepositMethod
 					if (!isCodOrStore)
 						return !x.NewDepositMethod.HasValue;
 
@@ -35,8 +37,9 @@ namespace PerfumeGPT.Application.Validators.Payments
 				.Must(gateway => !gateway.HasValue
 					|| gateway == Domain.Enums.PaymentMethod.VnPay
 					|| gateway == Domain.Enums.PaymentMethod.Momo
-					|| gateway == Domain.Enums.PaymentMethod.PayOs)
-				.WithMessage("Cổng thanh toán đặt cọc chỉ hỗ trợ VNPay, Momo hoặc PayOs.");
+					|| gateway == Domain.Enums.PaymentMethod.PayOs
+					|| gateway == Domain.Enums.PaymentMethod.CashInStore) // BỔ SUNG TIỀN MẶT TẠI QUẦY
+				.WithMessage("Cổng thanh toán đặt cọc chỉ hỗ trợ VNPay, MoMo, PayOS hoặc Tiền mặt tại quầy."); // CẬP NHẬT LỜI NHẮN
 		}
 	}
 }
