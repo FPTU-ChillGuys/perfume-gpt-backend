@@ -89,6 +89,8 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats
                     CartRequestChannel => await CartNatsHandler.HandleAsync(scope, action, payload, _jsonOptions),
                     OrderRequestChannel => await OrderNatsHandler.HandleAsync(scope, action, payload, _jsonOptions),
                     InventoryRequestChannel => await InventoryNatsHandler.HandleAsync(scope, action, payload, _jsonOptions),
+                    ReviewRequestChannel => await ReviewNatsHandler.HandleAsync(scope, action, payload, _jsonOptions),
+                    SalesRequestChannel => await SalesNatsHandler.HandleAsync(scope, action, payload, _jsonOptions),
                     _ => new { error = $"No handler for channel: {channelName}" }
                 };
 

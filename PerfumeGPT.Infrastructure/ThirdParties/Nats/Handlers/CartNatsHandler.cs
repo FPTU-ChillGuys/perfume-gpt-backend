@@ -1,9 +1,12 @@
 using System;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
+using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Interfaces.Services;
 
 namespace PerfumeGPT.Infrastructure.ThirdParties.Nats.Handlers
 {
@@ -13,6 +16,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats.Handlers
         {
             var cartService = scope.ServiceProvider.GetRequiredService<ICartService>();
             var cartItemService = scope.ServiceProvider.GetRequiredService<ICartItemService>();
+            var stockService = scope.ServiceProvider.GetRequiredService<IStockService>();
             
             if (!payload.TryGetProperty("userId", out var userIdEl) || !Guid.TryParse(userIdEl.GetString(), out var userId))
             {
@@ -22,18 +26,39 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats.Handlers
             return action switch
             {
                 "getCart" => (await cartService.GetCartItemsAsync(userId, new GetPagedCartItemsRequest { PageSize = 100 })).Payload,
-                "addToCart" => (await cartItemService.AddToCartAsync(userId, new CreateCartItemRequest { 
-                    VariantId = Guid.Parse(payload.GetProperty("variantId").GetString()!), 
-                    Quantity = payload.GetProperty("quantity").GetInt32() 
-                })),
+                "addToCart" => await AddToCartAsync(cartItemService, cartService, stockService, userId, payload),
                 "updateCartItem" => (await cartItemService.UpdateCartItemAsync(userId, 
                     Guid.Parse(payload.GetProperty("cartItemId").GetString()!), 
                     new UpdateCartItemRequest { Quantity = payload.GetProperty("quantity").GetInt32() })),
                 "removeFromCart" => (await cartItemService.RemoveFromCartAsync(userId, 
                     Guid.Parse(payload.GetProperty("cartItemId").GetString()!))),
-                "clearCart" => (await cartService.ClearCartAsync(userId, null)),
+                "clearCart" => await ClearCartAsync(cartService, userId, payload),
                 _ => throw new ArgumentException($"Invalid cart action: {action}")
             };
+        }
+
+        private static async Task<object> AddToCartAsync(ICartItemService cartItemService, ICartService cartService, IStockService stockService, Guid userId, JsonElement payload)
+        {
+            var variantId = Guid.Parse(payload.GetProperty("variantId").GetString()!);
+            var quantity = payload.GetProperty("quantity").GetInt32();
+
+            // Validate stock availability
+            var hasStock = await stockService.HasSufficientStockAsync(variantId, quantity);
+            if (!hasStock)
+            {
+                throw AppException.BadRequest($"Không đủ tồn kho cho sản phẩm {variantId}. Yêu cầu: {quantity}");
+            }
+
+            return await cartItemService.AddToCartAsync(userId, new CreateCartItemRequest { 
+                VariantId = variantId, 
+                Quantity = quantity 
+            });
+        }
+
+        private static async Task<object> ClearCartAsync(ICartService cartService, Guid userId, JsonElement payload)
+        {
+            // Clear all cart items (null means clear all)
+            return await cartService.ClearCartAsync(userId, null, true);
         }
     }
 }
