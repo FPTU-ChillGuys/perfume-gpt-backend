@@ -18,6 +18,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats
         private const string ProductRequestChannel = "product_data_request";
         private const string CartRequestChannel = "cart_data_request";
         private const string OrderRequestChannel = "order_data_request";
+        private const string CatalogRequestChannel = "catalog_request";
 
         private readonly INatsConnection _nats;
         private readonly IServiceScopeFactory _scopeFactory;
@@ -40,7 +41,8 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats
             var channels = new[] 
             { 
                 ProductRequestChannel, CartRequestChannel, OrderRequestChannel,
-                InventoryRequestChannel, ReviewRequestChannel, SalesRequestChannel
+                InventoryRequestChannel, ReviewRequestChannel, SalesRequestChannel,
+                CatalogRequestChannel
             };
 
             foreach (var channel in channels)
@@ -91,6 +93,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats
                     InventoryRequestChannel => await InventoryNatsHandler.HandleAsync(scope, action, payload, _jsonOptions),
                     ReviewRequestChannel => await ReviewNatsHandler.HandleAsync(scope, action, payload, _jsonOptions),
                     SalesRequestChannel => await SalesNatsHandler.HandleAsync(scope, action, payload, _jsonOptions),
+                    CatalogRequestChannel => await CatalogNatsHandler.HandleAsync(scope, action, payload, _jsonOptions),
                     _ => new { error = $"No handler for channel: {channelName}" }
                 };
 
