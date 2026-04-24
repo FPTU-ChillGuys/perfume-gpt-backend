@@ -33,7 +33,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly INotificationService _notificationService;
 		private readonly IGHNService _ghnService;
 		private readonly IBackgroundJobService _backgroundJobService;
-		private readonly IRedisPublisherService _redisPublisher;
+		private readonly INatsPublisherService _natsPublisher;
 		private readonly ILogger<OrderService> _logger;
 
 		public OrderService(
@@ -48,7 +48,7 @@ namespace PerfumeGPT.Application.Services
 			INotificationService notificationService,
 			IGHNService ghnService,
 			IBackgroundJobService backgroundJobService,
-			IRedisPublisherService redisPublisher,
+			INatsPublisherService natsPublisher,
 			ILogger<OrderService> logger)
 		{
 			_unitOfWork = unitOfWork;
@@ -62,7 +62,7 @@ namespace PerfumeGPT.Application.Services
 			_notificationService = notificationService;
 			_ghnService = ghnService;
 			_backgroundJobService = backgroundJobService;
-			_redisPublisher = redisPublisher;
+			_natsPublisher = natsPublisher;
 			_logger = logger;
 		}
 		#endregion Dependencies
@@ -270,7 +270,7 @@ namespace PerfumeGPT.Application.Services
 				referenceType: NotifiReferecneType.Order);
 
 				// Publish order_created event to Redis for AI backend (email notification)
-				await _redisPublisher.PublishOrderCreatedAsync(order.Id, userId);
+				await _natsPublisher.PublishOrderCreatedAsync(order.Id, userId);
 
 				return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Thanh toán đơn hàng thành công.");
 			});
@@ -391,7 +391,7 @@ namespace PerfumeGPT.Application.Services
 
 				// Publish event
 				if (request.CustomerId.HasValue)
-					await _redisPublisher.PublishOrderCreatedAsync(order.Id, request.CustomerId.Value);
+					await _natsPublisher.PublishOrderCreatedAsync(order.Id, request.CustomerId.Value);
 
 				return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Tạo đơn hàng thành công. Đang chờ xác nhận thanh toán.");
 			});
@@ -766,3 +766,4 @@ namespace PerfumeGPT.Application.Services
 		#endregion Private Helper Methods
 	}
 }
+

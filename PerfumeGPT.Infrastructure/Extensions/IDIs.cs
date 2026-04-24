@@ -1,3 +1,5 @@
+using NATS.Client.Core;
+using PerfumeGPT.Infrastructure.ThirdParties.Nats;
 using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -166,32 +168,19 @@ namespace PerfumeGPT.Infrastructure.Extensions
 				options.PayloadSerializerOptions.PropertyNamingPolicy = null;
 			});
 
-			// Redis Pub/Sub — graceful skip if Redis is unavailable
-			var redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? "localhost";
-			var redisPort = Environment.GetEnvironmentVariable("REDIS_PORT") ?? "6379";
-			var redisEndpoint = $"{redisHost}:{redisPort}";
+			// NATS Setup - replacing Redis implementation for Pub/Sub and RPC messaging
+			var natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? configuration["NATS_URL"] ?? "nats://127.0.0.1:4222";
 			try
 			{
-				var redisConfig = new ConfigurationOptions
-				{
-					EndPoints = { redisEndpoint },
-					AbortOnConnectFail = false,
-					ConnectTimeout = 10000,
-					SyncTimeout = 10000,
-					ConnectRetry = 5,
-					KeepAlive = 30
-				};
-				var multiplexer = ConnectionMultiplexer.Connect(redisConfig);
-				services.AddSingleton<IConnectionMultiplexer>(multiplexer);
-				services.AddSingleton<IRedisPublisherService, RedisPublisherService>();
-				// RedisSubscriberService listens for incoming requests from the AI backend
-				services.AddHostedService<RedisSubscriberService>();
-				Console.WriteLine($"[Redis] Connected to {redisEndpoint}");
+				services.AddSingleton<INatsConnection>(sp => new NatsConnection(new NatsOpts { Url = natsUrl }));
+				services.AddSingleton<INatsPublisherService, NatsPublisherService>();
+				// NatsSubscriberService listens for incoming requests from the AI backend
+				services.AddHostedService<PerfumeGPT.Infrastructure.ThirdParties.Nats.NatsSubscriberService>();
+				Console.WriteLine($"[NATS] Configured endpoint: {natsUrl}");
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"[Redis] Could not connect to {redisEndpoint}, using no-op publisher. Reason: {ex.Message}");
-				services.AddSingleton<IRedisPublisherService, NullRedisPublisherService>();
+				Console.WriteLine($"[NATS] Could not configure NATS client. Reason: {ex.Message}");
 			}
 		}
 

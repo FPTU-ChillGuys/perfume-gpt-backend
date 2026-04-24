@@ -3,7 +3,7 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 	/// <summary>
 	/// Publishes order-related events to a Redis channel for consumption by other services (e.g., AI backend for email).
 	/// </summary>
-	public interface IRedisPublisherService
+	public interface INatsPublisherService
 	{
 		/// <summary>
 		/// Publishes an "order_created" event to Redis with the order ID and user ID.
@@ -18,3 +18,4 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		Task PublishReviewCreatedAsync(Guid variantId);
 	}
 }
+

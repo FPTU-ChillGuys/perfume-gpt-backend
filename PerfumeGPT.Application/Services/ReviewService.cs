@@ -19,18 +19,18 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 
 		private readonly MediaBulkActionHelper _helper;
-		private readonly IRedisPublisherService _redisPublisherService;
+		private readonly INatsPublisherService _NatsPublisherService;
 
 		public ReviewService(
 			IMediaService mediaService,
 			MediaBulkActionHelper helper,
 			IUnitOfWork unitOfWork,
-			IRedisPublisherService redisPublisherService)
+			INatsPublisherService NatsPublisherService)
 		{
 			_mediaService = mediaService;
 			_helper = helper;
 			_unitOfWork = unitOfWork;
-			_redisPublisherService = redisPublisherService;
+			_NatsPublisherService = NatsPublisherService;
 		}
 		#endregion Dependencies
 
@@ -54,7 +54,7 @@ namespace PerfumeGPT.Application.Services
 
             // Notify external services via Redis
             var variantId = await _unitOfWork.Reviews.GetVariantIdByOrderDetailIdAsync(request.OrderDetailId);
-            await _redisPublisherService.PublishReviewCreatedAsync(variantId);
+            await _NatsPublisherService.PublishReviewCreatedAsync(variantId);
 
             var metadata = new BulkActionMetadata { Operations = [] };
 			if (request.TemporaryMediaIds != null && request.TemporaryMediaIds.Count != 0)
@@ -167,3 +167,4 @@ namespace PerfumeGPT.Application.Services
 		}
 	}
 }
+
