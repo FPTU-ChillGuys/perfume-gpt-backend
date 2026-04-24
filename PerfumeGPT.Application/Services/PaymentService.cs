@@ -719,7 +719,7 @@ namespace PerfumeGPT.Application.Services
 					if (order.Status == OrderStatus.Pending &&
 					   (order.PaymentStatus == PaymentStatus.PartialPaid || order.PaymentStatus == PaymentStatus.Paid))
 					{
-						order.SetStatus(OrderStatus.Preparing);
+						order.SetStatus(OrderStatus.Pending);
 					}
 				}
 			}
