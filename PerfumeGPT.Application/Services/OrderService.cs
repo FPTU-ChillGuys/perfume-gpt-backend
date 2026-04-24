@@ -340,9 +340,10 @@ namespace PerfumeGPT.Application.Services
 
 				if (request.Payment.DepositGateway != PaymentMethod.VnPay
 					&& request.Payment.DepositGateway != PaymentMethod.Momo
-					&& request.Payment.DepositGateway != PaymentMethod.PayOs)
+					&& request.Payment.DepositGateway != PaymentMethod.PayOs
+					&& request.Payment.DepositGateway != PaymentMethod.CashInStore)
 				{
-					throw AppException.BadRequest("Cổng thanh toán đặt cọc không hợp lệ.");
+					throw AppException.BadRequest("Cổng thanh toán đặt cọc không hợp lệ. Chỉ hỗ trợ VNPay, MoMo, PayOS hoặc Tiền mặt tại quầy.");
 				}
 			}
 
