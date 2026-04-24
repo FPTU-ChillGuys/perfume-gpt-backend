@@ -1,4 +1,3 @@
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -14,39 +13,18 @@ namespace PerfumeGPT.API.Controllers
 	public class ImportTicketsController : BaseApiController
 	{
 		private readonly IImportTicketService _importTicketService;
-		private readonly IValidator<CreateImportTicketRequest> _createImportTicketValidator;
-		private readonly IValidator<VerifyImportTicketRequest> _verifyImportTicketValidator;
-		private readonly IValidator<UpdateImportStatusRequest> _updateImportStatusValidator;
-		private readonly IValidator<UpdateImportRequest> _updateImportValidator;
-		private readonly IValidator<UploadImportTicketFromExcelRequest> _createImportTicketFromExcelValidator;
 
-		public ImportTicketsController(
-			IImportTicketService importTicketService,
-			IValidator<CreateImportTicketRequest> createImportTicketValidator,
-			IValidator<VerifyImportTicketRequest> verifyImportTicketValidator,
-			IValidator<UpdateImportStatusRequest> updateImportStatusValidator,
-			IValidator<UpdateImportRequest> updateImportValidator,
-			IValidator<UploadImportTicketFromExcelRequest> createImportTicketFromExcelValidator)
+		public ImportTicketsController(IImportTicketService importTicketService)
 		{
 			_importTicketService = importTicketService;
-			_createImportTicketValidator = createImportTicketValidator;
-			_verifyImportTicketValidator = verifyImportTicketValidator;
-			_updateImportStatusValidator = updateImportStatusValidator;
-			_updateImportValidator = updateImportValidator;
-			_createImportTicketFromExcelValidator = createImportTicketFromExcelValidator;
 		}
 
 		[HttpPost]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> CreateImportTicket([FromBody] CreateImportTicketRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createImportTicketValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 			var response = await _importTicketService.CreateImportTicketAsync(request, userId);
 			return HandleResponse(response);
@@ -55,14 +33,9 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("excel-parser")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<CreateImportTicketRequest>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<CreateImportTicketRequest>>> UploadImportTicketFromExcel([FromForm] UploadImportTicketFromExcelRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createImportTicketFromExcelValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _importTicketService.UploadImportTicketFromExcelAsync(request);
 			return HandleResponse(response);
 		}
@@ -70,13 +43,11 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("excel-template/{supplierId:int}")]
 		[AllowAnonymous]
 		[ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ExcelTemplateResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<IActionResult> DownloadImportTemplate(int supplierId)
 		{
-			if (supplierId < 0)
-			{
-				return BadRequest(BaseResponse<ExcelTemplateResponse>.Fail("Id nhà cung cấp không hợp lệ"));
-			}
+			var validationResult = ValidatePositiveInt(supplierId, "Supplier ID");
+			if (validationResult != null) return validationResult;
 
 			var response = await _importTicketService.GenerateImportTemplateAsync(supplierId);
 
@@ -91,14 +62,9 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{ticketId:guid}/verify")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> VerifyImportTicket([FromRoute] Guid ticketId, [FromBody] VerifyImportTicketRequest request)
 		{
-			var validation = await ValidateRequestAsync(_verifyImportTicketValidator, request);
-			if (validation != null) return validation;
-
 			var verifiedByUserId = GetCurrentUserId();
 			var response = await _importTicketService.VerifyImportTicketAsync(ticketId, request, verifiedByUserId);
 			return HandleResponse(response);
@@ -106,8 +72,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("{id:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<ImportTicketResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ImportTicketResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<ImportTicketResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ImportTicketResponse>>> GetImportTicketById(Guid id)
 		{
 			var response = await _importTicketService.GetImportTicketByIdAsync(id);
@@ -116,7 +81,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<ImportTicketListItem>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<ImportTicketListItem>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<ImportTicketListItem>>>> GetPagedImportTickets([FromQuery] GetPagedImportTicketsRequest request)
 		{
 			var response = await _importTicketService.GetImportTicketsAsync(request);
@@ -126,14 +91,9 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{id:guid}/status")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateImportStatus([FromRoute] Guid id, [FromBody] UpdateImportStatusRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateImportStatusValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _importTicketService.UpdateImportStatusAsync(id, request);
 			return HandleResponse(response);
 		}
@@ -141,14 +101,9 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{id:guid}")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateImportTicket([FromRoute] Guid id, [FromBody] UpdateImportRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateImportValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _importTicketService.UpdateImportTicketAsync(id, request);
 			return HandleResponse(response);
 		}
@@ -156,9 +111,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpDelete("{id:guid}")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteImportTicket([FromRoute] Guid id)
 		{
 			var response = await _importTicketService.DeleteImportTicketAsync(id);

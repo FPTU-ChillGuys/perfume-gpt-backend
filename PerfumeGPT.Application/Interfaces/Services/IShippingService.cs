@@ -8,8 +8,9 @@ namespace PerfumeGPT.Application.Interfaces.Services
 {
 	public interface IShippingService
 	{
-        Task<BaseResponse<PagedResult<ShippingInfoListItem>>> GetPagedShippingInfosByUserIdAsync(Guid userId, GetPagedShippingsRequest request);
+		Task<BaseResponse<PagedResult<ShippingInfoListItem>>> GetPagedShippingInfosByUserIdAsync(Guid userId, GetPagedShippingsRequest request);
 		Task<BaseResponse<string>> SyncShippingStatusByUserIdAsync(Guid userId);
+		Task<BaseResponse<string>> SyncShippingStatusByWebhookAsync(string orderCode, string ghnStatus);
 		Task<bool> SyncSingleShippingInfoAsync(ShippingInfo shippingInfo);
 		ShippingStatus? MapGhnStatusToDomainStatus(string ghnStatus);
 		bool TryApplyShippingStatus(ShippingInfo shippingInfo, ShippingStatus targetStatus);

@@ -135,14 +135,11 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			var shippingInfo = await _unitOfWork.ShippingInfos.GetByOrderIdAsync(order.Id)
 				 ?? throw AppException.NotFound("Không tìm thấy thông tin vận chuyển.");
 
-			bool isPaid = order.PaymentStatus == PaymentStatus.Paid;
-			var codAmount = isPaid ? 0m : order.TotalAmount;
+			// Nếu khách đã trả đủ 100% thì shipper không thu đồng nào.
+			// Nếu chưa đủ (chưa cọc hoặc mới cọc), shipper thu ĐÚNG phần còn lại.
+			var codAmount = order.PaymentStatus == PaymentStatus.Paid ? 0m : order.RemainingAmount;
 
-			return await CreateGHNShippingOrderInternalAsync(
-				order.Id,
-				codAmount,
-				shippingInfo,
-				contactAddress);
+			return await CreateGHNShippingOrderInternalAsync(order.Id, codAmount, shippingInfo, contactAddress);
 		}
 
 		public async Task<bool> CreateGHNShippingOrderAsync(OrderReturnRequest returnRequest, ContactAddress contactAddress)

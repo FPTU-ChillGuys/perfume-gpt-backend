@@ -1,4 +1,3 @@
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -18,24 +17,19 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IBannerService _bannerService;
 		private readonly IMediaService _mediaService;
-		private readonly IValidator<CreateBannerRequest> _createValidator;
-		private readonly IValidator<UpdateBannerRequest> _updateValidator;
 
 		public BannersController(
 			IBannerService bannerService,
-			IMediaService mediaService,
-			IValidator<CreateBannerRequest> createValidator,
-			IValidator<UpdateBannerRequest> updateValidator)
+			IMediaService mediaService)
 		{
 			_bannerService = bannerService;
 			_mediaService = mediaService;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 		}
 
 		[HttpGet("home")]
 		[AllowAnonymous]
 		[ProducesResponseType(typeof(BaseResponse<List<BannerResponse>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<BannerResponse>>>> GetVisibleBanners([FromQuery] BannerPosition? position)
 		{
 			var response = await _bannerService.GetVisibleBannersAsync(position);
@@ -45,6 +39,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<BannerResponse>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<BannerResponse>>>> GetPagedBanners([FromQuery] GetPagedBannersRequest request)
 		{
 			var response = await _bannerService.GetPagedBannersAsync(request);
@@ -54,7 +49,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("{bannerId:guid}")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<BannerResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<BannerResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BannerResponse>>> GetBannerById([FromRoute] Guid bannerId)
 		{
 			var response = await _bannerService.GetBannerByIdAsync(bannerId);
@@ -64,12 +59,9 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> CreateBanner([FromBody] CreateBannerRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _bannerService.CreateBannerAsync(request);
 			return HandleResponse(response);
 		}
@@ -77,13 +69,9 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut("{bannerId:guid}")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateBanner([FromRoute] Guid bannerId, [FromBody] UpdateBannerRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _bannerService.UpdateBannerAsync(bannerId, request);
 			return HandleResponse(response);
 		}
@@ -91,7 +79,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpDelete("{bannerId:guid}")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> DeleteBanner([FromRoute] Guid bannerId)
 		{
 			var response = await _bannerService.DeleteBannerAsync(bannerId);
@@ -101,8 +89,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("images/temporary")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>>> UploadTemporaryImages([FromForm] BannerUploadMediaRequest request)
 		{
 			var userId = GetCurrentUserId();

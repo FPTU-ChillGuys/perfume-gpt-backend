@@ -21,7 +21,7 @@ namespace PerfumeGPT.Application.Services
 			_mapper = mapper;
 		}
 
-		public async Task<BaseResponse<List<AttributeLookupItem>>> GetLookupListAsync(bool? isVariantLevel = null)
+		public async Task<BaseResponse<List<AttributeLookupItem>>> GetLookupListAsync(bool isVariantLevel)
 		{
 			var lookupList = await _unitOfWork.Attributes.GetLookupListAsync(isVariantLevel);
 			return BaseResponse<List<AttributeLookupItem>>.Ok(

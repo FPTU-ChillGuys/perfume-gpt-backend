@@ -22,7 +22,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<BatchDetailResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<BatchDetailResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<BatchDetailResponse>>>> GetBatches([FromQuery] GetBatchesRequest request)
 		{
 			var response = await _batchService.GetBatchesAsync(request);
@@ -32,8 +32,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("{id:guid}")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<BatchDetailResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<BatchDetailResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<BatchDetailResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<BatchDetailResponse>>> GetBatchById([FromRoute] Guid id)
 		{
 			var response = await _batchService.GetBatchByIdAsync(id);

@@ -1,4 +1,3 @@
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
@@ -14,23 +13,20 @@ namespace PerfumeGPT.API.Controllers
 	public class LoyaltyTransactionsController : BaseApiController
 	{
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
-		private readonly IValidator<ManualChangeRequest> _manualChangeValidator;
 
-		public LoyaltyTransactionsController(
-			ILoyaltyTransactionService loyaltyTransactionService,
-			IValidator<ManualChangeRequest> manualChangeValidator)
+		public LoyaltyTransactionsController(ILoyaltyTransactionService loyaltyTransactionService)
 		{
 			_loyaltyTransactionService = loyaltyTransactionService;
-			_manualChangeValidator = manualChangeValidator;
 		}
 
 		[HttpGet("me/history")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>), StatusCodes.Status400BadRequest)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>>> GetMyLoyaltyHistory([FromQuery] GetPagedUserLoyaltyTransactionsRequest request)
 		{
 			var userId = GetCurrentUserId();
+
 			var response = await _loyaltyTransactionService.GetLoyaltyHistoryAsync(userId, request);
 			return HandleResponse(response);
 		}
@@ -38,10 +34,11 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("me/total")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<LoyaltyTransactionTotalsResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<LoyaltyTransactionTotalsResponse>), StatusCodes.Status400BadRequest)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<LoyaltyTransactionTotalsResponse>>> GetMyLoyaltyTotals()
 		{
 			var userId = GetCurrentUserId();
+
 			var response = await _loyaltyTransactionService.GetLoyaltyTotalsAsync(userId);
 			return HandleResponse(response);
 		}
@@ -50,7 +47,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>), StatusCodes.Status400BadRequest)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>>> GetLoyaltyTransactions([FromQuery] GetPagedLoyaltyTransactionsRequest request)
 		{
 			var response = await _loyaltyTransactionService.GetPagedLoyaltyTransactionsAsync(request);
@@ -60,12 +57,9 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPost("{userId:guid}/manual-change")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> ManualChangePoints([FromRoute] Guid userId, [FromBody] ManualChangeRequest request)
 		{
-			var validation = await ValidateRequestAsync(_manualChangeValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _loyaltyTransactionService.ManualChangeAsync(userId, request);
 			return HandleResponse(response);
 		}

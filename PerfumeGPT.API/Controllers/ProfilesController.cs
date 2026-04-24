@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Profiles;
@@ -14,19 +13,16 @@ namespace PerfumeGPT.API.Controllers
 	public class ProfilesController : BaseApiController
 	{
 		private readonly IProfileService _profileService;
-		private readonly IValidator<UpdateProfileRequest> _updateProfileValidator;
 
-		public ProfilesController(IProfileService profileService, IValidator<UpdateProfileRequest> updateProfileValidator)
+		public ProfilesController(IProfileService profileService)
 		{
 			_profileService = profileService;
-			_updateProfileValidator = updateProfileValidator;
 		}
 
 		[HttpGet("me")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<ProfileResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ProfileResponse>>> GetProfile()
 		{
 			var userId = GetCurrentUserId();
@@ -37,14 +33,9 @@ namespace PerfumeGPT.API.Controllers
 		[HttpPut]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateProfile([FromBody] UpdateProfileRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateProfileValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 
 			var result = await _profileService.UpdateProfileAsync(userId, request);

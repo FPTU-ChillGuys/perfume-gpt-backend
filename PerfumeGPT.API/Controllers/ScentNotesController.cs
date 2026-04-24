@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.ScentNotes;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -13,22 +12,15 @@ namespace PerfumeGPT.API.Controllers
 	public class ScentNotesController : BaseApiController
 	{
 		private readonly IScentNoteService _scentNoteService;
-		private readonly IValidator<CreateScentNoteRequest> _createValidator;
-		private readonly IValidator<UpdateScentNoteRequest> _updateValidator;
 
-		public ScentNotesController(
-			IScentNoteService scentNoteService,
-			IValidator<CreateScentNoteRequest> createValidator,
-			IValidator<UpdateScentNoteRequest> updateValidator)
+		public ScentNotesController(IScentNoteService scentNoteService)
 		{
 			_scentNoteService = scentNoteService;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 		}
 
 		[HttpGet("lookup")]
 		[ProducesResponseType(typeof(BaseResponse<List<ScentNoteLookupResponse>>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<List<ScentNoteLookupResponse>>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<ScentNoteLookupResponse>>>> GetScentNoteLookupList()
 		{
 			var result = await _scentNoteService.GetScentNoteLookupListAsync();
@@ -37,6 +29,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<List<ScentNoteResponse>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<ScentNoteResponse>>>> GetAllScentNotesAsync()
 		{
 			var result = await _scentNoteService.GetAllScentNotesAsync();
@@ -45,31 +38,32 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> GetScentNoteByIdAsync([FromRoute] int id)
 		{
+			var validationResult = ValidatePositiveInt(id, "ScentNote ID");
+			if (validationResult != null) return validationResult;
+
 			var result = await _scentNoteService.GetScentNoteByIdAsync(id);
 			return HandleResponse(result);
 		}
 
 		[HttpPost]
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> CreateScentNoteAsync([FromBody] CreateScentNoteRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _scentNoteService.CreateScentNoteAsync(request);
 			return HandleResponse(result);
 		}
 
 		[HttpPut("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ScentNoteResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ScentNoteResponse>>> UpdateScentNoteAsync([FromRoute] int id, [FromBody] UpdateScentNoteRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateValidator, request);
-			if (validation != null) return validation;
+			var validationResult = ValidatePositiveInt(id, "ScentNote ID");
+			if (validationResult != null) return validationResult;
 
 			var result = await _scentNoteService.UpdateScentNoteAsync(id, request);
 			return HandleResponse(result);
@@ -77,9 +71,12 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpDelete("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteScentNoteAsync([FromRoute] int id)
 		{
+			var validationResult = ValidatePositiveInt(id, "ScentNote ID");
+			if (validationResult != null) { return validationResult; }
+
 			var result = await _scentNoteService.DeleteScentNoteAsync(id);
 			return HandleResponse(result);
 		}

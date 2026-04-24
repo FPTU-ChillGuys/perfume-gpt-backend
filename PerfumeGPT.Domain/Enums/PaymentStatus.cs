@@ -3,8 +3,9 @@
 	public enum PaymentStatus
 	{
 		Unpaid = 1,
+		PartialPaid,
 		Paid,
-		Partial_Refunded,
-		Refunded
+		Refunded,
+		PartialRefunded
 	}
 }

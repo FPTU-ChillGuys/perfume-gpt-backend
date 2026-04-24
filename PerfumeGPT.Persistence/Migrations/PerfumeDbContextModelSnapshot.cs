@@ -1060,6 +1060,10 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<string>("GuestEmailOrPhone")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal>("PaidAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("datetime2");
 
@@ -1069,6 +1073,14 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<string>("PaymentStatus")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("PolicyDepositAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("RequiredDepositAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid?>("StaffId")
                         .HasColumnType("uniqueidentifier");
@@ -1947,6 +1959,36 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasIndex("Status", "ExpiresAt");
 
                     b.ToTable("StockReservations");
+                });
+
+            modelBuilder.Entity("PerfumeGPT.Domain.Entities.StorePolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DepositTimeoutMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDepositRequiredForCOD")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("RequiredDepositPercentage")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StorePolicies", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("f6c2a71d-a76c-43cf-8f1f-315766251001"),
+                            DepositTimeoutMinutes = 15,
+                            IsDepositRequiredForCOD = true,
+                            RequiredDepositPercentage = 20m
+                        });
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Supplier", b =>

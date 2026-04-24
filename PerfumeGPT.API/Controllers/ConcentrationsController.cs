@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Metadatas.Concentrations;
 using PerfumeGPT.Application.DTOs.Responses.Base;
@@ -13,20 +12,15 @@ namespace PerfumeGPT.API.Controllers
 	public class ConcentrationsController : BaseApiController
 	{
 		public IConcentrationService _concentrationService;
-		private readonly IValidator<CreateConcentrationRequest> _createValidator;
-		private readonly IValidator<UpdateConcentrationRequest> _updateValidator;
 
-		public ConcentrationsController(
-			IConcentrationService concentrationService,
-			IValidator<CreateConcentrationRequest> createValidator,
-			IValidator<UpdateConcentrationRequest> updateValidator)
+		public ConcentrationsController(IConcentrationService concentrationService)
 		{
 			_concentrationService = concentrationService;
-			_createValidator = createValidator;
-			_updateValidator = updateValidator;
 		}
 
 		[HttpGet("lookup")]
+		[ProducesResponseType(typeof(BaseResponse<List<ConcentrationLookupDto>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<ConcentrationLookupDto>>>> GetConcentrationLookup()
 		{
 			var response = await _concentrationService.GetConcentrationLookup();
@@ -35,6 +29,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet]
 		[ProducesResponseType(typeof(BaseResponse<List<ConcentrationResponse>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<ConcentrationResponse>>>> GetAllConcentrationsAsync()
 		{
 			var result = await _concentrationService.GetAllConcentrationsAsync();
@@ -43,31 +38,32 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> GetConcentrationByIdAsync([FromRoute] int id)
 		{
+			var validationResult = ValidatePositiveInt(id, "Concentration ID");
+			if (validationResult != null) return validationResult;
+
 			var result = await _concentrationService.GetConcentrationByIdAsync(id);
 			return HandleResponse(result);
 		}
 
 		[HttpPost]
 		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> CreateConcentrationAsync([FromBody] CreateConcentrationRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createValidator, request);
-			if (validation != null) return validation;
-
 			var result = await _concentrationService.CreateConcentrationAsync(request);
 			return HandleResponse(result);
 		}
 
 		[HttpPut("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<ConcentrationResponse>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<ConcentrationResponse>>> UpdateConcentrationAsync([FromRoute] int id, [FromBody] UpdateConcentrationRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateValidator, request);
-			if (validation != null) return validation;
+			var validationResult = ValidatePositiveInt(id, "Concentration ID");
+			if (validationResult != null) return validationResult;
 
 			var result = await _concentrationService.UpdateConcentrationAsync(id, request);
 			return HandleResponse(result);
@@ -75,9 +71,12 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpDelete("{id}")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> DeleteConcentrationAsync([FromRoute] int id)
 		{
+			var validationResult = ValidatePositiveInt(id, "Concentration ID");
+			if (validationResult != null) return validationResult;
+
 			var result = await _concentrationService.DeleteConcentrationAsync(id);
 			return HandleResponse(result);
 		}

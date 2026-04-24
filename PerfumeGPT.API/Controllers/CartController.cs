@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.API.Controllers.Base;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
@@ -15,22 +14,18 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly ICartService _cartService;
 		private readonly ICartItemService _cartItemService;
-		private readonly IValidator<CreateCartItemRequest> _createCartItemValidator;
-		private readonly IValidator<UpdateCartItemRequest> _updateCartItemValidator;
 
 		public CartController(
 			ICartService cartService,
-			ICartItemService cartItemService,
-			IValidator<CreateCartItemRequest> createCartItemValidator,
-			IValidator<UpdateCartItemRequest> updateCartItemValidator)
+			ICartItemService cartItemService)
 		{
 			_cartService = cartService;
 			_cartItemService = cartItemService;
-			_createCartItemValidator = createCartItemValidator;
-			_updateCartItemValidator = updateCartItemValidator;
 		}
 
 		[HttpPost("pos-preview")]
+		[ProducesResponseType(typeof(BaseResponse<PreviewPosOrderResponse>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PreviewPosOrderResponse>>> GetCartPosPreview([FromBody] PreviewPosOrderRequest request)
 		{
 			var result = await _cartService.PreviewPosOrderAsync(request);
@@ -40,8 +35,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("items")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<GetCartItemsResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<GetCartItemsResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<GetCartItemsResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<GetCartItemsResponse>>> GetCartItems([FromQuery] GetPagedCartItemsRequest request)
 		{
 			var userId = GetCurrentUserId();
@@ -52,8 +46,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("total")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<GetCartTotalResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<GetCartTotalResponse>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<GetCartTotalResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<GetCartTotalResponse>>> GetCartTotal([FromQuery] GetCartTotalRequest request)
 		{
 			var userId = GetCurrentUserId();
@@ -64,8 +57,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpDelete("clear")]
 		[Authorize]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> ClearCart([FromQuery] List<Guid>? itemIds)
 		{
 			var userId = GetCurrentUserId();
@@ -75,14 +67,9 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost("items")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> AddToCartAsync([FromBody] CreateCartItemRequest request)
 		{
-			var validation = await ValidateRequestAsync(_createCartItemValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 			var result = await _cartItemService.AddToCartAsync(userId, request);
 			return HandleResponse(result);
@@ -90,14 +77,9 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPut("items/{id:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateCartItemAsync([FromRoute] Guid id, [FromBody] UpdateCartItemRequest request)
 		{
-			var validation = await ValidateRequestAsync(_updateCartItemValidator, request);
-			if (validation != null) return validation;
-
 			var userId = GetCurrentUserId();
 			var result = await _cartItemService.UpdateCartItemAsync(userId, id, request);
 			return HandleResponse(result);
@@ -105,10 +87,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpDelete("items/{id:guid}")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status403Forbidden)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> RemoveFromCartAsync([FromRoute] Guid id)
 		{
 			var userId = GetCurrentUserId();

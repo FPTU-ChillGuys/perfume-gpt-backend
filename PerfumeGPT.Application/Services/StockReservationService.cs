@@ -224,124 +224,110 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
-		public async Task<int> ProcessExpiredReservationsAsync()
+		public async Task<(int OrdersCleaned, int ReservationsCleaned)> CleanupExpiredOrdersAndReservationsAsync()
 		{
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				var expiredReservations = await _unitOfWork.StockReservations.GetExpiredReservationsAsync();
+				var now = DateTime.UtcNow;
+				int cleanedOrdersCount = 0;
+				int cleanedOrphanReservationsCount = 0;
+				var cleanedOrderIds = new HashSet<Guid>();
 
-				if (!expiredReservations.Any())
-					return 0;
+				// ==========================================
+				// PHẦN 1: DỌN DẸP ĐƠN HÀNG HẾT HẠN THANH TOÁN
+				// ==========================================
+				var expiredOrders = await _unitOfWork.Orders.GetAllAsync(
+					o => o.Status == OrderStatus.Pending
+						&& o.PaymentStatus == PaymentStatus.Unpaid // BẢO VỆ ĐƠN ĐÃ CỌC: Chỉ quét đơn Unpaid
+						&& o.PaymentExpiresAt.HasValue
+						 && o.PaymentExpiresAt.Value < now,
+					include: q => q.Include(o => o.OrderDetails));
 
-				var variantIds = expiredReservations.Select(r => r.VariantId).Distinct().ToList();
-				var reservedByVariant = new Dictionary<Guid, int>();
-				var affectedOrders = new HashSet<Guid>();
-				var count = 0;
-
-				// 1. DUYỆT VÀ NHẢ RESERVATION
-				foreach (var reservation in expiredReservations)
+				foreach (var order in expiredOrders)
 				{
-					if (reservation.Status != ReservationStatus.Reserved) continue;
-					if (reservation.Order != null && reservation.Order.PaymentStatus == PaymentStatus.Paid) continue;
+					// 1. Hủy đơn hàng
+					order.SetStatus(OrderStatus.Cancelled);
+					_unitOfWork.Orders.Update(order);
 
-					if (!reservedByVariant.ContainsKey(reservation.VariantId))
-						reservedByVariant[reservation.VariantId] = 0;
+					// 2. Hủy các giao dịch thanh toán đang Pending
+					var pendingPayments = await _unitOfWork.Payments.GetAllAsync(
+						 p => p.OrderId == order.Id
+							 && p.TransactionStatus == TransactionStatus.Pending);
 
-					reservedByVariant[reservation.VariantId] += reservation.ReservedQuantity;
-
-					reservation.Batch.Release(reservation.ReservedQuantity);
-					_unitOfWork.Batches.Update(reservation.Batch);
-
-					reservation.Release();
-					_unitOfWork.StockReservations.Update(reservation);
-
-					if (reservation.Order != null && reservation.Order.Status == OrderStatus.Pending)
+					foreach (var pendingPayment in pendingPayments)
 					{
-						affectedOrders.Add(reservation.OrderId);
+						pendingPayment.MarkCancelled("Đơn hàng đã bị hủy do hết hạn thanh toán.");
+						_unitOfWork.Payments.Update(pendingPayment);
 					}
 
-					count++;
-				}
+					// 3. Hoàn trả Quota Khuyến mãi (Promotion)
+					var promoUsageList = order.OrderDetails
+						.Where(x => x.PromotionItemId.HasValue)
+						.GroupBy(x => x.PromotionItemId!.Value)
+						.Select(g => new { PromoId = g.Key, Qty = g.Sum(i => i.Quantity) });
 
-				if (count == 0) return 0;
-
-				// 2. HOÀN TRẢ TỒN KHO TỔNG (STOCK)
-				var stocksToUpdate = await _unitOfWork.Stocks
-					 .GetAllAsync(s => variantIds.Contains(s.VariantId));
-
-				foreach (var stock in stocksToUpdate)
-				{
-					if (reservedByVariant.TryGetValue(stock.VariantId, out var totalReserved) && totalReserved > 0)
+					foreach (var usage in promoUsageList)
 					{
-						stock.ReleaseReservation(totalReserved);
-						_unitOfWork.Stocks.Update(stock);
-					}
-				}
-
-				// 3. XỬ LÝ HỦY ĐƠN HÀNG, HOÀN VOUCHER VÀ PROMOTION
-				if (affectedOrders.Count != 0)
-				{
-					// SỬA TẠI ĐÂY: Phải Include(o => o.OrderDetails) để có data tính Promotion
-					var ordersToUpdate = await _unitOfWork.Orders
-						 .GetAllAsync(o => affectedOrders.Contains(o.Id) && o.Status == OrderStatus.Pending,
-						 include: q => q.Include(o => o.OrderDetails));
-
-					var cancelledOrderIds = new List<Guid>();
-					var aggregatedPromoUsages = new Dictionary<Guid, int>(); // Gom nhóm Promo của tất cả đơn
-
-					foreach (var order in ordersToUpdate)
-					{
-						// Hủy đơn và Hoàn Voucher
-						order.SetStatus(OrderStatus.Cancelled);
-						_unitOfWork.Orders.Update(order);
-						cancelledOrderIds.Add(order.Id);
-						await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
-
-						// Gom nhóm Promotion của đơn hàng này
-						var orderPromos = order.OrderDetails
-							.Where(x => x.PromotionItemId.HasValue)
-							.GroupBy(x => x.PromotionItemId!.Value)
-							.Select(g => new { PromoId = g.Key, Qty = g.Sum(i => i.Quantity) }); // Đã đồng nhất số lượng theo thiết kế của bạn
-
-						// Cộng dồn vào rổ tổng
-						foreach (var promo in orderPromos)
-						{
-							if (aggregatedPromoUsages.ContainsKey(promo.PromoId))
-								aggregatedPromoUsages[promo.PromoId] += promo.Qty;
-							else
-								aggregatedPromoUsages[promo.PromoId] = promo.Qty;
-						}
-					}
-
-					// XỬ LÝ HOÀN TRẢ PROMOTION QUOTA HÀNG LOẠT
-					foreach (var usage in aggregatedPromoUsages)
-					{
-						var promo = await _unitOfWork.PromotionItems.GetByIdAsync(usage.Key);
+						var promo = await _unitOfWork.PromotionItems.GetByIdAsync(usage.PromoId);
 						if (promo != null)
 						{
-							promo.DecreaseCurrentUsage(usage.Value);
+							promo.DecreaseCurrentUsage(usage.Qty);
 							_unitOfWork.PromotionItems.Update(promo);
 						}
 					}
 
-					// 4. HỦY THANH TOÁN PENDING
-					if (cancelledOrderIds.Count != 0)
-					{
-						var pendingPayments = await _unitOfWork.Payments
-							.GetAllAsync(p =>
-								cancelledOrderIds.Contains(p.OrderId)
-								&& p.TransactionType == TransactionType.Payment
-								&& p.TransactionStatus == TransactionStatus.Pending);
+					// 4. Giải phóng Tồn kho
+					await ReleaseOrRestockCancelledOrderAsync(order.Id);
+					cleanedOrderIds.Add(order.Id);
 
-						foreach (var payment in pendingPayments)
+					// 5. Hoàn Voucher lại cho khách
+					await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
+					cleanedOrdersCount++;
+				}
+
+				// ==========================================
+				// PHẦN 2: QUÉT RÁC RESERVATION BỊ KẸT (Orphaned)
+				// ==========================================
+				var orphanedReservations = await _unitOfWork.StockReservations.GetAllAsync(
+					 r => r.Status == ReservationStatus.Reserved
+						 && r.ExpiresAt.HasValue
+						 && r.ExpiresAt.Value < now
+						 // BẢO VỆ TỒN KHO CỦA ĐƠN ĐÃ CỌC/ĐÃ THANH TOÁN
+						 // Chỉ nhả kho nếu Reservation này không gắn với Order nào, 
+						 // HOẶC Order đó chưa trả tiền (Unpaid), HOẶC Order đó đã bị Hủy (Cancelled)
+						 && (r.Order == null || r.Order.PaymentStatus == PaymentStatus.Unpaid || r.Order.Status == OrderStatus.Cancelled),
+					 include: q => q.Include(r => r.Batch));
+
+				if (orphanedReservations.Any())
+				{
+					var orphanedVariantIds = orphanedReservations.Select(r => r.VariantId).Distinct().ToList();
+					var stocks = await _unitOfWork.Stocks.GetAllAsync(s => orphanedVariantIds.Contains(s.VariantId));
+					var stockDict = stocks.ToDictionary(s => s.VariantId);
+
+					foreach (var reservation in orphanedReservations)
+					{
+						if (reservation.Status != ReservationStatus.Reserved)
+							continue;
+
+						if (cleanedOrderIds.Contains(reservation.OrderId))
+							continue;
+
+						reservation.Batch.Release(reservation.ReservedQuantity);
+						_unitOfWork.Batches.Update(reservation.Batch);
+
+						if (stockDict.TryGetValue(reservation.VariantId, out var stock))
 						{
-							payment.MarkCancelled($"Đơn hàng {payment.OrderId} đã bị hủy do hết hạn giữ tồn kho.");
-							_unitOfWork.Payments.Update(payment);
+							stock.ReleaseReservation(reservation.ReservedQuantity);
+							_unitOfWork.Stocks.Update(stock);
 						}
+
+						reservation.Release();
+						_unitOfWork.StockReservations.Update(reservation);
+						cleanedOrphanReservationsCount++;
 					}
 				}
 
-				return count;
+				return (cleanedOrdersCount, cleanedOrphanReservationsCount);
 			});
 		}
 	}

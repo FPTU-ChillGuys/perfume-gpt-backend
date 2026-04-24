@@ -60,5 +60,6 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 		public ICategoryRepository Categories => GetRepo(ctx => new CategoryRepository(ctx));
 		public IProductRepository Products => GetRepo(ctx => new ProductRepository(ctx, _kernel));
 		public ISystemPolicyRepository SystemPolicyRepository => GetRepo(ctx => new SystemPolicyRepository(ctx));
+		public IStorePolicyRepository StorePolicies => GetRepo(ctx => new StorePolicyRepository(ctx));
 	}
 }

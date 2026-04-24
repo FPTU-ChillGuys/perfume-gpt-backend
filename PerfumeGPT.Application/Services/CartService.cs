@@ -43,6 +43,10 @@ namespace PerfumeGPT.Application.Services
 			if (request.ScannedItems == null || request.ScannedItems.Count == 0)
 				throw AppException.BadRequest("Chưa có sản phẩm nào được quét.");
 
+			// BƯỚC MỚI: LẤY CHÍNH SÁCH ĐẶT CỌC CỦA HỆ THỐNG
+			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync()
+				?? throw AppException.NotFound("Không tìm thấy cấu hình hệ thống.");
+
 			// 1. Gom nhóm và TÍNH TỔNG Quantity gửi lên
 			var groupedScans = request.ScannedItems
 				.GroupBy(x => new { x.Barcode, x.BatchCode })
@@ -66,10 +70,9 @@ namespace PerfumeGPT.Application.Services
 
 				var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b =>
 					b.BatchCode == scan.BatchCode && b.VariantId == variant.Id)
-				 ?? throw AppException.NotFound($"Không tìm thấy lô {scan.BatchCode} cho sản phẩm {variant.Sku}.");
+					?? throw AppException.NotFound($"Không tìm thấy lô {scan.BatchCode} cho sản phẩm {variant.Sku}.");
 
 				// BỔ SUNG RÀO CHẮN Ở ĐÂY: Chặn thu ngân quét lố số lượng tồn kho
-				// Giả định bạn có thuộc tính AvailableInBatch (hoặc RemainingQuantity - ReservedQuantity)
 				if (scan.Quantity > batch.AvailableInBatch)
 				{
 					throw AppException.BadRequest(
@@ -90,14 +93,12 @@ namespace PerfumeGPT.Application.Services
 					SubTotal = subTotal,
 					Discount = 0m,
 					FinalTotal = subTotal,
-					// Dữ liệu phụ để map trả về UI
 					ImageUrl = variant.Media?.FirstOrDefault(m => m.IsPrimary)?.Url ?? string.Empty,
 					BatchCode = batch.BatchCode
 				});
 			}
 
 			// 3. ĐƯA VÀO CỖ MÁY TÍNH TIỀN CHUNG (Shared Pricing Engine)
-			// Bạn phải tái cấu trúc hàm BuildCheckoutPricingAsync cũ để nhận đầu vào là List<CartCheckoutItemDto>
 			List<CartCheckoutItemDto> pricedItems;
 			decimal subtotal;
 			decimal finalAmount;
@@ -132,10 +133,31 @@ namespace PerfumeGPT.Application.Services
 				}
 			}
 
-			// 4. MAP SANG DTO HIỂN THỊ (Tách bạch UI)
+			// 4. TÍNH PHÍ SHIP VÀ TỔNG TIỀN CUỐI CÙNG
+			var shippingRequest = new GetCartTotalRequest
+			{
+				Recipient = request.Recipient
+			};
+
+			var shippingFee = await CalculateShippingFeeAsync(Guid.Empty, shippingRequest, pricedItems);
+
+			// Tổng tiền khách phải thanh toán (bao gồm hàng + ship - giảm giá)
+			var finalTotalPrice = finalAmount + shippingFee;
+
+			// BƯỚC MỚI: TÍNH TOÁN SỐ TIỀN CỌC (REQUIRED DEPOSIT)
+			decimal requiredDepositAmount = 0m;
+
+			// Kiểm tra xem POS đang chọn Phương thức giao hàng COD và chính sách có yêu cầu cọc COD hay không
+			// (Lưu ý: Bạn cần đảm bảo PreviewPosOrderRequest có truyền lên PaymentMethod)
+			if (request.PaymentMethod == PaymentMethod.CashOnDelivery && storePolicy.IsDepositRequiredForCOD)
+			{
+				// Tính % cọc dựa trên TỔNG TIỀN (finalTotalPrice)
+				requiredDepositAmount = decimal.Round(finalTotalPrice * storePolicy.RequiredDepositPercentage / 100m, 0, MidpointRounding.AwayFromZero);
+			}
+
+			// 5. MAP SANG DTO HIỂN THỊ
 			var responseItems = pricedItems.Select(item =>
 			{
-				// TÁCH BẠCH: Tiền giảm của món hàng = Tổng giảm - Phần gánh Voucher
 				var promoDiscountOnly = item.Discount - item.ApportionedVoucherDiscount;
 				var lineTotalBeforeVoucher = item.SubTotal - promoDiscountOnly;
 
@@ -146,12 +168,9 @@ namespace PerfumeGPT.Application.Services
 					VariantName = item.VariantName,
 					Quantity = item.Quantity,
 					UnitPrice = item.UnitPrice,
-					SubTotal = item.SubTotal, // Giá gốc (VD: 1.580.000)
-
-					// CHỈ HIỂN THỊ GIÁ TRỊ CỦA PROMOTION
+					SubTotal = item.SubTotal,
 					Discount = promoDiscountOnly,
 					FinalTotal = lineTotalBeforeVoucher,
-
 					ImageUrl = item.ImageUrl ?? "",
 					BatchCode = item.BatchCode ?? throw AppException.BadRequest("Mã lô là bắt buộc cho sản phẩm POS.")
 				};
@@ -160,23 +179,14 @@ namespace PerfumeGPT.Application.Services
 			var response = new PreviewPosOrderResponse
 			{
 				Items = responseItems,
-				ShippingFee = 0m,
-
-				// Tổng của đơn hàng giữ nguyên logic cũ, rất chuẩn xác:
-				SubTotal = subtotal, // Đây là tổng tiền sau khi đã trừ Promotion của các Items
-				Discount = subtotal - finalAmount, // Đây chính xác là tiền giảm của Voucher
-				TotalPrice = finalAmount
+				SubTotal = subtotal,
+				Discount = subtotal - finalAmount, // Tiền giảm của Voucher
+				ShippingFee = shippingFee,
+				TotalPrice = finalTotalPrice,
+				RequiredDepositAmount = requiredDepositAmount // TRẢ VỀ DỮ LIỆU CỌC
 			};
 
-			var shippingRequest = new GetCartTotalRequest
-			{
-				Recipient = request.Recipient
-			};
-
-			var shippingFee = await CalculateShippingFeeAsync(Guid.Empty, shippingRequest, pricedItems);
-			response.ShippingFee = shippingFee;
-			response.TotalPrice += shippingFee;
-
+			// 6. BẮN SIGNALR LÊN MÀN HÌNH KHÁCH HÀNG (CUSTOMER DISPLAY)
 			if (!string.IsNullOrWhiteSpace(request.SessionId))
 			{
 				var customerDisplayData = new CartDisplayDto
@@ -187,6 +197,7 @@ namespace PerfumeGPT.Application.Services
 					Discount = response.Discount,
 					TotalPrice = response.TotalPrice,
 					VoucherCode = appliedVoucherCode,
+					RequiredDepositAmount = requiredDepositAmount // 💥 TRẢ VỀ DỮ LIỆU CỌC CHO MÀN HÌNH KHÁCH
 				};
 
 				await _signalRService.UpdateCustomerDisplayAsync(request.SessionId, customerDisplayData);
@@ -217,7 +228,6 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 			}
-
 			return BaseResponse<string>.Ok("Xóa giỏ hàng thành công");
 		}
 
@@ -254,7 +264,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				return BaseResponse<GetCartItemsResponse>.Ok(
 					new GetCartItemsResponse { Items = [] },
-				  "Giỏ hàng trống");
+					"Giỏ hàng trống");
 			}
 
 			// 2. Chuyển đổi sang định dạng của Pricing Engine
@@ -310,13 +320,14 @@ namespace PerfumeGPT.Application.Services
 			}).ToList();
 
 			return BaseResponse<GetCartItemsResponse>.Ok(
-			  new GetCartItemsResponse { Items = responseItems },
-			   "Lấy danh sách sản phẩm trong giỏ hàng thành công");
+				new GetCartItemsResponse { Items = responseItems },
+				"Lấy danh sách sản phẩm trong giỏ hàng thành công");
 		}
 
 		public async Task<BaseResponse<GetCartTotalResponse>> GetCartTotalAsync(Guid userId, GetCartTotalRequest request)
 		{
 			var (items, _, finalAmount, voucherMessage) = await BuildCheckoutPricingAsync(userId, request);
+			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
 
 			if (items.Count == 0)
 			{
@@ -326,7 +337,14 @@ namespace PerfumeGPT.Application.Services
 						Subtotal = 0m,
 						ShippingFee = 0m,
 						Discount = 0m,
-						TotalPrice = 0m
+						TotalPrice = 0m,
+						DepositPolicy = new DepositPolicyPreviewResponse
+						{
+							IsDepositRequired = false,
+							DepositRate = 0m,
+							DepositAmount = 0m,
+							RemainingAmount = 0m
+						}
 					},
 				   "Giỏ hàng trống");
 			}
@@ -341,13 +359,28 @@ namespace PerfumeGPT.Application.Services
 			// 3. Discount hiển thị = Tiền Voucher (Sẽ ra đúng 100.000)
 			var voucherDiscount = items.Sum(x => x.ApportionedVoucherDiscount);
 			var shippingFee = await CalculateShippingFeeAsync(userId, request, items);
+			var totalPrice = finalAmount + shippingFee;
+
+			var isDepositRequired = storePolicy != null && storePolicy.IsDepositRequiredForCOD;
+			var depositRate = isDepositRequired ? storePolicy!.RequiredDepositPercentage : 0m;
+			var depositAmount = isDepositRequired
+				? decimal.Round(totalPrice * depositRate / 100m, 0, MidpointRounding.AwayFromZero)
+				: 0m;
+			var remainingAmount = totalPrice - depositAmount;
 
 			var response = new GetCartTotalResponse
 			{
 				Subtotal = subTotalAfterPromo,
 				ShippingFee = shippingFee,
 				Discount = voucherDiscount,
-				TotalPrice = finalAmount + shippingFee
+				TotalPrice = totalPrice,
+				DepositPolicy = new DepositPolicyPreviewResponse
+				{
+					IsDepositRequired = isDepositRequired,
+					DepositRate = depositRate,
+					DepositAmount = depositAmount,
+					RemainingAmount = remainingAmount
+				}
 			};
 
 			return BaseResponse<GetCartTotalResponse>.Ok(

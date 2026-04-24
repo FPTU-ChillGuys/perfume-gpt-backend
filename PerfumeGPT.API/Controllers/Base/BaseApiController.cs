@@ -1,7 +1,8 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 
 namespace PerfumeGPT.API.Controllers.Base
 {
@@ -13,6 +14,10 @@ namespace PerfumeGPT.API.Controllers.Base
 			var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
 			return Guid.TryParse(userIdString, out var userId) ? userId : Guid.Empty;
 		}
+
+		protected (Guid UserId, string? Role) GetCurrentUserContext() =>
+		(GetCurrentUserId(), User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role));
+
 
 		/// <summary>
 		/// Handle response for generic BaseResponse<T>. This centralizes the logic for interpreting the success status and error types, ensuring consistent API responses across all controllers that inherit from BaseApiController.
@@ -59,52 +64,69 @@ namespace PerfumeGPT.API.Controllers.Base
 		}
 
 		/// <summary>
-		/// Reusable helper to validate request bodies are not null.
-		/// Returns null when the request is valid; otherwise returns an ActionResult produced by HandleResponse.
-		/// Usage: var validation = ValidateRequestBody(request); if (validation != null) return validation;
+		/// Kiểm tra danh sách (List, Array, IEnumerable) không được rỗng.
 		/// </summary>
-		protected ActionResult? ValidateRequestBody(object? request)
+		protected ActionResult? ValidateNotEmptyCollection<T, TItem>(IEnumerable<TItem>? collection, string paramName)
 		{
-			if (request == null)
+			if (collection == null || !collection.Any())
 			{
-             var resp = BaseResponse<object>.Fail("Nội dung request không được để trống.", ResponseErrorType.BadRequest);
+				var resp = BaseResponse<T>.Fail($"Danh sách {paramName} không được để trống.", ResponseErrorType.BadRequest);
+				return HandleResponse(resp);
+			}
+			return null;
+		}
+
+
+		/// <summary>
+		/// Kiểm tra kiểu int (thường dùng cho ID) phải lớn hơn 0.
+		/// </summary>
+		protected ActionResult? ValidatePositiveInt(int value, string paramName) // Bỏ <T>
+		{
+			if (value <= 0)
+			{
+				// Dùng BaseResponse<object> cho mọi lỗi
+				var resp = BaseResponse<object>.Fail($"{paramName} phải lớn hơn 0.", ResponseErrorType.BadRequest);
 				return HandleResponse(resp);
 			}
 			return null;
 		}
 
 		/// <summary>
-		/// Reusable helper to validate request bodies are not null.
-		/// Returns null when the request is valid; otherwise returns an ActionResult produced by HandleResponse.
+		/// Kiểm tra chuỗi string không được null hoặc rỗng.
 		/// </summary>
-		protected ActionResult? ValidateRequestBody<T>(object? request)
+		protected ActionResult? ValidateRequiredString(string? value, string paramName) // Bỏ <T>
 		{
-			if (request == null)
+			if (string.IsNullOrWhiteSpace(value))
 			{
-              var resp = BaseResponse<T>.Fail("Nội dung request không được để trống.", ResponseErrorType.BadRequest);
+				var resp = BaseResponse<object>.Fail($"{paramName} không được để trống.", ResponseErrorType.BadRequest);
 				return HandleResponse(resp);
 			}
 			return null;
 		}
 
-		protected async Task<ActionResult?> ValidateRequestAsync<T>(IValidator<T> validator, T request)
+		// Regex kiểm tra số điện thoại Việt Nam (bắt đầu bằng 0, theo sau là 9 chữ số, và có các đầu số hợp lệ)
+		private static readonly Regex VietnamPhoneRegex =
+			new(@"^(0)(3[2-9]|5[6789]|7[06789]|8[0-9]|9[0-9])[0-9]{7}$", RegexOptions.Compiled);
+
+		// Kiểm tra chuỗi phải là email hợp lệ hoặc số điện thoại Việt Nam hợp lệ
+		protected ActionResult? ValidatePhoneOrEmail(string? value, string paramName)
 		{
-			if (request == null)
+			if (string.IsNullOrWhiteSpace(value))
 			{
-              var resp = BaseResponse<T>.Fail("Nội dung request không được để trống.", ResponseErrorType.BadRequest);
+				var resp = BaseResponse<object>.Fail($"{paramName} không được để trống.", ResponseErrorType.BadRequest);
 				return HandleResponse(resp);
 			}
 
-			var validationResult = await validator.ValidateAsync(request);
-			if (!validationResult.IsValid)
+			var isEmail = new EmailAddressAttribute().IsValid(value);
+			var isPhone = VietnamPhoneRegex.IsMatch(value);
+
+			if (!isEmail && !isPhone)
 			{
-				var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-                var resp = BaseResponse<T>.Fail("Dữ liệu không hợp lệ.", ResponseErrorType.BadRequest, errors);
+				var resp = BaseResponse<object>.Fail($"{paramName} phải là email hoặc số điện thoại hợp lệ.", ResponseErrorType.BadRequest);
 				return HandleResponse(resp);
 			}
 
 			return null;
 		}
-
 	}
 }

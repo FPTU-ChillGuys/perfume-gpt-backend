@@ -6,6 +6,6 @@ namespace PerfumeGPT.Application.Interfaces.Services.OrderHelpers
 {
 	public interface IOrderPaymentService
 	{
-		Task<CreatePaymentResponseDto> CreatePaymentAndGenerateResponseAsync(Order order, decimal amount, PaymentMethod paymentMethod, string? posSessionId);
+		Task<CreatePaymentResponseDto> CreatePaymentAndGenerateResponseAsync(Order order, PaymentMethod paymentMethod, string? posSessionId);
 	}
 }

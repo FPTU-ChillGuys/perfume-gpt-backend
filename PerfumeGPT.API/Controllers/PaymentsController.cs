@@ -1,9 +1,7 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using PerfumeGPT.API.Controllers.Base;
-using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Requests.Payments;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Payments;
@@ -19,7 +17,6 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IPaymentService _paymentService;
 		private readonly IConfiguration _configuration;
-		private readonly IValidator<ConfirmPaymentRequest> _confirmPaymentValidator;
 		private readonly ILogger<PaymentsController> _logger;
 		private readonly IHubContext<PosHub, IPosClient> _posHubContext;
 
@@ -27,13 +24,11 @@ namespace PerfumeGPT.API.Controllers
 			IPaymentService paymentService,
 			IConfiguration configuration,
 			ILogger<PaymentsController> logger,
-			IValidator<ConfirmPaymentRequest> confirmPaymentValidator,
 			IHubContext<PosHub, IPosClient> posHubContext)
 		{
 			_paymentService = paymentService;
 			_configuration = configuration;
 			_logger = logger;
-			_confirmPaymentValidator = confirmPaymentValidator;
 			_posHubContext = posHubContext;
 		}
 
@@ -119,6 +114,7 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("payos-cancel")]
 		[ProducesResponseType(StatusCodes.Status302Found)]
+		[ProducesResponseType(StatusCodes.Status400BadRequest)]
 		public async Task<IActionResult> HandlePayOsCancelCallback()
 		{
 			try
@@ -194,10 +190,8 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPost("{paymentId:guid}/retry")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status400BadRequest)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult<BaseResponse<string>>> RetryPayment([FromRoute] Guid paymentId, [FromBody] PaymentInformation? newMethod = null)
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
+		public async Task<ActionResult<BaseResponse<string>>> RetryPayment([FromRoute] Guid paymentId, [FromBody] RetryOrChangePaymentRequest newMethod)
 		{
 			var response = await _paymentService.RetryOrChangePaymentMethodAsync(paymentId, newMethod);
 			return HandleResponse(response);
@@ -205,13 +199,9 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpPut("{paymentId:guid}/confirm")]
 		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status404NotFound)]
-		[ProducesResponseType(typeof(BaseResponse<bool>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<bool>>> ConfirmPayment([FromRoute] Guid paymentId, [FromBody] ConfirmPaymentRequest request)
 		{
-			var validation = await ValidateRequestAsync(_confirmPaymentValidator, request);
-			if (validation != null) return validation;
-
 			var response = await _paymentService.UpdatePaymentStatusAsync(paymentId, request);
 
 			if (response.Success && request.IsSuccess && !string.IsNullOrWhiteSpace(request.PosSessionId))
@@ -232,7 +222,7 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("management-transactions")]
 		[Authorize(Roles = "staff,admin")]
 		[ProducesResponseType(typeof(BaseResponse<PaymentTransactionOverviewResponse>), StatusCodes.Status200OK)]
-		[ProducesResponseType(typeof(BaseResponse<PaymentTransactionOverviewResponse>), StatusCodes.Status500InternalServerError)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PaymentTransactionOverviewResponse>>> GetTransactionsForManagement([FromQuery] GetPaymentTransactionsFilterRequest request)
 		{
 			var response = await _paymentService.GetTransactionsForManagementAsync(request);

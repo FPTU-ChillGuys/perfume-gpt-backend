@@ -48,7 +48,7 @@ namespace PerfumeGPT.Application.Services
 						order.SetStatus(OrderStatus.Delivered);
 
 					if (order.PaymentStatus != PaymentStatus.Paid)
-						order.MarkPaid(DateTime.UtcNow);
+						order.RecordPayment(order.RemainingAmount > 0 ? order.RemainingAmount : order.TotalAmount, DateTime.UtcNow);
 
 					var pendingCod = order.PaymentTransactions?.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
 					if (pendingCod != null)
@@ -89,17 +89,20 @@ namespace PerfumeGPT.Application.Services
 
 					await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(order.Id);
 
-					if (order.PaymentStatus == PaymentStatus.Paid)
+					if (order.PaidAmount > 0)
 					{
 						var hasPendingRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(r => r.OrderId == order.Id && r.Status == CancelRequestStatus.Pending);
 						if (!hasPendingRequest)
 						{
+							// Trừ đi khoản phạt bom hàng (100% tiền cọc)
+							var actualRefund = Math.Max(0, order.PaidAmount - order.RequiredDepositAmount);
+
 							var payload = new CancelRequestPayload
 							{
-								Reason = CancelOrderReason.Other,
-								IsRefundRequired = true,
-								RefundAmount = order.TotalAmount,
-								StaffNote = "Hệ thống tự động tạo yêu cầu hoàn tiền do sự cố giao vận."
+								Reason = CancelOrderReason.UnreachableCustomer, // Lý do Bom hàng
+								IsRefundRequired = actualRefund > 0,
+								RefundAmount = actualRefund > 0 ? actualRefund : null,
+								StaffNote = $"Hệ thống tạo yêu cầu hoàn tiền do khách bom hàng. Đã khấu trừ phạt cọc: {order.RequiredDepositAmount:N0}đ."
 							};
 							var cancelReq = OrderCancelRequest.Create(order.Id, order.CustomerId ?? Guid.Empty, payload);
 							await _unitOfWork.OrderCancelRequests.AddAsync(cancelReq);

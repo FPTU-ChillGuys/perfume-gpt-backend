@@ -1,4 +1,5 @@
 ﻿using PerfumeGPT.Application.DTOs.Requests.Orders;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.Carts
 {
@@ -16,6 +17,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Carts
 		public string? GuestEmailOrPhoneNumber { get; init; }
 		public Guid? CustomerId { get; init; }
 		public string? SessionId { get; init; }
+		public PaymentMethod? PaymentMethod { get; init; }
 		public ContactAddressInformation? Recipient { get; init; }
 	}
 }

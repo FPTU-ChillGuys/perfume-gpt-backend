@@ -29,7 +29,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 
 		// Campaign details 
 		public string? CampaignName { get; init; }
-		public string? VoucherCode { get; init; }
+		public int PromotionalStockQuantity { get; init; }      // THÊM MỚI: Tồn kho được giảm giá
 		public decimal? DiscountedPrice { get; init; }
 
 		// Attributes

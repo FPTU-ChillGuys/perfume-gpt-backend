@@ -121,5 +121,17 @@ namespace PerfumeGPT.Persistence.Contexts
 					"<p>Chính sách freeship...</p>"),
 			};
 		}
+
+		public static ICollection<StorePolicy> SeedingStorePolicies()
+		{
+			return new List<StorePolicy>
+			{
+			   StorePolicy.Create(
+					Guid.Parse("f6c2a71d-a76c-43cf-8f1f-315766251001"),
+					20m,
+					15,
+					true)
+			};
+		}
 	}
 }

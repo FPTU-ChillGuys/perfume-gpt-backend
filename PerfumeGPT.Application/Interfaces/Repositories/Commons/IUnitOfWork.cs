@@ -22,7 +22,7 @@
 		IOrderRepository Orders { get; }
 		ICartItemRepository CartItems { get; }
 		IVariantRepository Variants { get; }
-        IVariantSupplierRepository VariantSuppliers { get; }
+		IVariantSupplierRepository VariantSuppliers { get; }
 		IStockRepository Stocks { get; }
 		IImportTicketRepository ImportTickets { get; }
 		IImportDetailRepository ImportDetails { get; }
@@ -44,5 +44,6 @@
 		IOrderCancelRequestRepository OrderCancelRequests { get; }
 		IOrderReturnRequestRepository OrderReturnRequests { get; }
 		ISystemPolicyRepository SystemPolicyRepository { get; }
+		IStorePolicyRepository StorePolicies { get; }
 	}
 }

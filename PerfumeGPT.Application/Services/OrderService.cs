@@ -162,6 +162,25 @@ namespace PerfumeGPT.Application.Services
 		#region Checkout Operations
 		public async Task<BaseResponse<CreatePaymentResponseDto>> Checkout(Guid userId, CreateOrderRequest request)
 		{
+			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync()
+				  ?? throw AppException.NotFound("Không tìm thấy cấu hình đặt cọc hệ thống.");
+
+			var requiresDepositForThisOrder = (request.Payment.Method == PaymentMethod.CashOnDelivery || request.Payment.Method == PaymentMethod.CashInStore)
+				&& storePolicy.IsDepositRequiredForCOD;
+
+			if (requiresDepositForThisOrder)
+			{
+				if (!request.Payment.DepositGateway.HasValue)
+					throw AppException.BadRequest("Đơn COD bắt buộc chọn cổng thanh toán đặt cọc.");
+
+				if (request.Payment.DepositGateway != PaymentMethod.VnPay
+					&& request.Payment.DepositGateway != PaymentMethod.Momo
+					&& request.Payment.DepositGateway != PaymentMethod.PayOs)
+				{
+					throw AppException.BadRequest("Cổng thanh toán đặt cọc không hợp lệ. Chỉ hỗ trợ VNPay, Momo hoặc PayOs.");
+				}
+			}
+
 			var customer = await _unitOfWork.Users.GetByIdAsync(userId) ??
 			 throw AppException.NotFound("Không tìm thấy người dùng.");
 
@@ -195,11 +214,12 @@ namespace PerfumeGPT.Application.Services
 				.Select(item => (item.VariantId, item.Quantity))
 				.ToList();
 
-				// Set payment expiration
-				var paymentExpiresAt = GetPaymentExpiration(request.Payment.Method);
-
 				// Create order and populate details through aggregate methods
-				var order = Order.CreateOnline(userId, cartResponse.TotalPrice, paymentExpiresAt);
+				var order = Order.CreateOnline(
+					userId,
+					cartResponse.TotalPrice,
+					storePolicy,
+					requiresDepositForThisOrder);
 				await _orderDetailsFactory.CreateOrderDetailsAsync(order, [.. cartResponse.Items]);
 
 				// Validate voucher if provided (with subtotal + cart variant context)
@@ -246,7 +266,7 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				// Reserve stock
-				await _stockReservationService.ReserveStockForOrderAsync(order.Id, itemsToValidate, paymentExpiresAt);
+				await _stockReservationService.ReserveStockForOrderAsync(order.Id, itemsToValidate, order.PaymentExpiresAt);
 
 				// Mark voucher as reserved
 				if (voucher != null)
@@ -260,7 +280,32 @@ namespace PerfumeGPT.Application.Services
 				// Clear cart Items
 				await _cartService.ClearCartAsync(userId, request.ItemIds, false);
 
-				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, cartResponse.TotalPrice, request.Payment.Method, null);
+				// 1. GỌI HÀM CŨ ĐỂ TẠO GIAO DỊCH CỌC (Ví dụ: VNPay 100k) VÀ LẤY URL
+				var paymentMethodForGateway = requiresDepositForThisOrder
+					? request.Payment.DepositGateway!.Value
+					: request.Payment.Method;
+
+				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, paymentMethodForGateway, null);
+
+				// ======================================================================
+				// 2. ĐOẠN CODE BỔ SUNG: TẠO SẴN GIAO DỊCH COD CHO PHẦN CÒN LẠI (900k)
+				// ======================================================================
+				if (requiresDepositForThisOrder && (request.Payment.Method == PaymentMethod.CashOnDelivery || request.Payment.Method == PaymentMethod.CashInStore))
+				{
+					var remainingToCollect = order.TotalAmount - order.RequiredDepositAmount;
+					if (remainingToCollect > 0)
+					{
+						// Khởi tạo giao dịch Pending cho số tiền còn lại
+						var pendingRemainingTransaction = PaymentTransaction.Create(
+							order.Id,
+							request.Payment.Method, // CashOnDelivery hoặc CashInStore
+							remainingToCollect);
+
+						await _unitOfWork.Payments.AddAsync(pendingRemainingTransaction);
+					}
+				}
+				// ======================================================================
+
 				await _notificationService.SendToRoleAsync(
 				UserRole.staff,
 				"Đơn hàng online mới",
@@ -281,6 +326,36 @@ namespace PerfumeGPT.Application.Services
 			if (request.ScannedItems == null || request.ScannedItems.Count == 0)
 				throw AppException.BadRequest("Không có sản phẩm trong đơn hàng.");
 
+			// 1. KIỂM TRA CHÍNH SÁCH ĐẶT CỌC (BỔ SUNG MỚI)
+			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync()
+				  ?? throw AppException.NotFound("Không tìm thấy cấu hình đặt cọc hệ thống.");
+
+			var requiresDepositForThisOrder = request.Payment.Method == PaymentMethod.CashOnDelivery
+				&& storePolicy.IsDepositRequiredForCOD;
+
+			if (requiresDepositForThisOrder)
+			{
+				if (!request.Payment.DepositGateway.HasValue)
+					throw AppException.BadRequest("Đơn COD bắt buộc chọn cổng thanh toán để khách đặt cọc (VNPay/MoMo/PayOs).");
+
+				if (request.Payment.DepositGateway != PaymentMethod.VnPay
+					&& request.Payment.DepositGateway != PaymentMethod.Momo
+					&& request.Payment.DepositGateway != PaymentMethod.PayOs)
+				{
+					throw AppException.BadRequest("Cổng thanh toán đặt cọc không hợp lệ.");
+				}
+			}
+
+			// 2. KIỂM TRA ĐIỀU KIỆN KHÁCH HÀNG (Nếu là Member)
+			if (request.Payment.Method == PaymentMethod.CashOnDelivery && request.CustomerId.HasValue)
+			{
+				var customer = await _unitOfWork.Users.GetByIdAsync(request.CustomerId.Value);
+				if (customer != null && !customer.IsEligibleForCod(DateTime.UtcNow))
+				{
+					throw AppException.BadRequest("Tài khoản của khách hàng đã vi phạm chính sách nhận hàng. Vui lòng yêu cầu khách thanh toán trả trước toàn bộ.");
+				}
+			}
+
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				// 1. GOM NHÓM DỮ LIỆU QUÉT
@@ -297,7 +372,6 @@ namespace PerfumeGPT.Application.Services
 					var variantResponse = await _unitOfWork.Variants.GetByBarcodeAsync(scan.Barcode)
 					  ?? throw AppException.NotFound($"Không tìm thấy biến thể với mã vạch {scan.Barcode}.");
 
-					// Ép kiểu nếu GetByBarcodeAsync trả về DTO
 					var variantId = variantResponse.Id;
 					var variantBasePrice = variantResponse.BasePrice;
 
@@ -309,7 +383,7 @@ namespace PerfumeGPT.Application.Services
 					checkoutItems.Add(new CartCheckoutItemDto
 					{
 						VariantId = variantId,
-						BatchId = batch.Id, // BẮT BUỘC CÓ BATCH ID VÌ ĐÃ CẦM HÀNG TRÊN TAY
+						BatchId = batch.Id,
 						VariantName = $"{variantResponse.Sku} - {variantResponse.VolumeMl}ml",
 						Quantity = scan.Quantity,
 						UnitPrice = variantBasePrice,
@@ -330,13 +404,18 @@ namespace PerfumeGPT.Application.Services
 				if (request.ExpectedTotalPrice.HasValue && Math.Abs(request.ExpectedTotalPrice.Value - finalAmount) > 0.0001m)
 					throw AppException.Conflict("Giá đã thay đổi so với lúc xem trước. Vui lòng làm mới và kiểm tra lại tổng tiền.");
 
-				// 4. TẠO ĐƠN HÀNG CHỜ (PENDING)
-				var order = Order.CreateOffline(request.CustomerId, request.GuestEmailOrPhoneNumber, staffId, finalAmount);
+				// 4. TẠO ĐƠN HÀNG CHỜ (PENDING) - BỔ SUNG THAM SỐ CỌC
+				var order = Order.CreateOffline(
+					request.CustomerId,
+					request.GuestEmailOrPhoneNumber,
+					staffId,
+					finalAmount,
+					storePolicy,
+					request.Payment.Method == PaymentMethod.CashOnDelivery);
 
-				// CẬP NHẬT QUAN TRỌNG: Truyền pricedItems vào Factory
 				await _orderDetailsFactory.CreateOrderDetailsAsync(order, pricedItems);
 
-				// 5. CẬP NHẬT QUOTA PROMOTION (Flash Sale / Xả kho)
+				// 5. CẬP NHẬT QUOTA PROMOTION
 				var promoUsageList = pricedItems
 					.Where(x => x.AppliedPromotionItemId.HasValue)
 					.GroupBy(x => x.AppliedPromotionItemId!.Value)
@@ -355,7 +434,6 @@ namespace PerfumeGPT.Application.Services
 				// 6. XỬ LÝ VOUCHER AN TOÀN
 				if (!string.IsNullOrEmpty(request.VoucherCode))
 				{
-					// Kiểm tra tính hợp lệ chặt chẽ giống Online
 					var voucher = await ValidateAndGetVoucherAsync(
 						request.VoucherCode,
 						request.CustomerId,
@@ -378,16 +456,40 @@ namespace PerfumeGPT.Application.Services
 					await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, request.CustomerId, null);
 				}
 
-				// 8. GIỮ KHO CHÍNH XÁC THEO LÔ (EXACT BATCH RESERVATION)
+				// 8. GIỮ KHO CHÍNH XÁC THEO LÔ 
 				var posReservationItems = pricedItems
 					.GroupBy(x => new { x.VariantId, x.BatchId })
 					.Select(g => (VariantId: g.Key.VariantId, BatchId: g.Key.BatchId!.Value, Quantity: g.Sum(x => x.Quantity)))
 					.ToList();
 
-				await _stockReservationService.ReserveExactBatchStockForOrderAsync(order.Id, posReservationItems, null);
+				await _stockReservationService.ReserveExactBatchStockForOrderAsync(order.Id, posReservationItems, order.PaymentExpiresAt);
 
 				// 9. TẠO GIAO DỊCH THANH TOÁN (PENDING)
-				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, finalAmount, request.Payment.Method, request.PosSessionId);
+				// 9.1. GỌI HÀM CŨ ĐỂ TẠO GIAO DỊCH CỌC (Ví dụ: VNPay 100k) VÀ LẤY URL
+				var paymentMethodForGateway = requiresDepositForThisOrder
+					? request.Payment.DepositGateway!.Value
+					: request.Payment.Method;
+
+				var response = await _orderPaymentService.CreatePaymentAndGenerateResponseAsync(order, paymentMethodForGateway, null);
+
+				// ======================================================================
+				// 9.2. ĐOẠN CODE BỔ SUNG: TẠO SẴN GIAO DỊCH COD CHO PHẦN CÒN LẠI (900k)
+				// ======================================================================
+				if (requiresDepositForThisOrder && (request.Payment.Method == PaymentMethod.CashOnDelivery || request.Payment.Method == PaymentMethod.CashInStore))
+				{
+					var remainingToCollect = order.TotalAmount - order.RequiredDepositAmount;
+					if (remainingToCollect > 0)
+					{
+						// Khởi tạo giao dịch Pending cho số tiền còn lại
+						var pendingRemainingTransaction = PaymentTransaction.Create(
+							order.Id,
+							request.Payment.Method, // CashOnDelivery hoặc CashInStore
+							remainingToCollect);
+
+						await _unitOfWork.Payments.AddAsync(pendingRemainingTransaction);
+					}
+				}
+				// ======================================================================
 
 				// Publish event
 				if (request.CustomerId.HasValue)
@@ -413,31 +515,46 @@ namespace PerfumeGPT.Application.Services
 				if (order.Status != OrderStatus.Pending)
 					throw AppException.BadRequest($"Chỉ có thể cập nhật trạng thái đơn hàng từ Pending sang Preparing. Hiện tại: {order.Status}.");
 
-				// 1. RÀO CHẮN TÀI CHÍNH (FINANCIAL GUARD)
-				// Chú ý: Đảm bảo PaymentMethod.CashOnDelivery khớp với Enum thực tế của bạn
-				bool isPaid = order.PaymentStatus == PaymentStatus.Paid;
+				// ==========================================
+				// 1. RÀO CHẮN TÀI CHÍNH BỌC THÉP (UPDATED)
+				// ==========================================
+				bool isFullyPaid = order.PaymentStatus == PaymentStatus.Paid;
+				bool isDepositFulfilled = order.PaymentStatus == PaymentStatus.PartialPaid;
+
 				bool isDelivery = order.ForwardShipping != null;
 				bool isCod = order.PaymentTransactions.Any(p => p.Method == PaymentMethod.CashOnDelivery);
 				bool isCashInStore = order.PaymentTransactions.Any(p => p.Method == PaymentMethod.CashInStore);
 
-				// Đơn hàng CHỈ ĐƯỢC PHÉP chuẩn bị (Preparing) khi thoả mãn 1 trong 3 điều kiện:
-				// 1. Đã thanh toán thành công (VNPay, Momo, hoặc đã trả tiền mặt tại quầy).
-				// 2. Là đơn COD (Giao hàng thu tiền hộ - Mặc định cho nợ).
-				// 3. Là đơn Nhận tại quầy (!isDelivery) VÀ khách chọn Thanh toán tại quầy (CashInStore).
-				bool canPrepare = isPaid || isCod || (isCashInStore && !isDelivery);
+				bool canPrepare = false;
+
+				if (order.RequiredDepositAmount > 0)
+				{
+					// NẾU ĐƠN CÓ YÊU CẦU CỌC: Bắt buộc phải thanh toán Full hoặc ít nhất đã trả đủ Cọc (PartiallyPaid)
+					canPrepare = isFullyPaid || isDepositFulfilled;
+				}
+				else
+				{
+					// NẾU ĐƠN KHÔNG YÊU CẦU CỌC: Phải trả Full, HOẶC là COD, HOẶC là CashInStore đến tận nơi lấy
+					canPrepare = isFullyPaid || isCod || (isCashInStore && !isDelivery);
+				}
 
 				if (!canPrepare)
 				{
-					throw AppException.BadRequest("Không thể chuẩn bị đơn chưa thanh toán, trừ khi là COD hoặc thanh toán tại quầy cho đơn nhận tại cửa hàng.");
+					string errorMessage = order.RequiredDepositAmount > 0
+						? $"Đơn hàng này yêu cầu đặt cọc {order.RequiredDepositAmount:N0}đ. Khách hàng chưa hoàn tất thanh toán cọc."
+						: "Không thể chuẩn bị đơn chưa thanh toán, trừ khi là COD hoặc thanh toán tại quầy cho đơn nhận tại cửa hàng.";
+
+					throw AppException.BadRequest(errorMessage);
 				}
 
-				// 2. CHUYỂN TRẠNG THÁI (Entity Order sẽ tự chặn nếu là đơn Takeaway)
+				// ==========================================
+				// 2. CHUYỂN TRẠNG THÁI VÀ SINH PICK LIST
+				// ==========================================
 				order.SetStatus(OrderStatus.Preparing);
 				order.SetStaff(staffId);
 				_unitOfWork.Orders.Update(order);
 				customerIdToNotify = order.CustomerId;
 
-				// 3. LẤY PICK LIST CHẮC CHẮN 100% CÓ DATA
 				var pickListResponse = await _fulfillmentService.GetPickListAsync(order);
 
 				var orderTypeText = order.Type == OrderType.Online ? "trực tuyến" : "giao tại cửa hàng";
@@ -469,11 +586,11 @@ namespace PerfumeGPT.Application.Services
 				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Preparing && order.Status != OrderStatus.ReadyToPick)
-					throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending hoặc Preparing hoặc ReadyToPick.");
+					throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending, Preparing hoặc ReadyToPick.");
 
-				bool isCashInStorePaid = order.Type == OrderType.Offline && order.PaymentTransactions.Any(p => p.Method == PaymentMethod.CashInStore && p.TransactionStatus == TransactionStatus.Success);
-				var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
+				var isRefundRequired = order.PaidAmount > 0;
 
+				// MAKER-CHECKER: Nếu đã thu tiền, nhân viên không được tự hoàn tiền, phải tạo Request
 				if (isRefundRequired)
 				{
 					var hasPendingCancelRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(
@@ -486,8 +603,8 @@ namespace PerfumeGPT.Application.Services
 					{
 						Reason = request.Reason,
 						IsRefundRequired = true,
-						RefundAmount = order.TotalAmount,
-						StaffNote = request.Note
+						RefundAmount = order.PaidAmount, // Cửa hàng hủy nên trả 100% không phạt
+						StaffNote = $"Cửa hàng chủ động hủy. Hoàn trả 100%. Lý do: {request.Note}"
 					};
 
 					var cancelRequest = OrderCancelRequest.Create(order.Id, staffId, payload);
@@ -495,15 +612,11 @@ namespace PerfumeGPT.Application.Services
 
 					await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
 					createdCancelRequestId = cancelRequest.Id;
-					return BaseResponse<string>.Ok("Gửi yêu cầu hủy đơn thành công.");
+					return BaseResponse<string>.Ok("Đơn hàng đã thanh toán. Đã tạo yêu cầu hủy chờ Quản lý duyệt hoàn tiền.");
 				}
 
+				// NẾU CHƯA THU TIỀN: Hủy trực tiếp ngay lập tức
 				await HandleOrderCancellationAsync(order, request.Reason);
-
-				if (isCashInStorePaid)
-				{
-					// Ví dụ: await _paymentService.CreateCashRefundTransactionAsync(order.Id, order.TotalAmount);
-				}
 
 				order.SetStaff(staffId);
 				_unitOfWork.Orders.Update(order);
@@ -517,8 +630,8 @@ namespace PerfumeGPT.Application.Services
 			{
 				await _notificationService.SendToRoleAsync(
 					UserRole.admin,
-					"Yêu cầu hủy đơn mới từ nhân viên",
-					$"Nhân viên yêu cầu duyệt hủy đơn #{orderId}.",
+					"Yêu cầu duyệt hoàn tiền (Từ nhân viên)",
+					$"Nhân viên yêu cầu duyệt hủy và hoàn tiền cho đơn #{orderId}.",
 					NotificationType.Warning,
 					referenceId: createdCancelRequestId,
 					referenceType: NotifiReferecneType.OrderCancelRequest);
@@ -529,7 +642,7 @@ namespace PerfumeGPT.Application.Services
 				await _notificationService.SendToUserAsync(
 					customerIdToNotify.Value,
 					"Đơn hàng đã bị hủy",
-					$"Đơn hàng #{orderId} đã bị hủy. Lý do: {request.Reason}.",
+					$"Đơn hàng #{orderId} của bạn đã bị hủy từ hệ thống. Lý do: {request.Reason}.",
 					NotificationType.Warning,
 					referenceId: orderId,
 					referenceType: NotifiReferecneType.Order);
@@ -543,54 +656,64 @@ namespace PerfumeGPT.Application.Services
 			Guid? createdCancelRequestId = null;
 
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			   {
-				   var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(orderId)
-					 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+			{
+				var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(orderId)
+					?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
-				   // Validate authorization
-				   order.EnsureOwnedBy(userId);
+				// Validate authorization
+				order.EnsureOwnedBy(userId);
 
-				   // Validate order type
-				   order.EnsureOnlineOrder();
+				// Validate order type
+				order.EnsureOnlineOrder();
 
-				   if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Preparing && order.Status != OrderStatus.ReadyToPick)
-					   throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending hoặc Preparing.");
+				if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Preparing && order.Status != OrderStatus.ReadyToPick)
+					throw AppException.BadRequest($"Không thể hủy đơn ở trạng thái {order.Status}. Chỉ cho phép hủy đơn ở trạng thái Pending, Preparing hoặc ReadyToPick.");
 
-				   var isRefundRequired = order.PaymentStatus == PaymentStatus.Paid;
+				// 💥 ĐÃ SỬA: Tận dụng Snapshot để lấy mức phạt chuẩn xác (O(1) - Không cần query DB)
+				var penaltyAmount = 0m;
+				if (order.Status == OrderStatus.Preparing || order.Status == OrderStatus.ReadyToPick)
+				{
+					penaltyAmount = order.PolicyDepositAmount; // Phạt bằng đúng mức cọc quy định lúc tạo đơn
+				}
 
-				   // Pending + Unpaid => auto cancel immediately
-				   if (order.Status == OrderStatus.Pending && !isRefundRequired)
-				   {
-					   await HandleOrderCancellationAsync(order, request.Reason);
-					   _unitOfWork.Orders.Update(order);
+				// Số tiền thực nhận lại = Tổng tiền đã trả - Tiền phạt
+				var actualRefundAmount = Math.Max(0, order.PaidAmount - penaltyAmount);
+				var isRefundRequired = actualRefundAmount > 0;
 
-					   return BaseResponse<string>.Ok("Hủy đơn hàng thành công.");
-				   }
+				// Pending + Unpaid => auto cancel immediately
+				if (order.Status == OrderStatus.Pending && !isRefundRequired)
+				{
+					await HandleOrderCancellationAsync(order, request.Reason);
+					_unitOfWork.Orders.Update(order);
 
-				   var hasPendingCancelRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(
-					   x => x.OrderId == order.Id && x.Status == CancelRequestStatus.Pending);
+					return BaseResponse<string>.Ok("Hủy đơn hàng thành công.");
+				}
 
-				   if (hasPendingCancelRequest)
-					   throw AppException.BadRequest("Đơn hàng này đã có yêu cầu hủy đang chờ xử lý.");
+				var hasPendingCancelRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(
+					x => x.OrderId == order.Id && x.Status == CancelRequestStatus.Pending);
 
-				   var payload = new CancelRequestPayload
-				   {
-					   Reason = request.Reason,
-					   IsRefundRequired = isRefundRequired,
-					   RefundAmount = isRefundRequired ? order.TotalAmount : null,
-					   RefundBankName = request.RefundBankName,
-					   RefundAccountNumber = request.RefundAccountNumber,
-					   RefundAccountName = request.RefundAccountName
-				   };
+				if (hasPendingCancelRequest)
+					throw AppException.BadRequest("Đơn hàng này đã có yêu cầu hủy đang chờ xử lý.");
 
-				   var cancelRequest = OrderCancelRequest.Create(order.Id, userId, payload);
-				   cancelRequest.Order = order;
+				var payload = new CancelRequestPayload
+				{
+					Reason = request.Reason,
+					IsRefundRequired = isRefundRequired,
+					RefundAmount = isRefundRequired ? actualRefundAmount : null,
+					StaffNote = penaltyAmount > 0 ? $"Khách hàng hủy khi đơn đang xử lý. Áp dụng phạt (tương đương cọc): {penaltyAmount:N0}đ." : null,
+					RefundBankName = request.RefundBankName,
+					RefundAccountNumber = request.RefundAccountNumber,
+					RefundAccountName = request.RefundAccountName
+				};
 
-				   await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
-				   createdCancelRequestId = cancelRequest.Id;
+				var cancelRequest = OrderCancelRequest.Create(order.Id, userId, payload);
+				cancelRequest.Order = order;
 
-				   return BaseResponse<string>.Ok("Gửi yêu cầu hủy đơn thành công.");
-			   });
+				await _unitOfWork.OrderCancelRequests.AddAsync(cancelRequest);
+				createdCancelRequestId = cancelRequest.Id;
+
+				return BaseResponse<string>.Ok("Gửi yêu cầu hủy đơn thành công.");
+			});
 
 			if (createdCancelRequestId.HasValue)
 			{
@@ -651,16 +774,20 @@ namespace PerfumeGPT.Application.Services
 				order.SetStaff(staffId);
 
 				// 2. XỬ LÝ DÒNG TIỀN (NẾU KHÁCH CHỌN TRẢ SAU/COD)
-				if (order.PaymentStatus != PaymentStatus.Paid)
+				if (order.PaymentStatus != PaymentStatus.Paid && order.RemainingAmount > 0)
 				{
-					order.MarkPaid(DateTime.UtcNow);
+					// SỬA LỖI 3: Chỉ ghi nhận đúng số tiền còn thiếu
+					order.RecordPayment(order.RemainingAmount, DateTime.UtcNow);
 				}
 
-				var pendingCod = order.PaymentTransactions.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
-				if (pendingCod != null)
+				var pendingTx = order.PaymentTransactions.FirstOrDefault(t =>
+					t.TransactionStatus == TransactionStatus.Pending &&
+					(t.Method == PaymentMethod.CashInStore || t.Method == PaymentMethod.CashOnDelivery));
+
+				if (pendingTx != null)
 				{
-					pendingCod.MarkSuccess("Khách hàng đã thanh toán và nhận hàng tại cửa hàng.");
-					_unitOfWork.Payments.Update(pendingCod);
+					pendingTx.MarkSuccess("Khách hàng đã thanh toán phần còn lại và nhận hàng tại cửa hàng.");
+					_unitOfWork.Payments.Update(pendingTx);
 				}
 
 				// 3. Schedule loyalty points after return window (Delivered + 10 days)
@@ -675,7 +802,7 @@ namespace PerfumeGPT.Application.Services
 
 				_unitOfWork.Orders.Update(order);
 
-				return BaseResponse<string>.Ok("Giao hàng cho khách tại cửa hàng thành công.");
+				return BaseResponse<string>.Ok(order.Code);
 			});
 		}
 
@@ -688,18 +815,6 @@ namespace PerfumeGPT.Application.Services
 
 
 		#region Private Helper Methods
-		private static DateTime? GetPaymentExpiration(PaymentMethod method)
-		{
-			return method switch
-			{
-				PaymentMethod.VnPay => DateTime.UtcNow.AddMinutes(15),
-				PaymentMethod.Momo => DateTime.UtcNow.AddMinutes(30),
-				PaymentMethod.CashOnDelivery => null,
-				PaymentMethod.CashInStore => null,
-				_ => null
-			};
-		}
-
 		private async Task HandleOrderCancellationAsync(Order order, CancelOrderReason cancelReason)
 		{
 			var orderWithDetails = order.OrderDetails.Count > 0
