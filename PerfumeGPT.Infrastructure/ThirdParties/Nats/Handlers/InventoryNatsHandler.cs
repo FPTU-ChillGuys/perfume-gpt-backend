@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using PerfumeGPT.Application.DTOs.Responses.Inventory;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.DTOs.Requests.Inventory;
 using PerfumeGPT.Application.DTOs.Requests.Inventory.Batches;
@@ -18,7 +19,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats.Handlers
 
             return action switch
             {
-                "getOverallStats" => (await stockService.GetInventorySummaryAsync()).Payload,
+                "getOverallStats" => await GetOverallStatsAsync(stockService),
                 "getInventory" => await GetInventoryAsObjectAsync(stockService, payload, options),
                 "getBatches" => (await batchService.GetBatchesAsync(JsonSerializer.Deserialize<GetBatchesRequest>(payload.GetRawText(), options)!)).Payload,
                 _ => throw new ArgumentException($"Invalid inventory action: {action}")
@@ -29,26 +30,39 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats.Handlers
         {
             var request = JsonSerializer.Deserialize<GetPagedInventoryRequest>(payload.GetRawText(), options)!;
             var result = await stockService.GetInventoryAsync(request);
-            if (result.Payload == null) return new { totalCount = 0, items = new object[0] };
             
-            // Convert to camelCase to match AI backend expectations
+            if (result.Payload == null) return new {
+                totalCount = 0,
+                pageNumber = 1,
+                pageSize = 0,
+                totalPages = 0,
+                items = new object[0]
+            };
+            
+            // Convert to AiStockResponse array
+            var aiStockItems = result.Payload.Items.Select(i => AiStockResponse.FromStockResponse(i)).ToArray();
+            
             return new {
                 totalCount = result.Payload.TotalCount,
-                items = result.Payload.Items.Select(i => new {
-                    variantId = i.VariantId.ToString(),
-                    productName = i.ProductName,
-                    variantSku = i.VariantSku,
-                    volumeMl = i.VolumeMl,
-                    concentrationName = i.ConcentrationName,
-                    totalQuantity = i.TotalQuantity,
-                    availableQuantity = i.AvailableQuantity,
-                    lowStockThreshold = i.LowStockThreshold,
-                    basePrice = i.BasePrice,
-                    variantStatus = i.VariantStatus.ToString(),
-                    status = i.Status.ToString(),
-                    type = "Standard" // Default type since not available in StockResponse
-                }).ToArray()
+                pageNumber = request.PageNumber,
+                pageSize = request.PageSize,
+                totalPages = (int)Math.Ceiling((double)result.Payload.TotalCount / request.PageSize),
+                items = aiStockItems
             };
+        }
+
+        private static async Task<object> GetOverallStatsAsync(IStockService stockService)
+        {
+            var result = await stockService.GetInventorySummaryAsync();
+            var payload = result.Payload;
+            
+            if (payload == null)
+            {
+                return new AiInventorySummaryResponse();
+            }
+
+            // Convert to AiInventorySummaryResponse
+            return AiInventorySummaryResponse.FromInventorySummary(payload);
         }
     }
 }

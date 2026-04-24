@@ -122,7 +122,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				 ReservedQuantity = s.TotalQuantity - s.AvailableQuantity,
 				 LowStockThreshold = s.LowStockThreshold,
 				 BasePrice = s.ProductVariant.BasePrice,
-				 Type = s.ProductVariant.Type,
+				 Type = s.ProductVariant.Type.ToString(),
 				 Status = s.Status
 			 })
 				.ToListAsync();
@@ -153,7 +153,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				ReservedQuantity = s.TotalQuantity - s.AvailableQuantity,
 				LowStockThreshold = s.LowStockThreshold,
 				BasePrice = s.ProductVariant.BasePrice,
-				Type = s.ProductVariant.Type,
+				Type = s.ProductVariant.Type.ToString(),
 				Status = s.Status
 			})
 			.FirstOrDefaultAsync();
