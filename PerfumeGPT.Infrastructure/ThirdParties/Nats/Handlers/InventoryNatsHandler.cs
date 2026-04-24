@@ -31,9 +31,23 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats.Handlers
             var result = await stockService.GetInventoryAsync(request);
             if (result.Payload == null) return new { totalCount = 0, items = new object[0] };
             
+            // Convert to camelCase to match AI backend expectations
             return new {
-                TotalCount = result.Payload.TotalCount,
-                Items = result.Payload.Items.Cast<object>()
+                totalCount = result.Payload.TotalCount,
+                items = result.Payload.Items.Select(i => new {
+                    variantId = i.VariantId.ToString(),
+                    productName = i.ProductName,
+                    variantSku = i.VariantSku,
+                    volumeMl = i.VolumeMl,
+                    concentrationName = i.ConcentrationName,
+                    totalQuantity = i.TotalQuantity,
+                    availableQuantity = i.AvailableQuantity,
+                    lowStockThreshold = i.LowStockThreshold,
+                    basePrice = i.BasePrice,
+                    variantStatus = i.VariantStatus.ToString(),
+                    status = i.Status.ToString(),
+                    type = "Standard" // Default type since not available in StockResponse
+                }).ToArray()
             };
         }
     }
