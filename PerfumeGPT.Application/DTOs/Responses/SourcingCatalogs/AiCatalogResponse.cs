@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace PerfumeGPT.Application.DTOs.Responses.SourcingCatalogs
 {
 	/// <summary>
@@ -5,6 +7,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.SourcingCatalogs
 	/// </summary>
 	public class AiCatalogResponse
 	{
-		public AiCatalogItemResponse[] Items { get; set; } = Array.Empty<AiCatalogItemResponse>();
+		[JsonPropertyName("catalogs")]
+		public AiCatalogItemResponse[] Catalogs { get; set; } = Array.Empty<AiCatalogItemResponse>();
 	}
 }

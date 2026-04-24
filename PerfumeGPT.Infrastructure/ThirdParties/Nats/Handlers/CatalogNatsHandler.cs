@@ -48,9 +48,10 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats.Handlers
                                  ?? Array.Empty<AiCatalogItemResponse>();
 
             // Return AiCatalogResponse to match AI backend expectation with type safety
+            // AI backend expects { catalogs: [...] }
             return new AiCatalogResponse
             {
-                Items = aiCatalogItems
+                Catalogs = aiCatalogItems
             };
         }
     }
