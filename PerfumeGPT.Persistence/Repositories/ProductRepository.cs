@@ -331,13 +331,23 @@ namespace PerfumeGPT.Persistence.Repositories
 									pi.Campaign.Status == CampaignStatus.Active &&
 									pi.Campaign.StartDate <= now &&
 									pi.Campaign.EndDate >= now &&
-									(!pi.MaxUsage.HasValue || pi.CurrentUsage < pi.MaxUsage.Value))
+									// 1. Kiểm tra Quota (MaxUsage)
+									(!pi.MaxUsage.HasValue || pi.CurrentUsage < pi.MaxUsage.Value) &&
+									// 2. RÀO CHẮN MỚI: Nếu KM áp dụng cho Lô cụ thể, Lô đó BẮT BUỘC phải còn hàng
+									(!pi.BatchId.HasValue || (pi.Batch != null && pi.Batch.RemainingQuantity > pi.Batch.ReservedQuantity)))
 								.Select(pi => new
 								{
 									CampaignName = pi.Campaign.Name,
 									CalculatedDiscountAmount = pi.DiscountType == DiscountType.Percentage
 										? (v.BasePrice * pi.DiscountValue / 100m)
-										: pi.DiscountValue
+										: pi.DiscountValue,
+
+									// LOGIC TÍNH QUOTA MỚI
+									Quota = pi.MaxUsage.HasValue
+										? (pi.MaxUsage.Value - pi.CurrentUsage) // Lấy số lượt dùng còn lại nếu có thiết lập
+										: (pi.Batch != null
+											? (int?)(pi.Batch.RemainingQuantity - pi.Batch.ReservedQuantity) // Nếu không có MaxUsage, lấy tồn kho của Lô
+											: null) // Bán thoải mái (Giới hạn duy nhất là tổng tồn kho của Variant)
 								})
 								.OrderByDescending(x => x.CalculatedDiscountAmount)
 								.FirstOrDefault(),
@@ -381,6 +391,10 @@ namespace PerfumeGPT.Persistence.Repositories
 						{
 							DiscountedPrice = discountedPrice,
 							CampaignName = x.BestPromotion.CampaignName,
+
+							// BỔ SUNG Ở ĐÂY: Map giá trị Quota từ BestPromotion
+							CampaignQuota = x.BestPromotion.Quota,
+
 							VoucherCode = x.AvailableVouchers.FirstOrDefault()
 						};
 					}
@@ -389,7 +403,8 @@ namespace PerfumeGPT.Persistence.Repositories
 						variant = variant with
 						{
 							DiscountedPrice = variant.BasePrice,
-							VoucherCode = x.AvailableVouchers.FirstOrDefault()
+							VoucherCode = x.AvailableVouchers.FirstOrDefault(),
+							CampaignQuota = null
 						};
 					}
 

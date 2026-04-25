@@ -52,6 +52,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Products
 		public required string ProductName { get; init; }
 		public required List<MediaResponse> Media { get; init; }
 		public string? CampaignName { get; init; }
+		public int? CampaignQuota { get; init; }
 		public string? VoucherCode { get; init; }
 		public decimal? DiscountedPrice { get; init; }
 	}

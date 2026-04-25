@@ -255,18 +255,6 @@ namespace PerfumeGPT.Domain.Entities
 			ContactAddressId = contactAddressId;
 		}
 
-		//public void MarkPaid(DateTime paidAtUtc)
-		//{
-		//	RecordPayment(Math.Max(0, RemainingAmount), paidAtUtc);
-		//}
-
-		//public void MarkUnpaid()
-		//{
-		//	PaymentStatus = PaidAmount >= RequiredDepositAmount && PaidAmount > 0
-		//		  ? PaymentStatus.PartialPaid
-		//		  : PaymentStatus.Unpaid;
-		//}
-
 		public void RecordPayment(decimal amountReceived, DateTime paidAtUtc)
 		{
 			if (amountReceived <= 0)
