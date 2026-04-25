@@ -337,7 +337,11 @@ namespace PerfumeGPT.Persistence.Repositories
 									CampaignName = pi.Campaign.Name,
 									CalculatedDiscountAmount = pi.DiscountType == DiscountType.Percentage
 										? (v.BasePrice * pi.DiscountValue / 100m)
-										: pi.DiscountValue
+										: pi.DiscountValue,
+
+									Quota = pi.MaxUsage.HasValue
+										? (pi.MaxUsage.Value - pi.CurrentUsage)
+										: (int?)null
 								})
 								.OrderByDescending(x => x.CalculatedDiscountAmount)
 								.FirstOrDefault(),
@@ -381,6 +385,10 @@ namespace PerfumeGPT.Persistence.Repositories
 						{
 							DiscountedPrice = discountedPrice,
 							CampaignName = x.BestPromotion.CampaignName,
+
+							// BỔ SUNG Ở ĐÂY: Map giá trị Quota từ BestPromotion
+							CampaignQuota = x.BestPromotion.Quota,
+
 							VoucherCode = x.AvailableVouchers.FirstOrDefault()
 						};
 					}
@@ -389,7 +397,8 @@ namespace PerfumeGPT.Persistence.Repositories
 						variant = variant with
 						{
 							DiscountedPrice = variant.BasePrice,
-							VoucherCode = x.AvailableVouchers.FirstOrDefault()
+							VoucherCode = x.AvailableVouchers.FirstOrDefault(),
+							CampaignQuota = null
 						};
 					}
 

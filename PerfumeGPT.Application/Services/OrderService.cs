@@ -459,7 +459,7 @@ namespace PerfumeGPT.Application.Services
 				// 7. GIAO HÀNG (Nếu không lấy tại cửa hàng)
 				if (!request.IsPickupInStore && request.Recipient != null)
 				{
-					// 💥 Truyền thêm tham số shippingFee để lưu vào DB
+					// Truyền thêm tham số shippingFee để lưu vào DB
 					await _shippingHelper.SetupShippingInfoAsync(order, request.Recipient, request.CustomerId, null, shippingFee);
 				}
 
