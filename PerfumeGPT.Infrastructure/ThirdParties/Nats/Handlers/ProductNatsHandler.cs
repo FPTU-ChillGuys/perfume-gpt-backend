@@ -39,6 +39,13 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats.Handlers
 
         private static async Task<object?> HandleStructuredProductQueryAsync(IProductService productService, JsonElement payload, JsonSerializerOptions options)
         {
+            // Handle null/empty payload gracefully
+            if (payload.ValueKind == JsonValueKind.Null)
+            {
+                var emptyRequest = new AiProductSearchRequest { PageNumber = 1, PageSize = 10 };
+                return (await productService.GetAiSearchProductsAsync(emptyRequest)).Payload;
+            }
+
             var pageNumber = payload.TryGetProperty("pagination", out var p) && p.TryGetProperty("pageNumber", out var pn) ? pn.GetInt32() : 1;
             var pageSize = payload.TryGetProperty("pagination", out var p2) && p2.TryGetProperty("pageSize", out var ps) ? ps.GetInt32() : 10;
 
@@ -46,10 +53,10 @@ namespace PerfumeGPT.Infrastructure.ThirdParties.Nats.Handlers
             {
                 PageNumber = pageNumber,
                 PageSize = pageSize,
-                GenderValues = payload.TryGetProperty("genderValues", out var g) ? g.EnumerateArray().Select(x => x.GetString()!).ToList() : null,
-                ScentNotes = payload.TryGetProperty("scentNotesValues", out var sn) ? sn.EnumerateArray().Select(x => x.GetString()!).ToList() : null,
-                OlfactoryFamilies = payload.TryGetProperty("olfactoryFamiliesValues", out var of) ? of.EnumerateArray().Select(x => x.GetString()!).ToList() : null,
-                ProductNames = payload.TryGetProperty("productNames", out var pn2) ? pn2.EnumerateArray().Select(x => x.GetString()!).ToList() : null,
+                GenderValues = payload.TryGetProperty("genderValues", out var g) && g.ValueKind != JsonValueKind.Null && g.ValueKind != JsonValueKind.Undefined ? g.EnumerateArray().Select(x => x.GetString()!).ToList() : null,
+                ScentNotes = payload.TryGetProperty("scentNotesValues", out var sn) && sn.ValueKind != JsonValueKind.Null && sn.ValueKind != JsonValueKind.Undefined ? sn.EnumerateArray().Select(x => x.GetString()!).ToList() : null,
+                OlfactoryFamilies = payload.TryGetProperty("olfactoryFamiliesValues", out var of) && of.ValueKind != JsonValueKind.Null && of.ValueKind != JsonValueKind.Undefined ? of.EnumerateArray().Select(x => x.GetString()!).ToList() : null,
+                ProductNames = payload.TryGetProperty("productNames", out var pn2) && pn2.ValueKind != JsonValueKind.Null && pn2.ValueKind != JsonValueKind.Undefined ? pn2.EnumerateArray().Select(x => x.GetString()!).ToList() : null,
                 SortPriceAscending = payload.TryGetProperty("sorting", out var s) && s.TryGetProperty("isDescending", out var id) ? !id.GetBoolean() : (bool?)null
             };
 
