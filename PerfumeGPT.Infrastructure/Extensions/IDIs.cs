@@ -12,9 +12,12 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.SemanticKernel;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
+using PerfumeGPT.Application.Interfaces.Repositories.Nats;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.Services.Nats;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.Interfaces.ThirdParties.BackgroundJobs;
+using PerfumeGPT.Application.Services.Nats;
 using PerfumeGPT.Domain.Commons.Audits;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Infrastructure.BackgroundJobs;
@@ -24,6 +27,7 @@ using PerfumeGPT.Infrastructure.Security;
 using PerfumeGPT.Infrastructure.ThirdParties;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using PerfumeGPT.Persistence.Repositories.Nats;
 using StackExchange.Redis;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -182,6 +186,25 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			{
 				Console.WriteLine($"[NATS] Could not configure NATS client. Reason: {ex.Message}");
 			}
+
+			// NATS-specific Services and Repositories for AI backend communication
+			// Repositories
+			services.AddScoped<INatsReviewRepository, NatsReviewRepository>();
+			services.AddScoped<INatsProductRepository, NatsProductRepository>();
+			services.AddScoped<INatsOrderRepository, NatsOrderRepository>();
+			services.AddScoped<INatsCartRepository, NatsCartRepository>();
+			services.AddScoped<INatsInventoryRepository, NatsInventoryRepository>();
+			services.AddScoped<INatsSalesRepository, NatsSalesRepository>();
+			services.AddScoped<INatsCatalogRepository, NatsCatalogRepository>();
+
+			// Services
+			services.AddScoped<INatsReviewService, NatsReviewService>();
+			services.AddScoped<INatsProductService, NatsProductService>();
+			services.AddScoped<INatsOrderService, NatsOrderService>();
+			services.AddScoped<INatsCartService, NatsCartService>();
+			services.AddScoped<INatsInventoryService, NatsInventoryService>();
+			services.AddScoped<INatsSalesService, NatsSalesService>();
+			services.AddScoped<INatsCatalogService, NatsCatalogService>();
 		}
 
 		public static void AddIdentityServices(this IServiceCollection services, IConfiguration configuration)

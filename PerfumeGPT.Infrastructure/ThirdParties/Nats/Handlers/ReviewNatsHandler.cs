@@ -1,84 +1,66 @@
 using System;
-using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using PerfumeGPT.Application.DTOs.Requests.Reviews;
-using PerfumeGPT.Application.DTOs.Responses.Reviews;
-using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.DTOs.Responses.Nats;
+using PerfumeGPT.Application.Interfaces.Services.Nats;
 
-namespace PerfumeGPT.Infrastructure.ThirdParties.Nats.Handlers
+namespace PerfumeGPT.Infrastructure.ThirdParties.Nats.Handlers;
+
+/// <summary>
+/// NATS handler for Review operations
+/// Uses dedicated NatsReviewService for type-safe responses
+/// </summary>
+public static class ReviewNatsHandler
 {
-    public static class ReviewNatsHandler
-    {
-        public static async Task<object?> HandleAsync(IServiceScope scope, string action, JsonElement payload, JsonSerializerOptions options)
-        {
-            var reviewService = scope.ServiceProvider.GetRequiredService<IReviewService>();
-            
-            if (!payload.TryGetProperty("variantId", out var variantIdEl) || !Guid.TryParse(variantIdEl.GetString(), out var variantId))
-            {
-                throw new ArgumentException("Missing or invalid variantId");
-            }
+	public static async Task<object?> HandleAsync(IServiceScope scope, string action, JsonElement payload, JsonSerializerOptions options)
+	{
+		var natsReviewService = scope.ServiceProvider.GetRequiredService<INatsReviewService>();
 
-            return action switch
-            {
-                "getList" => await GetReviewsAsync(reviewService, payload, options),
-                "getVariantReviews" => await GetVariantReviewsAsync(reviewService, variantId),
-                "getStats" => await GetStatsAsync(reviewService, variantId),
-                _ => throw new ArgumentException($"Invalid review action: {action}")
-            };
-        }
+		return action switch
+		{
+			"getList" => await GetReviewsAsync(natsReviewService, payload, options),
+			"getVariantReviews" => await GetVariantReviewsAsync(natsReviewService, payload, options),
+			"getStats" => await GetStatsAsync(natsReviewService, payload, options),
+			_ => throw new ArgumentException($"Invalid review action: {action}")
+		};
+	}
 
-        private static async Task<object> GetReviewsAsync(IReviewService reviewService, JsonElement payload, JsonSerializerOptions options)
-        {
-            var request = JsonSerializer.Deserialize<GetPagedReviewsRequest>(payload.GetRawText(), options)!;
-            var result = await reviewService.GetReviewsAsync(request);
-            
-            if (result.Payload == null)
-            {
-                return new {
-                    TotalCount = 0,
-                    Items = new object[0]
-                };
-            }
+	private static async Task<NatsReviewPagedResponse> GetReviewsAsync(INatsReviewService natsReviewService, JsonElement payload, JsonSerializerOptions options)
+	{
+		var request = JsonSerializer.Deserialize<GetPagedReviewsRequest>(payload.GetRawText(), options)!;
 
-            return new {
-                TotalCount = result.Payload.TotalCount,
-                Items = result.Payload.Items.Cast<object>()
-            };
-        }
+		return await natsReviewService.GetPagedReviewsAsync(
+			request.PageNumber,
+			request.PageSize,
+			request.VariantId,
+			request.UserId,
+			request.MinRating,
+			request.MaxRating,
+			request.HasImages,
+			request.SortBy,
+			request.IsDescending);
+	}
 
-        private static async Task<object> GetVariantReviewsAsync(IReviewService reviewService, Guid variantId)
-        {
-            var result = await reviewService.GetVariantReviewsAsync(variantId);
-            return result.Payload ?? [];
-        }
+	private static async Task<object> GetVariantReviewsAsync(INatsReviewService natsReviewService, JsonElement payload, JsonSerializerOptions options)
+	{
+		if (!payload.TryGetProperty("variantId", out var variantIdEl) || !Guid.TryParse(variantIdEl.GetString(), out var variantId))
+		{
+			throw new ArgumentException("Missing or invalid variantId");
+		}
 
-        private static async Task<object> GetStatsAsync(IReviewService reviewService, Guid variantId)
-        {
-            var result = await reviewService.GetVariantReviewStatisticsAsync(variantId);
-            var stats = result.Payload ?? new ReviewStatisticsResponse
-            {
-                VariantId = variantId,
-                TotalReviews = 0,
-                AverageRating = 0,
-                FiveStarCount = 0,
-                FourStarCount = 0,
-                ThreeStarCount = 0,
-                TwoStarCount = 0,
-                OneStarCount = 0
-            };
+		var reviews = await natsReviewService.GetVariantReviewsAsync(variantId);
+		return reviews;
+	}
 
-            return new {
-                VariantId = stats.VariantId.ToString(),
-                TotalReviews = stats.TotalReviews,
-                AverageRating = stats.AverageRating,
-                FiveStarCount = stats.FiveStarCount,
-                FourStarCount = stats.FourStarCount,
-                ThreeStarCount = stats.ThreeStarCount,
-                TwoStarCount = stats.TwoStarCount,
-                OneStarCount = stats.OneStarCount
-            };
-        }
-    }
+	private static async Task<NatsReviewVariantStats> GetStatsAsync(INatsReviewService natsReviewService, JsonElement payload, JsonSerializerOptions options)
+	{
+		if (!payload.TryGetProperty("variantId", out var variantIdEl) || !Guid.TryParse(variantIdEl.GetString(), out var variantId))
+		{
+			throw new ArgumentException("Missing or invalid variantId");
+		}
+
+		return await natsReviewService.GetVariantStatsAsync(variantId);
+	}
 }
