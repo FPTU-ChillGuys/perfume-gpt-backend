@@ -1,6 +1,17 @@
 namespace PerfumeGPT.Application.DTOs.Responses.Nats;
 
 /// <summary>
+/// Response cho AI backend qua NATS - Order Detail Item
+/// </summary>
+public sealed record NatsOrderDetailResponse
+{
+	public required string VariantName { get; init; }
+	public required int Quantity { get; init; }
+	public required decimal UnitPrice { get; init; }
+	public required decimal Total { get; init; }
+}
+
+/// <summary>
 /// Response cho AI backend qua NATS - Order List Item
 /// </summary>
 public sealed record NatsOrderListItemResponse
@@ -19,6 +30,7 @@ public sealed record NatsOrderListItemResponse
 	public required decimal TotalAmount { get; init; }
 	public required string Type { get; init; }
 	public string? UpdatedAt { get; init; }
+	public List<NatsOrderDetailResponse> OrderDetails { get; init; } = [];
 }
 
 /// <summary>

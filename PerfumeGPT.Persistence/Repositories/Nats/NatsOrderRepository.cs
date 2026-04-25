@@ -78,7 +78,14 @@ public sealed class NatsOrderRepository : GenericRepository<Order>, INatsOrderRe
 				Status = o.Status.ToString(),
 				TotalAmount = o.TotalAmount,
 				Type = o.Type.ToString(),
-				UpdatedAt = o.UpdatedAt.HasValue ? o.UpdatedAt.Value.ToString("O") : null
+				UpdatedAt = o.UpdatedAt.HasValue ? o.UpdatedAt.Value.ToString("O") : null,
+				OrderDetails = o.OrderDetails.Select(od => new NatsOrderDetailResponse
+				{
+					VariantName = od.ProductVariant.Product.Name + " " + od.ProductVariant.VolumeMl + "ml " + od.ProductVariant.Concentration.Name,
+					Quantity = od.Quantity,
+					UnitPrice = od.UnitPrice,
+					Total = od.Quantity * od.UnitPrice
+				}).ToList()
 			})
 			.AsNoTracking()
 			.ToListAsync();
@@ -105,7 +112,14 @@ public sealed class NatsOrderRepository : GenericRepository<Order>, INatsOrderRe
 				Status = o.Status.ToString(),
 				TotalAmount = o.TotalAmount,
 				Type = o.Type.ToString(),
-				UpdatedAt = o.UpdatedAt.HasValue ? o.UpdatedAt.Value.ToString("O") : null
+				UpdatedAt = o.UpdatedAt.HasValue ? o.UpdatedAt.Value.ToString("O") : null,
+				OrderDetails = o.OrderDetails.Select(od => new NatsOrderDetailResponse
+				{
+					VariantName = od.ProductVariant.Product.Name + " " + od.ProductVariant.VolumeMl + "ml " + od.ProductVariant.Concentration.Name,
+					Quantity = od.Quantity,
+					UnitPrice = od.UnitPrice,
+					Total = od.Quantity * od.UnitPrice
+				}).ToList()
 			})
 			.AsNoTracking()
 			.FirstOrDefaultAsync();
