@@ -61,6 +61,70 @@ namespace PerfumeGPT.Application.Services
 		#endregion Dependencies
 
 
+		public async Task<BaseResponse<string>> CreatePaymentForInStorePickupAsync(Guid orderId, CreatePickupPaymentRequest request)
+		{
+			var order = await _unitOfWork.Orders.GetByIdAsync(orderId)
+				?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+
+			if (order.Type != OrderType.Online)
+				throw AppException.BadRequest("Thao tác này chỉ hỗ trợ đơn hàng trực tuyến (BOPIS).");
+
+			if (order.Status != OrderStatus.ReadyToPick)
+				throw AppException.BadRequest($"Đơn hàng phải ở trạng thái ReadyToPick. Hiện tại đang là {order.Status}.");
+
+			if (order.ForwardShippingId != null)
+				throw AppException.BadRequest("Đơn hàng này được cấu hình giao tận nơi.");
+
+			if (order.RemainingAmount <= 0)
+				throw AppException.BadRequest("Đơn hàng đã được thanh toán đầy đủ, không cần tạo mã thanh toán.");
+
+			if (request.PaymentMethod != PaymentMethod.VnPay &&
+				request.PaymentMethod != PaymentMethod.Momo &&
+				request.PaymentMethod != PaymentMethod.PayOs &&
+				request.PaymentMethod != PaymentMethod.CashInStore)
+			{
+				throw AppException.BadRequest("Chỉ hỗ trợ thanh toán qua VNPay, MoMo, PayOS hoặc Tiền mặt tại quầy.");
+			}
+
+			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				// 1. HỦY CÁC GIAO DỊCH PENDING CŨ (Ví dụ: Giao dịch chờ thu COD bị sai lệch)
+				var existingPendingPayments = await _unitOfWork.Payments
+					.GetAllAsync(p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Pending);
+
+				foreach (var pendingPayment in existingPendingPayments)
+				{
+					pendingPayment.MarkCancelled("Hủy để tạo yêu cầu thanh toán mới tại quầy.");
+					_unitOfWork.Payments.Update(pendingPayment);
+				}
+
+				// 2. TẠO GIAO DỊCH MỚI
+				var newPayment = PaymentTransaction.Create(
+					order.Id,
+					request.PaymentMethod,
+					order.RemainingAmount); // Lấy đúng số tiền còn thiếu
+
+				await _unitOfWork.Payments.AddAsync(newPayment);
+
+				// 3. XỬ LÝ EXPIRATION TIME
+				// Nếu là mã QR thì gia hạn 15 phút, nếu là tiền mặt thì không cần timeout
+				if (request.PaymentMethod != PaymentMethod.CashInStore)
+				{
+					order.SetPaymentExpiration(DateTime.UtcNow.AddMinutes(15));
+					_unitOfWork.Orders.Update(order);
+				}
+
+				// 4. GỌI SERVICE TẠO PHẢN HỒI
+				var paymentResponse = await GeneratePaymentResponse(
+					newPayment,
+					order,
+					1,
+					" (Thanh toán phần còn lại tại cửa hàng)",
+					request.PosSessionId);
+
+				return paymentResponse;
+			});
+		}
 
 		public async Task<BaseResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, ConfirmPaymentRequest request)
 		{
@@ -74,12 +138,20 @@ namespace PerfumeGPT.Application.Services
 					return BaseResponse<bool>.Ok(true, "Thanh toán đã được xử lý trước đó.");
 				}
 
+				// BỔ SUNG RÀO CHẮN: Kiểm tra xem giao dịch có phải là Tiền Mặt (CashInStore) không
+				// Nếu là tiền mặt thì NHÂN VIÊN mới có quyền gọi API Confirm (có request.IsSuccess).
+				// Các giao dịch VNPay/MoMo thì phải chờ Webhook/ReturnUrl, không cho Confirm bằng API này.
+				if (payment.Method != PaymentMethod.CashInStore)
+				{
+					throw AppException.BadRequest($"Phương thức {payment.Method} không thể được xác nhận thủ công. Vui lòng chờ phản hồi từ Cổng thanh toán.");
+				}
+
 				var order = await _unitOfWork.Orders.GetOrderForMarkUsedVoucherAsync(payment.OrderId)
 				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				return request.IsSuccess
-					? await CompleteSuccessfulPayment(payment, order)
-					: await HandleFailedPayment(payment, order, request.FailureReason);
+					? await CompleteSuccessfulPayment(payment, order, "TIỀN MẶT TẠI QUẦY") // Đánh dấu là tiền mặt
+					: await HandleFailedPayment(payment, order, request.FailureReason ?? "Khách hàng từ chối thanh toán tiền mặt.");
 			});
 		}
 
@@ -223,32 +295,39 @@ namespace PerfumeGPT.Application.Services
 				if (request.NewPaymentMethod.HasValue)
 				{
 					var targetMethod = request.NewPaymentMethod.Value;
-					bool isCodOrStore = targetMethod == PaymentMethod.CashOnDelivery || targetMethod == PaymentMethod.CashInStore;
 
-					// ĐÃ TỐI ƯU: Không cần query Database lấy StorePolicy nữa!
+					// - Luôn cọc nếu là COD.
+					// - Chỉ cọc cho CashInStore NẾU đơn đó là đặt từ Online (Lấy tại cửa hàng).
+					// => Ngược lại (Offline + CashInStore) sẽ được hiểu là trả Full 100%.
+					bool requiresDepositFlow = targetMethod == PaymentMethod.CashOnDelivery ||
+											  (targetMethod == PaymentMethod.CashInStore && order.Type == OrderType.Online);
+
 					// Bật/Tắt tiền cọc dựa trên snapshot đã lưu trong Entity
-					if ((isCodOrStore && order.RequiredDepositAmount == 0) || (!isCodOrStore && order.RequiredDepositAmount > 0))
+					if ((requiresDepositFlow && order.RequiredDepositAmount == 0) || (!requiresDepositFlow && order.RequiredDepositAmount > 0))
 					{
-						order.ToggleDepositRequirement(isCodOrStore);
+						order.ToggleDepositRequirement(requiresDepositFlow);
 					}
 
-					// RÀO CHẮN 1: Chọn trả Full nhưng lại đòi cọc
-					if (!isCodOrStore && request.NewDepositMethod.HasValue)
+					// RÀO CHẮN 1: Chọn trả Full 100% nhưng lại đính kèm cổng cọc
+					if (!requiresDepositFlow && request.NewDepositMethod.HasValue)
 						throw AppException.BadRequest("Đơn hàng thanh toán toàn bộ không được đính kèm cổng thanh toán cọc.");
 
 					// Lúc này order.RequiredDepositAmount đã được bật/tắt chính xác
-					if (isCodOrStore && order.RequiredDepositAmount > 0)
+					if (requiresDepositFlow && order.RequiredDepositAmount > 0)
 					{
 						// KỊCH BẢN A: Đổi cổng Cọc
 						if (!request.NewDepositMethod.HasValue)
 							throw AppException.BadRequest("Vui lòng chọn cổng thanh toán để đặt cọc.");
 
 						var depositMethod = request.NewDepositMethod.Value;
+
+						// 💥 Vẫn cho phép CashInStore làm cổng cọc (dành cho đơn POS khách cọc bằng tiền mặt rồi giao COD)
 						if (depositMethod != PaymentMethod.VnPay &&
 							depositMethod != PaymentMethod.Momo &&
-							depositMethod != PaymentMethod.PayOs)
+							depositMethod != PaymentMethod.PayOs &&
+							depositMethod != PaymentMethod.CashInStore)
 						{
-							throw AppException.BadRequest("Cổng thanh toán đặt cọc chỉ hỗ trợ VNPay, Momo hoặc PayOs.");
+							throw AppException.BadRequest("Cổng thanh toán đặt cọc chỉ hỗ trợ VNPay, Momo, PayOs hoặc Tiền mặt tại quầy.");
 						}
 
 						transactionMethod = depositMethod;
@@ -258,7 +337,7 @@ namespace PerfumeGPT.Application.Services
 					}
 					else
 					{
-						// KỊCH BẢN B: Đổi sang trả Full 100%
+						// KỊCH BẢN B: Đổi sang trả Full 100% (Ví dụ: Offline đổi sang Tiền mặt 100%, hoặc Online đổi sang VNPay 100%)
 						transactionMethod = targetMethod;
 						amountToPay = order.RemainingAmount > 0 ? order.RemainingAmount : order.TotalAmount;
 					}
@@ -683,12 +762,29 @@ namespace PerfumeGPT.Application.Services
 				await _voucherService.MarkVoucherAsUsedAsync(order.Id);
 			}
 
-			if (order.Type == OrderType.Offline && order.ForwardShippingId == null)
+			// ====================================================================
+			// NÂNG CẤP LOGIC CHUYỂN TRẠNG THÁI CHO ĐƠN OFFLINE CÓ CỌC VÀ COD
+			// ====================================================================
+			if (order.Type == OrderType.Offline)
 			{
-				if (order.Status != OrderStatus.Delivered)
+				if (order.ForwardShippingId == null)
 				{
-					order.SetStatus(OrderStatus.Delivered);
-					await _stockReservationService.CommitReservationAsync(order.Id);
+					// Khách Mua và Lấy luôn tại quầy -> Chuyển thành Đã Giao
+					if (order.Status != OrderStatus.Delivered)
+					{
+						order.SetStatus(OrderStatus.Delivered);
+						await _stockReservationService.CommitReservationAsync(order.Id);
+					}
+				}
+				else
+				{
+					// Khách Mua tại quầy, Đã cọc tiền mặt, Giao hàng về nhà (COD)
+					// Trạng thái nhảy sang Preparing (Đang chuẩn bị) để kho tiến hành đóng gói
+					if (order.Status == OrderStatus.Pending &&
+					   (order.PaymentStatus == PaymentStatus.PartialPaid || order.PaymentStatus == PaymentStatus.Paid))
+					{
+						order.SetStatus(OrderStatus.Pending);
+					}
 				}
 			}
 
@@ -707,8 +803,8 @@ namespace PerfumeGPT.Application.Services
 			if (!string.IsNullOrWhiteSpace(posSessionId))
 			{
 				var successMessage = payment.Method == PaymentMethod.VnPay
-					   ? "Thanh toán VNPay thành công"
-					   : "Thanh toán thành công";
+					 ? "Thanh toán VNPay thành công"
+					 : "Thanh toán thành công";
 
 				try
 				{

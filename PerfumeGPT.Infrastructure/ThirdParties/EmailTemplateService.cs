@@ -82,27 +82,45 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			foreach (var item in invoice.Items)
 			{
 				itemsHtml.Append($"""
-                        <tr>
-                        <td style="padding:8px; border:1px solid #b3e5fc;">{WebUtility.HtmlEncode(item.ProductName)}</td>
-                        <td style="padding:8px; border:1px solid #b3e5fc;">{WebUtility.HtmlEncode(item.VariantInfo)}</td>
-                        <td style="padding:8px; border:1px solid #b3e5fc; text-align:right; color:#0056b3;">{item.Quantity}</td>
-                        <td style="padding:8px; border:1px solid #b3e5fc; text-align:right;">{item.UnitPrice:N0}₫</td>
-                        <td style="padding:8px; border:1px solid #b3e5fc; text-align:right; color:#0056b3; font-weight:700;">{item.Subtotal:N0}₫</td>
-                        </tr>
-                        """);
+                    <tr>
+                    <td style="padding:8px; border:1px solid #b3e5fc;">{WebUtility.HtmlEncode(item.ProductName)}</td>
+                    <td style="padding:8px; border:1px solid #b3e5fc;">{WebUtility.HtmlEncode(item.VariantInfo)}</td>
+                    <td style="padding:8px; border:1px solid #b3e5fc; text-align:right; color:#0056b3;">{item.Quantity}</td>
+                    <td style="padding:8px; border:1px solid #b3e5fc; text-align:right;">{item.UnitPrice:N0}₫</td>
+                    <td style="padding:8px; border:1px solid #b3e5fc; text-align:right; color:#0056b3; font-weight:700;">{item.Subtotal:N0}₫</td>
+                    </tr>
+                    """);
 			}
+
+			var depositRow = invoice.DepositeAmount > 0
+				? $"<br/>Tiền cọc: <b style=\"color:#e65100;\">-{invoice.DepositeAmount:N0}₫</b>"
+				: string.Empty;
+
+			var remainingRow = invoice.RemainingAmount > 0
+				? $"<br/>Còn lại cần thanh toán: <b style=\"color:#c62828; font-size:16px;\">{invoice.RemainingAmount:N0}₫</b>"
+				: invoice.RemainingAmount == 0
+					? "<br/><span style=\"color:#2e7d32;\">✔ Đã thanh toán đủ</span>"
+					: string.Empty;
 
 			var title = $"Hóa đơn #{invoice.Code}";
 			var contentBody = $"""
-                        <tr><td style="padding-bottom:16px; color:#111827;">Mã đơn hàng: <b style="color:#0056b3;">{invoice.Code}</b><br/>Ngày đặt: {invoice.OrderDate:dd/MM/yyyy HH:mm:ss}<br/>Khách hàng: {WebUtility.HtmlEncode(invoice.CustomerName)}<br/>Số điện thoại: {WebUtility.HtmlEncode(invoice.RecipientPhone)}<br/>Địa chỉ: {WebUtility.HtmlEncode(invoice.RecipientAddress)}</td></tr>
-                        <tr><td>
-                          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
-                            <thead><tr style="background:#b3e5fc; color:#0056b3;"><th style="padding:8px; border:1px solid #b3e5fc; text-align:left;">Sản phẩm</th><th style="padding:8px; border:1px solid #b3e5fc; text-align:left;">Phân loại</th><th style="padding:8px; border:1px solid #b3e5fc; text-align:right;">SL</th><th style="padding:8px; border:1px solid #b3e5fc; text-align:right;">Đơn giá</th><th style="padding:8px; border:1px solid #b3e5fc; text-align:right;">Thành tiền</th></tr></thead>
-                            <tbody>{itemsHtml}</tbody>
-                          </table>
-                        </td></tr>
-                        <tr><td style="padding-top:16px; text-align:right; color:#111827;">Tạm tính: <b>{invoice.Subtotal:N0}₫</b><br/>Phí vận chuyển: <b>{invoice.ShippingFee:N0}₫</b><br/>Giảm giá: <b>{invoice.Discount:N0}₫</b><br/>Tổng cộng: <b style="color:#0056b3; font-size:18px;">{invoice.Total:N0}₫</b><br/>Phương thức thanh toán: {WebUtility.HtmlEncode(invoice.PaymentMethod)}</td></tr>
-                        """;
+                 <tr><td style="padding-bottom:16px; color:#111827;">Mã đơn hàng: <b style="color:#0056b3;">{invoice.Code}</b><br/>Ngày đặt: {invoice.OrderDate:dd/MM/yyyy HH:mm:ss}<br/>Khách hàng: {WebUtility.HtmlEncode(invoice.CustomerName)}<br/>Số điện thoại: {WebUtility.HtmlEncode(invoice.RecipientPhone)}<br/>Địa chỉ: {WebUtility.HtmlEncode(invoice.RecipientAddress)}</td></tr>
+                 <tr><td>
+                   <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
+                     <thead><tr style="background:#b3e5fc; color:#0056b3;"><th style="padding:8px; border:1px solid #b3e5fc; text-align:left;">Sản phẩm</th><th style="padding:8px; border:1px solid #b3e5fc; text-align:left;">Phân loại</th><th style="padding:8px; border:1px solid #b3e5fc; text-align:right;">SL</th><th style="padding:8px; border:1px solid #b3e5fc; text-align:right;">Đơn giá</th><th style="padding:8px; border:1px solid #b3e5fc; text-align:right;">Thành tiền</th></tr></thead>
+                     <tbody>{itemsHtml}</tbody>
+                   </table>
+                 </td></tr>
+                 <tr><td style="padding-top:16px; text-align:right; color:#111827;">
+                   Tạm tính: <b>{invoice.Subtotal:N0}₫</b><br/>
+                   Phí vận chuyển: <b>{invoice.ShippingFee:N0}₫</b><br/>
+                   Giảm giá: <b>{invoice.Discount:N0}₫</b><br/>
+                   Tổng cộng: <b style="color:#0056b3; font-size:18px;">{invoice.Total:N0}₫</b>
+                   {depositRow}
+                   {remainingRow}<br/>
+                   Phương thức thanh toán: {WebUtility.HtmlEncode(invoice.PaymentMethod)}
+                 </td></tr>
+                 """;
 
 			return GetCommonWrapperTemplate(title, contentBody);
 		}
