@@ -12,7 +12,7 @@ public sealed record NatsOrderListItemResponse
 	public required string Code { get; init; }
 	public required int ItemCount { get; init; }
 	public required string PaymentStatus { get; init; }
-	public int? ShippingStatus { get; init; }
+	public string? ShippingStatus { get; init; }
 	public string? StaffId { get; init; }
 	public string? StaffName { get; init; }
 	public required string Status { get; init; }

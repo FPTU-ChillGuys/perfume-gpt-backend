@@ -17,7 +17,7 @@ public interface INatsOrderService
 		Guid? userId = null,
 		string? status = null,
 		string? paymentStatus = null,
-		int? shippingStatus = null,
+		string? shippingStatus = null,
 		string? sortBy = null,
 		bool isDescending = false);
 

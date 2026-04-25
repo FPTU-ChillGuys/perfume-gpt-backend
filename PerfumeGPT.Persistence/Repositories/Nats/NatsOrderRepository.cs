@@ -22,7 +22,7 @@ public sealed class NatsOrderRepository : GenericRepository<Order>, INatsOrderRe
 		Guid? userId = null,
 		string? status = null,
 		string? paymentStatus = null,
-		int? shippingStatus = null,
+		string? shippingStatus = null,
 		string? sortBy = null,
 		bool isDescending = false)
 	{
@@ -43,9 +43,9 @@ public sealed class NatsOrderRepository : GenericRepository<Order>, INatsOrderRe
 			query = query.Where(o => o.PaymentStatus == payStatus);
 		}
 
-		if (shippingStatus.HasValue)
+		if (!string.IsNullOrWhiteSpace(shippingStatus))
 		{
-			query = query.Where(o => o.ForwardShipping != null && o.ForwardShipping.Status == (ShippingStatus)shippingStatus.Value);
+			query = query.Where(o => o.ForwardShipping != null && o.ForwardShipping.Status.ToString() == shippingStatus);
 		}
 
 		var totalCount = await query.CountAsync();
@@ -72,7 +72,7 @@ public sealed class NatsOrderRepository : GenericRepository<Order>, INatsOrderRe
 				Code = o.Code,
 				ItemCount = o.OrderDetails.Count,
 				PaymentStatus = o.PaymentStatus.ToString(),
-				ShippingStatus = o.ForwardShipping != null ? (int?)o.ForwardShipping.Status : null,
+				ShippingStatus = o.ForwardShipping != null ? o.ForwardShipping.Status.ToString() : null,
 				StaffId = o.StaffId.ToString(),
 				StaffName = o.Staff != null ? o.Staff.FullName : null,
 				Status = o.Status.ToString(),
@@ -99,7 +99,7 @@ public sealed class NatsOrderRepository : GenericRepository<Order>, INatsOrderRe
 				Code = o.Code,
 				ItemCount = o.OrderDetails.Count,
 				PaymentStatus = o.PaymentStatus.ToString(),
-				ShippingStatus = o.ForwardShipping != null ? (int?)o.ForwardShipping.Status : null,
+				ShippingStatus = o.ForwardShipping != null ? o.ForwardShipping.Status.ToString() : null,
 				StaffId = o.StaffId.ToString(),
 				StaffName = o.Staff != null ? o.Staff.FullName : null,
 				Status = o.Status.ToString(),
