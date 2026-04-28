@@ -14,6 +14,7 @@ namespace PerfumeGPT.Persistence.Extensions
 				EntityType.User => query.Where(m => m.UserId == entityId),
 				EntityType.Review => query.Where(m => m.ReviewId == entityId),
 				EntityType.OrderReturnRequest => query.Where(m => m.OrderReturnRequestId == entityId),
+				EntityType.SystemPage => query.Where(m => m.SystemPageId == entityId),
 				_ => query.Where(m => false)
 			};
 		}

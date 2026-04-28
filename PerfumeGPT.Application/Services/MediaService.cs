@@ -83,7 +83,8 @@ namespace PerfumeGPT.Application.Services
 			var media = await _unitOfWork.Media.GetByIdAsync(mediaId)
 			  ?? throw AppException.NotFound("Không tìm thấy media");
 
-			media.EnsureNotPrimary();
+			if (media.EntityType != EntityType.SystemPage)
+				media.EnsureNotPrimary();
 
 			return await DeleteMediaInternalAsync(media, mediaId.ToString(), "Xóa media thành công");
 		}
@@ -217,6 +218,22 @@ namespace PerfumeGPT.Application.Services
 					File = file,
 					EntityType = EntityType.Review,
 					DisplayOrder = i,
+					IsPrimary = false,
+					AltText = null
+				}).ToList();
+
+			return await UploadTemporaryMediaBulkAsync(userId, imageRequests);
+		}
+
+		public async Task<BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>> UploadPageTemporaryMediaAsync(
+			Guid? userId, PageUploadMediaRequest request)
+		{
+			var imageRequests = request.Images
+				.Select(file => new ImageUploadItem
+				{
+					File = file,
+					EntityType = EntityType.SystemPage,
+					DisplayOrder = 0,
 					IsPrimary = false,
 					AltText = null
 				}).ToList();
@@ -401,6 +418,7 @@ namespace PerfumeGPT.Application.Services
 			EntityType.Review => "Reviews",
 			EntityType.Banner => "Banners",
 			EntityType.OrderReturnRequest => "OrderReturnRequests",
+			EntityType.SystemPage => "SystemPages",
 			_ => "Products"
 		};
 

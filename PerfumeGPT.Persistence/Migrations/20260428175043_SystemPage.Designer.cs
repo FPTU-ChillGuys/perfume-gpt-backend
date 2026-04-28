@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260428175043_SystemPage")]
+    partial class SystemPage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -940,9 +943,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<Guid?>("ReviewId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("SystemPageId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -968,8 +968,6 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.HasIndex("ReviewId");
 
-                    b.HasIndex("SystemPageId");
-
                     b.HasIndex("UserId")
                         .IsUnique()
                         .HasFilter("[UserId] IS NOT NULL");
@@ -981,8 +979,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasIndex("EntityType", "ProductVariantId");
 
                     b.HasIndex("EntityType", "ReviewId");
-
-                    b.HasIndex("EntityType", "SystemPageId");
 
                     b.HasIndex("EntityType", "UserId");
 
@@ -2904,11 +2900,6 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasForeignKey("ReviewId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("PerfumeGPT.Domain.Entities.SystemPage", "SystemPage")
-                        .WithMany("PageImages")
-                        .HasForeignKey("SystemPageId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("PerfumeGPT.Domain.Entities.User", "User")
                         .WithOne("ProfilePicture")
                         .HasForeignKey("PerfumeGPT.Domain.Entities.Media", "UserId")
@@ -2921,8 +2912,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Navigation("ProductVariant");
 
                     b.Navigation("Review");
-
-                    b.Navigation("SystemPage");
 
                     b.Navigation("User");
                 });
@@ -3653,11 +3642,6 @@ namespace PerfumeGPT.Persistence.Migrations
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.Supplier", b =>
                 {
                     b.Navigation("ImportTickets");
-                });
-
-            modelBuilder.Entity("PerfumeGPT.Domain.Entities.SystemPage", b =>
-                {
-                    b.Navigation("PageImages");
                 });
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.User", b =>

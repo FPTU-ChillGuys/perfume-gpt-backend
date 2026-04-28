@@ -7,6 +7,7 @@ namespace PerfumeGPT.Domain.Enums
 		User,
 		Review,
 		OrderReturnRequest,
-		Banner
+		Banner,
+		SystemPage
 	}
 }

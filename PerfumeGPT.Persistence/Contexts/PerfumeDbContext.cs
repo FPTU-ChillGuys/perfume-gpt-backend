@@ -254,6 +254,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<Banner> Banners { get; set; }
 		public DbSet<SystemPolicy> SystemPolicies { get; set; }
 		public DbSet<StorePolicy> StorePolicies { get; set; }
+		public DbSet<SystemPage> SystemPages { get; set; }
 		public DbSet<UserDeviceToken> UserDeviceTokens { get; set; }
 
 		protected override void OnModelCreating(ModelBuilder builder)
@@ -723,6 +724,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(m => m.ReviewId)
 				.OnDelete(DeleteBehavior.Restrict);
 
+			// Media -> SystemPage (M:1) using SystemPageId
+			builder.Entity<Media>()
+				.HasOne(m => m.SystemPage)
+				.WithMany(sp => sp.PageImages)
+				.HasForeignKey(m => m.SystemPageId)
+				.OnDelete(DeleteBehavior.Restrict);
+
 			// Attribute -> AttributeValue (1:M)
 			builder.Entity<Attribute>()
 				.HasIndex(a => a.InternalCode)
@@ -981,6 +989,9 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<Media>()
 				.HasIndex(m => new { m.EntityType, m.UserId });
 
+			builder.Entity<Media>()
+				.HasIndex(m => new { m.EntityType, m.SystemPageId });
+
 			// Create index on IsPrimary for quick primary image lookup
 			builder.Entity<Media>()
 				.HasIndex(m => m.IsPrimary);
@@ -1122,6 +1133,36 @@ namespace PerfumeGPT.Persistence.Contexts
 			builder.Entity<StorePolicy>()
 				.Property(sp => sp.RequiredDepositPercentage)
 				.HasPrecision(18, 2);
+
+			builder.Entity<SystemPage>()
+				.ToTable("SystemPages");
+
+			builder.Entity<SystemPage>()
+				.Property(sp => sp.Title)
+				.HasMaxLength(255)
+				.IsRequired();
+
+			builder.Entity<SystemPage>()
+				.Property(sp => sp.Slug)
+				.HasMaxLength(200)
+				.IsRequired();
+
+			builder.Entity<SystemPage>()
+				.HasIndex(sp => sp.Slug)
+				.IsUnique();
+
+			builder.Entity<SystemPage>()
+				.Property(sp => sp.HtmlContent)
+				.HasColumnType("nvarchar(max)")
+				.IsRequired();
+
+			builder.Entity<SystemPage>()
+				.Property(sp => sp.MetaDescription)
+				.HasMaxLength(500);
+
+			builder.Entity<SystemPage>()
+				.Property(sp => sp.IsPublished)
+				.HasDefaultValue(false);
 
 			// Configure NVarchar for string properties to avoid default max length issues
 			builder.Entity<Product>().Property(p => p.Description)

@@ -215,7 +215,7 @@ namespace PerfumeGPT.Infrastructure.Extensions
 					if (firebaseConfigValue.StartsWith("{"))
 					{
 						finalJsonData = firebaseConfigValue;
-						Console.WriteLine($"[Firebase] Initialized using raw JSON string.{finalJsonData}");
+						Console.WriteLine($"[Firebase] Initialized using raw JSON string.");
 					}
 					// 2. Nếu không phải JSON, ta kiểm tra xem nó có phải đường dẫn file vật lý không
 					else if (File.Exists(firebaseConfigValue))

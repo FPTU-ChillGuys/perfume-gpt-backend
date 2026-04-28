@@ -20,7 +20,8 @@ namespace PerfumeGPT.Application.Services.Helpers
 			EntityType.Product,
 			EntityType.ProductVariant,
 			EntityType.OrderReturnRequest,
-			EntityType.Banner
+			EntityType.Banner,
+			EntityType.SystemPage
 		];
 
 		public MediaBulkActionHelper(IUnitOfWork unitOfWork, ISupabaseService supabaseService)
@@ -72,14 +73,17 @@ namespace PerfumeGPT.Application.Services.Helpers
 					continue;
 				}
 
-				try
+				if (media.EntityType != EntityType.SystemPage)
 				{
-					media.EnsureNotPrimary();
-				}
-				catch (Exception ex)
-				{
-					response.FailedItems.Add(new BulkActionError { Id = mediaId, ErrorMessage = ex.Message });
-					continue;
+					try
+					{
+						media.EnsureNotPrimary();
+					}
+					catch (Exception ex)
+					{
+						response.FailedItems.Add(new BulkActionError { Id = mediaId, ErrorMessage = ex.Message });
+						continue;
+					}
 				}
 
 				if (!string.IsNullOrEmpty(media.PublicId))
@@ -119,12 +123,19 @@ namespace PerfumeGPT.Application.Services.Helpers
 				MimeType = tempMedia.MimeType
 			};
 
-			var displayInfo = new MediaDisplayInfo
-			{
-				AltText = tempMedia.AltText,
-				DisplayOrder = tempMedia.DisplayOrder,
-				IsPrimary = tempMedia.IsPrimary
-			};
+			var displayInfo = entityType == EntityType.SystemPage
+				? new MediaDisplayInfo
+				{
+					AltText = tempMedia.AltText,
+					DisplayOrder = 0,
+					IsPrimary = false
+				}
+				: new MediaDisplayInfo
+				{
+					AltText = tempMedia.AltText,
+					DisplayOrder = tempMedia.DisplayOrder,
+					IsPrimary = tempMedia.IsPrimary
+				};
 
 			var media = Media.Create(entityType, entityId, fileMetadata, displayInfo);
 
@@ -142,6 +153,7 @@ namespace PerfumeGPT.Application.Services.Helpers
 			EntityType.Review => "Reviews",
 			EntityType.Banner => "Banners",
 			EntityType.OrderReturnRequest => "OrderReturnRequests",
+			EntityType.SystemPage => "SystemPages",
 			_ => "Products"
 		};
 		#endregion Private Helpers
