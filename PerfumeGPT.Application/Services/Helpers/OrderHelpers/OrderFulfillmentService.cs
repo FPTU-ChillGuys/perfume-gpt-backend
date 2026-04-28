@@ -34,8 +34,11 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		#region Pick List Generation
 		public async Task<PickListResponse> GetPickListAsync(Order order)
 		{
-			if (order.Type != OrderType.Online)
-				throw AppException.BadRequest("Phiếu soạn hàng chỉ áp dụng cho đơn hàng trực tuyến.");
+			bool isEligibleForPickList = order.Type == OrderType.Online ||
+										 (order.Type == OrderType.Offline && order.ForwardShippingId != null);
+
+			if (!isEligibleForPickList)
+				throw AppException.BadRequest("Phiếu soạn hàng chỉ áp dụng cho đơn hàng trực tuyến hoặc đơn tại quầy có giao hàng.");
 
 			var reservations = await _unitOfWork.StockReservations.GetByOrderIdAsync(order.Id);
 			if (reservations.Any(r => r.Status != ReservationStatus.Reserved))
