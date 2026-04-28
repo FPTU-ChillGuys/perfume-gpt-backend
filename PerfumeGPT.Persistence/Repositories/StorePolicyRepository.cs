@@ -13,6 +13,7 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<StorePolicy?> GetCurrentPolicyAsync()
 		{
 			return await _context.StorePolicies
+				.OrderByDescending(p => p.Id)
 				.FirstOrDefaultAsync();
 		}
 	}

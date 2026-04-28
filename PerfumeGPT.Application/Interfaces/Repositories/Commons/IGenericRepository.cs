@@ -10,7 +10,8 @@ namespace PerfumeGPT.Application.Interfaces.Repositories.Commons
 			Expression<Func<T, bool>>? filter = null,
 			Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null,
 			Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null,
-			bool asNoTracking = false
+			bool asNoTracking = false,
+			bool asSplitQuery = false
 		);
 
 		Task<(IEnumerable<T> Items, int TotalCount)> GetPagedAsync(
@@ -19,7 +20,8 @@ namespace PerfumeGPT.Application.Interfaces.Repositories.Commons
 			Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null,
 			int pageNumber = 1,
 			int pageSize = 10,
-			bool asNoTracking = false
+			bool asNoTracking = false,
+			bool asSplitQuery = false
 		);
 
 		/// <summary>
@@ -35,7 +37,8 @@ namespace PerfumeGPT.Application.Interfaces.Repositories.Commons
 		Task<T?> FirstOrDefaultAsync(
 			Expression<Func<T, bool>> predicate,
 			Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null,
-			bool asNoTracking = false
+			bool asNoTracking = false,
+			bool asSplitQuery = false
 		);
 
 		/// <summary>
@@ -45,7 +48,8 @@ namespace PerfumeGPT.Application.Interfaces.Repositories.Commons
 		Task<T?> SingleOrDefaultAsync(
 			Expression<Func<T, bool>> predicate,
 			Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null,
-			bool asNoTracking = false
+			bool asNoTracking = false,
+			bool asSplitQuery = false
 		);
 
 		/// <summary>

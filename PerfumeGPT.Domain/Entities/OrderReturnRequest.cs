@@ -175,6 +175,33 @@ namespace PerfumeGPT.Domain.Entities
 			Status = ReturnRequestStatus.Pending;
 		}
 
+		public void OverrideRefundAmount(decimal newAmount, string? note)
+		{
+			if (Status != ReturnRequestStatus.ReadyForRefund)
+				throw DomainException.BadRequest("Chỉ có thể ghi đè số tiền khi yêu cầu hoàn trả đang ở trạng thái sẵn sàng hoàn tiền.");
+
+			if (newAmount <= 0)
+				throw DomainException.BadRequest("Số tiền hoàn trả được phê duyệt phải lớn hơn 0.");
+
+			var oldAmount = ApprovedRefundAmount ?? 0m;
+
+			// Nếu không có sự thay đổi về số tiền thì không cần làm gì cả
+			if (newAmount == oldAmount)
+				return;
+
+			// Tạo log kiểm toán (Audit Log)
+			string cleanNote = string.IsNullOrWhiteSpace(note) ? "Không có ghi chú" : note.Trim();
+			string auditLog = $"\n[Tài chính - Ghi đè] Đã thay đổi số tiền hoàn từ {oldAmount:N0} thành {newAmount:N0}. Ghi chú: {cleanNote}";
+
+			// Nối log mới vào StaffNote hiện tại
+			StaffNote = string.IsNullOrWhiteSpace(StaffNote)
+				? auditLog.Trim()
+				: StaffNote + auditLog;
+
+			// Cập nhật số tiền mới
+			ApprovedRefundAmount = newAmount;
+		}
+
 		public void CancelByCustomer(Guid customerId)
 		{
 			if (CustomerId != customerId)

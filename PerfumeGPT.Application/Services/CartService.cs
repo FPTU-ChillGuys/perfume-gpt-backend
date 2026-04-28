@@ -59,17 +59,38 @@ namespace PerfumeGPT.Application.Services
 				})
 				.ToList();
 
+			var barcodeLookups = await _unitOfWork.Variants.GetFastLookByBarcodesAsync(groupedScans.Select(x => x.Barcode));
+			var variantByBarcode = barcodeLookups
+				.GroupBy(x => x.Barcode)
+				.ToDictionary(g => g.Key, g => g.First());
+
+			var batchKeys = new List<(Guid VariantId, string BatchCode)>();
+			foreach (var scan in groupedScans)
+			{
+				if (variantByBarcode.TryGetValue(scan.Barcode, out var variantFastLook))
+				{
+					batchKeys.Add((variantFastLook.Id, scan.BatchCode));
+				}
+			}
+
+			var batches = await _unitOfWork.Batches.GetByVariantAndBatchCodesAsync(batchKeys);
+			var batchByVariantAndCode = batches
+				.ToDictionary(b => (b.VariantId, b.BatchCode), b => b);
+
 			var checkoutItems = new List<CartCheckoutItemDto>();
 
 			// 2. TRUY VẤN DATABASE LẤY GIÁ VÀ KIỂM TRA LÔ
 			foreach (var scan in groupedScans)
 			{
-				var variantResponse = await _unitOfWork.Variants.GetByBarcodeAsync(scan.Barcode)
-					?? throw AppException.NotFound("Không tìm thấy biến thể sản phẩm");
+				if (!variantByBarcode.TryGetValue(scan.Barcode, out var variantResponse))
+				{
+					throw AppException.NotFound("Không tìm thấy biến thể sản phẩm");
+				}
 
-				var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b =>
-					b.BatchCode == scan.BatchCode && b.VariantId == variantResponse.Id)
-					?? throw AppException.NotFound($"Không tìm thấy lô {scan.BatchCode} cho sản phẩm {variantResponse.Sku}.");
+				if (!batchByVariantAndCode.TryGetValue((variantResponse.Id, scan.BatchCode), out var batch))
+				{
+					throw AppException.NotFound($"Không tìm thấy lô {scan.BatchCode} cho sản phẩm {variantResponse.Sku}.");
+				}
 
 				if (scan.Quantity > batch.AvailableInBatch)
 				{
@@ -79,19 +100,19 @@ namespace PerfumeGPT.Application.Services
 						$"Vui lòng kiểm tra lại hàng hóa thực tế trên tay!");
 				}
 
-				var subTotal = variantResponse.BasePrice * scan.Quantity;
+				var subTotal = variantResponse.Price * scan.Quantity;
 
 				checkoutItems.Add(new CartCheckoutItemDto
 				{
 					VariantId = variantResponse.Id,
 					BatchId = batch.Id,
-					VariantName = $"{variantResponse.Sku} - {variantResponse.VolumeMl}ml - {variantResponse.Type}",
+					VariantName = variantResponse.DisplayName,
 					Quantity = scan.Quantity,
-					UnitPrice = variantResponse.BasePrice,
+					UnitPrice = variantResponse.Price,
 					SubTotal = subTotal,
 					Discount = 0m,
 					FinalTotal = subTotal,
-					ImageUrl = variantResponse.Media?.FirstOrDefault(m => m.IsPrimary)?.Url ?? string.Empty,
+					ImageUrl = variantResponse.Media?.Url ?? string.Empty,
 					BatchCode = batch.BatchCode
 				});
 			}

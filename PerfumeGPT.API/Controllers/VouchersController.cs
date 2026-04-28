@@ -14,8 +14,7 @@ namespace PerfumeGPT.API.Controllers
 	{
 		private readonly IVoucherService _voucherService;
 
-		public VouchersController(
-		 IVoucherService voucherService)
+		public VouchersController(IVoucherService voucherService)
 		{
 			_voucherService = voucherService;
 		}

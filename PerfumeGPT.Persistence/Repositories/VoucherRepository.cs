@@ -5,7 +5,9 @@ using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
+using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Linq.Expressions;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -15,10 +17,10 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<bool> CodeExistsAsync(string code, Guid? excludeVoucherId = null)
 		{
-			var normalizedCode = code.Trim().ToLower();
+			var normalizedCode = code.Trim().ToUpperInvariant();
 
 			var query = _context.Vouchers
-				.Where(v => v.Code.ToLower() == normalizedCode && !v.IsDeleted);
+				.Where(v => v.Code == normalizedCode && !v.IsDeleted);
 
 			if (excludeVoucherId.HasValue)
 			{
@@ -30,7 +32,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<VoucherResponse?> GetByCodeAsync(string code)
 		=> await _context.Vouchers
-				.Where(v => v.Code.ToLower() == code.ToLower() && !v.IsDeleted)
+			 .Where(v => v.Code == code.Trim().ToUpperInvariant() && !v.IsDeleted)
 			   .Select(v => new VoucherResponse
 			   {
 				   Id = v.Id,
@@ -219,26 +221,49 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var totalCount = await query.CountAsync();
 
-			var items = await query
-				.OrderByDescending(v => v.CreatedAt)
-				.Skip((request.PageNumber - 1) * request.PageSize)
-				.Take(request.PageSize)
-			 .Select(v => new RedeemableVoucherResponse
-			 {
-				 Id = v.Id,
-				 Code = v.Code,
-				 DiscountValue = v.DiscountValue,
-				 DiscountType = v.DiscountType,
-				 RequiredPoints = v.RequiredPoints,
-				 MaxDiscountAmount = v.MaxDiscountAmount,
-				 MinOrderValue = v.MinOrderValue,
-				 ExpiryDate = v.ExpiryDate,
-				 IsExpired = v.ExpiryDate < now,
-				 RemainingQuantity = v.RemainingQuantity,
-				 MaxUsagePerUser = v.MaxUsagePerUser,
-				 CreatedAt = v.CreatedAt
-			 })
-				.ToListAsync();
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(Voucher.Code),
+				nameof(Voucher.DiscountValue),
+				nameof(Voucher.RequiredPoints),
+				nameof(Voucher.MinOrderValue),
+				nameof(Voucher.ExpiryDate),
+				nameof(Voucher.RemainingQuantity),
+				nameof(Voucher.CreatedAt)
+			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
+			var sortedQuery = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderByDescending(v => v.CreatedAt);
+
+			var items = await sortedQuery
+				   .Skip((request.PageNumber - 1) * request.PageSize)
+				   .Take(request.PageSize)
+				.Select(v => new RedeemableVoucherResponse
+				{
+					Id = v.Id,
+					Code = v.Code,
+					DiscountValue = v.DiscountValue,
+					DiscountType = v.DiscountType,
+					RequiredPoints = v.RequiredPoints,
+					MaxDiscountAmount = v.MaxDiscountAmount,
+					MinOrderValue = v.MinOrderValue,
+					ExpiryDate = v.ExpiryDate,
+					IsExpired = v.ExpiryDate < now,
+					RemainingQuantity = v.RemainingQuantity,
+					MaxUsagePerUser = v.MaxUsagePerUser,
+					CreatedAt = v.CreatedAt
+				})
+				   .ToListAsync();
 
 			return (items, totalCount);
 		}
@@ -247,45 +272,60 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			var now = DateTime.UtcNow;
 
-			var query = _context.Vouchers
-				.Where(v => !v.IsDeleted)
-				.AsNoTracking();
+			Expression<Func<Voucher, bool>> filter = v => !v.IsDeleted;
 
 			if (request.IsExpired.HasValue)
 			{
-				if (request.IsExpired.Value)
-				{
-					query = query.Where(v => v.ExpiryDate < now);
-				}
-				else
-				{
-					query = query.Where(v => v.ExpiryDate >= now);
-				}
+				Expression<Func<Voucher, bool>> expiryFilter = request.IsExpired.Value
+					? v => v.ExpiryDate < now
+					: v => v.ExpiryDate >= now;
+				filter = filter.AndAlso(expiryFilter);
 			}
 
 			if (request.IsRegular.HasValue)
 			{
-				{
-					if (request.IsRegular.Value)
-					{
-						query = query.Where(v => v.CampaignId == null);
-					}
-					else
-					{
-						query = query.Where(v => v.CampaignId != null);
-					}
-				}
+				Expression<Func<Voucher, bool>> regularFilter = request.IsRegular.Value
+					? v => v.CampaignId == null
+					: v => v.CampaignId != null;
+				filter = filter.AndAlso(regularFilter);
 			}
 
-			if (!string.IsNullOrEmpty(request.Code))
+			if (!string.IsNullOrWhiteSpace(request.Code))
 			{
-				query = query.Where(v => v.Code.Contains(request.Code));
+				var code = request.Code.Trim();
+				Expression<Func<Voucher, bool>> codeFilter = v => v.Code.Contains(code);
+				filter = filter.AndAlso(codeFilter);
 			}
+
+			var query = _context.Vouchers
+				.Where(filter)
+				.AsNoTracking();
 
 			var totalCount = await query.CountAsync();
 
-			var items = await query
-				   .OrderByDescending(v => v.CreatedAt)
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(Voucher.Code),
+				nameof(Voucher.ExpiryDate),
+				nameof(Voucher.DiscountValue),
+				nameof(Voucher.RequiredPoints),
+				nameof(Voucher.CreatedAt)
+			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
+			var sortedQuery = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderByDescending(v => v.CreatedAt);
+
+			var items = await sortedQuery
 				   .Skip((request.PageNumber - 1) * request.PageSize)
 				   .Take(request.PageSize)
 				.Select(v => new VoucherResponse

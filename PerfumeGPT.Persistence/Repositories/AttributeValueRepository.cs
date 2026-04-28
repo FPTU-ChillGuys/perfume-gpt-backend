@@ -20,7 +20,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			.ToDictionaryAsync(v => v.Id, v => v.AttributeId);
 
 		public async Task<List<AttributeValueLookupItem>> GetLookupListByAttributeIdAsync(int attributeId)
-	 => await _context.AttributeValues
+		=> await _context.AttributeValues
 			.Where(v => v.AttributeId == attributeId)
 			.Select(v => new AttributeValueLookupItem
 			{

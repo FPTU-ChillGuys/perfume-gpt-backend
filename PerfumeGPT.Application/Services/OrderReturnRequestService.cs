@@ -106,6 +106,10 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> CreateReturnRequestAsync(Guid customerId, CreateReturnRequestDto request)
 		{
+			// 1. Fast-fail: Tránh mở Transaction vô ích nếu dữ liệu không hợp lệ
+			if (request.ReturnItems == null || request.ReturnItems.Count == 0)
+				throw AppException.BadRequest("Danh sách sản phẩm trả về không được để trống.");
+
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(request.OrderId)
@@ -117,48 +121,39 @@ namespace PerfumeGPT.Application.Services
 				if (order.Status != OrderStatus.Delivered)
 					throw AppException.BadRequest("Chỉ đơn hàng đã giao mới có thể tạo yêu cầu trả hàng.");
 
-				var hasOpenRequest = await _unitOfWork.OrderReturnRequests.AnyAsync(r =>
-					r.OrderId == order.Id
-					&& r.Status != ReturnRequestStatus.Rejected
-					&& r.Status != ReturnRequestStatus.Completed);
+				// 2. TỐI ƯU DB: Lấy tất cả Status bằng 1 câu query duy nhất (Tiết kiệm 1 round-trip)
+				var existingStatuses = await _unitOfWork.OrderReturnRequests.GetStatusesByOrderIdAsync(order.Id);
 
-				if (hasOpenRequest)
+				if (existingStatuses.Any(s => s != ReturnRequestStatus.Rejected && s != ReturnRequestStatus.Completed))
 					throw AppException.Conflict("Đơn hàng này đã có yêu cầu trả hàng đang xử lý.");
 
-				var hasAlreadyReturnedRequest = await _unitOfWork.OrderReturnRequests.AnyAsync(r =>
-					r.OrderId == order.Id
-					&& r.Status == ReturnRequestStatus.Completed);
-
-				if (hasAlreadyReturnedRequest)
+				if (existingStatuses.Any(s => s == ReturnRequestStatus.Completed))
 					throw AppException.Conflict("Đơn hàng này đã từng được trả trước đó. Vui lòng liên hệ hỗ trợ để được xử lý thêm.");
-
 
 				var orderDetailsById = order.OrderDetails.ToDictionary(x => x.Id);
 
-				var payloadDetails = request.ReturnItems
-					.Select(item =>
+				// 3. TỐI ƯU VÒNG LẶP: Cấp phát bộ nhớ sẵn cho List và tính toán trong 1 lần duyệt
+				var payloadDetails = new List<OrderReturnRequest.ReturnRequestDetailPayload>(request.ReturnItems.Count);
+				decimal requestedRefundAmount = 0m;
+
+				foreach (var item in request.ReturnItems)
+				{
+					if (!orderDetailsById.TryGetValue(item.OrderDetailId, out var orderDetail))
+						throw AppException.BadRequest($"Chi tiết đơn hàng {item.OrderDetailId} không thuộc đơn này.");
+
+					if (item.Quantity > orderDetail.Quantity)
+						throw AppException.BadRequest($"Số lượng trả cho chi tiết đơn hàng {item.OrderDetailId} không được vượt quá số lượng đã mua.");
+
+					payloadDetails.Add(new OrderReturnRequest.ReturnRequestDetailPayload
 					{
-						if (!orderDetailsById.TryGetValue(item.OrderDetailId, out var orderDetail))
-							throw AppException.BadRequest($"Chi tiết đơn hàng {item.OrderDetailId} không thuộc đơn này.");
-
-						if (item.Quantity > orderDetail.Quantity)
-							throw AppException.BadRequest($"Số lượng trả cho chi tiết đơn hàng {item.OrderDetailId} không được vượt quá số lượng đã mua.");
-
-						return new OrderReturnRequest.ReturnRequestDetailPayload
-						{
-							OrderDetailId = item.OrderDetailId,
-							RequestedQuantity = item.Quantity,
-							OrderedQuantity = orderDetail.Quantity
-						};
-					})
-					.ToList();
-
-				var requestedRefundAmount = request.ReturnItems
-					.Sum(item =>
-					{
-						var orderDetail = orderDetailsById[item.OrderDetailId];
-						return orderDetail.RefundableUnitPrice * item.Quantity;
+						OrderDetailId = item.OrderDetailId,
+						RequestedQuantity = item.Quantity,
+						OrderedQuantity = orderDetail.Quantity
 					});
+
+					// Tính tổng tiền ngay tại đây
+					requestedRefundAmount += orderDetail.RefundableUnitPrice * item.Quantity;
+				}
 
 				if (IsFullOrderReturn(orderDetailsById, request.ReturnItems))
 				{
@@ -530,7 +525,7 @@ namespace PerfumeGPT.Application.Services
 					{
 						var orderDetail = orderDetailsById[returnDetail.OrderDetailId];
 
-						// 💥 GIẢI MÃ BATCH ID TỪ SNAPSHOT CỦA CHÍNH CÁI CHAI KHÁCH TRẢ
+						// GIẢI MÃ BATCH ID TỪ SNAPSHOT CỦA CHÍNH CÁI CHAI KHÁCH TRẢ
 						Guid batchId;
 						try
 						{
@@ -590,13 +585,18 @@ namespace PerfumeGPT.Application.Services
 		{
 			var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithOrderDetailsAsync(requestId)
 				?? throw AppException.NotFound("Không tìm thấy yêu cầu trả hàng.");
+
 			var refundableOrderAmount = await GetRefundableOrderAmountAsync(returnRequest.OrderId, returnRequest.Order.TotalAmount, IsFullOrderReturn(returnRequest));
 
 			if (returnRequest.Status != ReturnRequestStatus.ReadyForRefund)
 				throw AppException.BadRequest("Yêu cầu trả hàng chưa sẵn sàng để hoàn tiền.");
 
-			if (!returnRequest.ApprovedRefundAmount.HasValue || returnRequest.ApprovedRefundAmount.Value <= 0)
+			// 1. Kiểm tra giá trị do Admin truyền vào thay vì giá trị cũ của Staff
+			if (request.ApprovedRefundAmount <= 0)
 				throw AppException.BadRequest("Số tiền hoàn được duyệt phải lớn hơn 0.");
+
+			if (request.ApprovedRefundAmount > refundableOrderAmount)
+				throw AppException.BadRequest($"Số tiền hoàn vượt quá mức cho phép. Tối đa có thể hoàn: {refundableOrderAmount}");
 
 			bool isRefundSuccess = false;
 			string refundMessage = "";
@@ -614,7 +614,6 @@ namespace PerfumeGPT.Application.Services
 			switch (request.RefundMethod)
 			{
 				case PaymentMethod.VnPay:
-
 					var vnPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod)
 					  ?? throw AppException.NotFound($"Không tìm thấy giao dịch {request.RefundMethod} thành công cho đơn hàng này.");
 
@@ -624,10 +623,10 @@ namespace PerfumeGPT.Application.Services
 					var vnPayRefundResponse = await _vnPayService.RefundAsync(httpContext, new VnPayRefundRequest
 					{
 						OrderId = returnRequest.OrderId,
-						Amount = returnRequest.ApprovedRefundAmount.Value,
+						Amount = request.ApprovedRefundAmount, // Sử dụng giá trị ghi đè
 						PaymentId = vnPayment.Id,
 						TransactionNo = vnPayment.GatewayTransactionNo,
-						TransactionType = returnRequest.ApprovedRefundAmount.Value == vnPayment.Amount ? "02" : "03",
+						TransactionType = request.ApprovedRefundAmount == vnPayment.Amount ? "02" : "03",
 						CreateBy = financeAdminId.ToString(),
 						OrderInfo = $"Hoàn tiền cho yêu cầu trả hàng {requestId}",
 						TransactionDate = vnPayment.CreatedAt.ToString("yyyyMMddHHmmss")
@@ -639,7 +638,6 @@ namespace PerfumeGPT.Application.Services
 					break;
 
 				case PaymentMethod.Momo:
-
 					var momoPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == request.RefundMethod)
 					  ?? throw AppException.NotFound($"Không tìm thấy giao dịch {request.RefundMethod} thành công cho đơn hàng này.");
 
@@ -650,7 +648,7 @@ namespace PerfumeGPT.Application.Services
 					{
 						OrderId = returnRequest.OrderId,
 						OrderCode = returnRequest.Order.Code,
-						Amount = returnRequest.ApprovedRefundAmount.Value,
+						Amount = request.ApprovedRefundAmount, // Sử dụng giá trị ghi đè
 						PaymentId = momoPayment.Id,
 						TransactionNo = momoPayment.GatewayTransactionNo,
 						Description = $"Hoàn tiền cho yêu cầu trả hàng {requestId}"
@@ -663,7 +661,6 @@ namespace PerfumeGPT.Application.Services
 
 				case PaymentMethod.ExternalBankTransfer:
 				case PaymentMethod.CashInStore:
-
 					if (string.IsNullOrWhiteSpace(request.ManualTransactionReference))
 						throw AppException.BadRequest("Bắt buộc nhập mã tham chiếu giao dịch thủ công (mã chuyển khoản) cho hoàn tiền thủ công.");
 
@@ -671,7 +668,6 @@ namespace PerfumeGPT.Application.Services
 					   ?? throw AppException.NotFound("Không tìm thấy giao dịch thanh toán thành công của đơn hàng để đối chiếu hoàn tiền thủ công.");
 
 					originalPaymentId = primaryPayment.Id;
-					// Lấy amount từ payment, nếu payment = 0 (trường hợp COD không lưu amount) thì lấy tổng đơn hàng
 					originalPaymentAmount = primaryPayment.Amount > 0 ? primaryPayment.Amount : returnRequest.Order.TotalAmount;
 
 					isRefundSuccess = true;
@@ -689,7 +685,7 @@ namespace PerfumeGPT.Application.Services
 					orderId: returnRequest.OrderId,
 					originalPaymentId: originalPaymentId,
 					method: request.RefundMethod,
-					refundAmount: returnRequest.ApprovedRefundAmount.Value
+					refundAmount: request.ApprovedRefundAmount // Ghi log giá trị ghi đè
 				);
 				failedRefund.MarkFailed(refundMessage, refundTransactionNo);
 				await _unitOfWork.Payments.AddAsync(failedRefund);
@@ -706,7 +702,13 @@ namespace PerfumeGPT.Application.Services
 					throw AppException.BadRequest("Trạng thái yêu cầu trả hàng đã thay đổi và không còn có thể hoàn tiền.");
 
 				var order = freshReturnRequest.Order;
+
+				// Entity sẽ tự động check logic, ghi đè số tiền và nối chuỗi StaffNote
+				freshReturnRequest.OverrideRefundAmount(request.ApprovedRefundAmount, request.Note);
+
+				// Lấy số tiền sau khi đã được Domain xác nhận
 				var approvedRefundAmount = freshReturnRequest.ApprovedRefundAmount!.Value;
+
 				var freshRefundableAmount = await GetRefundableOrderAmountAsync(order.Id, order.TotalAmount, IsFullOrderReturn(freshReturnRequest));
 				var refundableBaseline = Math.Min(freshRefundableAmount, originalPaymentAmount);
 				var isFullyRefunded = approvedRefundAmount >= refundableBaseline;

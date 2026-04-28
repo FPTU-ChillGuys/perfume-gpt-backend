@@ -4,7 +4,9 @@ using PerfumeGPT.Application.DTOs.Responses.Notifications;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
+using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Linq.Expressions;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -20,49 +22,69 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var hasUserFilter = request.UserId.HasValue && request.UserId.Value != Guid.Empty;
 			var hasRoleFilter = !string.IsNullOrWhiteSpace(request.TargetRole);
+			var userId = request.UserId ?? Guid.Empty;
 
-			if (hasUserFilter && hasRoleFilter)
+			Expression<Func<Notification, bool>> filter = x => true;
+			if (hasUserFilter || hasRoleFilter)
 			{
-				var normalizedRole = request.TargetRole!.Trim().ToLowerInvariant();
-				var userId = request.UserId!.Value;
-				query = query.Where(n => n.UserId == userId || (n.TargetRole != null && n.TargetRole.ToLower() == normalizedRole));
-			}
-			else if (hasUserFilter)
-			{
-				var userId = request.UserId!.Value;
-				query = query.Where(n => n.UserId == userId);
-			}
-			else if (hasRoleFilter)
-			{
-				var normalizedRole = request.TargetRole!.Trim().ToLowerInvariant();
-				query = query.Where(n => n.TargetRole != null && n.TargetRole.ToLower() == normalizedRole);
+				Expression<Func<Notification, bool>> audienceFilter = x => false;
+
+				if (hasUserFilter)
+				{
+					audienceFilter = audienceFilter.OrElse(n => n.UserId == userId);
+				}
+
+				if (hasRoleFilter)
+				{
+					var normalizedRole = request.TargetRole!.Trim().ToLowerInvariant();
+					audienceFilter = audienceFilter.OrElse(n => n.TargetRole != null && n.TargetRole.ToLower() == normalizedRole);
+				}
+
+				filter = filter.AndAlso(audienceFilter);
 			}
 
 			if (request.IsRead.HasValue)
 			{
 				if (hasUserFilter)
 				{
-					var userId = request.UserId!.Value;
 					var isReadFilter = request.IsRead.Value;
-					query = query.Where(n => n.UserId.HasValue
+					filter = filter.AndAlso(n => n.UserId.HasValue
 						? n.IsRead == isReadFilter
 						: _context.UserNotificationReads.Any(unr => unr.NotificationId == n.Id && unr.UserId == userId) == isReadFilter);
 				}
 				else
 				{
-					query = query.Where(n => n.IsRead == request.IsRead.Value);
+					var isReadFilter = request.IsRead.Value;
+					filter = filter.AndAlso(n => n.IsRead == isReadFilter);
 				}
 			}
 
+			query = query.Where(filter);
 			var totalCount = await query.CountAsync();
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(Notification.Title),
+				nameof(Notification.Type),
+				nameof(Notification.CreatedAt),
+				nameof(Notification.IsRead)
+			};
+
+			var sortBy = request.SortBy?.Trim();
+			sortBy = !string.IsNullOrWhiteSpace(sortBy)
+				? (sortBy.Length == 1
+					? char.ToUpper(sortBy[0]).ToString()
+					: char.ToUpper(sortBy[0]) + sortBy.Substring(1))
+				: null;
+
+			var sortedQuery = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderByDescending(n => n.CreatedAt);
 
 			List<NotificationListItemResponse> items;
 
 			if (hasUserFilter)
 			{
-				var userId = request.UserId!.Value;
-				items = await query
-					.OrderByDescending(n => n.CreatedAt)
+				items = await sortedQuery
 					.Skip((request.PageNumber - 1) * request.PageSize)
 					.Take(request.PageSize)
 					.Select(n => new NotificationListItemResponse
@@ -85,8 +107,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 			else
 			{
-				items = await query
-					.OrderByDescending(n => n.CreatedAt)
+				items = await sortedQuery
 					.Skip((request.PageNumber - 1) * request.PageSize)
 					.Take(request.PageSize)
 					.Select(n => new NotificationListItemResponse

@@ -70,29 +70,6 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<string>.Ok($"Đồng bộ trạng thái vận chuyển hoàn tất. Đã cập nhật {updatedCount} bản ghi.");
 		}
 
-		// Inactive webhook processing, Waiting contact GHN to enable webhook.
-		public async Task<BaseResponse<string>> SyncShippingStatusByWebhookAsync(string orderCode, string ghnStatus)
-		{
-			if (string.IsNullOrWhiteSpace(orderCode) || string.IsNullOrWhiteSpace(ghnStatus))
-				return BaseResponse<string>.Fail("Bắt buộc cung cấp mã vận đơn và trạng thái từ webhook.", ResponseErrorType.BadRequest);
-
-			var shippingInfo = await _unitOfWork.ShippingInfos.FirstOrDefaultAsync(
-				s => s.CarrierName == CarrierName.GHN && s.TrackingNumber == orderCode.Trim());
-
-			if (shippingInfo == null)
-				return BaseResponse<string>.Ok($"Đã nhận webhook GHN cho mã vận đơn {orderCode}, nhưng không tìm thấy đơn tương ứng trong hệ thống.");
-
-			var targetStatus = MapGhnStatusToDomainStatus(ghnStatus);
-			if (!targetStatus.HasValue)
-				return BaseResponse<string>.Ok($"Đã nhận webhook GHN cho mã vận đơn {orderCode}, nhưng trạng thái {ghnStatus} không cần xử lý.");
-
-			var isUpdated = await ApplyShippingStatusAsync(shippingInfo, targetStatus.Value);
-			if (!isUpdated)
-				return BaseResponse<string>.Ok($"Đã nhận webhook GHN cho mã vận đơn {orderCode}, nhưng trạng thái không thay đổi.");
-
-			return BaseResponse<string>.Ok($"Đã xử lý webhook GHN cho mã vận đơn {orderCode} thành công.");
-		}
-
 		public async Task<bool> SyncSingleShippingInfoAsync(ShippingInfo shippingInfo)
 		{
 			try
@@ -243,6 +220,14 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			return false;
+		}
+
+		public async Task<BaseResponse<string>> SyncShippingStatusByTrackingNumberAsync(string trackingNumber)
+		{
+			var shippingInfo = await _unitOfWork.ShippingInfos.FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber)
+				?? throw new Exception($"Không tìm thấy thông tin vận chuyển với mã theo dõi {trackingNumber}");
+			await SyncSingleShippingInfoAsync(shippingInfo);
+			return BaseResponse<string>.Ok($"Đã đồng bộ trạng thái vận chuyển cho mã theo dõi {trackingNumber} thành công.");
 		}
 	}
 }

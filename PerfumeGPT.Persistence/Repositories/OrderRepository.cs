@@ -7,6 +7,7 @@ using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Linq.Expressions;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -16,11 +17,13 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<(List<OrderListItem> Orders, int TotalCount)> GetPagedOrdersAsync(GetPagedOrdersRequest request)
 		{
-			IQueryable<Order> query = _context.Orders.AsQueryable();
+            Expression<Func<Order, bool>> filter = o => true;
 
 			if (request.UserId.HasValue)
 			{
-				query = query.Where(o => o.CustomerId == request.UserId.Value);
+				var userId = request.UserId.Value;
+				Expression<Func<Order, bool>> userFilter = o => o.CustomerId == userId;
+				filter = filter.AndAlso(userFilter);
 			}
 
 			if (!string.IsNullOrWhiteSpace(request.OrderCode))
@@ -28,32 +31,42 @@ namespace PerfumeGPT.Persistence.Repositories
 				var orderCodeFilter = EfCollationExtensions.CollateContains<Order>(
 					o => o.Code,
 					request.OrderCode.Trim());
-				query = query.Where(orderCodeFilter);
+				filter = filter.AndAlso(orderCodeFilter);
 			}
 
 			if (request.Status.HasValue)
 			{
-				query = query.Where(o => o.Status == request.Status.Value);
+				var status = request.Status.Value;
+				Expression<Func<Order, bool>> statusFilter = o => o.Status == status;
+				filter = filter.AndAlso(statusFilter);
 			}
 
 			if (request.Type.HasValue)
 			{
-				query = query.Where(o => o.Type == request.Type.Value);
+				var type = request.Type.Value;
+				Expression<Func<Order, bool>> typeFilter = o => o.Type == type;
+				filter = filter.AndAlso(typeFilter);
 			}
 
 			if (request.PaymentStatus.HasValue)
 			{
-				query = query.Where(o => o.PaymentStatus == request.PaymentStatus.Value);
+				var paymentStatus = request.PaymentStatus.Value;
+				Expression<Func<Order, bool>> paymentStatusFilter = o => o.PaymentStatus == paymentStatus;
+				filter = filter.AndAlso(paymentStatusFilter);
 			}
 
 			if (request.FromDate.HasValue)
 			{
-				query = query.Where(o => o.CreatedAt >= request.FromDate.Value);
+				var fromDate = request.FromDate.Value;
+				Expression<Func<Order, bool>> fromDateFilter = o => o.CreatedAt >= fromDate;
+				filter = filter.AndAlso(fromDateFilter);
 			}
 
 			if (request.ToDate.HasValue)
 			{
-				query = query.Where(o => o.CreatedAt <= request.ToDate.Value);
+				var toDate = request.ToDate.Value;
+				Expression<Func<Order, bool>> toDateFilter = o => o.CreatedAt <= toDate;
+				filter = filter.AndAlso(toDateFilter);
 			}
 
 			if (!string.IsNullOrWhiteSpace(request.SearchTerm))
@@ -68,13 +81,41 @@ namespace PerfumeGPT.Persistence.Repositories
 					o => o.Customer != null ? o.Customer.FullName : null,
 					searchTerm);
 
-				query = query.Where(orderIdFilter.OrElse(customerNameFilter));
+				var searchFilter = orderIdFilter.OrElse(customerNameFilter);
+				filter = filter.AndAlso(searchFilter);
 			}
+
+			IQueryable<Order> query = _context.Orders.Where(filter);
 
 			var totalCount = await query.CountAsync();
 
-			var orders = await query
-				.ApplySorting(request.SortBy ?? "CreatedAt", request.IsDescending)
+            var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(Order.Id),
+				nameof(Order.Code),
+				nameof(Order.Type),
+				nameof(Order.Status),
+				nameof(Order.PaymentStatus),
+				nameof(Order.TotalAmount),
+				nameof(Order.CreatedAt),
+				nameof(Order.UpdatedAt),
+				nameof(Order.PaymentExpiresAt)
+			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
+			var sortedQuery = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderByDescending(o => o.CreatedAt);
+
+			var orders = await sortedQuery
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
 				.AsSplitQuery()

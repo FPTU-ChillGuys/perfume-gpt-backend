@@ -366,19 +366,41 @@ namespace PerfumeGPT.Application.Services
 					.Select(g => new { g.Key.Barcode, g.Key.BatchCode, Quantity = g.Sum(item => item.Quantity) })
 					.ToList();
 
+				var barcodeLookups = await _unitOfWork.Variants.GetFastLookByBarcodesAsync(groupedScans.Select(x => x.Barcode));
+				var variantByBarcode = barcodeLookups
+					.GroupBy(x => x.Barcode)
+					.ToDictionary(g => g.Key, g => g.First());
+
+				var batchKeys = new List<(Guid VariantId, string BatchCode)>();
+				foreach (var scan in groupedScans)
+				{
+					if (variantByBarcode.TryGetValue(scan.Barcode, out var variantFastLook))
+					{
+						batchKeys.Add((variantFastLook.Id, scan.BatchCode));
+					}
+				}
+
+				var batches = await _unitOfWork.Batches.GetByVariantAndBatchCodesAsync(batchKeys);
+				var batchByVariantAndCode = batches
+					.ToDictionary(b => (b.VariantId, b.BatchCode), b => b);
+
 				var checkoutItems = new List<CartCheckoutItemDto>();
 
 				// 2. TRUY VẤN DATABASE & KHÓA BATCH_ID
 				foreach (var scan in groupedScans)
 				{
-					var variantResponse = await _unitOfWork.Variants.GetByBarcodeAsync(scan.Barcode)
-					  ?? throw AppException.NotFound($"Không tìm thấy biến thể với mã vạch {scan.Barcode}.");
+					if (!variantByBarcode.TryGetValue(scan.Barcode, out var variantResponse))
+					{
+						throw AppException.NotFound($"Không tìm thấy biến thể với mã vạch {scan.Barcode}.");
+					}
 
 					var variantId = variantResponse.Id;
-					var variantBasePrice = variantResponse.BasePrice;
+					var variantBasePrice = variantResponse.Price;
 
-					var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b => b.BatchCode == scan.BatchCode && b.VariantId == variantId)
-					 ?? throw AppException.NotFound($"Không tìm thấy lô {scan.BatchCode} cho sản phẩm {variantResponse.Sku}.");
+					if (!batchByVariantAndCode.TryGetValue((variantId, scan.BatchCode), out var batch))
+					{
+						throw AppException.NotFound($"Không tìm thấy lô {scan.BatchCode} cho sản phẩm {variantResponse.Sku}.");
+					}
 
 					var subTotal = variantBasePrice * scan.Quantity;
 
@@ -386,7 +408,7 @@ namespace PerfumeGPT.Application.Services
 					{
 						VariantId = variantId,
 						BatchId = batch.Id,
-						VariantName = $"{variantResponse.Sku} - {variantResponse.VolumeMl}ml",
+						VariantName = variantResponse.DisplayName,
 						Quantity = scan.Quantity,
 						UnitPrice = variantBasePrice,
 						SubTotal = subTotal,

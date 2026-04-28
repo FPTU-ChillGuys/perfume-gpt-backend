@@ -881,6 +881,63 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(v => v.CampaignId)
 				.OnDelete(DeleteBehavior.Cascade);
 
+			// E-commerce hot-path indexes (SKU lookup, order filtering, promotion date windows)
+			builder.Entity<ProductVariant>()
+				.HasIndex(v => v.Sku)
+				.IsUnique()
+				.HasFilter("[IsDeleted] = 0");
+
+			builder.Entity<ProductVariant>()
+				.HasIndex(v => v.Barcode)
+				.IsUnique()
+				.HasFilter("[IsDeleted] = 0");
+
+			builder.Entity<ProductVariant>()
+				.HasIndex(v => new { v.ProductId, v.Status, v.IsDeleted });
+
+			builder.Entity<Order>()
+				.HasIndex(o => o.Code)
+				.IsUnique();
+
+			builder.Entity<Order>()
+				.HasIndex(o => new { o.CustomerId, o.Status, o.CreatedAt });
+
+			builder.Entity<Order>()
+				.HasIndex(o => new { o.StaffId, o.Status, o.CreatedAt });
+
+			builder.Entity<Order>()
+				.HasIndex(o => new { o.Status, o.CreatedAt });
+
+			builder.Entity<Order>()
+				.HasIndex(o => new { o.PaymentStatus, o.PaymentExpiresAt });
+
+			builder.Entity<UserVoucher>()
+				.HasIndex(uv => new { uv.UserId, uv.Status });
+
+			builder.Entity<UserVoucher>()
+			   .HasIndex(uv => new { uv.VoucherId, uv.UserId });
+
+			builder.Entity<UserVoucher>()
+				.HasIndex(uv => new { uv.GuestIdentifier, uv.UserId });
+
+			builder.Entity<Campaign>()
+				.HasIndex(c => new { c.Status, c.IsDeleted, c.StartDate, c.EndDate });
+
+			builder.Entity<PromotionItem>()
+				.HasIndex(pi => new { pi.CampaignId, pi.IsActive, pi.IsDeleted });
+
+			builder.Entity<PromotionItem>()
+				.HasIndex(pi => new { pi.TargetProductVariantId, pi.IsActive, pi.IsDeleted });
+
+			builder.Entity<Voucher>()
+				.HasIndex(v => new { v.CampaignId, v.ExpiryDate, v.IsDeleted });
+
+			builder.Entity<Voucher>()
+				.HasIndex(v => new { v.ExpiryDate, v.IsDeleted });
+
+			builder.Entity<PaymentTransaction>()
+				.HasIndex(pt => new { pt.CreatedAt, pt.TransactionType, pt.TransactionStatus });
+
 			// Create indexes for efficient queries
 			builder.Entity<Media>()
 				.HasIndex(m => new { m.EntityType, m.ProductId });
@@ -925,6 +982,43 @@ namespace PerfumeGPT.Persistence.Contexts
 
 			builder.Entity<TemporaryMedia>()
 				.HasIndex(tm => tm.UploadedByUserId);
+
+			// Ensure index coverage for all FKs and soft-delete filters across model
+			foreach (var entityType in builder.Model.GetEntityTypes().Where(e => e.ClrType != null))
+			{
+				var clrType = entityType.ClrType;
+
+				foreach (var foreignKey in entityType.GetForeignKeys())
+				{
+					var fkPropertyNames = foreignKey.Properties
+						.Select(p => p.Name)
+						.ToArray();
+
+					var hasMatchingIndex = entityType.GetIndexes()
+						.Any(i => i.Properties.Select(p => p.Name).SequenceEqual(fkPropertyNames));
+
+					if (!hasMatchingIndex)
+					{
+						builder.Entity(clrType).HasIndex(fkPropertyNames);
+					}
+				}
+
+				if (!typeof(ISoftDelete).IsAssignableFrom(clrType)
+					|| entityType.FindProperty(nameof(ISoftDelete.IsDeleted)) == null)
+				{
+					continue;
+				}
+
+				var hasIsDeletedIndex = entityType.GetIndexes()
+					.Any(i => i.Properties.Count == 1 && i.Properties[0].Name == nameof(ISoftDelete.IsDeleted));
+
+				if (!hasIsDeletedIndex)
+				{
+					builder.Entity(clrType)
+						.HasIndex(nameof(ISoftDelete.IsDeleted))
+						.HasFilter("[IsDeleted] = 0");
+				}
+			}
 
 			// Configure encryption for sensitive fields in OrderCancelRequest
 			builder.Entity<OrderCancelRequest>()

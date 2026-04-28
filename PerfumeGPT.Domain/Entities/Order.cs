@@ -188,15 +188,10 @@ namespace PerfumeGPT.Domain.Entities
 			var validTransitions = new Dictionary<OrderStatus, List<OrderStatus>>
 			{
 				{ OrderStatus.Pending, [OrderStatus.Pending, OrderStatus.Preparing, OrderStatus.Delivered, OrderStatus.Cancelled] },
-
 				{ OrderStatus.Preparing, [OrderStatus.ReadyToPick, OrderStatus.Cancelled] },
-
 				{ OrderStatus.ReadyToPick, [OrderStatus.Delivering, OrderStatus.Delivered, OrderStatus.Cancelled] },
-
 				{ OrderStatus.Delivering, [OrderStatus.Delivered, OrderStatus.Returning, OrderStatus.Cancelled] },
-
 				{ OrderStatus.Delivered, [OrderStatus.Returning, OrderStatus.Returned] },
-
 				{ OrderStatus.Returning, [OrderStatus.Returned, OrderStatus.Partial_Returned] },
 				{ OrderStatus.Cancelled, [] },
 				{ OrderStatus.Partial_Returned, [] },
@@ -206,9 +201,9 @@ namespace PerfumeGPT.Domain.Entities
 			if (!(validTransitions.ContainsKey(Status) && validTransitions[Status].Contains(newStatus)))
 				throw DomainException.BadRequest($"Không thể thay đổi trạng thái từ {Status} sang {newStatus}.");
 
-			if (Type == OrderType.Offline && (newStatus == OrderStatus.Preparing || newStatus == OrderStatus.ReadyToPick || newStatus == OrderStatus.Delivering))
+			if (Type == OrderType.Offline && ForwardShippingId == null && (newStatus == OrderStatus.Preparing || newStatus == OrderStatus.ReadyToPick || newStatus == OrderStatus.Delivering))
 			{
-				throw DomainException.BadRequest("Đơn hàng POS offline bỏ qua các giai đoạn đóng gói và giao hàng và phải đi thẳng đến Đã giao.");
+				throw DomainException.BadRequest("Đơn hàng mua mang về trực tiếp tại quầy phải bỏ qua các giai đoạn đóng gói, giao hàng và đi thẳng đến Đã giao.");
 			}
 
 			Status = newStatus;

@@ -8,6 +8,7 @@ using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Linq.Expressions;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -20,18 +21,21 @@ namespace PerfumeGPT.Persistence.Repositories
 			var (fromDateUtc, toDateUtc) = ResolveDateRange(request.FromDate, request.ToDate);
 
 			IQueryable<PaymentTransaction> query = _context.PaymentTransactions
-				.AsNoTracking()
-				.Where(pt => pt.CreatedAt >= fromDateUtc && pt.CreatedAt <= toDateUtc);
+				.AsNoTracking();
+			Expression<Func<PaymentTransaction, bool>> filter = pt => pt.CreatedAt >= fromDateUtc && pt.CreatedAt <= toDateUtc;
 
 			if (request.PaymentMethod.HasValue)
 			{
-				query = query.Where(pt => pt.Method == request.PaymentMethod.Value);
+				var paymentMethod = request.PaymentMethod.Value;
+				filter = filter.AndAlso(pt => pt.Method == paymentMethod);
 			}
 
 			if (request.TransactionType.HasValue)
 			{
-				query = query.Where(pt => pt.TransactionType == request.TransactionType.Value);
+				var transactionType = request.TransactionType.Value;
+				filter = filter.AndAlso(pt => pt.TransactionType == transactionType);
 			}
+			query = query.Where(filter);
 
 			var totalTransactions = await query.CountAsync();
 			var totalPaymentTransactions = await query.CountAsync(pt => pt.TransactionType == TransactionType.Payment);
@@ -67,12 +71,27 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Where(pt => pt.TransactionType == TransactionType.Refund)
 				.SumAsync(pt => (decimal?)Math.Abs(pt.Amount)) ?? 0m;
 
-			var sortBy = string.IsNullOrWhiteSpace(request.SortBy)
-				? nameof(PaymentTransaction.CreatedAt)
-				: request.SortBy;
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(PaymentTransaction.CreatedAt),
+				nameof(PaymentTransaction.Amount),
+				nameof(PaymentTransaction.Method),
+				nameof(PaymentTransaction.TransactionType),
+				nameof(PaymentTransaction.TransactionStatus),
+				nameof(PaymentTransaction.RetryAttempt),
+				nameof(PaymentTransaction.UpdatedAt)
+			};
+			var sortBy = request.SortBy?.Trim();
+			sortBy = !string.IsNullOrWhiteSpace(sortBy)
+				? (sortBy.Length == 1
+					? char.ToUpper(sortBy[0]).ToString()
+					: char.ToUpper(sortBy[0]) + sortBy.Substring(1))
+				: null;
+			var sortedQuery = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderByDescending(pt => pt.CreatedAt);
 
-			var transactions = await query
-				  .ApplySorting(sortBy, request.IsDescending)
+			var transactions = await sortedQuery
 				  .Skip((request.PageNumber - 1) * request.PageSize)
 				  .Take(request.PageSize)
 				  .Select(pt => new PaymentTransactionAdminItemResponse

@@ -6,7 +6,9 @@ using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
+using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Linq.Expressions;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -57,54 +59,67 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<(List<ReviewListItem> Items, int TotalCount)> GetPagedReviewsAsync(GetPagedReviewsRequest request)
 		{
-			var query = _context.Reviews
-				.Where(r => !r.IsDeleted)
-				.AsQueryable();
+            Expression<Func<Review, bool>> filter = r => !r.IsDeleted;
 
-			// Apply filters
 			if (request.VariantId.HasValue)
 			{
-				query = query.Where(r => r.OrderDetail.VariantId == request.VariantId.Value);
+				var variantId = request.VariantId.Value;
+				Expression<Func<Review, bool>> variantFilter = r => r.OrderDetail.VariantId == variantId;
+				filter = filter.AndAlso(variantFilter);
 			}
 
 			if (request.UserId.HasValue)
 			{
-				query = query.Where(r => r.UserId == request.UserId.Value);
+				var userId = request.UserId.Value;
+				Expression<Func<Review, bool>> userFilter = r => r.UserId == userId;
+				filter = filter.AndAlso(userFilter);
 			}
 
 			if (request.MinRating.HasValue)
 			{
-				query = query.Where(r => r.Rating >= request.MinRating.Value);
+				var minRating = request.MinRating.Value;
+				Expression<Func<Review, bool>> minRatingFilter = r => r.Rating >= minRating;
+				filter = filter.AndAlso(minRatingFilter);
 			}
 
 			if (request.MaxRating.HasValue)
 			{
-				query = query.Where(r => r.Rating <= request.MaxRating.Value);
+				var maxRating = request.MaxRating.Value;
+				Expression<Func<Review, bool>> maxRatingFilter = r => r.Rating <= maxRating;
+				filter = filter.AndAlso(maxRatingFilter);
 			}
 
 			if (request.HasImages.HasValue)
 			{
-				if (request.HasImages.Value)
-				{
-					query = query.Where(r => r.ReviewImages.Any(m => !m.IsDeleted));
-				}
-				else
-				{
-					query = query.Where(r => !r.ReviewImages.Any(m => !m.IsDeleted));
-				}
+				var hasImages = request.HasImages.Value;
+				Expression<Func<Review, bool>> imagesFilter = hasImages
+					? r => r.ReviewImages.Any(m => !m.IsDeleted)
+					: r => !r.ReviewImages.Any(m => !m.IsDeleted);
+				filter = filter.AndAlso(imagesFilter);
 			}
+
+			var query = _context.Reviews.Where(filter).AsQueryable();
 
 			var totalCount = await query.CountAsync();
 
-			// Apply sorting
-			query = string.IsNullOrWhiteSpace(request.SortBy) switch
+            var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
 			{
-				false when request.SortBy.Equals("rating", StringComparison.OrdinalIgnoreCase) =>
-					request.IsDescending ? query.OrderByDescending(r => r.Rating) : query.OrderBy(r => r.Rating),
-				false when request.SortBy.Equals("createdAt", StringComparison.OrdinalIgnoreCase) =>
-					request.IsDescending ? query.OrderByDescending(r => r.CreatedAt) : query.OrderBy(r => r.CreatedAt),
-				_ => query.OrderByDescending(r => r.CreatedAt) // Default sort
+				nameof(Review.Rating),
+				nameof(Review.CreatedAt)
 			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
+			query = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderByDescending(r => r.CreatedAt);
 
 			var items = await query
 				.Skip((request.PageNumber - 1) * request.PageSize)

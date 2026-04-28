@@ -1,7 +1,8 @@
-using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests;
 using PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.Interfaces.Repositories
 {
@@ -13,5 +14,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<OrderReturnRequest?> GetByIdWithOrderAsync(Guid requestId);
 		Task<OrderReturnRequest?> GetByIdWithPickAddressAsync(Guid requestId);
 		Task<OrderReturnRequest?> GetByIdWithOrderDetailsAsync(Guid requestId);
+		Task<List<ReturnRequestStatus>> GetStatusesByOrderIdAsync(Guid orderId);
 	}
 }

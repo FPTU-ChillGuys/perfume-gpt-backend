@@ -7,6 +7,7 @@ using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Linq.Expressions;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -60,15 +61,51 @@ namespace PerfumeGPT.Persistence.Repositories
 		public async Task<(List<CampaignResponse> Items, int TotalCount)> GetPagedCampaignsAsync(GetPagedCampaignsRequest request)
 		{
 			IQueryable<Campaign> query = _context.Campaigns
-				.Where(x => !x.IsDeleted
-					&& (string.IsNullOrWhiteSpace(request.SearchTerm) || x.Name.Contains(request.SearchTerm))
-					&& (!request.Status.HasValue || x.Status == request.Status.Value)
-					&& (!request.Type.HasValue || x.Type == request.Type.Value));
+				.Where(x => !x.IsDeleted);
+			Expression<Func<Campaign, bool>> filter = x => true;
+
+			if (!string.IsNullOrWhiteSpace(request.SearchTerm))
+			{
+				var searchTerm = request.SearchTerm.Trim();
+				filter = filter.AndAlso(x => x.Name.Contains(searchTerm));
+			}
+
+			if (request.Status.HasValue)
+			{
+				var status = request.Status.Value;
+				filter = filter.AndAlso(x => x.Status == status);
+			}
+
+			if (request.Type.HasValue)
+			{
+				var type = request.Type.Value;
+				filter = filter.AndAlso(x => x.Type == type);
+			}
+
+			query = query.Where(filter);
 
 			var totalCount = await query.CountAsync();
-			var items = await query
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(Campaign.Name),
+				nameof(Campaign.StartDate),
+				nameof(Campaign.EndDate),
+				nameof(Campaign.Type),
+				nameof(Campaign.Status),
+				nameof(Campaign.CreatedAt)
+			};
+			var sortBy = request.SortBy?.Trim();
+			sortBy = !string.IsNullOrWhiteSpace(sortBy)
+				? (sortBy.Length == 1
+					? char.ToUpper(sortBy[0]).ToString()
+					: char.ToUpper(sortBy[0]) + sortBy.Substring(1))
+				: null;
+			var sortedQuery = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderByDescending(x => x.CreatedAt);
+
+			var items = await sortedQuery
 				.AsNoTracking()
-				.ApplySorting(request.SortBy, request.IsDescending)
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
 			  .Select(x => new CampaignResponse

@@ -7,6 +7,7 @@ using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
+using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
 
 namespace PerfumeGPT.Persistence.Repositories
@@ -134,6 +135,49 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Include(v => v.Concentration)
 				.AsNoTracking()
 				.ToListAsync();
+
+		public async Task<List<VariantFastLookResponse>> GetFastLookByBarcodesAsync(IEnumerable<string> barcodes)
+		{
+			var normalizedBarcodes = barcodes
+				.Where(b => !string.IsNullOrWhiteSpace(b))
+				.Select(b => b.Trim())
+				.Distinct()
+				.ToList();
+
+			if (normalizedBarcodes.Count == 0)
+			{
+				return [];
+			}
+
+			return await _context.ProductVariants
+				.Where(v => !v.IsDeleted && normalizedBarcodes.Contains(v.Barcode))
+				.Select(v => new VariantFastLookResponse
+				{
+					Id = v.Id,
+					Barcode = v.Barcode,
+					Sku = v.Sku,
+					DisplayName = $"{v.Product.Name} - {v.VolumeMl}ml {v.Concentration.Name}",
+					Price = v.BasePrice,
+					RetailPrice = v.RetailPrice,
+					StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
+					Media = v.Media
+						.Where(m => !m.IsDeleted && m.IsPrimary)
+						.OrderBy(m => m.DisplayOrder)
+						.Select(m => new MediaResponse
+						{
+							Id = m.Id,
+							Url = m.Url,
+							AltText = m.AltText,
+							IsPrimary = m.IsPrimary,
+							DisplayOrder = m.DisplayOrder,
+							MimeType = m.MimeType,
+							FileSize = m.FileSize
+						})
+						.FirstOrDefault()
+				})
+				.AsNoTracking()
+				.ToListAsync();
+		}
 
 		public async Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId)
 		{
@@ -290,38 +334,61 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var totalCount = await query.CountAsync();
 
-			var items = await query
-				.OrderByDescending(v => v.CreatedAt)
-				.Skip((request.PageNumber - 1) * request.PageSize)
-				.Take(request.PageSize)
-				.Select(v => new VariantPagedItem
-				{
-					Id = v.Id,
-					ProductId = v.ProductId,
-					Barcode = v.Barcode,
-					Sku = v.Sku,
-					VolumeMl = v.VolumeMl,
-					ConcentrationId = v.ConcentrationId,
-					ConcentrationName = v.Concentration.Name,
-					Type = v.Type,
-					BasePrice = v.BasePrice,
-					RetailPrice = v.RetailPrice,
-					Status = v.Status,
-					StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
-					PrimaryImageUrl = v.Media
-						.Where(m => m.IsPrimary && !m.IsDeleted)
-						.Select(m => m.Url).FirstOrDefault(),
-					Attributes = v.ProductAttributes
-						.Select(pa => new ProductAttributeResponse
-						{
-							AttributeId = pa.AttributeId,
-							ValueId = pa.ValueId,
-							Attribute = pa.Attribute.Name,
-							Value = pa.Value.Value
-						}).ToList()
-				})
-				.AsNoTracking()
-				.ToListAsync();
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(ProductVariant.CreatedAt),
+				nameof(ProductVariant.Sku),
+				nameof(ProductVariant.Barcode),
+				nameof(ProductVariant.VolumeMl),
+				nameof(ProductVariant.BasePrice),
+				nameof(ProductVariant.RetailPrice),
+				nameof(ProductVariant.Status)
+			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
+			var sortedQuery = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderByDescending(v => v.CreatedAt);
+
+			var items = await sortedQuery
+				   .Skip((request.PageNumber - 1) * request.PageSize)
+				   .Take(request.PageSize)
+				   .Select(v => new VariantPagedItem
+				   {
+					   Id = v.Id,
+					   ProductId = v.ProductId,
+					   Barcode = v.Barcode,
+					   Sku = v.Sku,
+					   VolumeMl = v.VolumeMl,
+					   ConcentrationId = v.ConcentrationId,
+					   ConcentrationName = v.Concentration.Name,
+					   Type = v.Type,
+					   BasePrice = v.BasePrice,
+					   RetailPrice = v.RetailPrice,
+					   Status = v.Status,
+					   StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
+					   PrimaryImageUrl = v.Media
+						   .Where(m => m.IsPrimary && !m.IsDeleted)
+						   .Select(m => m.Url).FirstOrDefault(),
+					   Attributes = v.ProductAttributes
+						   .Select(pa => new ProductAttributeResponse
+						   {
+							   AttributeId = pa.AttributeId,
+							   ValueId = pa.ValueId,
+							   Attribute = pa.Attribute.Name,
+							   Value = pa.Value.Value
+						   }).ToList()
+				   })
+				   .AsNoTracking()
+				   .ToListAsync();
 
 			return (items, totalCount);
 		}
@@ -337,61 +404,84 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var totalCount = await query.CountAsync();
 
-			var rawItems = await query
-				   .OrderByDescending(v => v.CreatedAt)
-				   .Skip((request.PageNumber - 1) * request.PageSize)
-				   .Take(request.PageSize)
-				  .Select(v => new
-				  {
-					  Variant = new VariantPagedItem
-					  {
-						  Id = v.Id,
-						  ProductId = v.ProductId,
-						  Barcode = v.Barcode,
-						  Sku = v.Sku,
-						  VolumeMl = v.VolumeMl,
-						  ConcentrationId = v.ConcentrationId,
-						  ConcentrationName = v.Concentration.Name,
-						  Type = v.Type,
-						  BasePrice = v.BasePrice,
-						  RetailPrice = v.RetailPrice,
-						  Status = v.Status,
-						  StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
-						  PrimaryImageUrl = v.Media
-							   .Where(m => m.IsPrimary && !m.IsDeleted)
-							   .Select(m => m.Url)
-							   .FirstOrDefault(),
-						  Attributes = v.ProductAttributes
-							   .Select(pa => new ProductAttributeResponse
-							   {
-								   AttributeId = pa.AttributeId,
-								   ValueId = pa.ValueId,
-								   Attribute = pa.Attribute.Name,
-								   Value = pa.Value.Value
-							   })
-							   .ToList()
-					  },
-					  BestPromotion = v.PromotionItems
-						   .Where(pi =>
-							   !pi.IsDeleted &&
-							   pi.CampaignId == campaignId &&
-							   pi.IsActive &&
-							   !pi.Campaign.IsDeleted &&
-							   pi.Campaign.Status == CampaignStatus.Active &&
-							   pi.Campaign.StartDate <= now &&
-							   pi.Campaign.EndDate >= now &&
-							   (!pi.MaxUsage.HasValue || pi.CurrentUsage < pi.MaxUsage.Value))
-						   .Select(pi => new
-						   {
-							   CalculatedDiscountAmount = pi.DiscountType == DiscountType.Percentage
-								   ? (v.BasePrice * pi.DiscountValue / 100m)
-								   : pi.DiscountValue
-						   })
-						   .OrderByDescending(x => x.CalculatedDiscountAmount)
-						   .FirstOrDefault()
-				  })
-				   .AsNoTracking()
-				   .ToListAsync();
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(ProductVariant.CreatedAt),
+				nameof(ProductVariant.Sku),
+				nameof(ProductVariant.Barcode),
+				nameof(ProductVariant.VolumeMl),
+				nameof(ProductVariant.BasePrice),
+				nameof(ProductVariant.RetailPrice),
+				nameof(ProductVariant.Status)
+			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
+			var sortedQuery = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderByDescending(v => v.CreatedAt);
+
+			var rawItems = await sortedQuery
+					 .Skip((request.PageNumber - 1) * request.PageSize)
+					 .Take(request.PageSize)
+					.Select(v => new
+					{
+						Variant = new VariantPagedItem
+						{
+							Id = v.Id,
+							ProductId = v.ProductId,
+							Barcode = v.Barcode,
+							Sku = v.Sku,
+							VolumeMl = v.VolumeMl,
+							ConcentrationId = v.ConcentrationId,
+							ConcentrationName = v.Concentration.Name,
+							Type = v.Type,
+							BasePrice = v.BasePrice,
+							RetailPrice = v.RetailPrice,
+							Status = v.Status,
+							StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
+							PrimaryImageUrl = v.Media
+								 .Where(m => m.IsPrimary && !m.IsDeleted)
+								 .Select(m => m.Url)
+								 .FirstOrDefault(),
+							Attributes = v.ProductAttributes
+								 .Select(pa => new ProductAttributeResponse
+								 {
+									 AttributeId = pa.AttributeId,
+									 ValueId = pa.ValueId,
+									 Attribute = pa.Attribute.Name,
+									 Value = pa.Value.Value
+								 })
+								 .ToList()
+						},
+						BestPromotion = v.PromotionItems
+							 .Where(pi =>
+								 !pi.IsDeleted &&
+								 pi.CampaignId == campaignId &&
+								 pi.IsActive &&
+								 !pi.Campaign.IsDeleted &&
+								 pi.Campaign.Status == CampaignStatus.Active &&
+								 pi.Campaign.StartDate <= now &&
+								 pi.Campaign.EndDate >= now &&
+								 (!pi.MaxUsage.HasValue || pi.CurrentUsage < pi.MaxUsage.Value))
+							 .Select(pi => new
+							 {
+								 CalculatedDiscountAmount = pi.DiscountType == DiscountType.Percentage
+									 ? (v.BasePrice * pi.DiscountValue / 100m)
+									 : pi.DiscountValue
+							 })
+							 .OrderByDescending(x => x.CalculatedDiscountAmount)
+							 .FirstOrDefault()
+					})
+					 .AsNoTracking()
+					 .ToListAsync();
 
 			var items = rawItems
 				.Select(x =>

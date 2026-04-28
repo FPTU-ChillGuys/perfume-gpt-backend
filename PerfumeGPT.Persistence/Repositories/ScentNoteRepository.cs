@@ -25,22 +25,22 @@ namespace PerfumeGPT.Persistence.Repositories
 			.ToListAsync();
 
 		public async Task<List<ScentNoteResponse>> GetAllScentNotesAsync()
-	  => await _context.ScentNotes
-			.Select(x => new ScentNoteResponse
-			{
-				Id = x.Id,
-				Name = x.Name
-			})
-			.ToListAsync();
+		  => await _context.ScentNotes
+				.Select(x => new ScentNoteResponse
+				{
+					Id = x.Id,
+					Name = x.Name
+				})
+				.ToListAsync();
 
 		public async Task<ScentNoteResponse?> GetScentNoteByIdAsync(int id)
-	   => await _context.ScentNotes
-			.Where(x => x.Id == id)
-			.Select(x => new ScentNoteResponse
-			{
-				Id = x.Id,
-				Name = x.Name
-			})
-			.FirstOrDefaultAsync();
+		   => await _context.ScentNotes
+				.Where(x => x.Id == id)
+				.Select(x => new ScentNoteResponse
+				{
+					Id = x.Id,
+					Name = x.Name
+				})
+				.FirstOrDefaultAsync();
 	}
 }

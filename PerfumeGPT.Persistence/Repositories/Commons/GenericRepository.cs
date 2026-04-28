@@ -54,7 +54,7 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			_context.Entry(entity).State = EntityState.Detached;
 		}
 
-		public async Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, bool asNoTracking = false)
+		public async Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, bool asNoTracking = false, bool asSplitQuery = false)
 		{
 			if (predicate is null) throw new ArgumentNullException(nameof(predicate));
 
@@ -66,10 +66,13 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			if (asNoTracking)
 				query = query.AsNoTracking();
 
+			if (asSplitQuery)
+				query = query.AsSplitQuery();
+
 			return await query.FirstOrDefaultAsync(predicate);
 		}
 
-		public async Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>>? filter = null, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null, bool asNoTracking = false)
+		public async Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>>? filter = null, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null, bool asNoTracking = false, bool asSplitQuery = false)
 		{
 			IQueryable<T> query = _dbSet;
 
@@ -85,6 +88,9 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			if (asNoTracking)
 				query = query.AsNoTracking();
 
+			if (asSplitQuery)
+				query = query.AsSplitQuery();
+
 			return await query.ToListAsync();
 		}
 
@@ -95,7 +101,7 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			return found;
 		}
 
-		public async Task<(IEnumerable<T> Items, int TotalCount)> GetPagedAsync(Expression<Func<T, bool>>? filter = null, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null, int pageNumber = 1, int pageSize = 10, bool asNoTracking = false)
+		public async Task<(IEnumerable<T> Items, int TotalCount)> GetPagedAsync(Expression<Func<T, bool>>? filter = null, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null, int pageNumber = 1, int pageSize = 10, bool asNoTracking = false, bool asSplitQuery = false)
 		{
 			IQueryable<T> query = _dbSet;
 
@@ -107,6 +113,9 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 
 			if (asNoTracking)
 				query = query.AsNoTracking();
+
+			if (asSplitQuery)
+				query = query.AsSplitQuery();
 
 			if (orderBy is not null)
 				query = orderBy(query);
@@ -148,7 +157,7 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			return await _context.SaveChangesAsync() > 0;
 		}
 
-		public async Task<T?> SingleOrDefaultAsync(Expression<Func<T, bool>> predicate, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, bool asNoTracking = false)
+		public async Task<T?> SingleOrDefaultAsync(Expression<Func<T, bool>> predicate, Func<IQueryable<T>, IIncludableQueryable<T, object>>? include = null, bool asNoTracking = false, bool asSplitQuery = false)
 		{
 			if (predicate is null) throw new ArgumentNullException(nameof(predicate));
 
@@ -159,6 +168,9 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 
 			if (asNoTracking)
 				query = query.AsNoTracking();
+
+			if (asSplitQuery)
+				query = query.AsSplitQuery();
 
 			return await query.SingleOrDefaultAsync(predicate);
 		}

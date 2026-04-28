@@ -5,6 +5,7 @@ using PerfumeGPT.Application.DTOs.Responses.Imports;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
+using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
 
 namespace PerfumeGPT.Persistence.Repositories
@@ -88,8 +89,26 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var totalCount = await query.CountAsync();
 
-			query = request.SortOrder?.ToLower() == "asc"
-				? query.OrderBy(it => it.ExpectedArrivalDate)
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(ImportTicket.ExpectedArrivalDate),
+				nameof(ImportTicket.ActualImportDate),
+				nameof(ImportTicket.TotalCost),
+				nameof(ImportTicket.Status),
+				nameof(ImportTicket.CreatedAt)
+			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
+			query = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
 				: query.OrderByDescending(it => it.ExpectedArrivalDate);
 
 			var items = await query

@@ -4,6 +4,7 @@ using PerfumeGPT.Application.DTOs.Responses.StockAdjustments;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
+using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
 
 namespace PerfumeGPT.Persistence.Repositories
@@ -81,9 +82,26 @@ namespace PerfumeGPT.Persistence.Repositories
 			// Get total count
 			var totalCount = await query.CountAsync();
 
-			// Apply ordering
-			query = request.SortOrder?.ToLower() == "asc"
-				? query.OrderBy(sa => sa.AdjustmentDate)
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(StockAdjustmentListItem.AdjustmentDate),
+				nameof(StockAdjustmentListItem.CreatedAt),
+				nameof(StockAdjustmentListItem.Status),
+				nameof(StockAdjustmentListItem.Reason),
+				nameof(StockAdjustmentListItem.TotalItems)
+			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
+			query = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
 				: query.OrderByDescending(sa => sa.AdjustmentDate);
 
 			// Apply paging

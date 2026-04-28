@@ -6,6 +6,7 @@ using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Linq.Expressions;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -27,47 +28,60 @@ namespace PerfumeGPT.Persistence.Repositories
 			var expiringSoonDate = now.AddDays(30);
 
 			var query = _context.Batches.AsNoTracking();
+			Expression<Func<Batch, bool>> filter = x => true;
 
 			if (request.VariantId.HasValue)
 			{
-				query = query.Where(b => b.VariantId == request.VariantId.Value);
+				var variantId = request.VariantId.Value;
+				filter = filter.AndAlso(b => b.VariantId == variantId);
 			}
 
 			if (!string.IsNullOrWhiteSpace(request.SearchTerm))
 			{
 				var searchTerm = request.SearchTerm.Trim();
 				var likePattern = $"%{searchTerm}%";
-
-				query = query.Where(b =>
-					EF.Functions.Like(b.BatchCode, likePattern)
-					|| EF.Functions.Like(b.ProductVariant.Sku, likePattern)
-					|| EF.Functions.Like(b.ProductVariant.Product.Name, likePattern));
+				Expression<Func<Batch, bool>> searchFilter = b => false;
+				searchFilter = searchFilter.OrElse(b => EF.Functions.Like(b.BatchCode, likePattern));
+				searchFilter = searchFilter.OrElse(b => EF.Functions.Like(b.ProductVariant.Sku, likePattern));
+				searchFilter = searchFilter.OrElse(b => EF.Functions.Like(b.ProductVariant.Product.Name, likePattern));
+				filter = filter.AndAlso(searchFilter);
 			}
 
 			if (request.IsExpired.HasValue)
 			{
-				query = request.IsExpired.Value
-					? query.Where(b => b.ExpiryDate < now)
-					: query.Where(b => b.ExpiryDate >= now);
+				filter = request.IsExpired.Value
+					? filter.AndAlso(b => b.ExpiryDate < now)
+					: filter.AndAlso(b => b.ExpiryDate >= now);
 			}
 
 			if (request.IsExpiringSoon.HasValue)
 			{
-				query = request.IsExpiringSoon.Value
-					? query.Where(b => b.ExpiryDate >= now && b.ExpiryDate <= expiringSoonDate)
-					: query.Where(b => b.ExpiryDate < now || b.ExpiryDate > expiringSoonDate);
+				filter = request.IsExpiringSoon.Value
+					? filter.AndAlso(b => b.ExpiryDate >= now && b.ExpiryDate <= expiringSoonDate)
+					: filter.AndAlso(b => b.ExpiryDate < now || b.ExpiryDate > expiringSoonDate);
 			}
 
-			if (!string.IsNullOrEmpty(request.SortBy))
+			query = query.Where(filter);
+
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
 			{
-				var descending = request.SortOrder?.ToLower() == "desc";
-				query = query.ApplySorting(request.SortBy, descending);
-			}
-			else
-			{
-				query = query.OrderBy(b => b.ExpiryDate)
-					.ThenByDescending(b => b.CreatedAt);
-			}
+				nameof(Batch.BatchCode),
+				nameof(Batch.ManufactureDate),
+				nameof(Batch.ExpiryDate),
+				nameof(Batch.ImportQuantity),
+				nameof(Batch.RemainingQuantity),
+				nameof(Batch.CreatedAt)
+			};
+			var sortBy = request.SortBy?.Trim();
+			sortBy = !string.IsNullOrWhiteSpace(sortBy)
+				? (sortBy.Length == 1
+					? char.ToUpper(sortBy[0]).ToString()
+					: char.ToUpper(sortBy[0]) + sortBy.Substring(1))
+				: null;
+			var isDescending = string.Equals(request.SortOrder, "desc", StringComparison.OrdinalIgnoreCase);
+			query = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, isDescending)
+				: query.OrderBy(b => b.ExpiryDate).ThenByDescending(b => b.CreatedAt);
 
 			var totalCount = await query.CountAsync();
 
@@ -147,6 +161,28 @@ namespace PerfumeGPT.Persistence.Repositories
 			return await _context.Batches
 				.Where(b => ids.Contains(b.Id))
 				.Include(b => b.ImportDetail)
+				.AsNoTracking()
+				.ToListAsync();
+		}
+
+		public async Task<List<Batch>> GetByVariantAndBatchCodesAsync(IEnumerable<(Guid VariantId, string BatchCode)> keys)
+		{
+			var normalizedKeys = keys
+				.Where(x => x.VariantId != Guid.Empty && !string.IsNullOrWhiteSpace(x.BatchCode))
+				.Select(x => new { x.VariantId, BatchCode = x.BatchCode.Trim() })
+				.Distinct()
+				.ToList();
+
+			if (normalizedKeys.Count == 0)
+			{
+				return [];
+			}
+
+			var variantIds = normalizedKeys.Select(x => x.VariantId).Distinct().ToList();
+			var batchCodes = normalizedKeys.Select(x => x.BatchCode).Distinct().ToList();
+
+			return await _context.Batches
+				.Where(b => variantIds.Contains(b.VariantId) && batchCodes.Contains(b.BatchCode))
 				.AsNoTracking()
 				.ToListAsync();
 		}

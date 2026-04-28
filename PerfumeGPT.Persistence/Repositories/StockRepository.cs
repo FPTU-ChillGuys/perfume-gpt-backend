@@ -78,10 +78,40 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 
 			// Apply sorting
-			if (!string.IsNullOrEmpty(request.SortBy))
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
 			{
-				var descending = request.SortOrder?.ToLower() == "desc";
-				query = query.ApplySorting(request.SortBy, descending);
+				var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+				{
+					nameof(Stock.Status),
+					nameof(Stock.TotalQuantity),
+					nameof(Stock.AvailableQuantity),
+					nameof(Stock.LowStockThreshold),
+					"ProductVariant.Sku",
+					"ProductVariant.VolumeMl",
+					"ProductVariant.Product.Name"
+				};
+
+				var trimmedSortBy = request.SortBy.Trim();
+				var normalizedSortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+
+				if (allowedSortColumns.Contains(normalizedSortBy))
+				{
+					var descending = request.SortOrder?.ToLower() == "desc";
+					query = query.ApplySorting(normalizedSortBy, descending);
+				}
+				else if (request.DaysUntilExpiry.HasValue)
+				{
+					query = query.OrderBy(s => s.ProductVariant.Batches
+						.Where(b => b.ExpiryDate > DateTime.UtcNow)
+						.Min(b => b.ExpiryDate));
+				}
+				else
+				{
+					query = query.OrderBy(s => s.ProductVariant.Product.Name)
+						.ThenBy(s => s.ProductVariant.VolumeMl);
+				}
 			}
 			else if (request.DaysUntilExpiry.HasValue)
 			{

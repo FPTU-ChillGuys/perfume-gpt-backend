@@ -161,8 +161,11 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			if (order.Status != OrderStatus.Preparing)
 				throw AppException.BadRequest($"Đơn hàng phải ở trạng thái đang chuẩn bị. Hiện tại: {order.Status}");
 
-			if (order.Type != OrderType.Online)
-				throw AppException.BadRequest("Chỉ đơn hàng trực tuyến mới có thể được hoàn tất bằng phương thức này.");
+			bool isFulfillable = order.Type == OrderType.Online ||
+								 (order.Type == OrderType.Offline && order.ForwardShippingId != null);
+
+			if (!isFulfillable)
+				throw AppException.BadRequest("Chỉ đơn hàng trực tuyến hoặc đơn tại quầy có giao hàng về nhà mới được phép thao tác đóng gói.");
 
 			return order;
 		}

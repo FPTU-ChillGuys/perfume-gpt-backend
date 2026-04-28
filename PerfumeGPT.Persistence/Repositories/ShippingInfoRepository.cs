@@ -76,8 +76,32 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var totalCount = await query.CountAsync();
 
-			var items = await query
-			 .ApplySorting(request.SortBy ?? nameof(ShippingInfoListItem.ShippedDate), request.IsDescending)
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(ShippingInfoListItem.ShippedDate),
+				nameof(ShippingInfoListItem.LeadTime),
+				nameof(ShippingInfoListItem.CarrierName),
+				nameof(ShippingInfoListItem.TrackingNumber),
+				nameof(ShippingInfoListItem.Type),
+				nameof(ShippingInfoListItem.ShippingFee),
+				nameof(ShippingInfoListItem.Status),
+				nameof(ShippingInfoListItem.OrderId)
+			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
+			var sortedQuery = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderByDescending(si => si.ShippedDate);
+
+         var items = await sortedQuery
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
 				.ToListAsync();

@@ -51,7 +51,29 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 
 			var totalCount = await query.CountAsync();
-			var sortBy = string.IsNullOrWhiteSpace(request.SortBy) ? nameof(CashFlowLedger.TransactionDate) : request.SortBy;
+
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(CashFlowLedger.TransactionDate),
+				nameof(CashFlowLedger.Amount),
+				nameof(CashFlowLedger.FlowType),
+				nameof(CashFlowLedger.Category),
+				nameof(CashFlowLedger.ReferenceId),
+			   nameof(CashFlowLedger.ReferenceCode)
+			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
+			sortBy = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? sortBy
+				: nameof(CashFlowLedger.TransactionDate);
 
 			var items = await query
 				.ApplySorting(sortBy, request.IsDescending)

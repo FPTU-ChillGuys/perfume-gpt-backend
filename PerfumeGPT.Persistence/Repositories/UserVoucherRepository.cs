@@ -104,8 +104,29 @@ namespace PerfumeGPT.Persistence.Repositories
 			// Get total count before pagination
 			var totalCount = await query.CountAsync();
 
+            var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(UserVoucher.CreatedAt),
+				nameof(UserVoucher.Status),
+				"Voucher.Code",
+				"Voucher.DiscountValue",
+				"Voucher.MinOrderValue",
+				"Voucher.ExpiryDate"
+			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
 			// Apply sorting
-			var sortedQuery = query.ApplySorting(request.SortBy, request.IsDescending);
+			var sortedQuery = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderByDescending(uv => uv.CreatedAt);
 
 			// Apply pagination
 			var items = await sortedQuery
@@ -240,8 +261,31 @@ namespace PerfumeGPT.Persistence.Repositories
 				})
 				.AsNoTracking();
 
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			{
+				nameof(AvailableVoucherResponse.Code),
+				nameof(AvailableVoucherResponse.DiscountValue),
+				nameof(AvailableVoucherResponse.MinOrderValue),
+				nameof(AvailableVoucherResponse.ExpiryDate),
+				nameof(AvailableVoucherResponse.RemainingQuantity),
+				nameof(AvailableVoucherResponse.MaxUsagePerUser)
+			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
+			var sortedQuery = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderBy(v => v.ExpiryDate);
+
 			var totalCount = await query.CountAsync();
-			var items = await query
+         var items = await sortedQuery
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
 				.ToListAsync();

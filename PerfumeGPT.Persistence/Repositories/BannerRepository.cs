@@ -5,7 +5,9 @@ using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
+using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Linq.Expressions;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -49,27 +51,54 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<(List<BannerResponse> Items, int TotalCount)> GetPagedBannersAsync(GetPagedBannersRequest request)
 		{
-			IQueryable<Banner> query = _context.Banners
-				.Where(x => (string.IsNullOrWhiteSpace(request.SearchTerm) || x.Title.Contains(request.SearchTerm))
-					&& (!request.Position.HasValue || x.Position == request.Position.Value)
-					&& (!request.IsActive.HasValue || x.IsActive == request.IsActive.Value));
+         Expression<Func<Banner, bool>> filter = x => true;
+
+			if (!string.IsNullOrWhiteSpace(request.SearchTerm))
+			{
+				var searchTerm = request.SearchTerm.Trim();
+				Expression<Func<Banner, bool>> searchFilter = x => x.Title.Contains(searchTerm);
+				filter = filter.AndAlso(searchFilter);
+			}
+
+			if (request.Position.HasValue)
+			{
+				var position = request.Position.Value;
+				Expression<Func<Banner, bool>> positionFilter = x => x.Position == position;
+				filter = filter.AndAlso(positionFilter);
+			}
+
+			if (request.IsActive.HasValue)
+			{
+				var isActive = request.IsActive.Value;
+				Expression<Func<Banner, bool>> activeFilter = x => x.IsActive == isActive;
+				filter = filter.AndAlso(activeFilter);
+			}
+
+			IQueryable<Banner> query = _context.Banners.Where(filter);
 
 			var totalCount = await query.CountAsync();
 
-			var sortedQuery = (request.SortBy?.ToLowerInvariant(), request.IsDescending) switch
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
 			{
-				("title", true) => query.OrderByDescending(x => x.Title),
-				("title", false) => query.OrderBy(x => x.Title),
-				("displayorder", true) => query.OrderByDescending(x => x.DisplayOrder),
-				("displayorder", false) => query.OrderBy(x => x.DisplayOrder),
-				("position", true) => query.OrderByDescending(x => x.Position),
-				("position", false) => query.OrderBy(x => x.Position),
-				("createdat", true) => query.OrderByDescending(x => x.CreatedAt),
-				("createdat", false) => query.OrderBy(x => x.CreatedAt),
-				("updatedat", true) => query.OrderByDescending(x => x.UpdatedAt),
-				("updatedat", false) => query.OrderBy(x => x.UpdatedAt),
-				_ => query.OrderBy(x => x.DisplayOrder).ThenByDescending(x => x.CreatedAt)
+				nameof(Banner.Title),
+				nameof(Banner.DisplayOrder),
+				nameof(Banner.Position),
+				nameof(Banner.CreatedAt),
+				nameof(Banner.UpdatedAt)
 			};
+
+			string? sortBy = null;
+			if (!string.IsNullOrWhiteSpace(request.SortBy))
+			{
+				var trimmedSortBy = request.SortBy.Trim();
+				sortBy = trimmedSortBy.Length == 1
+					? char.ToUpper(trimmedSortBy[0]).ToString()
+					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
+			}
+
+			var sortedQuery = !string.IsNullOrWhiteSpace(sortBy) && allowedSortColumns.Contains(sortBy)
+				? query.ApplySorting(sortBy, request.IsDescending)
+				: query.OrderBy(x => x.DisplayOrder).ThenByDescending(x => x.CreatedAt);
 
 			var items = await sortedQuery
 				.AsNoTracking()
