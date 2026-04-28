@@ -45,5 +45,6 @@
 		IOrderReturnRequestRepository OrderReturnRequests { get; }
 		ISystemPolicyRepository SystemPolicyRepository { get; }
 		IStorePolicyRepository StorePolicies { get; }
+		IUserDeviceTokenRepository UserDeviceTokens { get; }
 	}
 }

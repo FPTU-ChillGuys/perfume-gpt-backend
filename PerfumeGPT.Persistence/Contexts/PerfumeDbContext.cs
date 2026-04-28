@@ -254,6 +254,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		public DbSet<Banner> Banners { get; set; }
 		public DbSet<SystemPolicy> SystemPolicies { get; set; }
 		public DbSet<StorePolicy> StorePolicies { get; set; }
+		public DbSet<UserDeviceToken> UserDeviceTokens { get; set; }
 
 		protected override void OnModelCreating(ModelBuilder builder)
 		{
@@ -880,6 +881,32 @@ namespace PerfumeGPT.Persistence.Contexts
 				.WithOne(v => v.Campaign)
 				.HasForeignKey(v => v.CampaignId)
 				.OnDelete(DeleteBehavior.Cascade);
+
+			builder.Entity<UserDeviceToken>(entity =>
+			{
+
+				// Token là bắt buộc và thường rất dài, nên để MaxLength khoảng 500
+				entity.Property(x => x.Token)
+					.IsRequired()
+					.HasMaxLength(500);
+
+				entity.Property(x => x.DeviceType)
+					.HasMaxLength(50);
+
+				// Thiết lập mối quan hệ 1-N: Một User có nhiều DeviceToken
+				entity.HasOne(x => x.User)
+					.WithMany(u => u.DeviceTokens)
+					.HasForeignKey(x => x.UserId)
+					.OnDelete(DeleteBehavior.Cascade); // Nếu xóa User thì xóa luôn Token
+
+				// TỐI ƯU HIỆU NĂNG & DỮ LIỆU:
+				// 1. Tạo Index cho UserId để truy vấn nhanh khi cần bắn thông báo cho 1 người
+				entity.HasIndex(x => x.UserId);
+
+				// 2. Tạo Unique Index cho Token để đảm bảo một Token không bị lưu trùng lặp
+				entity.HasIndex(x => x.Token)
+					.IsUnique();
+			});
 
 			// E-commerce hot-path indexes (SKU lookup, order filtering, promotion date windows)
 			builder.Entity<ProductVariant>()

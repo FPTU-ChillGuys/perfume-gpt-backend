@@ -65,6 +65,12 @@ namespace PerfumeGPT.Application.Services
 
 			user.EnsureEmailConfirmed();
 
+			await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				await SyncDeviceTokenAsync(user.Id, request.FcmToken, request.DeviceType);
+				return true;
+			});
+
 			var tokenResponse = await GenerateTokenResponseAsync(user);
 			return BaseResponse<TokenResponse>.Ok(tokenResponse);
 		}
@@ -179,6 +185,8 @@ namespace PerfumeGPT.Application.Services
 					user.Id,
 					user.Email ?? string.Empty,
 					user.PhoneNumber ?? string.Empty);
+
+				await SyncDeviceTokenAsync(user.Id, request.FcmToken, request.DeviceType);
 
 				var tokenResponse = await GenerateTokenResponseAsync(user);
 				var message = isNewRegistration ? "Đăng ký và đăng nhập Google thành công" : "Đăng nhập Google thành công";
@@ -302,6 +310,36 @@ namespace PerfumeGPT.Application.Services
 			}
 
 			return new string(arr);
+		}
+
+		private async Task SyncDeviceTokenAsync(Guid userId, string? fcmToken, string? deviceType)
+		{
+			if (string.IsNullOrWhiteSpace(fcmToken)) return;
+
+			// 1. Kiểm tra xem Token này đã tồn tại trong hệ thống chưa
+			// Lưu ý: Token là Unique Index trong Database
+			var existingToken = await _unitOfWork.UserDeviceTokens
+				.FirstOrDefaultAsync(t => t.Token == fcmToken.Trim());
+
+			if (existingToken != null)
+			{
+				// 2. Nếu Token đã tồn tại nhưng thuộc về User khác (người khác đăng nhập trên máy này)
+				// Cập nhật lại UserId mới
+				if (existingToken.UserId != userId)
+				{
+					existingToken.UserId = userId;
+				}
+
+				// Cập nhật thời gian hoạt động mới nhất
+				existingToken.UpdateLastUsed();
+				_unitOfWork.UserDeviceTokens.Update(existingToken);
+			}
+			else
+			{
+				// 3. Nếu là thiết bị mới hoàn toàn, tạo mới bản ghi
+				var newToken = UserDeviceToken.Create(userId, fcmToken, deviceType ?? "Unknown");
+				await _unitOfWork.UserDeviceTokens.AddAsync(newToken);
+			}
 		}
 		#endregion Private Helpers
 	}

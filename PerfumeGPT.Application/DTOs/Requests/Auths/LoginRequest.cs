@@ -4,5 +4,8 @@
 	{
 		public required string Credential { get; init; }
 		public required string Password { get; init; }
+
+		public string? FcmToken { get; init; }
+		public string? DeviceType { get; init; }
 	}
 }

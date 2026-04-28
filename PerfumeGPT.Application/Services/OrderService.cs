@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Requests.GHNs;
+using PerfumeGPT.Application.DTOs.Requests.Notifications;
 using PerfumeGPT.Application.DTOs.Requests.Orders;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.CartItems;
@@ -34,6 +35,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IGHNService _ghnService;
 		private readonly IBackgroundJobService _backgroundJobService;
 		private readonly IRedisPublisherService _redisPublisher;
+		private readonly IFcmNotificationService _fcmNotificationService;
 		private readonly ILogger<OrderService> _logger;
 
 		public OrderService(
@@ -49,7 +51,8 @@ namespace PerfumeGPT.Application.Services
 			IGHNService ghnService,
 			IBackgroundJobService backgroundJobService,
 			IRedisPublisherService redisPublisher,
-			ILogger<OrderService> logger)
+			ILogger<OrderService> logger,
+			IFcmNotificationService fcmNotificationService)
 		{
 			_unitOfWork = unitOfWork;
 			_cartService = cartService;
@@ -64,6 +67,7 @@ namespace PerfumeGPT.Application.Services
 			_backgroundJobService = backgroundJobService;
 			_redisPublisher = redisPublisher;
 			_logger = logger;
+			_fcmNotificationService = fcmNotificationService;
 		}
 		#endregion Dependencies
 
@@ -317,7 +321,7 @@ namespace PerfumeGPT.Application.Services
 				// Publish order_created event to Redis for AI backend (email notification)
 				await _redisPublisher.PublishOrderCreatedAsync(order.Id, userId);
 
-				return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Thanh toán đơn hàng thành công.");
+				return BaseResponse<CreatePaymentResponseDto>.Ok(response, "Tạo đơn hàng thành công.");
 			});
 		}
 
@@ -585,8 +589,12 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<PickListResponse?>.Ok(pickListResponse, $"Đơn hàng đã sẵn sàng để soạn ({orderTypeText}).");
 			});
 
+			// ==========================================
+			// 3. XỬ LÝ GỬI THÔNG BÁO (POST-TRANSACTION)
+			// ==========================================
 			if (customerIdToNotify.HasValue)
 			{
+				// Gửi thông báo In-app (Lưu vào DB Notification)
 				await _notificationService.SendToUserAsync(
 					customerIdToNotify.Value,
 					"Đơn hàng đã được xác nhận",
@@ -594,6 +602,47 @@ namespace PerfumeGPT.Application.Services
 					NotificationType.Info,
 					referenceId: orderId,
 					referenceType: NotifiReferecneType.Order);
+
+				// Lấy danh sách các FCM Token thực tế của khách hàng
+				// Lưu ý: Đảm bảo bạn đã có hàm GetAllAsync hoặc hàm tương tự trong Repository
+				var userDevices = await _unitOfWork.UserDeviceTokens
+					.GetAllAsync(t => t.UserId == customerIdToNotify.Value);
+
+				if (userDevices != null && userDevices.Any())
+				{
+					var deadTokens = new List<UserDeviceToken>();
+
+					foreach (var device in userDevices)
+					{
+						var fcmMessage = new SendPushNotificationRequest
+						{
+							DeviceToken = device.Token, // Truyền đúng Token thay vì UserId
+							Title = "Đơn hàng đã được xác nhận",
+							Body = $"Đơn hàng #{orderId} của bạn đã được xác nhận và đang xử lý.",
+							Data = new Dictionary<string, string>
+							{
+								{ "orderId", orderId.ToString() },
+								{ "type", "OrderStatusUpdate" }
+							}
+						};
+
+						// Bắn thông báo
+						bool isSuccess = await _fcmNotificationService.SendToDeviceAsync(fcmMessage);
+
+						// Nếu thất bại (Lỗi token chết, gỡ app), đánh dấu để xóa
+						if (!isSuccess)
+						{
+							deadTokens.Add(device);
+						}
+					}
+
+					// Dọn rác Database: Xóa các token không còn hợp lệ để tối ưu cho lần sau
+					if (deadTokens.Count != 0)
+					{
+						_unitOfWork.UserDeviceTokens.RemoveRange(deadTokens);
+						await _unitOfWork.SaveChangesAsync();
+					}
+				}
 			}
 
 			return response;

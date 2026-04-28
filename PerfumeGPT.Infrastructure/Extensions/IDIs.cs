@@ -1,3 +1,5 @@
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -193,6 +195,66 @@ namespace PerfumeGPT.Infrastructure.Extensions
 				Console.WriteLine($"[Redis] Could not connect to {redisEndpoint}, using no-op publisher. Reason: {ex.Message}");
 				services.AddSingleton<IRedisPublisherService, NullRedisPublisherService>();
 			}
+
+			// ==========================================
+			// Firebase Admin SDK Configuration
+			// ==========================================
+			try
+			{
+				// Lấy giá trị từ các biến môi trường hoặc file config
+				var firebaseConfigValue = Environment.GetEnvironmentVariable("FIREBASE_JSON_CONTENT")
+									   ?? configuration["Firebase:ServiceAccountKeyPath"]
+									   ?? Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
+
+				if (!string.IsNullOrWhiteSpace(firebaseConfigValue))
+				{
+					firebaseConfigValue = firebaseConfigValue.Trim();
+					string finalJsonData;
+
+					// 1. Nếu chuỗi bắt đầu bằng dấu ngoặc nhọn '{', chứng tỏ nó là chuỗi JSON
+					if (firebaseConfigValue.StartsWith("{"))
+					{
+						finalJsonData = firebaseConfigValue;
+						Console.WriteLine($"[Firebase] Initialized using raw JSON string.{finalJsonData}");
+					}
+					// 2. Nếu không phải JSON, ta kiểm tra xem nó có phải đường dẫn file vật lý không
+					else if (File.Exists(firebaseConfigValue))
+					{
+						finalJsonData = File.ReadAllText(firebaseConfigValue);
+						Console.WriteLine($"[Firebase] Initialized by reading JSON file at: {firebaseConfigValue}");
+					}
+					else
+					{
+						// Văng lỗi rõ ràng để bạn dễ debug thay vì ném vào thư viện của Google
+						throw new Exception($"Cấu hình Firebase không hợp lệ! Không phải JSON, cũng không tìm thấy file tại đường dẫn: {firebaseConfigValue}");
+					}
+
+					// Tắt cảnh báo CS0618 và khởi tạo Firebase
+#pragma warning disable CS0618
+					FirebaseApp.Create(new AppOptions()
+					{
+						Credential = GoogleCredential.FromJson(finalJsonData)
+					});
+#pragma warning restore CS0618
+				}
+				else
+				{
+					// Fallback về cơ chế tự động (ADC) của Google Cloud
+					FirebaseApp.Create();
+					Console.WriteLine("[Firebase] Initialized using Application Default Credentials (ADC).");
+				}
+			}
+			catch (ArgumentException)
+			{
+				Console.WriteLine("[Firebase] Default app is already initialized (Hot Reloaded).");
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"[Firebase] Initialization failed: {ex.Message}");
+			}
+
+			// Đăng ký Service
+			services.AddScoped<IFcmNotificationService, FcmNotificationService>();
 		}
 
 		public static void AddIdentityServices(this IServiceCollection services, IConfiguration configuration)

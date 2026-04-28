@@ -33,6 +33,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<OrderReturnRequest> CustomerReturnRequests { get; set; } = [];
 		public virtual ICollection<OrderReturnRequest> ProcessedReturnRequests { get; set; } = [];
 		public virtual ICollection<OrderReturnRequest> InspectedReturnRequests { get; set; } = [];
+		public virtual ICollection<UserDeviceToken> DeviceTokens { get; set; } = [];
 
 		// IHasTimestamps implementation
 		public DateTime CreatedAt { get; set; }
