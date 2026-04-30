@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Logging;
+using PerfumeGPT.Application.DTOs.Requests.GHNs;
+using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.Interfaces.ThirdParties.BackgroundJobs;
+using PerfumeGPT.Domain.Enums;
 using System.Linq.Expressions;
 
 namespace PerfumeGPT.Application.Extensions
@@ -15,6 +18,21 @@ namespace PerfumeGPT.Application.Extensions
 				  x => x.SendInvoiceEmailIfNeededAsync(orderId),
 				  "Unable to enqueue invoice email for order {OrderId}.",
 				  orderId);
+		}
+
+		public static bool EnqueueEmail(
+			this IBackgroundJobService backgroundJobService,
+			ILogger logger,
+			string to,
+			string subject,
+			string htmlBody)
+		{
+			return TryEnqueue<IEmailService>(
+				backgroundJobService,
+				logger,
+				x => x.SendEmailAsync(to, subject, htmlBody),
+				"Unable to enqueue email sending for recipient {Recipient}.",
+				to);
 		}
 
 		public static bool ScheduleCampaignEnd(this IBackgroundJobService backgroundJobService, ILogger logger, Guid campaignId, DateTime endDate)
@@ -84,6 +102,138 @@ namespace PerfumeGPT.Application.Extensions
 				scheduleAt,
 				"Unable to schedule loyalty point grant job for order {OrderId}.",
 				orderId);
+		}
+
+		public static bool EnqueueOnlineOrderStaffNotification(
+			this IBackgroundJobService backgroundJobService,
+			ILogger logger,
+			Guid orderId,
+			decimal totalAmount)
+		{
+			return TryEnqueue<INotificationService>(
+				backgroundJobService,
+				logger,
+				x => x.SendToRoleAsync(
+					UserRole.staff,
+					"Đơn hàng online mới",
+					$"Có đơn hàng Online #{orderId} cần đóng gói. Tổng tiền: {totalAmount:N0}.",
+					NotificationType.Info,
+					orderId,
+					NotifiReferecneType.Order,
+					null),
+				"Unable to enqueue staff notification for online order {OrderId}.",
+				orderId);
+		}
+
+		public static bool EnqueueOrderCreatedRedisEvent(
+			this IBackgroundJobService backgroundJobService,
+			ILogger logger,
+			Guid orderId,
+			Guid userId)
+		{
+			return TryEnqueue<IRedisPublisherService>(
+				backgroundJobService,
+				logger,
+				x => x.PublishOrderCreatedAsync(orderId, userId),
+				"Unable to enqueue order_created redis event for order {OrderId}.",
+				orderId);
+		}
+
+		public static bool EnqueueReviewCreatedRedisEvent(
+			this IBackgroundJobService backgroundJobService,
+			ILogger logger,
+			Guid variantId)
+		{
+			return TryEnqueue<IRedisPublisherService>(
+				backgroundJobService,
+				logger,
+				x => x.PublishReviewCreatedAsync(variantId),
+				"Unable to enqueue review_created redis event for variant {VariantId}.",
+				variantId);
+		}
+
+		public static bool EnqueueOrderPreparingNotification(
+			this IBackgroundJobService backgroundJobService,
+			ILogger logger,
+			Guid orderId,
+			Guid customerId)
+		{
+			return TryEnqueue<ICustomerNotificationAppService>(
+				backgroundJobService,
+				logger,
+				x => x.NotifyOrderPreparingAsync(orderId, customerId),
+				"Unable to enqueue preparing notification for order {OrderId}.",
+				orderId);
+		}
+
+		public static bool EnqueueRoleNotification(
+			this IBackgroundJobService backgroundJobService,
+			ILogger logger,
+			UserRole role,
+			string title,
+			string message,
+			NotificationType type = NotificationType.Info,
+			Guid? referenceId = null,
+			NotifiReferecneType? referenceType = null)
+		{
+			return TryEnqueue<INotificationService>(
+				backgroundJobService,
+				logger,
+				x => x.SendToRoleAsync(role, title, message, type, referenceId, referenceType, null),
+				"Unable to enqueue role notification for role {Role}.",
+				role);
+		}
+
+		public static bool EnqueueCustomerNotificationWithFcm(
+			this IBackgroundJobService backgroundJobService,
+			ILogger logger,
+			Guid customerId,
+			string title,
+			string message,
+			NotificationType type = NotificationType.Info,
+			Guid? referenceId = null,
+			NotifiReferecneType? referenceType = null)
+		{
+			return TryEnqueue<ICustomerNotificationAppService>(
+				backgroundJobService,
+				logger,
+				x => x.NotifyCustomerWithFcmAsync(customerId, title, message, type, referenceId, referenceType),
+				"Unable to enqueue customer notification with FCM for customer {CustomerId}.",
+				customerId);
+		}
+
+		public static bool EnqueueStaffNotificationWithFcm(
+			this IBackgroundJobService backgroundJobService,
+			ILogger logger,
+			Guid staffId,
+			string title,
+			string message,
+			NotificationType type = NotificationType.Info,
+			Guid? referenceId = null,
+			NotifiReferecneType? referenceType = null)
+		{
+			return TryEnqueue<ICustomerNotificationAppService>(
+				backgroundJobService,
+				logger,
+				x => x.NotifyCustomerWithFcmAsync(staffId, title, message, type, referenceId, referenceType),
+				"Unable to enqueue staff notification with FCM for staff {StaffId}.",
+				staffId);
+		}
+
+		public static bool EnqueueCancelShippingOrder(
+			this IBackgroundJobService backgroundJobService,
+			ILogger logger,
+			string trackingNumber)
+		{
+			return TryEnqueue<IGHNService>(
+				backgroundJobService,
+				logger,
+				x => x.CancelOrderAsync(new CancelOrderRequest
+				{
+					TrackingNumbers = new List<string> { trackingNumber }
+				}),
+				"Unable to enqueue GHN cancel order for tracking number {TrackingNumber}.",
+				trackingNumber);
 		}
 
 		private static bool TryEnqueue<TJob>(

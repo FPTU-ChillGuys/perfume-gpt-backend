@@ -1,11 +1,12 @@
 using Microsoft.AspNetCore.Http;
-using PerfumeGPT.Application.DTOs.Requests.GHNs;
+using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.DTOs.Requests.Momos;
 using PerfumeGPT.Application.DTOs.Requests.OrderCancelRequests;
 using PerfumeGPT.Application.DTOs.Requests.VNPays;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.OrderCancelRequests;
 using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
@@ -23,8 +24,8 @@ namespace PerfumeGPT.Application.Services
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IVoucherService _voucherService;
-		private readonly IGHNService _ghnService;
-		private readonly INotificationService _notificationService;
+		private readonly IBackgroundJobService _backgroundJobService;
+		private readonly ILogger<OrderCancelRequestService> _logger;
 
 		public OrderCancelRequestService(
 			IUnitOfWork unitOfWork,
@@ -33,8 +34,8 @@ namespace PerfumeGPT.Application.Services
 			IHttpContextAccessor httpContextAccessor,
 			IStockReservationService stockReservationService,
 			IVoucherService voucherService,
-			IGHNService ghnService,
-			INotificationService notificationService)
+			IBackgroundJobService backgroundJobService,
+			ILogger<OrderCancelRequestService> logger)
 		{
 			_unitOfWork = unitOfWork;
 			_vnPayService = vnPayService;
@@ -42,8 +43,8 @@ namespace PerfumeGPT.Application.Services
 			_httpContextAccessor = httpContextAccessor;
 			_stockReservationService = stockReservationService;
 			_voucherService = voucherService;
-			_ghnService = ghnService;
-			_notificationService = notificationService;
+			_backgroundJobService = backgroundJobService;
+			_logger = logger;
 		}
 		#endregion Dependencies
 
@@ -107,8 +108,11 @@ namespace PerfumeGPT.Application.Services
 			return new string('*', accountNumber.Length - 4) + accountNumber[^4..];
 		}
 
-		public async Task<BaseResponse<string>> ProcessRequestAsync(Guid requestId, Guid processedBy, string userRole, ProcessCancelRequest request)
+		public async Task<BaseResponse<string>> ProcessRefundAsync(Guid requestId, Guid processedBy, string userRole, ProcessCancelRequest request)
 		{
+			// =========================================================
+			// 0. LẤY DỮ LIỆU VÀ KIỂM TRA ĐIỀU KIỆN BAN ĐẦU
+			// =========================================================
 			var cancelRequest = await _unitOfWork.OrderCancelRequests.GetByIdAsync(requestId)
 				?? throw AppException.NotFound("Không tìm thấy yêu cầu hủy đơn.");
 
@@ -116,191 +120,180 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest("Yêu cầu này đã được xử lý trước đó.");
 
 			if (cancelRequest.IsRefundRequired && userRole != UserRole.admin.ToString())
-			{
 				throw AppException.Forbidden("Chỉ Quản trị viên mới có thể duyệt yêu cầu hủy đơn có hoàn tiền.");
-			}
-
-			string? refundTransactionNo = null;
-			string? refundMessage = null;
-			PaymentTransaction? originalPayment = null;
-			decimal? finalRefundAmount = null;
 
 			var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
 			  ?? throw AppException.NotFound("Không tìm thấy đơn hàng liên quan.");
 
-			if (request.IsApproved)
+			PaymentTransaction? originalPayment = null;
+			PaymentTransaction? pendingRefundPayment = null;
+			decimal? finalRefundAmount = null;
+			bool isRefundSuccess = false;
+			string? refundTransactionNo = null;
+			string? refundMessage = null;
+
+			// =========================================================
+			// 1. CHUẨN BỊ LOGIC HOÀN TIỀN VÀ PHASE 1 (GHI NHẬN Ý ĐỊNH)
+			// =========================================================
+			if (request.IsApproved && cancelRequest.IsRefundRequired)
 			{
-				if (cancelRequest.IsRefundRequired)
+				var refundMethod = request.RefundMethod
+					   ?? throw AppException.BadRequest("Bắt buộc chọn phương thức hoàn tiền khi cần hoàn tiền.");
+
+				var successfulOnlinePayments = (await _unitOfWork.Payments.GetAllAsync(
+					p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Success))
+					.OrderByDescending(p => p.CreatedAt).ToList();
+
+				if (refundMethod == PaymentMethod.ExternalBankTransfer || refundMethod == PaymentMethod.CashInStore)
 				{
-					var refundMethod = request.RefundMethod
-						   ?? throw AppException.BadRequest("Bắt buộc chọn phương thức hoàn tiền khi cần hoàn tiền.");
-
-					var successfulOnlinePayments = (await _unitOfWork.Payments.GetAllAsync(
-						p => p.OrderId == order.Id && p.TransactionStatus == TransactionStatus.Success))
-						.OrderByDescending(p => p.CreatedAt).ToList();
-
-					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod) ?? throw AppException.NotFound($"Không tìm thấy giao dịch {refundMethod} thành công cho đơn hàng này.");
-
-					var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext hiện không khả dụng.");
-					var refundAmount = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
-					var isRefundSuccess = false;
-
-					switch (refundMethod)
-					{
-						case PaymentMethod.VnPay:
-							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod)
-						  ?? throw AppException.NotFound($"Không tìm thấy giao dịch {refundMethod} thành công cho đơn hàng này.");
-
-							var refundAmountVnPay = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
-							var vnPayResponse = await _vnPayService.RefundAsync(context, new VnPayRefundRequest
-							{
-								OrderId = order.Id,
-								Amount = refundAmountVnPay,
-								PaymentId = originalPayment.Id,
-								TransactionType = refundAmountVnPay == originalPayment.Amount ? "02" : "03",
-								TransactionNo = originalPayment.GatewayTransactionNo,
-								CreateBy = processedBy.ToString(),
-								OrderInfo = $"Hoàn tiền cho đơn hàng {order.Code}",
-								TransactionDate = originalPayment.CreatedAt.ToString("yyyyMMddHHmmss")
-							});
-
-							isRefundSuccess = vnPayResponse.IsSuccess;
-							refundMessage = vnPayResponse.Message;
-							refundTransactionNo = vnPayResponse.TransactionNo;
-							break;
-
-						case PaymentMethod.Momo:
-							originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod)
-						  ?? throw AppException.NotFound($"Không tìm thấy giao dịch {refundMethod} thành công cho đơn hàng này.");
-
-							var refundAmountMomo = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
-							var momoResponse = await _momoService.RefundAsync(context, new MomoRefundRequest
-							{
-								OrderId = order.Id,
-								OrderCode = order.Code,
-								Amount = refundAmountMomo,
-								PaymentId = originalPayment.Id,
-								TransactionNo = originalPayment.GatewayTransactionNo,
-								Description = $"Hoàn tiền cho đơn hàng {order.Code}"
-							});
-
-							isRefundSuccess = momoResponse.IsSuccess;
-							refundMessage = momoResponse.Message;
-							refundTransactionNo = momoResponse.TransactionNo;
-							break;
-
-						case PaymentMethod.ExternalBankTransfer:
-						case PaymentMethod.CashInStore:
-							originalPayment = successfulOnlinePayments.FirstOrDefault()
-							   ?? throw AppException.NotFound("Không tìm thấy giao dịch thanh toán thành công của đơn hàng để đối chiếu hoàn tiền thủ công.");
-
-							if (string.IsNullOrWhiteSpace(request.ManualTransactionReference))
-								throw AppException.BadRequest("Bắt buộc nhập mã tham chiếu giao dịch thủ công cho hoàn tiền chuyển khoản.");
-
-							isRefundSuccess = true;
-							refundMessage = request.StaffNote ?? "Đã ghi nhận hoàn tiền thủ công bởi Quản trị viên.";
-							refundTransactionNo = request.ManualTransactionReference.Trim();
-							break;
-
-						default:
-							throw AppException.BadRequest($"Không hỗ trợ hoàn tiền cho phương thức thanh toán {refundMethod}.");
-					}
-
-					finalRefundAmount = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
-
-					if (!isRefundSuccess)
-					{
-						var failedRefund = PaymentTransaction.CreateRefund(
-							orderId: order.Id,
-							originalPaymentId: originalPayment.Id,
-						   method: refundMethod,
-						 refundAmount: finalRefundAmount.Value
-						);
-
-						failedRefund.MarkFailed(
-							reason: refundMessage,
-							gatewayTransactionNo: refundTransactionNo
-						);
-
-						await _unitOfWork.Payments.AddAsync(failedRefund);
-						await _unitOfWork.SaveChangesAsync();
-
-						throw AppException.BadRequest($"Hoàn tiền qua {refundMethod} thất bại. Đã hủy xử lý yêu cầu hủy đơn. Lý do: {refundMessage}");
-					}
+					originalPayment = successfulOnlinePayments.FirstOrDefault()
+						?? throw AppException.NotFound("Không tìm thấy giao dịch thanh toán thành công của đơn hàng để đối chiếu hoàn tiền thủ công.");
+				}
+				else
+				{
+					originalPayment = successfulOnlinePayments.FirstOrDefault(p => p.Method == refundMethod)
+						?? throw AppException.NotFound($"Không tìm thấy giao dịch {refundMethod} thành công cho đơn hàng này.");
 				}
 
-				if (!string.IsNullOrWhiteSpace(order.ForwardShipping?.TrackingNumber))
+				finalRefundAmount = ResolveRefundAmount(cancelRequest, order, originalPayment.Amount);
+
+				// PHASE 1: Ghi nhận giao dịch hoàn tiền vào DB với trạng thái Pending
+				await _unitOfWork.ExecuteInTransactionAsync(async () =>
 				{
-					try
-					{
-						await _ghnService.CancelOrderAsync(new CancelOrderRequest
+					pendingRefundPayment = PaymentTransaction.CreateRefund(
+						orderId: order.Id,
+						originalPaymentId: originalPayment.Id,
+						method: refundMethod,
+						refundAmount: finalRefundAmount.Value
+					);
+
+					await _unitOfWork.Payments.AddAsync(pendingRefundPayment);
+					return true;
+				});
+
+				// =========================================================
+				// 2. PHASE 2: GỌI 3RD PARTY (NGOÀI TRANSACTION)
+				// =========================================================
+				var context = _httpContextAccessor.HttpContext ?? throw AppException.Internal("HttpContext hiện không khả dụng.");
+
+				switch (refundMethod)
+				{
+					case PaymentMethod.VnPay:
+						var vnPayResponse = await _vnPayService.RefundAsync(context, new VnPayRefundRequest
 						{
-							TrackingNumbers = [order.ForwardShipping.TrackingNumber]
+							OrderId = order.Id,
+							Amount = finalRefundAmount.Value,
+							PaymentId = originalPayment.Id,
+							TransactionType = finalRefundAmount.Value == originalPayment.Amount ? "02" : "03",
+							TransactionNo = originalPayment.GatewayTransactionNo,
+							CreateBy = processedBy.ToString(),
+							OrderInfo = $"Hoàn tiền cho đơn hàng {order.Code}",
+							TransactionDate = originalPayment.CreatedAt.ToString("yyyyMMddHHmmss")
 						});
-					}
-					catch (Exception ex)
+						isRefundSuccess = vnPayResponse.IsSuccess;
+						refundMessage = vnPayResponse.Message;
+						refundTransactionNo = vnPayResponse.TransactionNo;
+						break;
+
+					case PaymentMethod.Momo:
+						var momoResponse = await _momoService.RefundAsync(context, new MomoRefundRequest
+						{
+							OrderId = order.Id,
+							OrderCode = order.Code,
+							Amount = finalRefundAmount.Value,
+							PaymentId = originalPayment.Id,
+							TransactionNo = originalPayment.GatewayTransactionNo,
+							Description = $"Hoàn tiền cho đơn hàng {order.Code}"
+						});
+						isRefundSuccess = momoResponse.IsSuccess;
+						refundMessage = momoResponse.Message;
+						refundTransactionNo = momoResponse.TransactionNo;
+						break;
+
+					case PaymentMethod.ExternalBankTransfer:
+					case PaymentMethod.CashInStore:
+						if (string.IsNullOrWhiteSpace(request.ManualTransactionReference))
+							throw AppException.BadRequest("Bắt buộc nhập mã tham chiếu giao dịch thủ công cho hoàn tiền chuyển khoản.");
+
+						isRefundSuccess = true;
+						refundMessage = request.StaffNote ?? "Đã ghi nhận hoàn tiền thủ công bởi Quản trị viên.";
+						refundTransactionNo = request.ManualTransactionReference.Trim();
+						break;
+
+					default:
+						throw AppException.BadRequest($"Không hỗ trợ hoàn tiền cho phương thức thanh toán {refundMethod}.");
+				}
+
+				// PHASE LỖI: NẾU GỌI API LỖI, CẬP NHẬT GIAO DỊCH THÀNH FAILED VÀ CHẶN LUỒNG
+				if (!isRefundSuccess && pendingRefundPayment != null)
+				{
+					await _unitOfWork.ExecuteInTransactionAsync(async () =>
 					{
-						throw AppException.BadRequest($"Hủy đơn vận chuyển trên GHN thất bại: {ex.Message}");
-					}
+						pendingRefundPayment.MarkFailed(reason: refundMessage, gatewayTransactionNo: refundTransactionNo);
+						_unitOfWork.Payments.Update(pendingRefundPayment);
+						return true;
+					});
+					throw AppException.BadRequest($"Hoàn tiền qua {refundMethod} thất bại. Đã hủy xử lý yêu cầu hủy đơn. Lý do: {refundMessage}");
 				}
 			}
 
+			// =========================================================
+			// 3. PHASE 3: CHỐT KẾT QUẢ VÀ CẬP NHẬT TRẠNG THÁI ORDER (TRANSACTION 2)
+			// =========================================================
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			  {
-				  var freshCancelReq = await _unitOfWork.OrderCancelRequests.GetByIdAsync(requestId)
-					 ?? throw AppException.NotFound("Không tìm thấy yêu cầu hủy đơn trong phiên giao dịch.");
+			{
+				// Duyệt / Từ chối Cancel Request
+				cancelRequest.Process(processedBy, request.IsApproved, request.StaffNote);
 
-				  var freshOrder = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
-				   ?? throw AppException.NotFound("Không tìm thấy đơn hàng liên quan trong phiên giao dịch.");
+				if (request.IsApproved)
+				{
+					if (cancelRequest.IsRefundRequired && pendingRefundPayment != null)
+					{
+						pendingRefundPayment.MarkSuccess(refundTransactionNo);
+						_unitOfWork.Payments.Update(pendingRefundPayment);
 
-				  freshCancelReq.Process(processedBy, request.IsApproved, request.StaffNote);
+						cancelRequest.MarkRefunded(refundTransactionNo);
+						order.MarkRefunded();
+					}
 
-				  if (request.IsApproved)
-				  {
-					  if (freshCancelReq.IsRefundRequired && originalPayment != null)
-					  {
-						  freshCancelReq.MarkRefunded(refundTransactionNo);
-						  freshOrder.MarkRefunded();
+					// Hủy Order và Giao vận
+					order.SetStatus(OrderStatus.Cancelled);
+					_unitOfWork.Orders.Update(order);
 
-						  var refundPayment = PaymentTransaction.CreateRefund(
-							  orderId: freshOrder.Id,
-							  originalPaymentId: originalPayment.Id,
-							  method: originalPayment.Method,
-							  refundAmount: finalRefundAmount ?? ResolveRefundAmount(freshCancelReq, freshOrder, originalPayment.Amount)
-						  );
+					if (order.ForwardShipping != null)
+					{
+						order.ForwardShipping.Cancel();
+						_unitOfWork.ShippingInfos.Update(order.ForwardShipping);
+					}
 
-						  refundPayment.MarkSuccess(refundTransactionNo);
+					// Nhả tồn kho & Hoàn Voucher
+					await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(order.Id);
 
-						  await _unitOfWork.Payments.AddAsync(refundPayment);
-					  }
+					if (order.UserVoucherId.HasValue)
+						await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
+				}
 
-					  freshOrder.SetStatus(OrderStatus.Cancelled);
-					  _unitOfWork.Orders.Update(freshOrder);
+				_unitOfWork.OrderCancelRequests.Update(cancelRequest);
 
-					  if (freshOrder.ForwardShipping != null)
-					  {
-						  freshOrder.ForwardShipping.Cancel();
-						  _unitOfWork.ShippingInfos.Update(freshOrder.ForwardShipping);
-					  }
+				return BaseResponse<string>.Ok(request.IsApproved ? "Yêu cầu hủy đơn đã được chấp thuận và xử lý." : "Yêu cầu hủy đơn đã bị từ chối.");
+			});
 
-					  await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(freshOrder.Id);
+			// =========================================================
+			// 4. BACKGROUND JOBS BÊN NGOÀI TRANSACTION
+			// =========================================================
+			if (request.IsApproved && !string.IsNullOrWhiteSpace(order.ForwardShipping?.TrackingNumber))
+			{
+				_backgroundJobService.EnqueueCancelShippingOrder(_logger, order.ForwardShipping.TrackingNumber);
+			}
 
-					  if (freshOrder.UserVoucherId.HasValue)
-						  await _voucherService.RefundVoucherForCancelledOrderAsync(freshOrder.Id);
-				  }
-
-				  _unitOfWork.OrderCancelRequests.Update(freshCancelReq);
-
-				  return BaseResponse<string>.Ok(request.IsApproved ? "Yêu cầu hủy đơn đã được chấp thuận và xử lý." : "Yêu cầu hủy đơn đã bị từ chối.");
-			  });
-
-			await _notificationService.SendToUserAsync(
+			_backgroundJobService.EnqueueCustomerNotificationWithFcm(
+				_logger,
 				cancelRequest.RequestedById,
 				"Kết quả yêu cầu hủy đơn",
 				$"Yêu cầu hủy đơn #{cancelRequest.OrderId} của bạn đã được {(request.IsApproved ? "chấp thuận" : "từ chối")}.",
 				request.IsApproved ? NotificationType.Success : NotificationType.Warning,
-				referenceId: cancelRequest.Id,
-				referenceType: NotifiReferecneType.OrderCancelRequest);
+				cancelRequest.Id,
+				NotifiReferecneType.OrderCancelRequest);
 
 			return response;
 		}

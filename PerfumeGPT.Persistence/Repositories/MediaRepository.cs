@@ -29,10 +29,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.WhereEntityNotDeleted(entityType, entityId)
 				.ToListAsync();
 
-			foreach (var media in mediaItems)
-			{
-				_context.Media.Remove(media);
-			}
+			RemoveRange(mediaItems);
 
 			return mediaItems.Count;
 		}

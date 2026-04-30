@@ -20,16 +20,15 @@ namespace PerfumeGPT.Application.Services
 		}
 		#endregion Dependencies
 
-
-
 		public async Task<BaseResponse<string>> AddToCartAsync(Guid userId, CreateCartItemRequest request)
 		{
-			var variant = await _unitOfWork.Variants.GetByIdAsync(request.VariantId) ?? throw AppException.NotFound("Không tìm thấy biến thể sản phẩm");
-
-			variant.EnsureAvailableForCart();
+			var variant = await _unitOfWork.Variants.GetByIdAsync(request.VariantId)
+				?? throw AppException.NotFound("Không tìm thấy biến thể sản phẩm");
 
 			var existing = await _unitOfWork.CartItems.FirstOrDefaultAsync(
 				ci => ci.UserId == userId && ci.VariantId == request.VariantId);
+
+			variant.EnsureAvailableForCart();
 
 			var totalQuantity = existing != null ? existing.Quantity + request.Quantity : request.Quantity;
 
@@ -43,24 +42,21 @@ namespace PerfumeGPT.Application.Services
 			{
 				existing.SetQuantity(totalQuantity);
 				_unitOfWork.CartItems.Update(existing);
-				var updated = await _unitOfWork.SaveChangesAsync();
 
-				if (!updated)
-				{
-					throw AppException.Internal("Không thể cập nhật sản phẩm trong giỏ hàng");
-				}
-
+				await _unitOfWork.SaveChangesAsync();
 				return BaseResponse<string>.Ok(existing.Id.ToString(), "Cập nhật số lượng sản phẩm trong giỏ hàng thành công");
 			}
 
 			var cartItem = CartItem.Create(userId, request.VariantId, request.Quantity);
-
 			await _unitOfWork.CartItems.AddAsync(cartItem);
-			var saved = await _unitOfWork.SaveChangesAsync();
 
-			if (!saved)
+			try
 			{
-				throw AppException.Internal("Không thể thêm sản phẩm vào giỏ hàng");
+				await _unitOfWork.SaveChangesAsync();
+			}
+			catch (Exception ex) when (ex.InnerException?.Message.Contains("UNIQUE") == true || ex.InnerException?.Message.Contains("Duplicate") == true)
+			{
+				throw AppException.Conflict("Sản phẩm đã được thêm vào giỏ hàng bởi một yêu cầu khác. Vui lòng tải lại trang.");
 			}
 
 			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Thêm sản phẩm vào giỏ hàng thành công");
@@ -69,33 +65,25 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<string>> RemoveFromCartAsync(Guid userId, Guid cartItemId)
 		{
 			var cartItem = await _unitOfWork.CartItems.GetByIdAsync(cartItemId) ?? throw AppException.NotFound("Không tìm thấy sản phẩm trong giỏ hàng");
+
 			if (!cartItem.IsOwnedBy(userId))
 				throw AppException.Forbidden("Sản phẩm trong giỏ hàng không thuộc về người dùng");
 
 			_unitOfWork.CartItems.Remove(cartItem);
-			var saved = await _unitOfWork.SaveChangesAsync();
-
-			if (!saved)
-			{
-				throw AppException.Internal("Không thể xóa sản phẩm khỏi giỏ hàng");
-			}
+			await _unitOfWork.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Xóa sản phẩm khỏi giỏ hàng thành công");
 		}
 
 		public async Task<BaseResponse<string>> UpdateCartItemAsync(Guid userId, Guid cartItemId, UpdateCartItemRequest request)
 		{
-			var cartItem = await _unitOfWork.CartItems.FirstOrDefaultAsync(
-					ci => ci.Id == cartItemId && ci.UserId == userId) ?? throw AppException.NotFound("Không tìm thấy sản phẩm trong giỏ hàng");
+			var cartItem = await _unitOfWork.CartItems.FirstOrDefaultAsync(ci => ci.Id == cartItemId && ci.UserId == userId)
+				?? throw AppException.NotFound("Không tìm thấy sản phẩm trong giỏ hàng");
 
 			if (request.Quantity <= 0)
 			{
 				_unitOfWork.CartItems.Remove(cartItem);
-				var removed = await _unitOfWork.SaveChangesAsync();
-
-				if (!removed)
-					throw AppException.Internal("Không thể xóa sản phẩm trong giỏ hàng");
-
+				await _unitOfWork.SaveChangesAsync();
 				return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Xóa sản phẩm khỏi giỏ hàng thành công");
 			}
 
@@ -108,11 +96,7 @@ namespace PerfumeGPT.Application.Services
 			cartItem.SetQuantity(request.Quantity);
 			_unitOfWork.CartItems.Update(cartItem);
 
-			var saved = await _unitOfWork.SaveChangesAsync();
-			if (!saved)
-			{
-				throw AppException.Internal("Không thể cập nhật sản phẩm trong giỏ hàng");
-			}
+			await _unitOfWork.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Cập nhật sản phẩm trong giỏ hàng thành công");
 		}

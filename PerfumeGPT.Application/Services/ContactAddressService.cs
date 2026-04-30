@@ -27,8 +27,7 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<ContactAddressInformation> ResolveContactAddressDataAsync(ContactAddressInformation? contactAddressInfo, Guid? savedAddressId, Guid? customerId)
 		{
-			// If request includes AddressId -> must have customerId and we load saved address
-			if (savedAddressId.HasValue == true)
+			if (savedAddressId.HasValue)
 			{
 				if (!customerId.HasValue)
 					throw AppException.BadRequest("Bắt buộc có Customer ID khi dùng địa chỉ đã lưu.");
@@ -39,7 +38,6 @@ namespace PerfumeGPT.Application.Services
 					: _mapper.Map<ContactAddressInformation>(savedAddress);
 			}
 
-			// If request provided without AddressId -> validate and use it
 			if (contactAddressInfo != null)
 			{
 				var validationResult = await _validator.ValidateAsync(contactAddressInfo);
@@ -52,7 +50,6 @@ namespace PerfumeGPT.Application.Services
 				return contactAddressInfo;
 			}
 
-			// Try customer's default address if available
 			if (customerId.HasValue)
 			{
 				var customerAddress = await _unitOfWork.Addresses.GetDefaultAddressAsync(customerId.Value)
@@ -62,7 +59,6 @@ namespace PerfumeGPT.Application.Services
 				return response;
 			}
 
-			// Nothing provided
 			throw AppException.BadRequest("Cần cung cấp thông tin địa chỉ liên hệ hoặc Customer ID.");
 		}
 

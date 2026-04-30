@@ -37,9 +37,17 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		public async Task<CreatePaymentResponseDto> CreatePaymentAndGenerateResponseAsync(Order order, PaymentMethod paymentMethod, string? posSessionId)
 		{
 			var amount = ResolvePaymentAmount(order);
-			var payment = PaymentTransaction.Create(order.Id, paymentMethod, amount);
+			var existingPendingPayments = await _unitOfWork.Payments.GetAllAsync(
+				p => p.OrderId == order.Id
+					&& p.Method == paymentMethod
+					&& p.TransactionStatus == TransactionStatus.Pending);
 
-			await _unitOfWork.Payments.AddAsync(payment);
+			var payment = existingPendingPayments.FirstOrDefault(p => p.Amount == amount);
+			if (payment == null)
+			{
+				payment = PaymentTransaction.Create(order.Id, paymentMethod, amount);
+				await _unitOfWork.Payments.AddAsync(payment);
+			}
 
 			if (paymentMethod == PaymentMethod.VnPay)
 			{

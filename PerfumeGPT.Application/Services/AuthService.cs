@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.DTOs.Requests.Auths;
 using PerfumeGPT.Application.DTOs.Responses.Auths;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
@@ -24,27 +25,27 @@ namespace PerfumeGPT.Application.Services
 		private readonly IAuthRepository _authRepository;
 		private readonly IUserRepository _userRepository;
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IEmailService _emailService;
 		private readonly IEmailTemplateService _templateService;
+		private readonly IBackgroundJobService _backgroundJobService;
 		private readonly IMediaService _mediaService;
 		private readonly ILogger<AuthService> _logger;
 
 		public AuthService(
 			IEmailTemplateService templateService,
 			UserManager<User> userManager,
-			IEmailService emailService,
 			IAuthRepository authRepository,
 			IUserRepository userRepository,
 			IUnitOfWork unitOfWork,
+			IBackgroundJobService backgroundJobService,
 			IMediaService mediaService,
 			ILogger<AuthService> logger)
 		{
 			_templateService = templateService;
 			_userManager = userManager;
-			_emailService = emailService;
 			_authRepository = authRepository;
 			_userRepository = userRepository;
 			_unitOfWork = unitOfWork;
+			_backgroundJobService = backgroundJobService;
 			_mediaService = mediaService;
 			_logger = logger;
 		}
@@ -123,7 +124,11 @@ namespace PerfumeGPT.Application.Services
 			var emailContent = _templateService.GetRegisterTemplate(
 				request.FullName ?? request.Email, verifyUrl);
 
-			await _emailService.SendEmailAsync(request.Email!, "[PerfumeGPT] Xác nhận địa chỉ email", emailContent);
+			_backgroundJobService.EnqueueEmail(
+				_logger,
+				request.Email!,
+				"[PerfumeGPT] Xác nhận địa chỉ email",
+				emailContent);
 			return BaseResponse<string>.Ok(token, "Đăng ký tài khoản thành công. Vui lòng kiểm tra email để xác thực!");
 		}
 
@@ -200,15 +205,19 @@ namespace PerfumeGPT.Application.Services
 			var user = await _userManager.FindByEmailAsync(request.Email!) ?? throw AppException.NotFound("Không tìm thấy người dùng");
 			var token = await _userManager.GeneratePasswordResetTokenAsync(user);
 			var param = new Dictionary<string, string?>
-		{
-			{"token", token },
-			{"email", request.Email}
-		};
+			{
+				{"token", token },
+				{"email", request.Email}
+			};
 
 			var callback = QueryHelpers.AddQueryString(request.ClientUri, param);
 			var emailContent = _templateService.GetForgotPasswordTemplate(user.UserName ?? "User", callback);
 
-			await _emailService.SendEmailAsync(user.Email!, "[PerfumeGPT] Yêu cầu đặt lại mật khẩu", emailContent);
+			_backgroundJobService.EnqueueEmail(
+				_logger,
+				user.Email!,
+				"[PerfumeGPT] Yêu cầu đặt lại mật khẩu",
+				emailContent);
 			return BaseResponse<string>.Ok(token);
 		}
 
@@ -290,12 +299,12 @@ namespace PerfumeGPT.Application.Services
 
 			var all = upper + lower + digits + special;
 			var chars = new List<char>
-		{
-			upper[RandomNumberGenerator.GetInt32(upper.Length)],
-			lower[RandomNumberGenerator.GetInt32(lower.Length)],
-			digits[RandomNumberGenerator.GetInt32(digits.Length)],
-			special[RandomNumberGenerator.GetInt32(special.Length)]
-		};
+			{
+				upper[RandomNumberGenerator.GetInt32(upper.Length)],
+				lower[RandomNumberGenerator.GetInt32(lower.Length)],
+				digits[RandomNumberGenerator.GetInt32(digits.Length)],
+				special[RandomNumberGenerator.GetInt32(special.Length)]
+			};
 
 			for (int i = chars.Count; i < length; i++)
 			{

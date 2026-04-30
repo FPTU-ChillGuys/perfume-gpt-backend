@@ -67,7 +67,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories.Commons
 
 		// --- Update ---
 		void Update(T entity);
-		Task UpdateRangeAsync(IEnumerable<T> entities);
+		void UpdateRange(IEnumerable<T> entities);
 
 		// --- Delete ---
 		void Remove(T entity);

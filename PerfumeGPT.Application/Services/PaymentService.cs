@@ -10,8 +10,8 @@ using PerfumeGPT.Application.DTOs.Responses.Momos;
 using PerfumeGPT.Application.DTOs.Responses.Payments;
 using PerfumeGPT.Application.DTOs.Responses.PayOs;
 using PerfumeGPT.Application.DTOs.Responses.VNPays;
-using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
@@ -94,8 +94,11 @@ namespace PerfumeGPT.Application.Services
 
 				foreach (var pendingPayment in existingPendingPayments)
 				{
-					pendingPayment.MarkCancelled("Hủy để tạo yêu cầu thanh toán mới tại quầy.");
-					_unitOfWork.Payments.Update(pendingPayment);
+					pendingPayment.MarkCancelled("...");
+				}
+				if (existingPendingPayments.Any())
+				{
+					_unitOfWork.Payments.UpdateRange([.. existingPendingPayments]);
 				}
 
 				// 2. TẠO GIAO DỊCH MỚI
@@ -280,8 +283,11 @@ namespace PerfumeGPT.Application.Services
 
 				foreach (var pendingPayment in existingPendingPayments)
 				{
-					pendingPayment.MarkCancelled("Được thay thế bởi yêu cầu thanh toán mới.");
-					_unitOfWork.Payments.Update(pendingPayment);
+					pendingPayment.MarkCancelled("...");
+				}
+				if (existingPendingPayments.Any())
+				{
+					_unitOfWork.Payments.UpdateRange([.. existingPendingPayments]);
 				}
 
 				// ======================================================================
@@ -321,7 +327,7 @@ namespace PerfumeGPT.Application.Services
 
 						var depositMethod = request.NewDepositMethod.Value;
 
-						// 💥 Vẫn cho phép CashInStore làm cổng cọc (dành cho đơn POS khách cọc bằng tiền mặt rồi giao COD)
+						// Vẫn cho phép CashInStore làm cổng cọc (dành cho đơn POS khách cọc bằng tiền mặt rồi giao COD)
 						if (depositMethod != PaymentMethod.VnPay &&
 							depositMethod != PaymentMethod.Momo &&
 							depositMethod != PaymentMethod.PayOs &&
@@ -624,7 +630,7 @@ namespace PerfumeGPT.Application.Services
 				}
 				var fallbackOrderCode = vnPayResponse.OrderCode;
 				var fallbackPosSessionId = vnPayResponse.PosSessionId;
-				var latestPayment = await _unitOfWork.Payments.FirstOrDefaultAsync(p => p.Id == vnPayResponse.PaymentId);
+				var latestPayment = await _unitOfWork.Payments.FirstOrDefaultAsync(p => p.Id == vnPayResponse.PaymentId, asNoTracking: true);
 
 				return latestPayment == null
 				  ? throw AppException.NotFound("Không tìm thấy bản ghi thanh toán.")
@@ -796,6 +802,13 @@ namespace PerfumeGPT.Application.Services
 			{
 				var receipt = Receipt.Create(payment.Id);
 				await _unitOfWork.Receipts.AddAsync(receipt);
+			}
+
+			_backgroundJobService.EnqueueOnlineOrderStaffNotification(_logger, order.Id, payment.Amount);
+
+			if (order.CustomerId.HasValue)
+			{
+				_backgroundJobService.EnqueueOrderCreatedRedisEvent(_logger, order.Id, order.CustomerId.Value);
 			}
 
 			_backgroundJobService.EnqueueInvoiceEmail(_logger, order.Id);

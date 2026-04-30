@@ -6,6 +6,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.CartItems
 		public Guid? BatchId { get; init; }
 		public string? BatchCode { get; init; }
 		public required string VariantName { get; init; }
+		public int VolumeMl { get; set; }
 		public string? ImageUrl { get; init; }
 		public int Quantity { get; init; }
 		public decimal UnitPrice { get; init; }

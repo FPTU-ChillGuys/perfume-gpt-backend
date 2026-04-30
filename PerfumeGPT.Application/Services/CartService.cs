@@ -107,6 +107,7 @@ namespace PerfumeGPT.Application.Services
 					VariantId = variantResponse.Id,
 					BatchId = batch.Id,
 					VariantName = variantResponse.DisplayName,
+					VolumeMl = variantResponse.VolumeMl,
 					Quantity = scan.Quantity,
 					UnitPrice = variantResponse.Price,
 					SubTotal = subTotal,
@@ -195,7 +196,7 @@ namespace PerfumeGPT.Application.Services
 				Discount = voucherDiscountAmount,
 				ShippingFee = shippingFee,
 				TotalPrice = finalTotalPrice,
-				RequiredDepositAmount = requiredDepositAmount // 💥 DỮ LIỆU CỌC
+				RequiredDepositAmount = requiredDepositAmount // DỮ LIỆU CỌC
 			};
 
 			// 6. BẮN SIGNALR LÊN MÀN HÌNH KHÁCH HÀNG
@@ -209,7 +210,7 @@ namespace PerfumeGPT.Application.Services
 					Discount = response.Discount,
 					TotalPrice = response.TotalPrice,
 					VoucherCode = appliedVoucherCode,
-					RequiredDepositAmount = requiredDepositAmount // 💥 DỮ LIỆU CỌC CHO MÀN HÌNH KHÁCH
+					RequiredDepositAmount = requiredDepositAmount // DỮ LIỆU CỌC CHO MÀN HÌNH KHÁCH
 				};
 
 				await _signalRService.UpdateCustomerDisplayAsync(request.SessionId, customerDisplayData);
@@ -284,6 +285,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				VariantId = item.VariantId,
 				VariantName = item.VariantName,
+				VolumeMl = item.VolumeMl,
 				Quantity = item.Quantity,
 				UnitPrice = item.VariantPrice,
 				SubTotal = item.SubTotal,
@@ -438,10 +440,6 @@ namespace PerfumeGPT.Application.Services
 			if (destination == null)
 				return 0m;
 
-			var variantIds = items.Select(x => x.VariantId).Distinct().ToList();
-			var variants = await _unitOfWork.Variants.GetVariantsWithDetailsByIdsAsync(variantIds);
-			var variantById = variants.ToDictionary(x => x.Id, x => x);
-
 			int totalWeight = 0;
 			int maxLength = 0;
 			int maxWidth = 0;
@@ -450,8 +448,7 @@ namespace PerfumeGPT.Application.Services
 			var shippingItems = new List<ShippingOrderItem>();
 			foreach (var item in items)
 			{
-				var variant = variantById.GetValueOrDefault(item.VariantId);
-				var itemWeight = Math.Max(1, variant?.VolumeMl ?? 100);
+				var itemWeight = Math.Max(1, item.VolumeMl);
 
 				totalWeight += item.Quantity * itemWeight;
 				maxLength = Math.Max(maxLength, 15);
@@ -461,7 +458,7 @@ namespace PerfumeGPT.Application.Services
 				shippingItems.Add(new ShippingOrderItem
 				{
 					Name = item.VariantName,
-					Code = variant?.Barcode,
+					Code = item.BatchCode,
 					Quantity = item.Quantity,
 					Price = (int)Math.Round(item.UnitPrice, MidpointRounding.AwayFromZero),
 					Length = 15,
@@ -510,10 +507,65 @@ namespace PerfumeGPT.Application.Services
 			return null;
 		}
 
+		//private async Task<decimal> CalculateShippingFeeAsync(Order order, ContactAddress contactAddress)
+		//{
+		//	if (order.OrderDetails == null || order.OrderDetails.Count == 0)
+		//		return 0m;
+
+		//	var variantIds = order.OrderDetails.Select(x => x.VariantId).Distinct().ToList();
+		//	var variants = await _unitOfWork.Variants.GetVariantsWithDetailsByIdsAsync(variantIds);
+		//	var variantById = variants.ToDictionary(x => x.Id, x => x);
+
+		//	int totalWeight = 0;
+		//	int maxLength = 0;
+		//	int maxWidth = 0;
+		//	int totalHeight = 0;
+
+		//	var shippingItems = new List<ShippingOrderItem>();
+		//	foreach (var item in order.OrderDetails)
+		//	{
+		//		var variant = variantById.GetValueOrDefault(item.VariantId);
+		//		var itemWeight = Math.Max(1, variant?.VolumeMl ?? 100);
+
+		//		totalWeight += item.Quantity * itemWeight;
+		//		maxLength = Math.Max(maxLength, 15);
+		//		maxWidth = Math.Max(maxWidth, 10);
+		//		totalHeight += item.Quantity * 10;
+
+		//		shippingItems.Add(new ShippingOrderItem
+		//		{
+		//			Name = ExtractProductNameFromSnapshot(item.Snapshot) ?? "Nước hoa cao cấp",
+		//			Code = variant?.Barcode,
+		//			Quantity = item.Quantity,
+		//			Price = (int)Math.Round(item.UnitPrice, MidpointRounding.AwayFromZero),
+		//			Length = 15,
+		//			Width = 10,
+		//			Height = 10,
+		//			Weight = itemWeight,
+		//			Category = new ShippingOrderItemCategory { Level1 = "Mỹ phẩm" }
+		//		});
+		//	}
+
+		//	var shippingFeeRequest = new CalculateShippingFeeRequest
+		//	{
+		//		ToDistrictId = contactAddress.DistrictId,
+		//		ToWardCode = contactAddress.WardCode,
+		//		Length = Math.Max(15, maxLength),
+		//		Width = Math.Max(10, maxWidth),
+		//		Height = Math.Max(10, totalHeight),
+		//		Weight = Math.Max(100, totalWeight),
+		//		Items = shippingItems
+		//	};
+
+		//	var shippingFeeResponse = await _ghnService.CalculateShippingFeeAsync(shippingFeeRequest);
+		//	return shippingFeeResponse?.Data?.Total ?? 0m;
+		//}
+
 		public async Task<(List<CartCheckoutItemDto> Items, decimal Subtotal, decimal FinalAmount, string? Message)> CalculatePricingEngineAsync(
 			List<CartCheckoutItemDto> checkoutItems, string? voucherCode, Guid? userId, string? guestEmailOrPhoneNumber)
 		{
-			var (itemsAfterFlashSale, flashSaleMessage) = await ApplyAutoFlashSalesAsync(checkoutItems);
+			var pricingContext = await BuildPricingContextAsync(checkoutItems);
+			var (itemsAfterFlashSale, flashSaleMessage) = await ApplyAutoFlashSalesAsync(checkoutItems, pricingContext);
 			var subtotal = itemsAfterFlashSale.Sum(x => x.FinalTotal); // Subtotal MỚI sau khi đã trừ Flash Sale
 
 			// PHASE 2 & 3: XỬ LÝ VOUCHER
@@ -542,7 +594,7 @@ namespace PerfumeGPT.Application.Services
 
 			if (voucher.ApplyType == VoucherType.Product && voucher.CampaignId.HasValue)
 			{
-				var (pricedItems, message) = await ApplyProductLevelVoucherDiscountAsync(voucher, itemsAfterFlashSale);
+				var (pricedItems, message) = await ApplyProductLevelVoucherDiscountAsync(voucher, itemsAfterFlashSale, pricingContext);
 				var finalAmount = pricedItems.Sum(x => x.FinalTotal);
 				return (pricedItems, subtotal, finalAmount, message);
 			}
@@ -567,6 +619,7 @@ namespace PerfumeGPT.Application.Services
 				{
 					VariantId = item.VariantId,
 					VariantName = item.VariantName,
+					VolumeMl = item.VolumeMl,
 					Quantity = item.Quantity,
 					UnitPrice = item.VariantPrice,
 					SubTotal = item.SubTotal,
@@ -578,20 +631,23 @@ namespace PerfumeGPT.Application.Services
 			return await CalculatePricingEngineAsync(checkoutItems, request.VoucherCode, userId, null);
 		}
 
-		private async Task<(List<CartCheckoutItemDto> Items, string? Message)> ApplyProductLevelVoucherDiscountAsync(VoucherResponse voucher, List<CartCheckoutItemDto> items)
+		private async Task<(List<CartCheckoutItemDto> Items, string? Message)> ApplyProductLevelVoucherDiscountAsync(VoucherResponse voucher, List<CartCheckoutItemDto> items, PricingContext context)
 		{
 			if (!voucher.CampaignId.HasValue)
 			{
 				throw AppException.BadRequest("Mã giảm giá theo sản phẩm phải được gắn với một chiến dịch.");
 			}
 
-			var variantIds = items.Select(x => x.VariantId).Distinct().ToList();
-			var promoItemsByVariant = await GetActivePromotionsByVariantAsync(voucher.CampaignId.Value, voucher.TargetItemType, variantIds);
+			var promoItemsByVariant = context.ActivePromotions
+				.SelectMany(kvp => kvp.Value)
+				.Where(i => i.CampaignId == voucher.CampaignId.Value && i.ItemType == voucher.TargetItemType)
+				.GroupBy(i => i.TargetProductVariantId)
+				.ToDictionary(g => g.Key, g => g.ToList());
 
 			if (promoItemsByVariant.Count == 0)
 				return (items, "Không có sản phẩm hợp lệ đang thuộc khuyến mãi để áp dụng mã này");
 
-			var batchAvailability = await GetBatchAvailabilityAsync(promoItemsByVariant.SelectMany(x => x.Value));
+			var batchAvailability = new Dictionary<Guid, int>(context.BatchAvailability);
 			var (allocations, eligibleSubtotal, messageLines) = EvaluateEligibleStock(items, promoItemsByVariant, batchAvailability);
 			if (eligibleSubtotal <= 0)
 				return (allocations.Select(x => x.Item).ToList(), "Không còn số lượng khả dụng trong lô khuyến mãi để áp dụng mã giảm giá");
@@ -868,33 +924,42 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		private sealed record CheckoutLineAllocation(CartCheckoutItemDto Item, bool IsEligible);
+		private sealed record PricingContext(
+			Dictionary<Guid, int> BatchAvailability,
+			Dictionary<Guid, List<PromotionItem>> ActivePromotions);
 
-		private async Task<Dictionary<Guid, List<PromotionItem>>> GetActivePromotionsByVariantAsync(Guid campaignId, PromotionType itemType, List<Guid> variantIds)
+		private async Task<PricingContext> BuildPricingContextAsync(List<CartCheckoutItemDto> checkoutItems)
 		{
+			if (checkoutItems.Count == 0)
+			{
+				return new PricingContext([], []);
+			}
+
+			var variantIds = checkoutItems.Select(x => x.VariantId).Distinct().ToList();
 			var now = DateTime.UtcNow;
 
 			var promotionItems = await _unitOfWork.PromotionItems.GetAllAsync(
-				i => i.CampaignId == campaignId
-				  && !i.IsDeleted
-				  && i.ItemType == itemType
+				i => !i.IsDeleted
 				  && variantIds.Contains(i.TargetProductVariantId)
 				  && i.IsActive
-				 && i.Campaign.Status == CampaignStatus.Active
+				  && i.Campaign.Status == CampaignStatus.Active
 				  && i.Campaign.StartDate <= now
 				  && i.Campaign.EndDate >= now
 				  && (!i.MaxUsage.HasValue || i.CurrentUsage < i.MaxUsage.Value),
+				include: query => query.Include(i => i.Campaign),
 				asNoTracking: true);
 
-			return promotionItems.GroupBy(x => x.TargetProductVariantId).ToDictionary(g => g.Key, g => g.ToList());
-		}
-
-		private async Task<Dictionary<Guid, int>> GetBatchAvailabilityAsync(IEnumerable<PromotionItem> promotionItems)
-		{
 			var batchIds = promotionItems.Where(x => x.BatchId.HasValue).Select(x => x.BatchId!.Value).Distinct().ToList();
-			if (batchIds.Count == 0) return [];
+			Dictionary<Guid, int> batchAvailability = [];
+			if (batchIds.Count != 0)
+			{
+				var batches = await _unitOfWork.Batches.GetAllAsync(b => batchIds.Contains(b.Id), asNoTracking: true);
+				batchAvailability = batches.ToDictionary(b => b.Id, b => Math.Max(0, b.RemainingQuantity - b.ReservedQuantity));
+			}
 
-			var batches = await _unitOfWork.Batches.GetAllAsync(b => batchIds.Contains(b.Id), asNoTracking: true);
-			return batches.ToDictionary(b => b.Id, b => Math.Max(0, b.RemainingQuantity - b.ReservedQuantity));
+			return new PricingContext(
+				batchAvailability,
+				promotionItems.GroupBy(x => x.TargetProductVariantId).ToDictionary(g => g.Key, g => g.ToList()));
 		}
 
 		private static decimal CalculateDiscountAmount(VoucherResponse voucher, decimal eligibleSubtotal)
@@ -914,25 +979,14 @@ namespace PerfumeGPT.Application.Services
 			return Math.Min(rawDiscountAmount, eligibleSubtotal);
 		}
 
-		private async Task<(List<CartCheckoutItemDto> Items, string? Message)> ApplyAutoFlashSalesAsync(List<CartCheckoutItemDto> items)
+		private async Task<(List<CartCheckoutItemDto> Items, string? Message)> ApplyAutoFlashSalesAsync(List<CartCheckoutItemDto> items, PricingContext context)
 		{
 			if (items.Count == 0)
 				return ([], null);
 
-			var variantIds = items.Select(x => x.VariantId).Distinct().ToList();
-			var now = DateTime.UtcNow;
-
-			// 1. TÌM PROMOTION ĐANG ACTIVE
-			var activePromotions = await _unitOfWork.PromotionItems.GetAllAsync(
-				p => variantIds.Contains(p.TargetProductVariantId)
-				  && p.IsActive
-				  && !p.IsDeleted
-				  && p.Campaign.Status == CampaignStatus.Active
-				  && p.Campaign.StartDate <= now
-				  && p.Campaign.EndDate >= now
-				  && (!p.MaxUsage.HasValue || p.CurrentUsage < p.MaxUsage.Value),
-				include: query => query.Include(p => p.Campaign),
-				asNoTracking: true);
+			var activePromotions = context.ActivePromotions
+				.SelectMany(x => x.Value)
+				.ToList();
 
 			if (!activePromotions.Any())
 				return (items.ToList(), null);
@@ -946,7 +1000,7 @@ namespace PerfumeGPT.Application.Services
 						: int.MaxValue);
 
 			// 2. LẤY TỒN KHO THỰC TẾ (Để biết lô nào còn hàng mà chia)
-			var batchAvailability = await GetBatchAvailabilityAsync(activePromotions);
+			var batchAvailability = new Dictionary<Guid, int>(context.BatchAvailability);
 
 			var resultItems = new List<CartCheckoutItemDto>();
 			var messageLines = new List<string>();

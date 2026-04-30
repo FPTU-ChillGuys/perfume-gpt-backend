@@ -53,16 +53,18 @@ namespace PerfumeGPT.Application.Services
 
 			var (totalVariants, totalStockQuantity, lowStockVariantsCount) = await _unitOfWork.Stocks.GetInventorySummaryDataAsync();
 
-			var allBatches = await _unitOfWork.Batches.GetAllAsync(asNoTracking: true);
+			var totalBatches = await _unitOfWork.Batches.CountAsync();
+			var expiredBatchesCount = await _unitOfWork.Batches.CountAsync(b => b.ExpiryDate < now);
+			var expiringSoonCount = await _unitOfWork.Batches.CountAsync(b => b.ExpiryDate >= now && b.ExpiryDate <= expiringSoonDate);
 
 			var summary = new InventorySummaryResponse
 			{
 				TotalVariants = totalVariants,
 				TotalStockQuantity = totalStockQuantity,
 				LowStockVariantsCount = lowStockVariantsCount,
-				TotalBatches = allBatches.Count(),
-				ExpiredBatchesCount = allBatches.Count(b => b.ExpiryDate < now),
-				ExpiringSoonCount = allBatches.Count(b => b.ExpiryDate >= now && b.ExpiryDate <= expiringSoonDate)
+				TotalBatches = totalBatches,
+				ExpiredBatchesCount = expiredBatchesCount,
+				ExpiringSoonCount = expiringSoonCount
 			};
 
 			return BaseResponse<InventorySummaryResponse>.Ok(summary);

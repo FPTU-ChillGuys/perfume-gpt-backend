@@ -17,7 +17,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<(List<OrderListItem> Orders, int TotalCount)> GetPagedOrdersAsync(GetPagedOrdersRequest request)
 		{
-            Expression<Func<Order, bool>> filter = o => true;
+			Expression<Func<Order, bool>> filter = o => true;
 
 			if (request.UserId.HasValue)
 			{
@@ -89,7 +89,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var totalCount = await query.CountAsync();
 
-            var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
 			{
 				nameof(Order.Id),
 				nameof(Order.Code),
@@ -493,6 +493,13 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsSplitQuery()
 				.FirstOrDefaultAsync(o => o.Id == orderId);
 
+		public async Task<Order?> GetOrderForReturnRequestAsync(Guid orderId)
+			=> await _context.Orders
+				.Include(o => o.ForwardShipping)
+				.Include(o => o.OrderDetails)
+				.AsSplitQuery()
+				.FirstOrDefaultAsync(o => o.Id == orderId);
+
 		public async Task<Order?> GetOrderForCancellationAsync(Guid orderId)
 			=> await _context.Orders
 				.Include(o => o.ForwardShipping)
@@ -634,6 +641,21 @@ namespace PerfumeGPT.Persistence.Repositories
 				UnitPrice = detail.UnitPrice,
 				Subtotal = detail.UnitPrice * detail.Quantity - detail.ApportionedDiscount
 			};
+		}
+
+		public async Task<List<Order>> GetExpiringUnpaidOrdersAsync(int limit)
+		{
+			var now = DateTime.UtcNow;
+
+			return await _context.Orders
+				.Where(o => o.Status == OrderStatus.Pending
+						&& o.PaymentStatus == PaymentStatus.Unpaid // BẢO VỆ ĐƠN ĐÃ CỌC: Chỉ quét đơn Unpaid
+						&& o.PaymentExpiresAt.HasValue
+						 && o.PaymentExpiresAt.Value < now)
+				.Include(o => o.OrderDetails)
+				.OrderBy(o => o.PaymentExpiresAt)
+				.Take(limit)
+				.ToListAsync();
 		}
 	}
 }

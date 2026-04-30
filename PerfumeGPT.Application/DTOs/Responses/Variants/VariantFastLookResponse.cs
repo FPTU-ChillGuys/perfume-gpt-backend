@@ -8,6 +8,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 		public required string Barcode { get; init; }
 		public required string Sku { get; init; }
 		public required string DisplayName { get; init; }
+		public int VolumeMl { get; init; }
 		public decimal Price { get; init; }
 		public decimal? RetailPrice { get; init; }
 		public int StockQuantity { get; init; }

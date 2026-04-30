@@ -59,7 +59,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<(List<ReviewListItem> Items, int TotalCount)> GetPagedReviewsAsync(GetPagedReviewsRequest request)
 		{
-            Expression<Func<Review, bool>> filter = r => !r.IsDeleted;
+			Expression<Func<Review, bool>> filter = r => !r.IsDeleted;
 
 			if (request.VariantId.HasValue)
 			{
@@ -102,7 +102,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var totalCount = await query.CountAsync();
 
-            var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
+			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
 			{
 				nameof(Review.Rating),
 				nameof(Review.CreatedAt)
@@ -217,58 +217,41 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<(int TotalReviews, double AverageRating, int[] StarCounts)> GetVariantReviewStatisticsAsync(Guid variantId)
 		{
-			var reviews = await _context.Reviews
-				.Where(r => r.OrderDetail.VariantId == variantId
-					&& !r.IsDeleted)
-				.Select(r => r.Rating)
-				.ToListAsync();
+			var stats = await _context.Reviews
+				.Where(r => r.OrderDetail.VariantId == variantId && !r.IsDeleted)
+				.GroupBy(r => 1)
+				.Select(g => new
+				{
+					Total = g.Count(),
+					Average = g.Average(r => (double)r.Rating),
+					Star1 = g.Count(r => r.Rating == 1),
+					Star2 = g.Count(r => r.Rating == 2),
+					Star3 = g.Count(r => r.Rating == 3),
+					Star4 = g.Count(r => r.Rating == 4),
+					Star5 = g.Count(r => r.Rating == 5)
+				})
+				.FirstOrDefaultAsync();
 
-			if (reviews.Count == 0)
-			{
-				return (0, 0, new int[5]);
-			}
+			if (stats == null) return (0, 0, new int[5]);
 
-			var totalReviews = reviews.Count;
-			var averageRating = reviews.Average();
-
-			var starCounts = new int[5];
-			for (int i = 1; i <= 5; i++)
-			{
-				starCounts[i - 1] = reviews.Count(r => r == i);
-			}
-
-			return (totalReviews, averageRating, starCounts);
+			var starCounts = new[] { stats.Star1, stats.Star2, stats.Star3, stats.Star4, stats.Star5 };
+			return (stats.Total, stats.Average, starCounts);
 		}
 
 		public async Task<bool> CanUserReviewOrderDetailAsync(Guid userId, Guid orderDetailId)
 		{
-			var orderDetail = await _context.OrderDetails
-				.Include(od => od.Order)
-				.FirstOrDefaultAsync(od => od.Id == orderDetailId);
-
-			if (orderDetail == null || orderDetail.Order.CustomerId != userId)
-			{
-				return false;
-			}
-
-			if (orderDetail.Order.Status != OrderStatus.Delivered)
-			{
-				return false;
-			}
-
-			var hasReviewed = await HasUserReviewedOrderDetailAsync(userId, orderDetailId);
-			return !hasReviewed;
+			return await _context.OrderDetails.AnyAsync(od =>
+				od.Id == orderDetailId
+				&& od.Order.CustomerId == userId
+				&& od.Order.Status == OrderStatus.Delivered
+				&& !_context.Reviews.Any(r => r.OrderDetailId == orderDetailId && !r.IsDeleted));
 		}
-
-		public async Task<bool> HasUserReviewedOrderDetailAsync(Guid userId, Guid orderDetailId)
-		=> await _context.Reviews.AnyAsync(r => r.UserId == userId && r.OrderDetailId == orderDetailId && !r.IsDeleted);
 
 		public async Task<Guid> GetVariantIdByOrderDetailIdAsync(Guid orderDetailId)
 		{
 			return await _context.OrderDetails
 				.Where(od => od.Id == orderDetailId)
-				.Include(od => od.ProductVariant)
-                .Select(od => od.ProductVariant.Id)
+				.Select(od => od.VariantId)
 				.FirstOrDefaultAsync();
 		}
 	}

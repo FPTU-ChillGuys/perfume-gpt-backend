@@ -1,10 +1,13 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.Loyalty;
+﻿using Microsoft.Extensions.Logging;
+using PerfumeGPT.Application.DTOs.Requests.Loyalty;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Loyalty;
 using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Enums;
 using static PerfumeGPT.Domain.Entities.LoyaltyTransaction;
 
@@ -14,16 +17,19 @@ namespace PerfumeGPT.Application.Services
 	{
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IUserRepository _userRepository;
-		private readonly INotificationService _notificationService;
+		private readonly IBackgroundJobService _backgroundJobService;
+		private readonly ILogger<LoyaltyTransactionService> _logger;
 
 		public LoyaltyTransactionService(
 			IUnitOfWork unitOfWork,
 			IUserRepository userRepository,
-			INotificationService notificationService)
+			IBackgroundJobService backgroundJobService,
+			ILogger<LoyaltyTransactionService> logger)
 		{
 			_unitOfWork = unitOfWork;
 			_userRepository = userRepository;
-			_notificationService = notificationService;
+			_backgroundJobService = backgroundJobService;
+			_logger = logger;
 		}
 
 		public async Task<BaseResponse<PagedResult<LoyaltyTransactionHistoryItemResponse>>> GetLoyaltyHistoryAsync(Guid userId, GetPagedUserLoyaltyTransactionsRequest request)
@@ -79,7 +85,8 @@ namespace PerfumeGPT.Application.Services
 				if (!saved)
 					throw AppException.Internal("Cộng điểm tích lũy thất bại.");
 
-				await _notificationService.SendToUserAsync(
+				_backgroundJobService.EnqueueCustomerNotificationWithFcm(
+					_logger,
 					userId,
 					"Điểm tích lũy được cộng",
 					$"Bạn vừa nhận được {points} điểm tích lũy. Tổng điểm hiện tại: {user.PointBalance}.",
@@ -136,14 +143,14 @@ namespace PerfumeGPT.Application.Services
 			if (!saved)
 				throw AppException.Internal("Áp dụng thay đổi điểm tích lũy thủ công thất bại.");
 
-			if (transaction.TransactionType == LoyaltyTransactionType.Earn)
-			{
-				await _notificationService.SendToUserAsync(
-					userId,
-					"Điểm tích lũy được cộng",
-					$"Bạn vừa nhận được {request.Points} điểm tích lũy từ điều chỉnh thủ công. Tổng điểm hiện tại: {user.PointBalance}.",
-					NotificationType.Success);
-			}
+			_backgroundJobService.EnqueueCustomerNotificationWithFcm(
+				_logger,
+				userId,
+				transaction.TransactionType == LoyaltyTransactionType.Earn ? "Điểm tích lũy được cộng" : "Điểm tích lũy bị trừ",
+				transaction.TransactionType == LoyaltyTransactionType.Earn
+					? $"Bạn vừa nhận được {request.Points} điểm tích lũy từ điều chỉnh thủ công. Tổng điểm hiện tại: {user.PointBalance}."
+					: $"Bạn vừa bị trừ {request.Points} điểm tích lũy từ điều chỉnh thủ công. Tổng điểm hiện tại: {user.PointBalance}.",
+				transaction.TransactionType == LoyaltyTransactionType.Earn ? NotificationType.Success : NotificationType.Warning);
 
 			return BaseResponse<string>.Ok(transaction.Id.ToString(), "Áp dụng thay đổi điểm tích lũy thủ công thành công.");
 		}

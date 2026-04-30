@@ -31,6 +31,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 		#endregion Dependencies
 
 
+
 		#region Pick List Generation
 		public async Task<PickListResponse> GetPickListAsync(Order order)
 		{
@@ -114,6 +115,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			return pickListItems;
 		}
 		#endregion Pick List Generation
+
 
 
 		#region Order Fulfillment
@@ -258,11 +260,11 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 			return BaseResponse<bool>.Ok(true);
 		}
-
 		#endregion Order Fulfillment
 
-		#region Damaged Stock Handling
 
+
+		#region Damaged Stock Handling
 		public async Task<SwapDamagedStockResponse> SwapDamagedStockAsync(Guid orderId, Guid staffId, SwapDamagedStockRequest request)
 		{
 			if (request.DamagedQuantity <= 0)

@@ -11,7 +11,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<PagedResult<ShippingInfoListItem>>> GetPagedShippingInfosByUserIdAsync(Guid userId, GetPagedShippingsRequest request);
 		Task<BaseResponse<string>> SyncShippingStatusByUserIdAsync(Guid userId);
 		Task<BaseResponse<string>> SyncShippingStatusByTrackingNumberAsync(string trackingNumber);
-		Task<bool> SyncSingleShippingInfoAsync(ShippingInfo shippingInfo);
+		Task<bool> SyncSingleShippingInfoAsync(ShippingInfo shippingInfo, Order? forwardOrder = null, OrderReturnRequest? returnRequest = null);
 		ShippingStatus? MapGhnStatusToDomainStatus(string ghnStatus);
 		bool TryApplyShippingStatus(ShippingInfo shippingInfo, ShippingStatus targetStatus);
 	}

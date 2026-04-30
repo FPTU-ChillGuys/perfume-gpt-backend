@@ -101,10 +101,10 @@ namespace PerfumeGPT.Persistence.Repositories
 				? query.ApplySorting(sortBy, request.IsDescending)
 				: query.OrderByDescending(si => si.ShippedDate);
 
-         var items = await sortedQuery
-				.Skip((request.PageNumber - 1) * request.PageSize)
-				.Take(request.PageSize)
-				.ToListAsync();
+			var items = await sortedQuery
+				   .Skip((request.PageNumber - 1) * request.PageSize)
+				   .Take(request.PageSize)
+				   .ToListAsync();
 
 			return (items, totalCount);
 		}
@@ -165,6 +165,40 @@ namespace PerfumeGPT.Persistence.Repositories
 			return await forwardShippingCandidates
 				.Concat(returnShippingCandidates)
 				.ToListAsync();
+		}
+
+		public async Task<List<(ShippingInfo Shipping, Order? ForwardOrder, OrderReturnRequest? ReturnRequest)>> GetSyncCandidatesWithOrdersForGhnByUserIdAsync(Guid userId)
+		{
+			// 1. Kéo Forward Shipping kèm Order (Ép kiểu rõ ràng về ValueTuple)
+			var forwardShippings = await _context.Orders
+				.Include(o => o.PaymentTransactions)
+				.Where(o => o.CustomerId == userId
+					&& o.ForwardShipping != null
+					&& o.ForwardShipping.CarrierName == CarrierName.GHN
+					&& !string.IsNullOrWhiteSpace(o.ForwardShipping.TrackingNumber)
+					&& o.ForwardShipping.Status != ShippingStatus.Cancelled
+					&& o.ForwardShipping.Status != ShippingStatus.Delivered
+					&& o.ForwardShipping.Status != ShippingStatus.Returned)
+				.Select(o => new ValueTuple<ShippingInfo, Order?, OrderReturnRequest?>(o.ForwardShipping!, o, null))
+				.ToListAsync();
+
+			// 2. Kéo Return Shipping kèm OrderReturnRequest và Order (Ép kiểu rõ ràng về ValueTuple)
+			var returnShippings = await _context.OrderReturnRequests
+				.Include(r => r.Order)
+				.Where(r => r.CustomerId == userId
+					&& r.ReturnShipping != null
+					&& r.ReturnShipping.CarrierName == CarrierName.GHN
+					&& !string.IsNullOrWhiteSpace(r.ReturnShipping.TrackingNumber)
+					&& r.ReturnShipping.Status != ShippingStatus.Cancelled
+					&& r.ReturnShipping.Status != ShippingStatus.Delivered
+					&& r.ReturnShipping.Status != ShippingStatus.Returned)
+				.Select(r => new ValueTuple<ShippingInfo, Order?, OrderReturnRequest?>(r.ReturnShipping!, null, r))
+				.ToListAsync();
+
+			// 3. Nối lại và trả về
+			var allCandidates = forwardShippings.Concat(returnShippings).ToList();
+
+			return allCandidates;
 		}
 	}
 }

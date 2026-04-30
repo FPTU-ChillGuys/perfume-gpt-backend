@@ -2,12 +2,14 @@ using FluentValidation;
 using PerfumeGPT.Application.DTOs.Requests.Vouchers;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Vouchers;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Net.Mail;
 using static PerfumeGPT.Domain.Entities.Voucher;
@@ -20,21 +22,24 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IUserService _userService;
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
-		private readonly IEmailService _emailService;
 		private readonly IEmailTemplateService _emailTemplateService;
+		private readonly IBackgroundJobService _backgroundJobService;
+		private readonly ILogger<VoucherService> _logger;
 
 		public VoucherService(
 			IUnitOfWork unitOfWork,
 			IUserService userService,
-		   ILoyaltyTransactionService loyaltyTransactionService,
-			IEmailService emailService,
-			IEmailTemplateService emailTemplateService)
+			ILoyaltyTransactionService loyaltyTransactionService,
+			IEmailTemplateService emailTemplateService,
+			IBackgroundJobService backgroundJobService,
+			ILogger<VoucherService> logger)
 		{
 			_unitOfWork = unitOfWork;
 			_userService = userService;
 			_loyaltyTransactionService = loyaltyTransactionService;
-			_emailService = emailService;
 			_emailTemplateService = emailTemplateService;
+			_backgroundJobService = backgroundJobService;
+			_logger = logger;
 		}
 		#endregion Dependencies
 
@@ -241,17 +246,12 @@ namespace PerfumeGPT.Application.Services
 
 			if (!string.IsNullOrWhiteSpace(redeemResult.GiftReceiverEmail))
 			{
-				try
-				{
-					var emailBody = _emailTemplateService.GetVoucherGiftTemplate(redeemResult.VoucherCode, redeemResult.ExpiryDate);
-					await _emailService.SendEmailAsync(
-						redeemResult.GiftReceiverEmail,
-						"[PerfumeGPT] Bạn vừa nhận được mã giảm giá",
-						emailBody);
-				}
-				catch
-				{
-				}
+				var emailBody = _emailTemplateService.GetVoucherGiftTemplate(redeemResult.VoucherCode, redeemResult.ExpiryDate);
+				_backgroundJobService.EnqueueEmail(
+					_logger,
+					redeemResult.GiftReceiverEmail,
+					"[PerfumeGPT] Bạn vừa nhận được mã giảm giá",
+					emailBody);
 			}
 
 			return BaseResponse<string>.Ok(redeemResult.UserVoucherId, "Đổi mã giảm giá thành công");

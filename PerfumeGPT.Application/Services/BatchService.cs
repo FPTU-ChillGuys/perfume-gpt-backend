@@ -5,7 +5,6 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Domain.Entities;
-using PerfumeGPT.Domain.Enums;
 using MapsterMapper;
 
 namespace PerfumeGPT.Application.Services
@@ -41,20 +40,6 @@ namespace PerfumeGPT.Application.Services
 			await _unitOfWork.Stocks.UpdateStockAsync(variantId);
 		}
 
-		public async Task<bool> ValidateBatchAvailabilityAsync(Guid variantId, int requiredQuantity)
-		{
-			if (requiredQuantity <= 0)
-			{
-				throw AppException.BadRequest("Số lượng yêu cầu phải lớn hơn 0.");
-			}
-
-			var batches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
-
-			var totalAvailable = batches.Sum(b => b.AvailableInBatch);
-
-			return totalAvailable >= requiredQuantity;
-		}
-
 		public async Task<BaseResponse<PagedResult<BatchDetailResponse>>> GetBatchesAsync(GetBatchesRequest request)
 		{
 			var (batches, totalCount) = await _unitOfWork.Batches.GetBatchesAsync(request);
@@ -79,56 +64,6 @@ namespace PerfumeGPT.Application.Services
 		{
 			var response = await _unitOfWork.Batches.GetBatchByIdAsync(batchId);
 			return response == null ? throw AppException.NotFound("Không tìm thấy lô") : BaseResponse<BatchDetailResponse>.Ok(response);
-		}
-
-		public async Task IncreaseBatchQuantityAsync(Guid batchId, int quantity)
-		{
-			if (quantity <= 0)
-			{
-				throw AppException.BadRequest("Số lượng phải lớn hơn 0.");
-			}
-
-			var batch = await _unitOfWork.Batches.GetByIdAsync(batchId)
-			   ?? throw AppException.NotFound($"Không tìm thấy lô {batchId}");
-
-			batch.IncreaseQuantity(
-				 quantity,
-				 StockTransactionType.Adjustment,
-				 batchId,
-				 null,
-				 $"Tăng thủ công số lượng cho lô {batchId}.");
-			_unitOfWork.Batches.Update(batch);
-
-			var variantId = await _unitOfWork.Batches.GetVariantIdByBatchIdAsync(batchId);
-			if (variantId.HasValue)
-			{
-				await _unitOfWork.Stocks.UpdateStockAsync(variantId.Value);
-			}
-		}
-
-		public async Task DecreaseBatchQuantityAsync(Guid batchId, int quantity)
-		{
-			if (quantity <= 0)
-			{
-				throw AppException.BadRequest("Số lượng phải lớn hơn 0.");
-			}
-
-			var batch = await _unitOfWork.Batches.GetByIdAsync(batchId)
-			   ?? throw AppException.NotFound($"Không tìm thấy lô {batchId}");
-
-			batch.DecreaseQuantity(
-				 quantity,
-				 StockTransactionType.Adjustment,
-				 batchId,
-				 null,
-				 $"Giảm thủ công số lượng cho lô {batchId}.");
-			_unitOfWork.Batches.Update(batch);
-
-			var variantId = await _unitOfWork.Batches.GetVariantIdByBatchIdAsync(batchId);
-			if (variantId.HasValue)
-			{
-				await _unitOfWork.Stocks.UpdateStockAsync(variantId.Value);
-			}
 		}
 	}
 }

@@ -65,7 +65,7 @@ namespace PerfumeGPT.API.Controllers
 			var (staffId, userRole) = GetCurrentUserContext();
 			if (userRole == null) return HandleResponse(BaseResponse<string>.Fail("Không có quyền truy cập.", ResponseErrorType.Unauthorized));
 
-			var response = await _cancelRequestService.ProcessRequestAsync(id, staffId, userRole, request);
+			var response = await _cancelRequestService.ProcessRefundAsync(id, staffId, userRole, request);
 			return HandleResponse(response);
 		}
 	}

@@ -10,11 +10,9 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 	public class OrderDetailsFactory : IOrderDetailsFactory
 	{
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IOrderInventoryManager _inventoryManager;
 
-		public OrderDetailsFactory(IOrderInventoryManager inventoryManager, IUnitOfWork unitOfWork)
+		public OrderDetailsFactory(IUnitOfWork unitOfWork)
 		{
-			_inventoryManager = inventoryManager;
 			_unitOfWork = unitOfWork;
 		}
 
@@ -25,7 +23,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 			// 1. Validate Tổng Tồn Kho
 			var stockItems = items.GroupBy(i => i.VariantId).Select(g => (VariantId: g.Key, Quantity: g.Sum(x => x.Quantity))).ToList();
-			var stockValidation = await _inventoryManager.ValidateStockAvailabilityAsync(stockItems);
+			var stockValidation = await ValidateStockAvailabilityAsync(stockItems);
 			if (!stockValidation) throw AppException.BadRequest("Xác thực tồn kho thất bại.");
 
 			var variantIds = items.Select(i => i.VariantId).Distinct().ToList();
@@ -59,7 +57,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 					string snapshotJson = CreateSnapshotJson(variant, batch, item.Quantity, item.SubTotal, totalPromoDiscount);
 
-					// 💥 GỌI HÀM CREATE MỚI VỚI ĐẦY ĐỦ THAM SỐ
+					//  GỌI HÀM CREATE MỚI VỚI ĐẦY ĐỦ THAM SỐ
 					var detail = OrderDetail.Create(
 						item.VariantId,
 						item.AppliedPromotionItemId,
@@ -118,7 +116,7 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 					string snapshotJson = CreateSnapshotJson(variant, batch, allocatedQuantity, detailLineTotal, slicePromo);
 
-					// 💥 TẠO DÒNG CHI TIẾT
+					// TẠO DÒNG CHI TIẾT
 					var detail = OrderDetail.Create(
 						item.VariantId,
 						item.AppliedPromotionItemId,
@@ -153,6 +151,66 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				FinalUnitPrice = quantity > 0 ? (lineTotal - promoDiscount) / quantity : 0m
 			};
 			return JsonSerializer.Serialize(snapshotData);
+		}
+
+		private async Task<bool> ValidateStockAvailabilityAsync(List<(Guid VariantId, int Quantity)> items)
+		{
+			if (items == null || items.Count == 0) return true;
+
+			// BƯỚC 2: Gom nhóm các Item trùng VariantId (Đề phòng giỏ hàng gửi lên 2 dòng có cùng Variant)
+			var groupedItems = items
+				.GroupBy(i => i.VariantId)
+				.Select(g => new { VariantId = g.Key, RequiredQty = g.Sum(x => x.Quantity) })
+				.ToList();
+
+			var variantIds = groupedItems.Select(x => x.VariantId).Distinct().ToList();
+
+			// BƯỚC 3: BULK READ - Kéo tất cả dữ liệu liên quan lên RAM chỉ bằng 3 câu Query (Có AsNoTracking để tối ưu RAM)
+
+			// 3.1. Kéo Stock
+			var stocks = await _unitOfWork.Stocks.GetAllAsync(
+				s => variantIds.Contains(s.VariantId),
+				asNoTracking: true);
+			var stockDict = stocks.ToDictionary(s => s.VariantId);
+
+			// 3.2. Kéo Batch (Chỉ lấy các lô chưa hết hạn)
+			var now = DateTime.UtcNow;
+			var batches = await _unitOfWork.Batches.GetAllAsync(
+				b => variantIds.Contains(b.VariantId) && b.ExpiryDate > now,
+				asNoTracking: true);
+
+			// Tính tổng số lượng khả dụng của tất cả các Lô gộp lại cho từng Variant
+			var batchDict = batches
+				.GroupBy(b => b.VariantId)
+				.ToDictionary(
+					g => g.Key,
+					g => g.Sum(b => Math.Max(0, b.RemainingQuantity - b.ReservedQuantity)));
+
+			// 3.3. Kéo Variant (Chỉ để lấy Sku phục vụ cho việc in ra câu báo lỗi)
+			var variants = await _unitOfWork.Variants.GetAllAsync(
+				v => variantIds.Contains(v.Id),
+				asNoTracking: true);
+			var variantDict = variants.ToDictionary(v => v.Id);
+
+			// BƯỚC 4: THỰC HIỆN ĐỐI CHIẾU TRÊN RAM (IN-MEMORY VALIDATION)
+			foreach (var item in groupedItems)
+			{
+				var variantName = variantDict.TryGetValue(item.VariantId, out var v) ? $"Variant {v.Sku}" : "Unknown product";
+
+				// 4.1. Đối chiếu tổng tồn kho (Stock)
+				if (!stockDict.TryGetValue(item.VariantId, out var stock) || stock.AvailableQuantity < item.RequiredQty)
+				{
+					throw AppException.BadRequest($"Không đủ hàng tồn kho cho {variantName}.");
+				}
+
+				// 4.2. Đối chiếu Tồn kho theo lô (Batch)
+				if (!batchDict.TryGetValue(item.VariantId, out var totalBatchAvailable) || totalBatchAvailable < item.RequiredQty)
+				{
+					throw AppException.BadRequest($"Không đủ hàng tồn kho trong lô cho {variantName}.");
+				}
+			}
+
+			return true;
 		}
 	}
 }

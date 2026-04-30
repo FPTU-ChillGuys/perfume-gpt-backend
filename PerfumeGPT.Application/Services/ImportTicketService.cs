@@ -1,13 +1,16 @@
 using ClosedXML.Excel;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.DTOs.Requests.Imports;
 using PerfumeGPT.Application.DTOs.Requests.Imports.ImportDetails;
 using PerfumeGPT.Application.DTOs.Requests.Inventory.Batches;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Imports;
 using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
@@ -22,18 +25,21 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IBatchService _batchService;
 		private readonly ExcelTemplateGenerator _excelTemplateGenerator;
-		private readonly INotificationService _notificationService;
+		private readonly IBackgroundJobService _backgroundJobService;
+		private readonly ILogger<ImportTicketService> _logger;
 
 		public ImportTicketService(
 			IUnitOfWork unitOfWork,
 			IBatchService batchService,
 			ExcelTemplateGenerator excelTemplateGenerator,
-			INotificationService notificationService)
+			IBackgroundJobService backgroundJobService,
+			ILogger<ImportTicketService> logger)
 		{
 			_unitOfWork = unitOfWork;
 			_batchService = batchService;
 			_excelTemplateGenerator = excelTemplateGenerator;
-			_notificationService = notificationService;
+			_backgroundJobService = backgroundJobService;
+			_logger = logger;
 		}
 		#endregion Dependencies
 
@@ -75,7 +81,8 @@ namespace PerfumeGPT.Application.Services
 			{
 				_ = Guid.TryParse(response.Payload, out Guid importTicketId);
 
-				await _notificationService.SendToRoleAsync(
+				_backgroundJobService.EnqueueRoleNotification(
+					_logger,
 					UserRole.staff,
 					"Lệnh nhập kho mới",
 					$"Có lô hàng mới #{response.Payload} sắp giao đến, vui lòng chuẩn bị nhận.",
@@ -120,7 +127,7 @@ namespace PerfumeGPT.Application.Services
 				using var workbook = new XLWorkbook(stream);
 				var worksheet = workbook.Worksheet(1);
 
-				var supplierIdCell = worksheet.Cell("B1"); // Chuyển sang dùng tọa độ chữ cái
+				var supplierIdCell = worksheet.Cell("B1");
 				if (!supplierIdCell.TryGetValue(out supplierIdFromFile) || supplierIdFromFile <= 0)
 				{
 					throw AppException.BadRequest("Không tìm thấy Mã hệ thống Nhà cung cấp hợp lệ trong file Excel. Vui lòng sử dụng đúng template.");
@@ -132,6 +139,21 @@ namespace PerfumeGPT.Application.Services
 				{
 					throw AppException.BadRequest("Tệp Excel không có dòng dữ liệu hàng hóa.");
 				}
+
+				// 1. Quét lần 1: Gom toàn bộ SKU trong file
+				var skusToFetch = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+				foreach (var row in rows)
+				{
+					var skuCell = row.Cell(1).GetValue<string>()?.Trim();
+					if (!string.IsNullOrWhiteSpace(skuCell) && !skuCell.Contains("TỔNG CỘNG") && !skuCell.Contains("TOTAL"))
+					{
+						skusToFetch.Add(skuCell);
+					}
+				}
+
+				// 2. BULK READ: Kéo toàn bộ Variant lên RAM trong 1 câu Query
+				var variants = await _unitOfWork.Variants.GetAllAsync(v => skusToFetch.Contains(v.Sku), asNoTracking: true);
+				var variantDict = variants.ToDictionary(v => v.Sku, StringComparer.OrdinalIgnoreCase);
 
 				foreach (var row in rows)
 				{
@@ -171,9 +193,7 @@ namespace PerfumeGPT.Application.Services
 						}
 
 						// Tìm biến thể bằng SKU
-						var variant = await _unitOfWork.Variants.GetBySkuAsync(skuCell);
-
-						if (variant == null)
+						if (!variantDict.TryGetValue(skuCell, out var variant))
 						{
 							errors.Add($"Dòng {currentRowNumber}: Không tìm thấy mã SKU '{skuCell}' trong hệ thống.");
 							continue;
@@ -312,30 +332,30 @@ namespace PerfumeGPT.Application.Services
 			return results;
 		}
 
-		private record DetailValidationResult(
-			ImportDetail Detail,
-			DetailVerification Verification,
-			List<CreateBatchRequest>? MergedBatches,
-			int AcceptedQuantity
-		);
+		private record DetailValidationResult(ImportDetail Detail, DetailVerification Verification, List<CreateBatchRequest>? MergedBatches, int AcceptedQuantity);
 
-		private async Task ValidateBatchIntegrityAsync(
-			Guid variantId,
-			List<CreateBatchRequest> mergedBatches,
-			List<string> errors)
+		private async Task ValidateBatchIntegrityAsync(Guid variantId, List<CreateBatchRequest> mergedBatches, List<string> errors)
 		{
+			// 1. Gom BatchCodes
+			var batchCodes = mergedBatches.Select(b => b.BatchCode).ToList();
+
+			// 2. BULK READ
+			var existingBatches = await _unitOfWork.Batches.GetAllAsync(
+				b => b.VariantId == variantId && batchCodes.Contains(b.BatchCode),
+				asNoTracking: true);
+
+			var existingDict = existingBatches.ToDictionary(b => b.BatchCode, StringComparer.OrdinalIgnoreCase);
+
+			// 3. Khớp trên RAM
 			foreach (var batchRequest in mergedBatches)
 			{
-				var existingBatch = await _unitOfWork.Batches.FirstOrDefaultAsync(
-					b => b.VariantId == variantId && b.BatchCode == batchRequest.BatchCode,
-					asNoTracking: true);
-
-				if (existingBatch == null) continue;
-
-				if (existingBatch.ManufactureDate.Date != batchRequest.ManufactureDate.Date
-					|| existingBatch.ExpiryDate.Date != batchRequest.ExpiryDate.Date)
+				if (existingDict.TryGetValue(batchRequest.BatchCode, out var existingBatch))
 				{
-					errors.Add($"Mã lô '{batchRequest.BatchCode}' không khớp với lô đã có trong kho (khác ngày sản xuất/hạn dùng).");
+					if (existingBatch.ManufactureDate.Date != batchRequest.ManufactureDate.Date ||
+						existingBatch.ExpiryDate.Date != batchRequest.ExpiryDate.Date)
+					{
+						errors.Add($"Mã lô '{batchRequest.BatchCode}' không khớp với lô đã có trong kho (khác ngày sản xuất/hạn dùng).");
+					}
 				}
 			}
 		}
@@ -439,10 +459,7 @@ namespace PerfumeGPT.Application.Services
 				var importTicket = await _unitOfWork.ImportTickets.GetByIdWithDetailsAndBatchesAsync(id) ?? throw AppException.NotFound("Không tìm thấy phiếu nhập.");
 				importTicket.EnsureIsPendingStatus();
 
-				foreach (var detail in importTicket.ImportDetails)
-				{
-					_unitOfWork.ImportDetails.Remove(detail);
-				}
+				_unitOfWork.ImportDetails.RemoveRange(importTicket.ImportDetails);
 
 				_unitOfWork.ImportTickets.Remove(importTicket);
 

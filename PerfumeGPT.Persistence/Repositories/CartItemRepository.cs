@@ -50,6 +50,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			   {
 				   VariantId = ci.VariantId,
 				   VariantName = $"{ci.ProductVariant.Product.Name} - {ci.ProductVariant.Concentration.Name} - {ci.ProductVariant.VolumeMl}ml",
+				   VolumeMl = ci.ProductVariant.VolumeMl,
 				   Quantity = ci.Quantity,
 				   UnitPrice = ci.ProductVariant.BasePrice,
 				   SubTotal = ci.ProductVariant.BasePrice * ci.Quantity,
@@ -71,6 +72,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			  {
 				  VariantId = ci.VariantId,
 				  VariantName = $"{ci.ProductVariant.Product.Name} - {ci.ProductVariant.Concentration.Name} - {ci.ProductVariant.VolumeMl}ml",
+				  VolumeMl = ci.ProductVariant.VolumeMl,
 				  VariantPrice = ci.ProductVariant.BasePrice,
 				  Quantity = ci.Quantity
 			  })

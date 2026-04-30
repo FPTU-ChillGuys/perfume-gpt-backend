@@ -3,13 +3,14 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Reviews;
 using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Services.Helpers;
-using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using Microsoft.Extensions.Logging;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -19,23 +20,22 @@ namespace PerfumeGPT.Application.Services
 		private readonly IMediaService _mediaService;
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly ILoyaltyTransactionService _loyaltyTransactionService;
+		private readonly IBackgroundJobService _backgroundJobService;
 		private readonly ILogger<ReviewService> _logger;
-
 		private readonly MediaBulkActionHelper _helper;
-		private readonly IRedisPublisherService _redisPublisherService;
 
 		public ReviewService(
 			IMediaService mediaService,
 			MediaBulkActionHelper helper,
 			IUnitOfWork unitOfWork,
-			IRedisPublisherService redisPublisherService,
+			IBackgroundJobService backgroundJobService,
 			ILoyaltyTransactionService loyaltyTransactionService,
 			ILogger<ReviewService> logger)
 		{
 			_mediaService = mediaService;
 			_helper = helper;
 			_unitOfWork = unitOfWork;
-			_redisPublisherService = redisPublisherService;
+			_backgroundJobService = backgroundJobService;
 			_loyaltyTransactionService = loyaltyTransactionService;
 			_logger = logger;
 		}
@@ -61,14 +61,12 @@ namespace PerfumeGPT.Application.Services
 
 			// Notify external services via Redis
 			var variantId = await _unitOfWork.Reviews.GetVariantIdByOrderDetailIdAsync(request.OrderDetailId);
-			await _redisPublisherService.PublishReviewCreatedAsync(variantId);
+			_backgroundJobService.EnqueueReviewCreatedRedisEvent(_logger, variantId);
 
-			// BỔ SUNG LOGIC TẶNG ĐIỂM KHI ĐÁNH GIÁ THÀNH CÔNG
-			// Vì hàm này đã SaveChangesAsync ở trên, việc cộng điểm nên được thực hiện sau.
 			try
 			{
-				int reviewRewardPoints = 50; // Điểm thưởng cho mỗi review
-											 // Truyền orderId = null (hoặc lấy từ OrderDetail nếu muốn track cụ thể đơn nào)
+				var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+				int reviewRewardPoints = storePolicy?.ReviewRewardPoints ?? 0;
 				await _loyaltyTransactionService.PlusPointAsync(
 					userId,
 					reviewRewardPoints,
@@ -77,8 +75,6 @@ namespace PerfumeGPT.Application.Services
 			}
 			catch (Exception ex)
 			{
-				// Ghi log lỗi cộng điểm nhưng KHÔNG throw Exception, 
-				// để không làm gián đoạn việc lưu Media/trả về Response cho khách.
 				_logger.LogError(ex, "Lỗi khi cộng điểm thưởng Review cho User {UserId}", userId);
 			}
 
@@ -109,11 +105,11 @@ namespace PerfumeGPT.Application.Services
 
 			_unitOfWork.Reviews.Remove(review);
 
-			await _mediaService.DeleteAllMediaByEntityAsync(EntityType.Review, reviewId);
-
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved)
 				throw AppException.Internal("Xóa đánh giá thất bại");
+
+			await _mediaService.DeleteAllMediaByEntityAsync(EntityType.Review, reviewId);
 
 			return BaseResponse<string>.Ok("Xóa đánh giá thành công");
 		}

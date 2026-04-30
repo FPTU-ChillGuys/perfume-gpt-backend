@@ -182,10 +182,14 @@ namespace PerfumeGPT.Application.Services
 				   .Where(r => r.Status == ReservationStatus.Reserved || r.Status == ReservationStatus.Committed)
 				   .GroupBy(r => r.VariantId);
 
+			var variantIds = activeReservations.Select(g => g.Key).ToList();
+			// Kéo tất cả Stock của các Variant này lên trong 1 câu Query
+			var stocks = await _unitOfWork.Stocks.GetAllAsync(s => variantIds.Contains(s.VariantId));
+			var stockDict = stocks.ToDictionary(s => s.VariantId);
+
 			foreach (var group in activeReservations)
 			{
-				var variantId = group.Key;
-				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId);
+				var stock = stockDict.GetValueOrDefault(group.Key);
 
 				foreach (var reservation in group)
 				{
@@ -236,12 +240,7 @@ namespace PerfumeGPT.Application.Services
 				// ==========================================
 				// PHẦN 1: DỌN DẸP ĐƠN HÀNG HẾT HẠN THANH TOÁN
 				// ==========================================
-				var expiredOrders = await _unitOfWork.Orders.GetAllAsync(
-					o => o.Status == OrderStatus.Pending
-						&& o.PaymentStatus == PaymentStatus.Unpaid // BẢO VỆ ĐƠN ĐÃ CỌC: Chỉ quét đơn Unpaid
-						&& o.PaymentExpiresAt.HasValue
-						 && o.PaymentExpiresAt.Value < now,
-					include: q => q.Include(o => o.OrderDetails));
+				var expiredOrders = await _unitOfWork.Orders.GetExpiringUnpaidOrdersAsync(50);
 
 				foreach (var order in expiredOrders)
 				{

@@ -157,6 +157,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					Barcode = v.Barcode,
 					Sku = v.Sku,
 					DisplayName = $"{v.Product.Name} - {v.VolumeMl}ml {v.Concentration.Name}",
+					VolumeMl = v.VolumeMl,
 					Price = v.BasePrice,
 					RetailPrice = v.RetailPrice,
 					StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,

@@ -1,10 +1,13 @@
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.DTOs.Requests.StockAdjustments;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.StockAdjustments;
 using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using static PerfumeGPT.Domain.Entities.StockAdjustmentDetail;
@@ -15,17 +18,17 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IBatchService _batchService;
-		private readonly INotificationService _notificationService;
+		private readonly IBackgroundJobService _backgroundJobService;
+		private readonly ILogger<StockAdjustmentService> _logger;
 
 		public StockAdjustmentService(
 			IUnitOfWork unitOfWork,
-			IBatchService batchService,
-			INotificationService notificationService)
+			IBackgroundJobService backgroundJobService,
+			ILogger<StockAdjustmentService> logger)
 		{
 			_unitOfWork = unitOfWork;
-			_batchService = batchService;
-			_notificationService = notificationService;
+			_backgroundJobService = backgroundJobService;
+			_logger = logger;
 		}
 		#endregion Dependencies
 
@@ -45,72 +48,114 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.BadRequest($"Phát hiện ID biến thể trùng: {duplicateIds}. Mỗi biến thể chỉ được xuất hiện một lần.");
 			}
 
+			// ==============================================================
+			// BƯỚC 1: BULK READ - GOM IDs VÀ KÉO LÊN RAM ĐỂ XÁC THỰC
+			// ==============================================================
+			var variantIds = request.AdjustmentDetails.Select(d => d.VariantId).Distinct().ToList();
+			var batchIds = request.AdjustmentDetails.Select(d => d.BatchId).Distinct().ToList();
+
+			var variants = await _unitOfWork.Variants.GetAllAsync(v => variantIds.Contains(v.Id));
+			var variantDict = variants.ToDictionary(v => v.Id);
+
+			var batches = await _unitOfWork.Batches.GetAllAsync(b => batchIds.Contains(b.Id));
+			var batchDict = batches.ToDictionary(b => b.Id);
+
+			// Xác thực trên RAM (Không tốn câu Query nào thêm)
 			foreach (var detail in request.AdjustmentDetails)
 			{
-				var variant = await _unitOfWork.Variants.GetByIdAsync(detail.VariantId) ?? throw AppException.NotFound($"Không tìm thấy biến thể có ID {detail.VariantId}.");
-				var batch = await _unitOfWork.Batches.GetByIdAsync(detail.BatchId) ?? throw AppException.NotFound($"Không tìm thấy lô có ID {detail.BatchId}.");
+				if (!variantDict.ContainsKey(detail.VariantId))
+					throw AppException.NotFound($"Không tìm thấy biến thể có ID {detail.VariantId}.");
+
+				if (!batchDict.TryGetValue(detail.BatchId, out var batch))
+					throw AppException.NotFound($"Không tìm thấy lô có ID {detail.BatchId}.");
 
 				if (batch.VariantId != detail.VariantId)
 					throw AppException.BadRequest($"Lô {detail.BatchId} không thuộc biến thể {detail.VariantId}.");
 			}
 
 			var totalAdjustmentQty = request.AdjustmentDetails.Sum(d => Math.Abs(d.AdjustmentQuantity));
-			bool isAutoApprove = totalAdjustmentQty <= 5; // Magic number 5 - config later
+			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+			bool isAutoApprove = totalAdjustmentQty <= storePolicy?.StockAdjustmentAutoApprovalThreshold;
+
+			// ==============================================================
+			// BƯỚC 2: BULK READ STOCK (CHỈ KHI CẦN AUTO-APPROVE)
+			// ==============================================================
+			Dictionary<Guid, Stock> stockDict = [];
+			if (isAutoApprove)
+			{
+				var stocks = await _unitOfWork.Stocks.GetAllAsync(s => variantIds.Contains(s.VariantId));
+				stockDict = stocks.ToDictionary(s => s.VariantId);
+			}
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			  {
-				  var stockAdjustment = StockAdjustment.Create(
-						   userId,
-						   request.AdjustmentDate,
-						   request.Reason,
-						   request.Note);
+			{
+				var stockAdjustment = StockAdjustment.Create(
+					userId,
+					request.AdjustmentDate,
+					request.Reason,
+					request.Note);
 
-				  foreach (var detailRequest in request.AdjustmentDetails)
-				  {
-					  var detailPayload = new StockAdjustmentDetailPayload
-					  {
-						  ProductVariantId = detailRequest.VariantId,
-						  BatchId = detailRequest.BatchId,
-						  AdjustmentQuantity = detailRequest.AdjustmentQuantity,
-						  Note = detailRequest.Note
-					  };
+				// ==============================================================
+				// BƯỚC 3: XỬ LÝ LOGIC TRÊN RAM (IN-MEMORY PROCESSING)
+				// ==============================================================
+				foreach (var detailRequest in request.AdjustmentDetails)
+				{
+					var detailPayload = new StockAdjustmentDetailPayload
+					{
+						ProductVariantId = detailRequest.VariantId,
+						BatchId = detailRequest.BatchId,
+						AdjustmentQuantity = detailRequest.AdjustmentQuantity,
+						Note = detailRequest.Note
+					};
 
-					  if (isAutoApprove)
-					  {
-						  stockAdjustment.AddApprovedDetail(detailPayload, detailRequest.AdjustmentQuantity);
+					if (isAutoApprove)
+					{
+						stockAdjustment.AddApprovedDetail(detailPayload, detailRequest.AdjustmentQuantity);
 
-						  if (detailRequest.AdjustmentQuantity > 0)
-						  {
-							  await _batchService.IncreaseBatchQuantityAsync(detailRequest.BatchId, detailRequest.AdjustmentQuantity);
-						  }
-						  else if (detailRequest.AdjustmentQuantity < 0)
-						  {
-							  await _batchService.DecreaseBatchQuantityAsync(detailRequest.BatchId, Math.Abs(detailRequest.AdjustmentQuantity));
-						  }
-					  }
-					  else
-					  {
-						  stockAdjustment.AddDetail(detailPayload);
-					  }
-				  }
+						var batch = batchDict[detailRequest.BatchId];
+						if (!stockDict.TryGetValue(detailRequest.VariantId, out var stock))
+							throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {detailRequest.VariantId}");
 
-				  if (isAutoApprove)
-				  {
-					  stockAdjustment.UpdateStatus(StockAdjustmentStatus.InProgress);
-					  stockAdjustment.Complete(userId);
-				  }
+						// Cập nhật số lượng vật lý trên RAM
+						if (detailRequest.AdjustmentQuantity > 0)
+						{
+							batch.IncreaseQuantity(detailRequest.AdjustmentQuantity, StockTransactionType.Adjustment, stockAdjustment.Id, userId, detailRequest.Note);
+							stock.Increase(detailRequest.AdjustmentQuantity);
+						}
+						else if (detailRequest.AdjustmentQuantity < 0)
+						{
+							var absQty = Math.Abs(detailRequest.AdjustmentQuantity);
+							batch.DecreaseQuantity(absQty, StockTransactionType.Adjustment, stockAdjustment.Id, userId, detailRequest.Note);
+							stock.Decrease(absQty);
+						}
+					}
+					else
+					{
+						stockAdjustment.AddDetail(detailPayload);
+					}
+				}
 
-				  await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
+				if (isAutoApprove)
+				{
+					stockAdjustment.UpdateStatus(StockAdjustmentStatus.InProgress);
+					stockAdjustment.Complete(userId);
 
-				  var message = isAutoApprove
+					_unitOfWork.Batches.UpdateRange([.. batchDict.Values]);
+					_unitOfWork.Stocks.UpdateRange([.. stockDict.Values]);
+				}
+
+				await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
+
+				var message = isAutoApprove
 					? "Tạo phiếu điều chỉnh kho và tự động duyệt thành công."
-					  : "Đã tạo phiếu điều chỉnh kho và đang chờ quản lý xác minh.";
+					: "Đã tạo phiếu điều chỉnh kho và đang chờ quản lý xác minh.";
 
-				  return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), message);
-			  });
+				return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), message);
+			});
 
 			if (!isAutoApprove && Guid.TryParse(response.Payload, out var stockAdjustmentId))
 			{
-				await _notificationService.SendToRoleAsync(
+				_backgroundJobService.EnqueueRoleNotification(
+					_logger,
 					UserRole.admin,
 					"Yêu cầu điều chỉnh kho mới",
 					$"Có phiếu điều chỉnh kho #{stockAdjustmentId} cần duyệt.",
@@ -124,16 +169,14 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> VerifyStockAdjustmentAsync(Guid adjustmentId, VerifyStockAdjustmentRequest request, Guid verifiedByUserId)
 		{
-			var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdWithDetailsAsync(adjustmentId) ?? throw AppException.NotFound("Không tìm thấy phiếu điều chỉnh kho.");
+			var stockAdjustment = await _unitOfWork.StockAdjustments.GetByIdWithDetailsAsync(adjustmentId)
+				?? throw AppException.NotFound("Không tìm thấy phiếu điều chỉnh kho.");
 
 			stockAdjustment.EnsureVerifiable();
 
 			if (request.AdjustmentDetails.Count != stockAdjustment.AdjustmentDetails.Count)
-			{
 				throw AppException.BadRequest("Số lượng chi tiết điều chỉnh dùng để xác minh không khớp.");
-			}
 
-			// Check for duplicate import detail IDs in request
 			var duplicateDetailIds = request.AdjustmentDetails
 				.GroupBy(d => d.DetailId)
 				.Where(g => g.Count() > 1)
@@ -141,49 +184,69 @@ namespace PerfumeGPT.Application.Services
 				.ToList();
 
 			if (duplicateDetailIds.Count != 0)
-			{
-				var duplicateIds = string.Join(", ", duplicateDetailIds);
-				throw AppException.BadRequest($"Phát hiện ID chi tiết điều chỉnh trùng trong request: {duplicateIds}. Mỗi chi tiết chỉ được xuất hiện một lần.");
-			}
+				throw AppException.BadRequest($"Phát hiện ID chi tiết trùng: {string.Join(", ", duplicateDetailIds)}.");
 
-			// Validate all adjustment details exist and match request
-			foreach (var verifyDetail in request.AdjustmentDetails)
-			{
-				var adjustmentDetail = stockAdjustment.AdjustmentDetails.FirstOrDefault(d => d.Id == verifyDetail.DetailId)
-					?? throw AppException.NotFound($"Không tìm thấy chi tiết điều chỉnh có ID {verifyDetail.DetailId}.");
-			}
+			// ==============================================================
+			// BƯỚC 1: BULK READ - GOM TẤT CẢ LÊN RAM BẰNG 1 CÂU QUERY
+			// ==============================================================
+			var requestDict = request.AdjustmentDetails.ToDictionary(r => r.DetailId);
+			var batchIds = stockAdjustment.AdjustmentDetails.Select(d => d.BatchId).Distinct().ToList();
+			var variantIds = stockAdjustment.AdjustmentDetails.Select(d => d.ProductVariantId).Distinct().ToList();
 
-			// Execute within transaction
+			var batches = await _unitOfWork.Batches.GetAllAsync(b => batchIds.Contains(b.Id));
+			var batchDict = batches.ToDictionary(b => b.Id);
+
+			var stocks = await _unitOfWork.Stocks.GetAllAsync(s => variantIds.Contains(s.VariantId));
+			var stockDict = stocks.ToDictionary(s => s.VariantId);
+
+			// ==============================================================
+			// BƯỚC 2: IN-MEMORY PROCESSING - TÍNH TOÁN TRÊN RAM
+			// ==============================================================
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
-			  {
-				  foreach (var verifyDetail in request.AdjustmentDetails)
-				  {
-					  var adjustmentDetail = stockAdjustment.AdjustmentDetails.First(d => d.Id == verifyDetail.DetailId);
+			{
+				foreach (var adjustmentDetail in stockAdjustment.AdjustmentDetails)
+				{
+					if (!requestDict.TryGetValue(adjustmentDetail.Id, out var verifyDetail))
+						throw AppException.NotFound($"Không tìm thấy chi tiết điều chỉnh có ID {adjustmentDetail.Id}.");
 
-					  // Update adjustment detail
-					  adjustmentDetail.Approve(verifyDetail.ApprovedQuantity, verifyDetail.Note);
-					  _unitOfWork.StockAdjustmentDetails.Update(adjustmentDetail);
+					adjustmentDetail.Approve(verifyDetail.ApprovedQuantity, verifyDetail.Note);
+					_unitOfWork.StockAdjustmentDetails.Update(adjustmentDetail); // Tracking update
 
-					  // Apply stock adjustment
-					  if (verifyDetail.ApprovedQuantity > 0)
-					  {
-						  // Update batch quantity - this will also recalculate and update stock quantity automatically
-						  await _batchService.IncreaseBatchQuantityAsync(adjustmentDetail.BatchId, verifyDetail.ApprovedQuantity);
-					  }
-					  else if (verifyDetail.ApprovedQuantity < 0)
-					  {
-						  // Update batch quantity - this will also recalculate and update stock quantity automatically
-						  await _batchService.DecreaseBatchQuantityAsync(adjustmentDetail.BatchId, Math.Abs(verifyDetail.ApprovedQuantity));
-					  }
-				  }
+					// KHÔNG GỌI SANG BATCH SERVICE NỮA! Lấy dữ liệu trên RAM ra xử lý:
+					if (!batchDict.TryGetValue(adjustmentDetail.BatchId, out var batch))
+						throw AppException.NotFound($"Không tìm thấy lô {adjustmentDetail.BatchId}");
 
-				  stockAdjustment.Complete(verifiedByUserId);
-				  _unitOfWork.StockAdjustments.Update(stockAdjustment);
+					if (!stockDict.TryGetValue(adjustmentDetail.ProductVariantId, out var stock))
+						throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {adjustmentDetail.ProductVariantId}");
 
-				  return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), "Xác minh phiếu điều chỉnh kho thành công.");
-			  });
+					// Tự thay đổi trên RAM
+					if (verifyDetail.ApprovedQuantity > 0)
+					{
+						batch.IncreaseQuantity(verifyDetail.ApprovedQuantity, StockTransactionType.Adjustment, adjustmentId, verifiedByUserId, verifyDetail.Note);
+						stock.Increase(verifyDetail.ApprovedQuantity);
+					}
+					else if (verifyDetail.ApprovedQuantity < 0)
+					{
+						var absQty = Math.Abs(verifyDetail.ApprovedQuantity);
+						batch.DecreaseQuantity(absQty, StockTransactionType.Adjustment, adjustmentId, verifiedByUserId, verifyDetail.Note);
+						stock.Decrease(absQty);
+					}
+				}
 
-			await _notificationService.SendToUserAsync(
+				stockAdjustment.Complete(verifiedByUserId);
+				_unitOfWork.StockAdjustments.Update(stockAdjustment);
+
+				// ==============================================================
+				// BƯỚC 3: BULK WRITE - ĐẨY XUỐNG DB 1 LẦN
+				// ==============================================================
+				_unitOfWork.Batches.UpdateRange([.. batches]);
+				_unitOfWork.Stocks.UpdateRange([.. stocks]);
+
+				return BaseResponse<string>.Ok(stockAdjustment.Id.ToString(), "Xác minh phiếu điều chỉnh kho thành công.");
+			});
+
+			_backgroundJobService.EnqueueStaffNotificationWithFcm(
+				_logger,
 				stockAdjustment.CreatedById,
 				"Yêu cầu điều chỉnh kho đã được chấp thuận",
 				$"Yêu cầu điều chỉnh kho #{stockAdjustment.Id} của bạn đã được Admin chấp thuận.",
@@ -235,7 +298,8 @@ namespace PerfumeGPT.Application.Services
 
 			if (request.Status == StockAdjustmentStatus.Cancelled)
 			{
-				await _notificationService.SendToUserAsync(
+				_backgroundJobService.EnqueueStaffNotificationWithFcm(
+					_logger,
 					stockAdjustment.CreatedById,
 					"Yêu cầu điều chỉnh kho đã bị từ chối",
 					$"Yêu cầu điều chỉnh kho #{stockAdjustment.Id} của bạn đã bị từ chối.",
@@ -255,10 +319,7 @@ namespace PerfumeGPT.Application.Services
 
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
-				foreach (var detail in stockAdjustment.AdjustmentDetails)
-				{
-					_unitOfWork.StockAdjustmentDetails.Remove(detail);
-				}
+				_unitOfWork.StockAdjustmentDetails.RemoveRange(stockAdjustment.AdjustmentDetails);
 
 				_unitOfWork.StockAdjustments.Remove(stockAdjustment);
 

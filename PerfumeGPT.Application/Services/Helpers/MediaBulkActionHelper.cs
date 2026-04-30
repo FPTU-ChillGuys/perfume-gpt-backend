@@ -30,28 +30,55 @@ namespace PerfumeGPT.Application.Services.Helpers
 			_supabaseService = supabaseService;
 		}
 
-		public async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(
-		List<Guid> temporaryMediaIds,
-		EntityType entityType,
-		Guid entityId)
+		public async Task<BulkActionResponse> ConvertTemporaryMediaToPermanentAsync(List<Guid> temporaryMediaIds, EntityType entityType, Guid entityId)
 		{
 			if (!SupportedEntityTypes.Contains(entityType))
 				throw AppException.BadRequest($"Không hỗ trợ loại thực thể {entityType}.");
 
 			var response = new BulkActionResponse { SucceededIds = [], FailedItems = [] };
 
+			// 1. BULK READ: Kéo tất cả TempMedia lên bằng 1 Query
+			var tempMedias = await _unitOfWork.TemporaryMedia.GetAllAsync(m => temporaryMediaIds.Contains(m.Id));
+			var tempMediaDict = tempMedias.ToDictionary(m => m.Id);
+
+			var mediaToAdd = new List<Media>();
+			var tempMediaToRemove = new List<TemporaryMedia>();
+
 			foreach (var tempMediaId in temporaryMediaIds)
 			{
-				var (success, errorMessage) = await ConvertSingleAsync(tempMediaId, entityType, entityId);
+				if (!tempMediaDict.TryGetValue(tempMediaId, out var tempMedia))
+				{
+					response.FailedItems.Add(new BulkActionError { Id = tempMediaId, ErrorMessage = "Không tìm thấy media tạm thời." });
+					continue;
+				}
 
-				if (success)
-					response.SucceededIds.Add(tempMediaId);
-				else
-					response.FailedItems.Add(new BulkActionError { Id = tempMediaId, ErrorMessage = errorMessage! });
+				try
+				{
+					tempMedia.EnsureNotExpired();
+				}
+				catch (DomainException ex)
+				{
+					response.FailedItems.Add(new BulkActionError { Id = tempMediaId, ErrorMessage = ex.Message });
+					continue;
+				}
+
+				var fileMetadata = new FileMetadata { Url = tempMedia.Url, PublicId = tempMedia.PublicId, FileSize = tempMedia.FileSize, MimeType = tempMedia.MimeType };
+				var displayInfo = entityType == EntityType.SystemPage
+					? new MediaDisplayInfo { AltText = tempMedia.AltText, DisplayOrder = 0, IsPrimary = false }
+					: new MediaDisplayInfo { AltText = tempMedia.AltText, DisplayOrder = tempMedia.DisplayOrder, IsPrimary = tempMedia.IsPrimary };
+
+				mediaToAdd.Add(Media.Create(entityType, entityId, fileMetadata, displayInfo));
+				tempMediaToRemove.Add(tempMedia);
+				response.SucceededIds.Add(tempMediaId);
 			}
 
-			if (response.SucceededIds.Count > 0)
+			// 3. BULK WRITE
+			if (mediaToAdd.Count > 0)
+			{
+				await _unitOfWork.Media.AddRangeAsync(mediaToAdd);
+				_unitOfWork.TemporaryMedia.RemoveRange(tempMediaToRemove);
 				await _unitOfWork.SaveChangesAsync();
+			}
 
 			return response;
 		}
@@ -60,25 +87,24 @@ namespace PerfumeGPT.Application.Services.Helpers
 		{
 			var response = new BulkActionResponse { SucceededIds = [], FailedItems = [] };
 
+			// 1. BULK READ
+			var medias = await _unitOfWork.Media.GetAllAsync(m => mediaIds.Contains(m.Id));
+			var mediaDict = medias.ToDictionary(m => m.Id);
+
+			var deleteSupabaseTasks = new List<Task>();
+			var mediaToRemove = new List<Media>();
+
 			foreach (var mediaId in mediaIds)
 			{
-				var media = await _unitOfWork.Media.GetByIdAsync(mediaId);
-				if (media == null || media.IsDeleted)
+				if (!mediaDict.TryGetValue(mediaId, out var media) || media.IsDeleted)
 				{
-					response.FailedItems.Add(new BulkActionError
-					{
-						Id = mediaId,
-						ErrorMessage = "Không tìm thấy media hoặc media đã bị xóa."
-					});
+					response.FailedItems.Add(new BulkActionError { Id = mediaId, ErrorMessage = "Không tìm thấy media hoặc media đã bị xóa." });
 					continue;
 				}
 
 				if (media.EntityType != EntityType.SystemPage)
 				{
-					try
-					{
-						media.EnsureNotPrimary();
-					}
+					try { media.EnsureNotPrimary(); }
 					catch (Exception ex)
 					{
 						response.FailedItems.Add(new BulkActionError { Id = mediaId, ErrorMessage = ex.Message });
@@ -86,63 +112,27 @@ namespace PerfumeGPT.Application.Services.Helpers
 					}
 				}
 
+				// 2. PARALLEL HTTP CALLS PREPARATION: Gom các Task xóa ảnh lại, KHÔNG await ở đây
 				if (!string.IsNullOrEmpty(media.PublicId))
-					await _supabaseService.DeleteImageAsync(media.Url, GetBucketName(media.EntityType));
+				{
+					deleteSupabaseTasks.Add(_supabaseService.DeleteImageAsync(media.Url, GetBucketName(media.EntityType)));
+				}
 
-				_unitOfWork.Media.Remove(media);
+				mediaToRemove.Add(media);
 				response.SucceededIds.Add(mediaId);
 			}
 
+			// 3. EXECUTE PARALLEL & BULK WRITE
 			if (response.SucceededIds.Count > 0)
+			{
+				// Chạy đồng thời TẤT CẢ các HTTP Request tới Supabase
+				if (deleteSupabaseTasks.Count > 0) await Task.WhenAll(deleteSupabaseTasks);
+
+				_unitOfWork.Media.RemoveRange(mediaToRemove);
 				await _unitOfWork.SaveChangesAsync();
+			}
 
 			return response;
-		}
-
-		#region Private Helpers
-		private async Task<(bool Success, string? Error)> ConvertSingleAsync(Guid tempMediaId, EntityType entityType, Guid entityId)
-		{
-			var tempMedia = await _unitOfWork.TemporaryMedia.GetByIdAsync(tempMediaId);
-			if (tempMedia == null)
-				return (false, "Không tìm thấy media tạm thời.");
-
-			try
-			{
-				tempMedia.EnsureNotExpired();
-			}
-			catch (DomainException ex)
-			{
-				return (false, ex.Message);
-			}
-
-			var fileMetadata = new FileMetadata
-			{
-				Url = tempMedia.Url,
-				PublicId = tempMedia.PublicId,
-				FileSize = tempMedia.FileSize,
-				MimeType = tempMedia.MimeType
-			};
-
-			var displayInfo = entityType == EntityType.SystemPage
-				? new MediaDisplayInfo
-				{
-					AltText = tempMedia.AltText,
-					DisplayOrder = 0,
-					IsPrimary = false
-				}
-				: new MediaDisplayInfo
-				{
-					AltText = tempMedia.AltText,
-					DisplayOrder = tempMedia.DisplayOrder,
-					IsPrimary = tempMedia.IsPrimary
-				};
-
-			var media = Media.Create(entityType, entityId, fileMetadata, displayInfo);
-
-			await _unitOfWork.Media.AddAsync(media);
-			_unitOfWork.TemporaryMedia.Remove(tempMedia);
-
-			return (true, null);
 		}
 
 		private static string GetBucketName(EntityType entityType) => entityType switch
@@ -156,6 +146,5 @@ namespace PerfumeGPT.Application.Services.Helpers
 			EntityType.SystemPage => "SystemPages",
 			_ => "Products"
 		};
-		#endregion Private Helpers
 	}
 }

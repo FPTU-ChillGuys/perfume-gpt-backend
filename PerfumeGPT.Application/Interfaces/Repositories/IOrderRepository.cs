@@ -22,5 +22,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<Order?> GetOrderForFulfillmentAsync(Guid orderId);
 		Task<Order?> GetOrderForSwapDamagedStockAsync(Guid orderId);
 		Task<Order?> GetOrderWithDetailsForShippingAsync(Guid orderId);
+		Task<List<Order>> GetExpiringUnpaidOrdersAsync(int limit);
+		Task<Order?> GetOrderForReturnRequestAsync(Guid orderId);
 	}
 }

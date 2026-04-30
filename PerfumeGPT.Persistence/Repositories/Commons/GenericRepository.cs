@@ -181,11 +181,10 @@ namespace PerfumeGPT.Persistence.Repositories.Commons
 			_dbSet.Update(entity);
 		}
 
-		public async Task UpdateRangeAsync(IEnumerable<T> entities)
+		public void UpdateRange(IEnumerable<T> entities)
 		{
 			if (entities is null) throw new ArgumentNullException(nameof(entities));
 			_dbSet.UpdateRange(entities);
-			await Task.CompletedTask;
 		}
 	}
 }

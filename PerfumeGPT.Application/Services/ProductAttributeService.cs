@@ -6,16 +6,9 @@ namespace PerfumeGPT.Application.Services
 {
 	public class ProductAttributeService : IProductAttributeService
 	{
-		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 
-		public ProductAttributeService(IUnitOfWork unitOfWork)
-		{
-			_unitOfWork = unitOfWork;
-		}
-		#endregion Dependencies
-
-
+		public ProductAttributeService(IUnitOfWork unitOfWork) { _unitOfWork = unitOfWork; }
 
 		public async Task<List<string>> ValidateAttributesAsync(List<ProductAttributeDto>? attributes, bool isForVariant = false)
 		{

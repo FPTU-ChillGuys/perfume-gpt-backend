@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Logging;
-using Microsoft.EntityFrameworkCore;
 using PerfumeGPT.Application.DTOs.Requests.Shippings;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Shippings;
@@ -49,15 +48,15 @@ namespace PerfumeGPT.Application.Services
 			if (userId == Guid.Empty)
 				return BaseResponse<string>.Fail("Bắt buộc cung cấp User ID.", ResponseErrorType.BadRequest);
 
-			var candidates = await _unitOfWork.ShippingInfos.GetSyncCandidatesForGhnByUserIdAsync(userId);
+			var candidates = await _unitOfWork.ShippingInfos.GetSyncCandidatesWithOrdersForGhnByUserIdAsync(userId);
 			if (candidates.Count == 0)
 				return BaseResponse<string>.Ok("Trạng thái vận chuyển đã được cập nhật. Không có đơn hàng chờ xử lý.");
 
 			var updatedCount = 0;
 
-			foreach (var shippingInfo in candidates)
+			foreach (var candidate in candidates)
 			{
-				var isUpdated = await SyncSingleShippingInfoAsync(shippingInfo);
+				var isUpdated = await SyncSingleShippingInfoAsync(candidate.Shipping, candidate.ForwardOrder, candidate.ReturnRequest);
 
 				if (isUpdated)
 				{
@@ -70,67 +69,48 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<string>.Ok($"Đồng bộ trạng thái vận chuyển hoàn tất. Đã cập nhật {updatedCount} bản ghi.");
 		}
 
-		public async Task<bool> SyncSingleShippingInfoAsync(ShippingInfo shippingInfo)
+		public async Task<bool> SyncSingleShippingInfoAsync(ShippingInfo shippingInfo, Order? forwardOrder = null, OrderReturnRequest? returnRequest = null)
 		{
 			try
 			{
 				var latestDetail = await _ghnService.GetOrderDetailAsync(shippingInfo.TrackingNumber!);
-				if (latestDetail == null || string.IsNullOrWhiteSpace(latestDetail.Status))
-					return false;
+				if (latestDetail == null || string.IsNullOrWhiteSpace(latestDetail.Status)) return false;
 
 				var targetStatus = MapGhnStatusToDomainStatus(latestDetail.Status);
-				if (!targetStatus.HasValue)
-					return false;
+				if (!targetStatus.HasValue) return false;
 
-				return await ApplyShippingStatusAsync(shippingInfo, targetStatus.Value);
+				return await ApplyShippingStatusAsync(shippingInfo, targetStatus.Value, forwardOrder, returnRequest);
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Failed to sync GHN tracking {TrackingNumber}", shippingInfo.TrackingNumber);
 			}
-
 			return false;
 		}
 
-		private async Task<bool> ApplyShippingStatusAsync(ShippingInfo shippingInfo, ShippingStatus targetStatus)
+		private async Task<bool> ApplyShippingStatusAsync(ShippingInfo shippingInfo, ShippingStatus targetStatus, Order? forwardOrder, OrderReturnRequest? returnRequest)
 		{
-			Guid? orderId = null;
-			Guid? returnRequestId = null;
-
 			try
 			{
-				if (!TryApplyShippingStatus(shippingInfo, targetStatus))
+				if (!TryApplyShippingStatus(shippingInfo, targetStatus)) return false;
+
+				if (forwardOrder != null)
 				{
-					return false;
+					// Xử lý đơn hàng đi (Forward)
+					await _orderWorkflowService.ProcessForwardShippingStatusAsync(forwardOrder, targetStatus, shippingInfo.ShippedDate);
+					_unitOfWork.Orders.Update(forwardOrder);
 				}
-
-				var order = await _unitOfWork.Orders.FirstOrDefaultAsync(
-					o => o.ForwardShippingId == shippingInfo.Id,
-					include: q => q.Include(o => o.PaymentTransactions));
-
-				if (order != null)
+				else if (returnRequest != null)
 				{
-					orderId = order.Id;
-					await _orderWorkflowService.ProcessForwardShippingStatusAsync(order, targetStatus, shippingInfo.ShippedDate);
+					// Xử lý đơn hàng về (Return)
+					var returnOrder = returnRequest.Order;
+					await _returnWorkflowService.ProcessReturnShippingStatusAsync(returnOrder, returnRequest, targetStatus);
+					_unitOfWork.Orders.Update(returnOrder);
+					_unitOfWork.OrderReturnRequests.Update(returnRequest);
 				}
 				else
 				{
-					var returnRequest = await _unitOfWork.OrderReturnRequests.FirstOrDefaultAsync(
-						r => r.ReturnShippingId == shippingInfo.Id,
-						include: q => q.Include(r => r.ReturnShipping!));
-
-					if (returnRequest == null)
-					{
-						return false;
-					}
-
-					returnRequestId = returnRequest.Id;
-					var returnOrder = await _unitOfWork.Orders.FirstOrDefaultAsync(o => o.Id == returnRequest.OrderId);
-
-					if (returnOrder != null)
-					{
-						await _returnWorkflowService.ProcessReturnShippingStatusAsync(returnOrder, returnRequest, targetStatus);
-					}
+					return false;
 				}
 
 				_unitOfWork.ShippingInfos.Update(shippingInfo);
@@ -139,7 +119,7 @@ namespace PerfumeGPT.Application.Services
 			}
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, "Failed to apply shipping status {ShippingStatus} for GHN tracking {TrackingNumber} for Order {OrderId} or ReturnRequest {ReturnRequestId}", targetStatus, shippingInfo.TrackingNumber, orderId, returnRequestId);
+				_logger.LogError(ex, "Failed to apply shipping status for GHN tracking {TrackingNumber}", shippingInfo.TrackingNumber);
 				return false;
 			}
 		}
