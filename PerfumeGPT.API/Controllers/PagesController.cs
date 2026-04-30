@@ -24,7 +24,6 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpGet]
-		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<PageResponse>>), StatusCodes.Status200OK)]
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<PageResponse>>>> GetPages([FromQuery] GetPagedPageRequest request)

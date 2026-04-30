@@ -130,7 +130,9 @@ namespace PerfumeGPT.Persistence.Contexts
 					Guid.Parse("f6c2a71d-a76c-43cf-8f1f-315766251001"),
 					20m,
 					15,
-					true)
+					true,
+					50,
+					5)
 			};
 		}
 	}

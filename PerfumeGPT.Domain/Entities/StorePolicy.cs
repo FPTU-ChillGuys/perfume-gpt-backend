@@ -11,21 +11,20 @@ namespace PerfumeGPT.Domain.Entities
 		public decimal RequiredDepositPercentage { get; private set; }
 		public int DepositTimeoutMinutes { get; private set; }
 		public bool IsDepositRequiredForCOD { get; private set; }
+		public int ReviewRewardPoints { get; private set; }
+		public int StockAdjustmentAutoApprovalThreshold { get; private set; }
 
 		// IHasTimestamps implementation
 		public DateTime? UpdatedAt { get; set; }
 		public DateTime CreatedAt { get; set; }
 
-		public static StorePolicy Create(decimal percentage, int timeoutMinutes, bool isRequired)
-		{
-			return Create(Guid.NewGuid(), percentage, timeoutMinutes, isRequired);
-		}
-
-		public static StorePolicy Create(Guid id, decimal percentage, int timeoutMinutes, bool isRequired)
+		public static StorePolicy Create(Guid id, decimal percentage, int timeoutMinutes, bool isRequired, int reviewRewardPoints, int stockAdjustmentAutoApprovalThreshold)
 		{
 			var policy = new StorePolicy
 			{
-				Id = id
+				Id = id,
+				ReviewRewardPoints = reviewRewardPoints,
+				StockAdjustmentAutoApprovalThreshold = stockAdjustmentAutoApprovalThreshold
 			};
 			policy.UpdateDepositPolicy(percentage, timeoutMinutes, isRequired);
 			return policy;
@@ -42,6 +41,22 @@ namespace PerfumeGPT.Domain.Entities
 			RequiredDepositPercentage = percentage;
 			DepositTimeoutMinutes = timeoutMinutes;
 			IsDepositRequiredForCOD = isRequired;
+		}
+
+		public void UpdateReviewPolicy(int reviewRewardPoints)
+		{
+			if (reviewRewardPoints < 0)
+				throw DomainException.BadRequest("Điểm thưởng đánh giá không hợp lệ.");
+
+			ReviewRewardPoints = reviewRewardPoints;
+		}
+
+		public void UpdateStockAdjustmentPolicy(int autoApprovalThreshold)
+		{
+			if (autoApprovalThreshold < 0)
+				throw DomainException.BadRequest("Ngưỡng tự động duyệt điều chỉnh kho không hợp lệ.");
+
+			StockAdjustmentAutoApprovalThreshold = autoApprovalThreshold;
 		}
 	}
 }
