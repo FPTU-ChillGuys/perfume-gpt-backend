@@ -162,6 +162,7 @@ namespace PerfumeGPT.Domain.Entities
 			{
 				CodBlockedUntil = nowUtc.AddDays(30);
 			}
+
 			// Nếu boom 3 lần -> Cấm COD 7 ngày
 			else if (DeliveryRefusalCount >= 3)
 			{

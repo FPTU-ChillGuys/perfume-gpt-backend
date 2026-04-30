@@ -35,6 +35,10 @@ namespace PerfumeGPT.Application.Services
 				request.IsDepositRequiredForCOD);
 			policy.UpdateReviewPolicy(request.ReviewRewardPoints);
 			policy.UpdateStockAdjustmentPolicy(request.StockAdjustmentAutoApprovalThreshold);
+			policy.UpdateOrderRewardPointsPolicy(request.OrderRewardPointsInDays);
+			policy.UpdateBatchExpiringSoonPolicy(request.BatchExpiringSoonThresholdInDays);
+			policy.UpdateReturnPolicy(request.ReturnOrderAllowanceInDays);
+			policy.UpdateAddressPolicy(request.MaxAddressesPerUser);
 
 			_unitOfWork.StorePolicies.Update(policy);
 			await _unitOfWork.SaveChangesAsync();
@@ -51,7 +55,11 @@ namespace PerfumeGPT.Application.Services
 				DepositTimeoutMinutes = policy.DepositTimeoutMinutes,
 				IsDepositRequiredForCOD = policy.IsDepositRequiredForCOD,
 				ReviewRewardPoints = policy.ReviewRewardPoints,
-				StockAdjustmentAutoApprovalThreshold = policy.StockAdjustmentAutoApprovalThreshold
+				StockAdjustmentAutoApprovalThreshold = policy.StockAdjustmentAutoApprovalThreshold,
+				OrderRewardPointsInDays = policy.OrderRewardPointsInDays,
+				BatchExpiringSoonThresholdInDays = policy.BatchExpiringSoonThresholdInDays,
+				ReturnOrderAllowanceInDays = policy.ReturnOrderAllowanceInDays,
+				MaxAddressesPerUser = policy.MaxAddressesPerUser
 			};
 		}
 	}

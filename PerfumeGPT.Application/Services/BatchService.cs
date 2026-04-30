@@ -42,7 +42,11 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<BatchDetailResponse>>> GetBatchesAsync(GetBatchesRequest request)
 		{
-			var (batches, totalCount) = await _unitOfWork.Batches.GetBatchesAsync(request);
+			var currentPolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+
+			int threshold = currentPolicy?.BatchExpiringSoonThresholdInDays ?? 30;
+
+			var (batches, totalCount) = await _unitOfWork.Batches.GetBatchesAsync(request, threshold);
 
 			var pagedResult = new PagedResult<BatchDetailResponse>(
 				batches,

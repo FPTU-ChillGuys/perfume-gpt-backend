@@ -24,12 +24,12 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 			_fcmNotificationService = fcmNotificationService;
 		}
 
-		public async Task NotifyOrderPreparingAsync(Guid orderId, Guid customerId)
+		public async Task NotifyOrderPreparingAsync(Guid orderId, string orderCode, Guid customerId)
 		{
 			await NotifyCustomerWithFcmAsync(
 				customerId,
 				"Đơn hàng đã được xác nhận",
-				$"Đơn hàng #{orderId} của bạn đã được xác nhận và đang xử lý.",
+				$"Đơn hàng #{orderCode} của bạn đã được xác nhận và đang xử lý.",
 				NotificationType.Info,
 				orderId,
 				NotifiReferecneType.Order);

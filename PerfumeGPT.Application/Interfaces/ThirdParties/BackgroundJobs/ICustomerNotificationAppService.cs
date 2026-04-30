@@ -4,7 +4,7 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties.BackgroundJobs
 {
 	public interface ICustomerNotificationAppService
 	{
-		Task NotifyOrderPreparingAsync(Guid orderId, Guid customerId);
+		Task NotifyOrderPreparingAsync(Guid orderId, string orderCode, Guid customerId);
 		Task NotifyCustomerWithFcmAsync(
 			Guid customerId,
 			string title,

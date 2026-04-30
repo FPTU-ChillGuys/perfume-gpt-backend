@@ -6,6 +6,8 @@ namespace PerfumeGPT.Domain.Entities
 {
 	public class Address : BaseEntity<Guid>, IHasTimestamps
 	{
+		public const int DefaultMaxAddressesPerUser = 5;
+
 		private Address() { }
 
 		public Guid UserId { get; private set; }
@@ -70,6 +72,12 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			if (IsDefault)
 				throw DomainException.BadRequest("Địa chỉ này đã được đặt làm mặc định.");
+		}
+
+		public static void EnsureCanCreateAddress(int existingAddressCount, int maxAddressesPerUser)
+		{
+			if (existingAddressCount >= maxAddressesPerUser)
+				throw DomainException.BadRequest($"Mỗi người dùng chỉ có thể lưu tối đa {maxAddressesPerUser} địa chỉ.");
 		}
 
 		public void SetAsDefault() => IsDefault = true;

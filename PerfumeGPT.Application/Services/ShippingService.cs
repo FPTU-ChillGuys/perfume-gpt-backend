@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.DTOs.Requests.Shippings;
 using PerfumeGPT.Application.DTOs.Responses.Base;
+using PerfumeGPT.Application.DTOs.Responses.GHNs;
 using PerfumeGPT.Application.DTOs.Responses.Shippings;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
@@ -79,7 +80,8 @@ namespace PerfumeGPT.Application.Services
 				var targetStatus = MapGhnStatusToDomainStatus(latestDetail.Status);
 				if (!targetStatus.HasValue) return false;
 
-				return await ApplyShippingStatusAsync(shippingInfo, targetStatus.Value, forwardOrder, returnRequest);
+				var statusUpdatedAtUtc = ResolveLatestStatusUpdatedAtUtc(latestDetail);
+				return await ApplyShippingStatusAsync(shippingInfo, targetStatus.Value, forwardOrder, returnRequest, statusUpdatedAtUtc);
 			}
 			catch (Exception ex)
 			{
@@ -88,7 +90,7 @@ namespace PerfumeGPT.Application.Services
 			return false;
 		}
 
-		private async Task<bool> ApplyShippingStatusAsync(ShippingInfo shippingInfo, ShippingStatus targetStatus, Order? forwardOrder, OrderReturnRequest? returnRequest)
+		private async Task<bool> ApplyShippingStatusAsync(ShippingInfo shippingInfo, ShippingStatus targetStatus, Order? forwardOrder, OrderReturnRequest? returnRequest, DateTime? statusUpdatedAtUtc)
 		{
 			try
 			{
@@ -97,7 +99,7 @@ namespace PerfumeGPT.Application.Services
 				if (forwardOrder != null)
 				{
 					// Xử lý đơn hàng đi (Forward)
-					await _orderWorkflowService.ProcessForwardShippingStatusAsync(forwardOrder, targetStatus, shippingInfo.ShippedDate);
+					await _orderWorkflowService.ProcessForwardShippingStatusAsync(forwardOrder, targetStatus, statusUpdatedAtUtc);
 					_unitOfWork.Orders.Update(forwardOrder);
 				}
 				else if (returnRequest != null)
@@ -204,10 +206,28 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> SyncShippingStatusByTrackingNumberAsync(string trackingNumber)
 		{
-			var shippingInfo = await _unitOfWork.ShippingInfos.FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber)
-				?? throw new Exception($"Không tìm thấy thông tin vận chuyển với mã theo dõi {trackingNumber}");
-			await SyncSingleShippingInfoAsync(shippingInfo);
+			var normalizedTrackingNumber = trackingNumber.Trim();
+			var candidate = await _unitOfWork.ShippingInfos.GetSyncCandidateWithOrdersByTrackingNumberAsync(normalizedTrackingNumber)
+				?? throw new Exception($"Không tìm thấy thông tin vận chuyển GHN với mã theo dõi {normalizedTrackingNumber}");
+
+			await SyncSingleShippingInfoAsync(candidate.Shipping, candidate.ForwardOrder, candidate.ReturnRequest);
 			return BaseResponse<string>.Ok($"Đã đồng bộ trạng thái vận chuyển cho mã theo dõi {trackingNumber} thành công.");
+		}
+
+		private static DateTime? ResolveLatestStatusUpdatedAtUtc(ShippingOrderDetailDto latestDetail)
+		{
+			if (latestDetail.Log == null || latestDetail.Log.Count == 0 || string.IsNullOrWhiteSpace(latestDetail.Status))
+			{
+				return latestDetail.OrderDate;
+			}
+
+			var normalizedStatus = latestDetail.Status.Trim();
+			return latestDetail.Log
+				.Where(log => string.Equals(log.Status, normalizedStatus, StringComparison.OrdinalIgnoreCase) && log.UpdatedDate.HasValue)
+				.OrderByDescending(log => log.UpdatedDate)
+				.Select(log => log.UpdatedDate)
+				.FirstOrDefault()
+				?? latestDetail.OrderDate;
 		}
 	}
 }

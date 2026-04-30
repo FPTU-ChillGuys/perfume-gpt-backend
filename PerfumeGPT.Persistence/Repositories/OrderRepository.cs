@@ -15,7 +15,7 @@ namespace PerfumeGPT.Persistence.Repositories
 	{
 		public OrderRepository(PerfumeDbContext context) : base(context) { }
 
-		public async Task<(List<OrderListItem> Orders, int TotalCount)> GetPagedOrdersAsync(GetPagedOrdersRequest request)
+		public async Task<(List<OrderListItem> Orders, int TotalCount)> GetPagedOrdersAsync(GetPagedOrdersRequest request, int returnOrderAllowanceInDays)
 		{
 			Expression<Func<Order, bool>> filter = o => true;
 
@@ -138,7 +138,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					IsReturnalbe = o.Status == OrderStatus.Delivered
 						   && o.ForwardShipping != null
 							&& o.ForwardShipping.ShippedDate.HasValue
-							&& o.ForwardShipping.ShippedDate.Value >= DateTime.UtcNow.AddDays(-7),
+							&& o.ForwardShipping.ShippedDate.Value >= DateTime.UtcNow.AddDays(-returnOrderAllowanceInDays),
 					ShippingStatus = o.ForwardShipping != null ? o.ForwardShipping.Status : null,
 					CreatedAt = o.CreatedAt,
 					PaymentExpiresAt = o.PaymentExpiresAt,
@@ -364,7 +364,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			.AsSplitQuery()
 			.FirstOrDefaultAsync();
 
-		public async Task<UserOrderResponse?> GetUserOrderWithFullDetailsAsync(Guid orderId, Guid userId)
+		public async Task<UserOrderResponse?> GetUserOrderWithFullDetailsAsync(Guid orderId, Guid userId, int returnOrderAllowanceInDays)
 		=> await _context.Orders
 			.Where(o => o.Id == orderId && o.CustomerId == userId)
 			.Select(o => new UserOrderResponse
@@ -376,7 +376,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				IsReturnable = o.Status == OrderStatus.Delivered
 					   && o.ForwardShipping != null
 						&& o.ForwardShipping.ShippedDate.HasValue
-						&& o.ForwardShipping.ShippedDate.Value >= DateTime.UtcNow.AddDays(-7),
+						&& o.ForwardShipping.ShippedDate.Value >= DateTime.UtcNow.AddDays(-returnOrderAllowanceInDays),
 				PaymentStatus = o.PaymentStatus,
 				TotalAmount = o.TotalAmount,
 				RequiredDepositAmount = o.RequiredDepositAmount,
@@ -657,5 +657,11 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Take(limit)
 				.ToListAsync();
 		}
+
+		public async Task<string?> GetOrderCodeAsync(Guid orderId)
+		=> await _context.Orders
+				.Where(o => o.Id == orderId)
+				.Select(o => o.Code)
+				.FirstOrDefaultAsync();
 	}
 }

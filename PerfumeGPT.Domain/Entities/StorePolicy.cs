@@ -13,20 +13,38 @@ namespace PerfumeGPT.Domain.Entities
 		public bool IsDepositRequiredForCOD { get; private set; }
 		public int ReviewRewardPoints { get; private set; }
 		public int StockAdjustmentAutoApprovalThreshold { get; private set; }
+		public int OrderRewardPointsInDays { get; private set; }
+		public int BatchExpiringSoonThresholdInDays { get; private set; }
+		public int ReturnOrderAllowanceInDays { get; private set; }
+		public int MaxAddressesPerUser { get; private set; }
 
 		// IHasTimestamps implementation
 		public DateTime? UpdatedAt { get; set; }
 		public DateTime CreatedAt { get; set; }
 
-		public static StorePolicy Create(Guid id, decimal percentage, int timeoutMinutes, bool isRequired, int reviewRewardPoints, int stockAdjustmentAutoApprovalThreshold)
+		public static StorePolicy Create(
+			Guid id,
+			decimal percentage,
+			int timeoutMinutes,
+			bool isRequired,
+			int reviewRewardPoints,
+			int stockAdjustmentAutoApprovalThreshold,
+			int orderRewardPointsInDays,
+			int batchExpiringSoonThresholdInDays,
+			int returnOrderAllowanceInDays,
+			int maxAddressesPerUser)
 		{
 			var policy = new StorePolicy
 			{
 				Id = id,
-				ReviewRewardPoints = reviewRewardPoints,
-				StockAdjustmentAutoApprovalThreshold = stockAdjustmentAutoApprovalThreshold
 			};
+			policy.UpdateBatchExpiringSoonPolicy(batchExpiringSoonThresholdInDays);
+			policy.UpdateReviewPolicy(reviewRewardPoints);
+			policy.UpdateStockAdjustmentPolicy(stockAdjustmentAutoApprovalThreshold);
+			policy.UpdateOrderRewardPointsPolicy(orderRewardPointsInDays);
 			policy.UpdateDepositPolicy(percentage, timeoutMinutes, isRequired);
+			policy.UpdateReturnPolicy(returnOrderAllowanceInDays);
+			policy.UpdateAddressPolicy(maxAddressesPerUser);
 			return policy;
 		}
 
@@ -57,6 +75,34 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("Ngưỡng tự động duyệt điều chỉnh kho không hợp lệ.");
 
 			StockAdjustmentAutoApprovalThreshold = autoApprovalThreshold;
+		}
+
+		public void UpdateOrderRewardPointsPolicy(int orderRewardPointsInDays)
+		{
+			if (orderRewardPointsInDays < 0)
+				throw DomainException.BadRequest("Số ngày tính điểm thưởng đơn hàng không hợp lệ.");
+			OrderRewardPointsInDays = orderRewardPointsInDays;
+		}
+
+		public void UpdateBatchExpiringSoonPolicy(int batchExpiringSoonThresholdInDays)
+		{
+			if (batchExpiringSoonThresholdInDays < 0)
+				throw DomainException.BadRequest("Số ngày để xác định lô hàng sắp hết hạn không hợp lệ.");
+			BatchExpiringSoonThresholdInDays = batchExpiringSoonThresholdInDays;
+		}
+
+		public void UpdateReturnPolicy(int returnOrderAllowanceInDays)
+		{
+			if (returnOrderAllowanceInDays < 0)
+				throw DomainException.BadRequest("Số ngày cho phép trả hàng không hợp lệ.");
+			ReturnOrderAllowanceInDays = returnOrderAllowanceInDays;
+		}
+
+		public void UpdateAddressPolicy(int maxAddressesPerUser)
+		{
+			if (maxAddressesPerUser <= 0)
+				throw DomainException.BadRequest("Số lượng địa chỉ tối đa mỗi người dùng phải lớn hơn 0.");
+			MaxAddressesPerUser = maxAddressesPerUser;
 		}
 	}
 }

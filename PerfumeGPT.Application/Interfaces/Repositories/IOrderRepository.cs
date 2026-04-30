@@ -7,10 +7,10 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 {
 	public interface IOrderRepository : IGenericRepository<Order>
 	{
-		Task<(List<OrderListItem> Orders, int TotalCount)> GetPagedOrdersAsync(GetPagedOrdersRequest request);
+		Task<(List<OrderListItem> Orders, int TotalCount)> GetPagedOrdersAsync(GetPagedOrdersRequest request, int returnOrderAllowanceInDays);
 		Task<OrderResponse?> GetOrderWithFullDetailsAsync(Guid orderId);
 		Task<OrderResponse?> GetOrderWithFullDetailsByCodeAsync(string orderCode);
-		Task<UserOrderResponse?> GetUserOrderWithFullDetailsAsync(Guid orderId, Guid userId);
+		Task<UserOrderResponse?> GetUserOrderWithFullDetailsAsync(Guid orderId, Guid userId, int returnOrderAllowanceInDays);
 		Task<ReceiptResponse?> GetInvoiceAsync(Guid orderId);
 		Task<ReceiptResponse?> GetUserInvoiceAsync(Guid orderId, Guid userId);
 		Task<(string CustomerEmail, ReceiptResponse Invoice, string OrderCode)?> GetOnlineOrderInvoiceEmailPayloadAsync(Guid orderId);
@@ -24,5 +24,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<Order?> GetOrderWithDetailsForShippingAsync(Guid orderId);
 		Task<List<Order>> GetExpiringUnpaidOrdersAsync(int limit);
 		Task<Order?> GetOrderForReturnRequestAsync(Guid orderId);
+		Task<string?> GetOrderCodeAsync(Guid orderId);
 	}
 }

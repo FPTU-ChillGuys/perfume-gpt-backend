@@ -19,6 +19,9 @@ namespace PerfumeGPT.Application.Validators.Policies
 			RuleFor(x => x.StockAdjustmentAutoApprovalThreshold)
 				.GreaterThanOrEqualTo(0)
 				.WithMessage("Ngưỡng tự động duyệt điều chỉnh kho phải lớn hơn hoặc bằng 0.");
+			RuleFor(x => x.MaxAddressesPerUser)
+				.GreaterThan(0)
+				.WithMessage("Số lượng địa chỉ tối đa mỗi người dùng phải lớn hơn 0.");
 		}
 	}
 }

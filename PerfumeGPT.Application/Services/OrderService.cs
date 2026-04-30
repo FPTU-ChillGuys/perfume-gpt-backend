@@ -97,7 +97,10 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<OrderListItem>>> GetOrdersAsync(GetPagedOrdersRequest request)
 		{
-			var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request);
+			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync()
+				?? throw AppException.NotFound("Không tìm thấy cấu hình chính sách cửa hàng.");
+
+			var (orders, totalCount) = await _unitOfWork.Orders.GetPagedOrdersAsync(request, storePolicy.ReturnOrderAllowanceInDays);
 
 			var pagedResult = new PagedResult<OrderListItem>(
 				orders,
@@ -130,7 +133,13 @@ namespace PerfumeGPT.Application.Services
 		#region User Query Operations
 		public async Task<BaseResponse<UserOrderResponse>> GetUserOrderByIdAsync(Guid orderId, Guid userId)
 		{
-			var order = await _unitOfWork.Orders.GetUserOrderWithFullDetailsAsync(orderId, userId);
+			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync()
+				?? throw AppException.NotFound("Không tìm thấy cấu hình chính sách cửa hàng.");
+
+			var order = await _unitOfWork.Orders.GetUserOrderWithFullDetailsAsync(
+				orderId,
+				userId,
+				storePolicy.ReturnOrderAllowanceInDays);
 			if (order == null)
 			{
 				return BaseResponse<UserOrderResponse>.Fail("Không tìm thấy đơn hàng hoặc đơn hàng không thuộc về người dùng.", ResponseErrorType.NotFound);
@@ -528,6 +537,7 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PickListResponse?>> UpdateOrderStatusToPreparingAsync(Guid orderId, Guid staffId)
 		{
 			Guid? customerIdToNotify = null;
+			string orderCode = string.Empty;
 
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
@@ -577,6 +587,8 @@ namespace PerfumeGPT.Application.Services
 				_unitOfWork.Orders.Update(order);
 				customerIdToNotify = order.CustomerId;
 
+				orderCode = order.Code;
+
 				var pickListResponse = await _fulfillmentService.GetPickListAsync(order);
 
 				var orderTypeText = order.Type == OrderType.Online ? "trực tuyến" : "giao tại cửa hàng";
@@ -585,7 +597,7 @@ namespace PerfumeGPT.Application.Services
 
 			if (customerIdToNotify.HasValue)
 			{
-				_backgroundJobService.EnqueueOrderPreparingNotification(_logger, orderId, customerIdToNotify.Value);
+				_backgroundJobService.EnqueueOrderPreparingNotification(_logger, orderId, orderCode, customerIdToNotify.Value);
 			}
 
 			return response;
@@ -596,11 +608,13 @@ namespace PerfumeGPT.Application.Services
 			Guid? createdCancelRequestId = null;
 			Guid? customerIdToNotify = null;
 			string? trackingNumberToCancel = null;
+			string orderCode = string.Empty;
 
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(orderId)
 				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+				orderCode = order.Code;
 
 				customerIdToNotify = order.CustomerId;
 
@@ -650,7 +664,7 @@ namespace PerfumeGPT.Application.Services
 					_logger,
 					UserRole.admin,
 					"Yêu cầu duyệt hoàn tiền (Từ nhân viên)",
-					$"Nhân viên yêu cầu duyệt hủy và hoàn tiền cho đơn #{orderId}.",
+					$"Nhân viên yêu cầu duyệt hủy và hoàn tiền cho đơn #{orderCode}.",
 					NotificationType.Warning,
 					createdCancelRequestId,
 					NotifiReferecneType.OrderCancelRequest);
@@ -667,7 +681,7 @@ namespace PerfumeGPT.Application.Services
 					_logger,
 					customerIdToNotify.Value,
 					"Đơn hàng đã bị hủy",
-					$"Đơn hàng #{orderId} của bạn đã bị hủy từ hệ thống. Lý do: {request.Reason}.",
+					$"Đơn hàng #{orderCode} của bạn đã bị hủy từ hệ thống. Lý do: {request.Reason}.",
 					NotificationType.Warning,
 					orderId,
 					NotifiReferecneType.Order);
@@ -680,11 +694,14 @@ namespace PerfumeGPT.Application.Services
 		{
 			Guid? createdCancelRequestId = null;
 			string? trackingNumberToCancel = null;
+			string orderCode = string.Empty;
 
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(orderId)
 					?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+
+				orderCode = order.Code;
 
 				// Validate authorization
 				order.EnsureOwnedBy(userId);
@@ -746,7 +763,7 @@ namespace PerfumeGPT.Application.Services
 					_logger,
 					UserRole.admin,
 					"Yêu cầu hủy đơn mới",
-					$"Khách hàng yêu cầu hủy đơn #{orderId}.",
+					$"Khách hàng yêu cầu hủy đơn #{orderCode}.",
 					NotificationType.Warning,
 					createdCancelRequestId,
 					NotifiReferecneType.OrderCancelRequest);
@@ -755,7 +772,7 @@ namespace PerfumeGPT.Application.Services
 					_logger,
 					UserRole.staff,
 					"Yêu cầu hủy đơn mới",
-					$"Khách hàng yêu cầu hủy đơn #{orderId}.",
+					$"Khách hàng yêu cầu hủy đơn #{orderCode}.",
 					NotificationType.Warning,
 					createdCancelRequestId,
 					NotifiReferecneType.OrderCancelRequest);
@@ -832,7 +849,8 @@ namespace PerfumeGPT.Application.Services
 
 			if (shouldScheduleLoyaltyPoints)
 			{
-				_backgroundJobService.ScheduleLoyaltyPointsGrant(_logger, orderId, DateTime.UtcNow);
+				var policy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+				_backgroundJobService.ScheduleLoyaltyPointsGrant(_logger, orderId, DateTime.UtcNow, policy?.OrderRewardPointsInDays ?? 0);
 			}
 
 			return response;

@@ -63,7 +63,8 @@ namespace PerfumeGPT.Application.Services
 						if (points > 0)
 						{
 							var deliveredAt = deliveredAtUtc ?? DateTime.UtcNow;
-							_backgroundJobService.ScheduleLoyaltyPointsGrant(_logger, order.Id, deliveredAt);
+							var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+							_backgroundJobService.ScheduleLoyaltyPointsGrant(_logger, order.Id, deliveredAt, storePolicy?.OrderRewardPointsInDays ?? 0);
 						}
 					}
 					break;

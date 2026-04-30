@@ -83,13 +83,13 @@ namespace PerfumeGPT.Application.Extensions
 				bannerId);
 		}
 
-		public static bool ScheduleLoyaltyPointsGrant(this IBackgroundJobService backgroundJobService, ILogger logger, Guid orderId, DateTime deliveredAtUtc)
+		public static bool ScheduleLoyaltyPointsGrant(this IBackgroundJobService backgroundJobService, ILogger logger, Guid orderId, DateTime deliveredAtUtc, int orderRewardPointsInDays)
 		{
 			var normalizedDeliveredAt = deliveredAtUtc.Kind == DateTimeKind.Unspecified
 				? DateTime.SpecifyKind(deliveredAtUtc, DateTimeKind.Utc)
 				: deliveredAtUtc.ToUniversalTime();
 
-			var scheduleAt = normalizedDeliveredAt.AddDays(10);
+			var scheduleAt = normalizedDeliveredAt.AddDays(orderRewardPointsInDays);
 			if (scheduleAt < DateTime.UtcNow)
 			{
 				scheduleAt = DateTime.UtcNow;
@@ -108,6 +108,7 @@ namespace PerfumeGPT.Application.Extensions
 			this IBackgroundJobService backgroundJobService,
 			ILogger logger,
 			Guid orderId,
+			string orderCode,
 			decimal totalAmount)
 		{
 			return TryEnqueue<INotificationService>(
@@ -116,7 +117,7 @@ namespace PerfumeGPT.Application.Extensions
 				x => x.SendToRoleAsync(
 					UserRole.staff,
 					"Đơn hàng online mới",
-					$"Có đơn hàng Online #{orderId} cần đóng gói. Tổng tiền: {totalAmount:N0}.",
+					$"Có đơn hàng Online #{orderCode} cần đóng gói. Tổng tiền: {totalAmount:N0}.",
 					NotificationType.Info,
 					orderId,
 					NotifiReferecneType.Order,
@@ -156,12 +157,13 @@ namespace PerfumeGPT.Application.Extensions
 			this IBackgroundJobService backgroundJobService,
 			ILogger logger,
 			Guid orderId,
+			string orderCode,
 			Guid customerId)
 		{
 			return TryEnqueue<ICustomerNotificationAppService>(
 				backgroundJobService,
 				logger,
-				x => x.NotifyOrderPreparingAsync(orderId, customerId),
+				x => x.NotifyOrderPreparingAsync(orderId, orderCode, customerId),
 				"Unable to enqueue preparing notification for order {OrderId}.",
 				orderId);
 		}

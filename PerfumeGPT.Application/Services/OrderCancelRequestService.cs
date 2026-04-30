@@ -290,7 +290,7 @@ namespace PerfumeGPT.Application.Services
 				_logger,
 				cancelRequest.RequestedById,
 				"Kết quả yêu cầu hủy đơn",
-				$"Yêu cầu hủy đơn #{cancelRequest.OrderId} của bạn đã được {(request.IsApproved ? "chấp thuận" : "từ chối")}.",
+				$"Yêu cầu hủy đơn #{order.Code} của bạn đã được {(request.IsApproved ? "chấp thuận" : "từ chối")}.",
 				request.IsApproved ? NotificationType.Success : NotificationType.Warning,
 				cancelRequest.Id,
 				NotifiReferecneType.OrderCancelRequest);

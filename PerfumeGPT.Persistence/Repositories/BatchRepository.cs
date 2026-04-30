@@ -22,10 +22,10 @@ namespace PerfumeGPT.Persistence.Repositories
 			.OrderBy(b => b.ExpiryDate)
 			.ToListAsync();
 
-		public async Task<(List<BatchDetailResponse> Batches, int TotalCount)> GetBatchesAsync(GetBatchesRequest request)
+		public async Task<(List<BatchDetailResponse> Batches, int TotalCount)> GetBatchesAsync(GetBatchesRequest request, int expiringSoonThresholdInDays)
 		{
 			var now = DateTime.UtcNow;
-			var expiringSoonDate = now.AddDays(30);
+			var expiringSoonDate = now.AddDays(expiringSoonThresholdInDays);
 
 			var query = _context.Batches.AsNoTracking();
 			Expression<Func<Batch, bool>> filter = x => true;

@@ -6,6 +6,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests
 	public record CreateReturnRequestDto
 	{
 		public Guid OrderId { get; init; }
+		public required string OrderCode { get; init; }
 		public required ReturnOrderReason Reason { get; init; }
 		public bool IsRefundOnly { get; init; }
 		public required List<ReturnItemDto> ReturnItems { get; init; }

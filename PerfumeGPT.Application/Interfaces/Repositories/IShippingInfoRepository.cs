@@ -12,5 +12,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<List<ShippingInfo>> GetSyncCandidatesForGhnAsync();
 		Task<List<ShippingInfo>> GetSyncCandidatesForGhnByUserIdAsync(Guid userId);
 		Task<List<(ShippingInfo Shipping, Order? ForwardOrder, OrderReturnRequest? ReturnRequest)>> GetSyncCandidatesWithOrdersForGhnByUserIdAsync(Guid userId);
+	Task<(ShippingInfo Shipping, Order? ForwardOrder, OrderReturnRequest? ReturnRequest)?> GetSyncCandidateWithOrdersByTrackingNumberAsync(string trackingNumber);
 	}
 }

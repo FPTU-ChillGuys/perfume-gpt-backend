@@ -23,7 +23,10 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<string>> CreateAddressAsync(Guid userId, CreateAddressRequest request)
 		{
+			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
 			var userAddresses = await _unitOfWork.Addresses.GetUserAddresses(userId);
+			var maxAddressesPerUser = storePolicy?.MaxAddressesPerUser ?? Address.DefaultMaxAddressesPerUser;
+			Address.EnsureCanCreateAddress(userAddresses.Count, maxAddressesPerUser);
 			var shouldBeDefault = userAddresses.Count == 0 || request.IsDefault;
 
 			if (shouldBeDefault && userAddresses.Count > 0)

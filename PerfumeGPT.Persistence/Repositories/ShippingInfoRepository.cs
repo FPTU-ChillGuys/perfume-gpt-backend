@@ -200,5 +200,39 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			return allCandidates;
 		}
+
+		public async Task<(ShippingInfo Shipping, Order? ForwardOrder, OrderReturnRequest? ReturnRequest)?> GetSyncCandidateWithOrdersByTrackingNumberAsync(string trackingNumber)
+		{
+			var normalizedTrackingNumber = trackingNumber.Trim();
+
+			var forwardShipping = await _context.Orders
+				.Include(o => o.PaymentTransactions)
+				.Where(o => o.ForwardShipping != null
+					&& o.ForwardShipping.CarrierName == CarrierName.GHN
+					&& o.ForwardShipping.TrackingNumber == normalizedTrackingNumber)
+				.Select(o => new ValueTuple<ShippingInfo, Order?, OrderReturnRequest?>(o.ForwardShipping!, o, null))
+				.FirstOrDefaultAsync();
+
+			if (forwardShipping.Item1 != null)
+			{
+				return forwardShipping;
+			}
+
+			var returnShipping = await _context.OrderReturnRequests
+				.Include(r => r.Order)
+					.ThenInclude(o => o!.PaymentTransactions)
+				.Where(r => r.ReturnShipping != null
+					&& r.ReturnShipping.CarrierName == CarrierName.GHN
+					&& r.ReturnShipping.TrackingNumber == normalizedTrackingNumber)
+				.Select(r => new ValueTuple<ShippingInfo, Order?, OrderReturnRequest?>(r.ReturnShipping!, null, r))
+				.FirstOrDefaultAsync();
+
+			if (returnShipping.Item1 != null)
+			{
+				return returnShipping;
+			}
+
+			return null;
+		}
 	}
 }

@@ -85,7 +85,7 @@ namespace PerfumeGPT.Application.Services
 					_logger,
 					UserRole.staff,
 					"Lệnh nhập kho mới",
-					$"Có lô hàng mới #{response.Payload} sắp giao đến, vui lòng chuẩn bị nhận.",
+					$"Dự kiến sẽ giao đến ngày {request.ExpectedArrivalDate:dd/MM/yyyy}",
 					NotificationType.Info,
 					referenceId: importTicketId == Guid.Empty ? null : importTicketId,
 					referenceType: NotifiReferecneType.ImportTicket);
