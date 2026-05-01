@@ -6,7 +6,6 @@ using PerfumeGPT.Application.DTOs.Responses.Products;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
-using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
@@ -26,7 +25,6 @@ namespace PerfumeGPT.Application.Services
 			IMediaService mediaService,
 			MediaBulkActionHelper helper,
 			IProductAttributeService productAttributeService,
-			ISignalRService signalRService,
 			IUnitOfWork unitOfWork,
 			IMapper mapper)
 		{

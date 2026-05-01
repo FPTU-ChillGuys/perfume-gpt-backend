@@ -15,6 +15,7 @@ namespace PerfumeGPT.Domain.Entities
 		public int StockAdjustmentAutoApprovalThreshold { get; private set; }
 		public int OrderRewardPointsInDays { get; private set; }
 		public int BatchExpiringSoonThresholdInDays { get; private set; }
+		public int StopSellingBeforeExpiryDays { get; private set; }
 		public int ReturnOrderAllowanceInDays { get; private set; }
 		public int MaxAddressesPerUser { get; private set; }
 
@@ -31,6 +32,7 @@ namespace PerfumeGPT.Domain.Entities
 			int stockAdjustmentAutoApprovalThreshold,
 			int orderRewardPointsInDays,
 			int batchExpiringSoonThresholdInDays,
+			int stopSellingBeforeExpiryDays,
 			int returnOrderAllowanceInDays,
 			int maxAddressesPerUser)
 		{
@@ -39,6 +41,7 @@ namespace PerfumeGPT.Domain.Entities
 				Id = id,
 			};
 			policy.UpdateBatchExpiringSoonPolicy(batchExpiringSoonThresholdInDays);
+			policy.UpdateStopSellingBeforeExpiryPolicy(stopSellingBeforeExpiryDays);
 			policy.UpdateReviewPolicy(reviewRewardPoints);
 			policy.UpdateStockAdjustmentPolicy(stockAdjustmentAutoApprovalThreshold);
 			policy.UpdateOrderRewardPointsPolicy(orderRewardPointsInDays);
@@ -89,6 +92,13 @@ namespace PerfumeGPT.Domain.Entities
 			if (batchExpiringSoonThresholdInDays < 0)
 				throw DomainException.BadRequest("Số ngày để xác định lô hàng sắp hết hạn không hợp lệ.");
 			BatchExpiringSoonThresholdInDays = batchExpiringSoonThresholdInDays;
+		}
+
+		public void UpdateStopSellingBeforeExpiryPolicy(int stopSellingBeforeExpiryDays)
+		{
+			if (stopSellingBeforeExpiryDays < 0)
+				throw DomainException.BadRequest("Số ngày để ngừng bán trước khi hết hạn không hợp lệ.");
+			StopSellingBeforeExpiryDays = stopSellingBeforeExpiryDays;
 		}
 
 		public void UpdateReturnPolicy(int returnOrderAllowanceInDays)

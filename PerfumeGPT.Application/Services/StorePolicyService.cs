@@ -4,6 +4,7 @@ using PerfumeGPT.Application.DTOs.Responses.StorePolicies;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Services
 {
@@ -37,6 +38,7 @@ namespace PerfumeGPT.Application.Services
 			policy.UpdateStockAdjustmentPolicy(request.StockAdjustmentAutoApprovalThreshold);
 			policy.UpdateOrderRewardPointsPolicy(request.OrderRewardPointsInDays);
 			policy.UpdateBatchExpiringSoonPolicy(request.BatchExpiringSoonThresholdInDays);
+			policy.UpdateStopSellingBeforeExpiryPolicy(request.StopSellingBeforeExpiryDays);
 			policy.UpdateReturnPolicy(request.ReturnOrderAllowanceInDays);
 			policy.UpdateAddressPolicy(request.MaxAddressesPerUser);
 
@@ -46,7 +48,7 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<StorePolicyResponse>.Ok(MapPolicy(policy), "Cập nhật cấu hình chính sách cửa hàng thành công.");
 		}
 
-		private static StorePolicyResponse MapPolicy(Domain.Entities.StorePolicy policy)
+		private static StorePolicyResponse MapPolicy(StorePolicy policy)
 		{
 			return new StorePolicyResponse
 			{
@@ -58,6 +60,7 @@ namespace PerfumeGPT.Application.Services
 				StockAdjustmentAutoApprovalThreshold = policy.StockAdjustmentAutoApprovalThreshold,
 				OrderRewardPointsInDays = policy.OrderRewardPointsInDays,
 				BatchExpiringSoonThresholdInDays = policy.BatchExpiringSoonThresholdInDays,
+				StopSellingBeforeExpiryDays = policy.StopSellingBeforeExpiryDays,
 				ReturnOrderAllowanceInDays = policy.ReturnOrderAllowanceInDays,
 				MaxAddressesPerUser = policy.MaxAddressesPerUser
 			};

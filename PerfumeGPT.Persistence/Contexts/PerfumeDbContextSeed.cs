@@ -126,7 +126,7 @@ namespace PerfumeGPT.Persistence.Contexts
 		{
 			return new List<StorePolicy>
 			{
-			   StorePolicy.Create(Guid.Parse("f6c2a71d-a76c-43cf-8f1f-315766251001"), 20m, 15, true, 50, 5, 7, 30, 7, 5)
+			   StorePolicy.Create(Guid.Parse("f6c2a71d-a76c-43cf-8f1f-315766251001"), 20m, 15, true, 50, 5, 7, 30, 30, 7, 5)
 			};
 		}
 	}
