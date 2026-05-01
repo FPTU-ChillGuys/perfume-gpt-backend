@@ -35,6 +35,27 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Select(pt => pt.OrderId)
 				.Distinct()
 				.CountAsync();
+			var paymentMethodStats = await successfulTransactionsQuery
+				.GroupBy(pt => pt.Method)
+				.Select(g => new
+				{
+					PaymentMethod = g.Key,
+					TransactionsCount = g.Count(),
+					Amount = g.Sum(pt => pt.Amount)
+				})
+				.ToListAsync();
+			var paymentMethodDistribution = Enum.GetValues<PaymentMethod>()
+				.Select(method =>
+				{
+					var stat = paymentMethodStats.FirstOrDefault(x => x.PaymentMethod == method);
+					return new PaymentMethodDistributionResponse
+					{
+						PaymentMethod = method,
+						TransactionsCount = stat?.TransactionsCount ?? 0,
+						Amount = stat?.Amount ?? 0
+					};
+				})
+				.ToList();
 
 			return new RevenueSummaryResponse
 			{
@@ -44,7 +65,8 @@ namespace PerfumeGPT.Persistence.Repositories
 				RefundedAmount = refundedAmount,
 				NetRevenue = grossRevenue - refundedAmount,
 				SuccessfulTransactionsCount = successfulTransactionsCount,
-				PaidOrdersCount = paidOrdersCount
+				PaidOrdersCount = paidOrdersCount,
+				PaymentMethodDistribution = paymentMethodDistribution
 			};
 		}
 

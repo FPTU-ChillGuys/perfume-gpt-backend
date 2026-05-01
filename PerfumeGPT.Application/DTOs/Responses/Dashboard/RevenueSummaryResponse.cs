@@ -1,5 +1,14 @@
+using PerfumeGPT.Domain.Enums;
+
 namespace PerfumeGPT.Application.DTOs.Responses.Dashboard
 {
+	public record PaymentMethodDistributionResponse
+	{
+		public PaymentMethod PaymentMethod { get; init; }
+		public int TransactionsCount { get; init; }
+		public decimal Amount { get; init; }
+	}
+
 	public record RevenueSummaryResponse
 	{
 		public DateTime FromDate { get; init; }
@@ -9,5 +18,6 @@ namespace PerfumeGPT.Application.DTOs.Responses.Dashboard
 		public decimal NetRevenue { get; init; }
 		public int SuccessfulTransactionsCount { get; init; }
 		public int PaidOrdersCount { get; init; }
+		public List<PaymentMethodDistributionResponse> PaymentMethodDistribution { get; init; } = [];
 	}
 }
