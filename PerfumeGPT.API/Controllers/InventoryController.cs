@@ -29,10 +29,17 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
-		[HttpGet("stock/variant/{variantId:guid}")]
+		[HttpPut("stock/{stockId:guid}")]
 		[Authorize]
-		[ProducesResponseType(typeof(BaseResponse<StockResponse>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
+		public async Task<ActionResult<BaseResponse<string>>> UpdateStock([FromRoute] Guid stockId, [FromBody] UpdateStockRequest request)
+		{
+			var response = await _stockService.UpdateStockAsync(stockId, request);
+			return HandleResponse(response);
+		}
+
+
 		public async Task<ActionResult<BaseResponse<StockResponse>>> GetStockByVariantId([FromRoute] Guid variantId)
 		{
 			var response = await _stockService.GetStockByVariantIdAsync(variantId);

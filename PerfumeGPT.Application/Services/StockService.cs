@@ -21,6 +21,20 @@ namespace PerfumeGPT.Application.Services
 
 
 
+		public async Task<BaseResponse<string>> UpdateStockAsync(Guid stockId, UpdateStockRequest request)
+		{
+			var stock = await _unitOfWork.Stocks.GetByIdAsync(stockId)
+			 ?? throw AppException.NotFound($"Không tìm thấy tồn kho với ID {stockId}");
+			if (stock.LowStockThreshold == request.LowStockThreshold)
+			{
+				return BaseResponse<string>.Ok("Ngưỡng tồn kho thấp đã được cập nhật.");
+			}
+			stock.UpdateLowStockThreshold(request.LowStockThreshold);
+			_unitOfWork.Stocks.Update(stock);
+			await _unitOfWork.SaveChangesAsync();
+			return BaseResponse<string>.Ok("Cập nhật tồn kho thành công.");
+		}
+
 		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
 			=> await _unitOfWork.Stocks.HasSufficientStockAsync(variantId, requiredQuantity);
 

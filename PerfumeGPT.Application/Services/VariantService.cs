@@ -133,13 +133,6 @@ namespace PerfumeGPT.Application.Services
 			   ? $"Cập nhật biến thể thành công nhưng có {metadata.TotalFailed} thao tác media thất bại."
 				: "Cập nhật biến thể thành công";
 
-			var stock = await _unitOfWork.Stocks.GetStockByVariantIdAsync(variantId)
-				?? throw AppException.NotFound("Không tìm thấy thông tin tồn kho cho biến thể");
-			if (request.LowStockThreshold != stock.LowStockThreshold)
-			{
-				stock.UpdateLowStockThreshold(request.LowStockThreshold);
-			}
-
 			return BaseResponse<BulkActionResult<string>>.Ok(result, message);
 		}
 

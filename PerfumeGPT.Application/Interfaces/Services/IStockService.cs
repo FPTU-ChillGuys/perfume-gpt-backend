@@ -7,6 +7,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface IStockService
 	{
 		Task InitStockAsync(Guid variantId, int initialQuantity, int lowThreshold);
+		Task<BaseResponse<string>> UpdateStockAsync(Guid stockId, UpdateStockRequest request);
 		Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity);
 		Task<BaseResponse<PagedResult<StockResponse>>> GetInventoryAsync(GetPagedInventoryRequest request);
 		Task<BaseResponse<StockResponse>> GetStockByVariantIdAsync(Guid variantId);
