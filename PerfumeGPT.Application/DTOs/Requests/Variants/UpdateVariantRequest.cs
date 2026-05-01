@@ -16,6 +16,7 @@ namespace PerfumeGPT.Application.DTOs.Requests.Variants
 		public ReplenishmentPolicy RestockPolicy { get; init; }
 		public int Sillage { get; init; }
 		public int Longevity { get; init; }
+		public int LowStockThreshold { get; init; }
 
 		// Upload First Pattern: Multiple images management
 		public List<Guid>? MediaIdsToDelete { get; init; }

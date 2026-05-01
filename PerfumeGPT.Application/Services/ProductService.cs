@@ -163,9 +163,6 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<string>.Ok(productId.ToString(), "Xóa sản phẩm thành công");
 		}
 
-		public async Task<BaseResponse<ProductResponse>> GetProductAsync(Guid productId)
-		   => await GetAdminProductAsync(productId);
-
 		public async Task<BaseResponse<ProductResponse>> GetAdminProductAsync(Guid productId)
 		{
 			var response = await _unitOfWork.Products.GetProductResponseAsync(productId)

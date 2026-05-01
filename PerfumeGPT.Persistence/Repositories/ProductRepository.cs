@@ -114,6 +114,7 @@ namespace PerfumeGPT.Persistence.Repositories
 								Barcode = v.Barcode,
 								Sku = v.Sku,
 								VolumeMl = v.VolumeMl,
+								RestockPolicy = v.RestockPolicy,
 								ConcentrationId = v.ConcentrationId,
 								ConcentrationName = v.Concentration.Name,
 								Type = v.Type,

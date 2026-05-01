@@ -19,6 +19,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Variants
 		public int StockQuantity { get; init; }
 		public int Sillage { get; init; }
 		public int Longevity { get; init; }
+		public ReplenishmentPolicy RestockPolicy { get; init; }
 
 		// Product details
 		public Guid ProductId { get; init; }
