@@ -15,6 +15,13 @@ namespace PerfumeGPT.Persistence.Repositories
 	{
 		public StockRepository(PerfumeDbContext context) : base(context) { }
 
+		public async Task<Stock> GetStockByVariantIdAsync(Guid variantId)
+		{
+			var stock = await _context.Stocks
+				.FirstOrDefaultAsync(s => s.VariantId == variantId && !s.ProductVariant.IsDeleted); // ADDED FILTER
+			return stock ?? throw AppException.NotFound($"Không tìm thấy kho hàng cho biến thể sản phẩm với ID {variantId}.");
+		}
+
 		public async Task<bool> IsLowStockAsync(Guid variantId)
 		=> await _context.Stocks
 			.Where(s => s.VariantId == variantId && !s.ProductVariant.IsDeleted) // ADDED FILTER

@@ -10,7 +10,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task UpdateStockAsync(Guid variantId);
 		Task<bool> IsLowStockAsync(Guid variantId);
 		Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity);
-
+		Task<Stock> GetStockByVariantIdAsync(Guid variantId);
 		Task<(IEnumerable<StockResponse> Stocks, int TotalCount)> GetPagedInventoryAsync(GetPagedInventoryRequest request);
 		Task<StockResponse?> GetStockWithDetailsByVariantIdAsync(Guid variantId);
 		Task<(int TotalVariants, int TotalStockQuantity, int LowStockVariantsCount)> GetInventorySummaryDataAsync();
