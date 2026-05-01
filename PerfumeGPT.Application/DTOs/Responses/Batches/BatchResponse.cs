@@ -8,6 +8,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Batches
 		public DateTime ExpiryDate { get; init; }
 		public int ImportQuantity { get; init; }
 		public int RemainingQuantity { get; init; }
+		public int AvailableQuantity { get; init; }
 		public DateTime CreatedAt { get; init; }
 	}
 }
