@@ -1,6 +1,7 @@
 using PerfumeGPT.Application.DTOs.Responses.CartItems;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
+using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
 using PerfumeGPT.Domain.Entities;
 using System.Text.Json;
@@ -10,8 +11,13 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 	public class OrderDetailsFactory : IOrderDetailsFactory
 	{
 		private readonly IUnitOfWork _unitOfWork;
+		private readonly IStockReservationService _stockReservationService;
 
-		public OrderDetailsFactory(IUnitOfWork unitOfWork) { _unitOfWork = unitOfWork; }
+		public OrderDetailsFactory(IUnitOfWork unitOfWork, IStockReservationService stockReservationService)
+		{
+			_unitOfWork = unitOfWork;
+			_stockReservationService = stockReservationService;
+		}
 
 		public async Task CreateOrderDetailsAsync(Order order, List<CartCheckoutItemDto> items)
 		{
@@ -78,49 +84,28 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 			var variantIds = groupedItems.Select(x => x.VariantId).Distinct().ToList();
 
-			// BƯỚC 3: BULK READ - Kéo tất cả dữ liệu liên quan lên RAM chỉ bằng 3 câu Query (Có AsNoTracking để tối ưu RAM)
-
-			// 3.1. Kéo Stock
+			// BƯỚC 3: BULK READ — Stock + Variant; tồn theo lô dùng cùng quy tắc với ReserveStockForOrderAsync
 			var stocks = await _unitOfWork.Stocks.GetAllAsync(
 				s => variantIds.Contains(s.VariantId),
 				asNoTracking: true);
 			var stockDict = stocks.ToDictionary(s => s.VariantId);
 
-			// 3.2. Kéo Batch (Chỉ lấy các lô chưa hết hạn)
-			var now = DateTime.UtcNow;
-			var batches = await _unitOfWork.Batches.GetAllAsync(
-				b => variantIds.Contains(b.VariantId) && b.ExpiryDate > now,
-				asNoTracking: true);
-
-			// Tính tổng số lượng khả dụng của tất cả các Lô gộp lại cho từng Variant
-			var batchDict = batches
-				.GroupBy(b => b.VariantId)
-				.ToDictionary(
-					g => g.Key,
-					g => g.Sum(b => Math.Max(0, b.RemainingQuantity - b.ReservedQuantity)));
-
-			// 3.3. Kéo Variant (Chỉ để lấy Sku phục vụ cho việc in ra câu báo lỗi)
 			var variants = await _unitOfWork.Variants.GetAllAsync(
 				v => variantIds.Contains(v.Id),
 				asNoTracking: true);
 			var variantDict = variants.ToDictionary(v => v.Id);
 
-			// BƯỚC 4: THỰC HIỆN ĐỐI CHIẾU TRÊN RAM (IN-MEMORY VALIDATION)
+			var batchAvailableByVariant = await _stockReservationService.GetAggregatedSellableBatchAvailableByVariantsAsync(variantIds);
+
 			foreach (var item in groupedItems)
 			{
 				var variantName = variantDict.TryGetValue(item.VariantId, out var v) ? $"Variant {v.Sku}" : "Unknown product";
 
-				// 4.1. Đối chiếu tổng tồn kho (Stock)
 				if (!stockDict.TryGetValue(item.VariantId, out var stock) || stock.AvailableQuantity < item.RequiredQty)
-				{
 					throw AppException.BadRequest($"Không đủ hàng tồn kho cho {variantName}.");
-				}
 
-				// 4.2. Đối chiếu Tồn kho theo lô (Batch)
-				if (!batchDict.TryGetValue(item.VariantId, out var totalBatchAvailable) || totalBatchAvailable < item.RequiredQty)
-				{
-					throw AppException.BadRequest($"Không đủ hàng tồn kho trong lô cho {variantName}.");
-				}
+				if (!batchAvailableByVariant.TryGetValue(item.VariantId, out var totalBatchAvailable) || totalBatchAvailable < item.RequiredQty)
+					throw AppException.BadRequest($"Không đủ hàng tồn kho trong lô (theo chính sách hạn bán) cho {variantName}.");
 			}
 
 			return true;

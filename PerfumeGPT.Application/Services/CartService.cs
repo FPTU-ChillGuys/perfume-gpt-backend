@@ -23,17 +23,20 @@ namespace PerfumeGPT.Application.Services
 		private readonly IVoucherService _voucherService;
 		private readonly ISignalRService _signalRService;
 		private readonly IGHNService _ghnService;
+		private readonly IStockReservationService _stockReservationService;
 
 		public CartService(
 			IUnitOfWork unitOfWork,
 			IVoucherService voucherService,
 			ISignalRService signalRService,
-			IGHNService ghnService)
+			IGHNService ghnService,
+			IStockReservationService stockReservationService)
 		{
 			_unitOfWork = unitOfWork;
 			_voucherService = voucherService;
 			_signalRService = signalRService;
 			_ghnService = ghnService;
+			_stockReservationService = stockReservationService;
 		}
 		#endregion Dependencies
 
@@ -924,10 +927,7 @@ namespace PerfumeGPT.Application.Services
 		}
 
 		private sealed record CheckoutLineAllocation(CartCheckoutItemDto Item, bool IsEligible);
-		private sealed record PricingContext(
-			Dictionary<Guid, int> BatchAvailability,
-			Dictionary<Guid, int> SafeBatchAvailability,
-			Dictionary<Guid, List<PromotionItem>> ActivePromotions);
+		private sealed record PricingContext(Dictionary<Guid, int> BatchAvailability, Dictionary<Guid, int> SafeBatchAvailability, Dictionary<Guid, List<PromotionItem>> ActivePromotions);
 
 		private async Task<PricingContext> BuildPricingContextAsync(List<CartCheckoutItemDto> checkoutItems)
 		{
@@ -938,8 +938,6 @@ namespace PerfumeGPT.Application.Services
 
 			var variantIds = checkoutItems.Select(x => x.VariantId).Distinct().ToList();
 			var now = DateTime.UtcNow;
-			var bufferDays = (await _unitOfWork.StorePolicies.GetCurrentPolicyAsync())?.StopSellingBeforeExpiryDays ?? 0;
-			var safeDate = now.AddDays(bufferDays);
 
 			var promotionItems = await _unitOfWork.PromotionItems.GetAllAsync(
 				i => !i.IsDeleted
@@ -960,14 +958,8 @@ namespace PerfumeGPT.Application.Services
 				batchAvailability = batches.ToDictionary(b => b.Id, b => Math.Max(0, b.RemainingQuantity - b.ReservedQuantity));
 			}
 
-			var safeBatches = await _unitOfWork.Batches.GetAllAsync(
-				b => variantIds.Contains(b.VariantId) && b.ExpiryDate > safeDate,
-				asNoTracking: true);
-			var safeBatchAvailability = safeBatches
-				.GroupBy(b => b.VariantId)
-				.ToDictionary(
-					g => g.Key,
-					g => g.Sum(b => Math.Max(0, b.RemainingQuantity - b.ReservedQuantity)));
+			var safeBatchReadOnly = await _stockReservationService.GetSafeDateOnlySellableBatchAvailableByVariantsAsync(variantIds);
+			var safeBatchAvailability = safeBatchReadOnly.ToDictionary(kv => kv.Key, kv => kv.Value);
 
 			return new PricingContext(
 				batchAvailability,

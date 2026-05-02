@@ -840,11 +840,12 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(orr => orr.ReturnShippingId)
 				.OnDelete(DeleteBehavior.Restrict);
 
-			// OrderReturnRequest -> Customer (M:1)
+			// OrderReturnRequest -> Customer (M:1, nullable — yêu cầu tạo hộ khách vãng lai)
 			builder.Entity<OrderReturnRequest>()
 			 .HasOne(orr => orr.Customer)
 				.WithMany(u => u.CustomerReturnRequests)
 				.HasForeignKey(orr => orr.CustomerId)
+				.IsRequired(false)
 				.OnDelete(DeleteBehavior.Restrict);
 
 			// OrderReturnRequest -> ProcessedBy (M:1, nullable)

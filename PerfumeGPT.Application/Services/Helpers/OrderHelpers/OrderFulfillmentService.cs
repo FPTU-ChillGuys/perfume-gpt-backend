@@ -5,6 +5,7 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
+using PerfumeGPT.Application.Services;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using static PerfumeGPT.Domain.Entities.StockAdjustmentDetail;
@@ -253,12 +254,21 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				stock.ReleaseReservation(quantityToSwap);
 				stock.Decrease(quantityToSwap);
 
-				var bufferDays = (await _unitOfWork.StorePolicies.GetCurrentPolicyAsync())?.StopSellingBeforeExpiryDays;
-				var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId, bufferDays);
+				// Step 3: Tìm các lô MỚI thay thế (buffer thường + buffer xả kho, giống StockReservationService)
+				var (normalAfter, clearanceAfter, clearanceBatchIds) =
+					await _stockReservationService.GetReservationBatchSellingWindowsAsync(new[] { variantId });
+
+				var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+
+				var validBatchesToPick = availableBatches
+					.Where(b => b.Id != damagedBatch.Id && StockReservationService.IsBatchEligibleForReservationSelling(b, normalAfter, clearanceAfter, clearanceBatchIds))
+					.OrderByDescending(b => clearanceBatchIds.Contains(b.Id))
+					.ThenBy(b => b.ExpiryDate).ToList();
+
 				var remainingToSwap = quantityToSwap;
 				var replacementAllocations = new List<(Batch Batch, int Quantity)>();
 
-				foreach (var batch in availableBatches.Where(b => b.Id != damagedBatch.Id).OrderBy(b => b.ExpiryDate))
+				foreach (var batch in validBatchesToPick)
 				{
 					if (remainingToSwap <= 0) break;
 					if (batch.AvailableInBatch <= 0) continue;
@@ -269,9 +279,9 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				}
 
 				if (remainingToSwap > 0)
-					throw AppException.BadRequest($"Không đủ tồn kho trên các lô khác để thay thế hàng hỏng. Còn thiếu {remainingToSwap}.");
+					throw AppException.BadRequest($"Không đủ tồn kho trên các lô khác (thỏa mãn hạn sử dụng) để thay thế hàng hỏng. Còn thiếu {remainingToSwap}.");
 
-				// 💡 TÌM ĐƯỢC CHÍNH XÁC OrderDetail của Reservation bị hỏng
+				// TÌM ĐƯỢC CHÍNH XÁC OrderDetail của Reservation bị hỏng
 				var targetOrderDetail = order.OrderDetails.FirstOrDefault(od => od.Id == damagedReservation.OrderDetailId)
 					?? throw AppException.Internal("Không tìm thấy OrderDetail liên kết với Reservation bị hỏng.");
 
@@ -279,8 +289,8 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				{
 					var repRes = new StockReservation(orderId, repBatch.Id, variantId, repQty, damagedReservation.ExpiresAt);
 
-					// 💡 Thêm Reservation MỚI trực tiếp vào OrderDetail đó! (EF sẽ tự mapping khóa ngoại)
-					targetOrderDetail.StockReservations.Add(repRes);
+					// SỬA Ở ĐÂY: Dùng hàm AddReservation để Entity tự gán OrderDetailId cho repRes
+					targetOrderDetail.AddReservation(repRes);
 
 					primaryNewReservation ??= repRes;
 					if (primaryReplacementBatch is null)

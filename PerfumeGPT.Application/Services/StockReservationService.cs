@@ -18,16 +18,65 @@ namespace PerfumeGPT.Application.Services
 			_voucherService = voucherService;
 		}
 
+		public async Task<IReadOnlyDictionary<Guid, int>> GetAggregatedSellableBatchAvailableByVariantsAsync(IReadOnlyList<Guid> variantIds)
+		{
+			var distinctIds = variantIds.Distinct().ToList();
+			if (distinctIds.Count == 0)
+				return new Dictionary<Guid, int>();
+
+			var (normalAfter, clearanceAfter, clearanceBatchIds) = await LoadReservationBatchRulesAsync(distinctIds);
+			var result = new Dictionary<Guid, int>(distinctIds.Count);
+
+			foreach (var variantId in distinctIds)
+			{
+				var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+				var validBatches = OrderBatchesForReservation(availableBatches, normalAfter, clearanceAfter, clearanceBatchIds);
+				result[variantId] = validBatches.Sum(b => Math.Max(0, b.AvailableInBatch));
+			}
+
+			return result;
+		}
+
+		public async Task<IReadOnlyDictionary<Guid, int>> GetSafeDateOnlySellableBatchAvailableByVariantsAsync(IReadOnlyList<Guid> variantIds)
+		{
+			var distinctIds = variantIds.Distinct().ToList();
+			if (distinctIds.Count == 0)
+				return new Dictionary<Guid, int>();
+
+			var bufferDays = (await _unitOfWork.StorePolicies.GetCurrentPolicyAsync())?.StopSellingBeforeExpiryDays;
+			var normalAfter = bufferDays.HasValue ? DateTime.UtcNow.AddDays(bufferDays.Value) : DateTime.UtcNow;
+			var result = new Dictionary<Guid, int>(distinctIds.Count);
+
+			foreach (var variantId in distinctIds)
+			{
+				var batches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+				result[variantId] = batches.Where(b => b.ExpiryDate > normalAfter).Sum(b => Math.Max(0, b.AvailableInBatch));
+			}
+
+			return result;
+		}
+
+		public async Task<(int AggregatedSellable, int SafeDateOnlySellable, bool HasClearanceBypass)> GetVariantSellableSnapshotForCartAsync(Guid variantId)
+		{
+			if (variantId == Guid.Empty)
+				return (0, 0, false);
+
+			var ids = new List<Guid> { variantId };
+			var (normalAfter, clearanceAfter, clearanceIds) = await LoadReservationBatchRulesAsync(ids);
+			var batches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+			var orderedForReservation = OrderBatchesForReservation(batches, normalAfter, clearanceAfter, clearanceIds);
+			var aggregated = orderedForReservation.Sum(b => Math.Max(0, b.AvailableInBatch));
+			var safeOnly = batches.Where(b => b.ExpiryDate > normalAfter).Sum(b => Math.Max(0, b.AvailableInBatch));
+			return (aggregated, safeOnly, clearanceIds.Count > 0);
+		}
+
+		public Task<(DateTime NormalSellableAfterUtc, DateTime ClearanceSellableAfterUtc, HashSet<Guid> ClearanceBatchIds)> GetReservationBatchSellingWindowsAsync(IReadOnlyList<Guid> variantIds)
+			=> LoadReservationBatchRulesAsync(variantIds);
+
 		public async Task ReserveStockForOrderAsync(Order order)
 		{
-			var bufferDays = (await _unitOfWork.StorePolicies.GetCurrentPolicyAsync())?.StopSellingBeforeExpiryDays;
-			var safeDate = bufferDays.HasValue ? DateTime.UtcNow.AddDays(bufferDays.Value) : DateTime.UtcNow;
-
-			// Kéo toàn bộ Clearance Promotions lên RAM để check FEFO
 			var variantIds = order.OrderDetails.Select(od => od.VariantId).Distinct().ToList();
-			var activePromotions = await _unitOfWork.PromotionItems.GetAllAsync(
-				pi => variantIds.Contains(pi.TargetProductVariantId) && pi.IsActive && pi.BatchId.HasValue && pi.ItemType == PromotionType.Clearance);
-			var activeClearanceBatchIds = activePromotions.Select(p => p.BatchId!.Value).ToHashSet();
+			var (normalAfter, clearanceAfter, activeClearanceBatchIds) = await LoadReservationBatchRulesAsync(variantIds);
 
 			var detailsByVariant = order.OrderDetails.GroupBy(od => od.VariantId);
 
@@ -42,10 +91,7 @@ namespace PerfumeGPT.Application.Services
 				stock.Reserve(totalQtyForVariant); // 1. Trừ Stock tổng
 
 				var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
-				var validBatchesToPick = availableBatches
-					.Where(b => b.ExpiryDate > safeDate || activeClearanceBatchIds.Contains(b.Id))
-					.OrderByDescending(b => activeClearanceBatchIds.Contains(b.Id))
-					.ThenBy(b => b.ExpiryDate).ToList(); // 2. Lấy Batch FEFO
+				var validBatchesToPick = OrderBatchesForReservation(availableBatches, normalAfter, clearanceAfter, activeClearanceBatchIds);
 
 				// Rải Batch vào từng OrderDetail
 				foreach (var orderDetail in group)
@@ -75,8 +121,44 @@ namespace PerfumeGPT.Application.Services
 			}
 		}
 
+		private async Task<(DateTime NormalSellableAfterUtc, DateTime ClearanceSellableAfterUtc, HashSet<Guid> ClearanceBatchIds)> LoadReservationBatchRulesAsync(IReadOnlyList<Guid> variantIds)
+		{
+			var policy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+			var now = DateTime.UtcNow;
+			var normalAfter = policy != null ? now.AddDays(policy.StopSellingBeforeExpiryDays) : now;
+			var clearanceAfter = policy != null ? now.AddDays(policy.ClearanceBufferDays) : now;
+
+			if (variantIds.Count == 0)
+				return (normalAfter, clearanceAfter, new HashSet<Guid>());
+
+			var activePromotions = await _unitOfWork.PromotionItems.GetAllAsync(
+				pi => variantIds.Contains(pi.TargetProductVariantId) && pi.IsActive && pi.BatchId.HasValue && pi.ItemType == PromotionType.Clearance);
+
+			var clearanceBatchIds = activePromotions.Select(p => p.BatchId!.Value).ToHashSet();
+			return (normalAfter, clearanceAfter, clearanceBatchIds);
+		}
+
+		public static bool IsBatchEligibleForReservationSelling(Batch b, DateTime normalSellableAfterUtc, DateTime clearanceSellableAfterUtc, HashSet<Guid> clearanceBatchIds)
+		{
+			return clearanceBatchIds.Contains(b.Id)
+				? b.ExpiryDate > clearanceSellableAfterUtc
+				: b.ExpiryDate > normalSellableAfterUtc;
+		}
+
+		private static List<Batch> OrderBatchesForReservation(List<Batch> availableBatches, DateTime normalSellableAfterUtc, DateTime clearanceSellableAfterUtc, HashSet<Guid> clearanceBatchIds)
+		{
+			return availableBatches
+				.Where(b => IsBatchEligibleForReservationSelling(b, normalSellableAfterUtc, clearanceSellableAfterUtc, clearanceBatchIds))
+				.OrderByDescending(b => clearanceBatchIds.Contains(b.Id))
+				.ThenBy(b => b.ExpiryDate)
+				.ToList();
+		}
+
 		public async Task ReserveExactBatchStockForOrderAsync(Order order)
 		{
+			var variantIds = order.OrderDetails.Select(od => od.VariantId).Distinct().ToList();
+			var (normalAfter, clearanceAfter, clearanceBatchIds) = await LoadReservationBatchRulesAsync(variantIds);
+
 			var detailsByVariant = order.OrderDetails.GroupBy(od => od.VariantId);
 
 			foreach (var group in detailsByVariant)
@@ -100,6 +182,9 @@ namespace PerfumeGPT.Application.Services
 
 					if (batch.ExpiryDate <= DateTime.UtcNow)
 						throw AppException.Conflict($"Lô {batch.BatchCode} đã hết hạn.");
+
+					if (!IsBatchEligibleForReservationSelling(batch, normalAfter, clearanceAfter, clearanceBatchIds))
+						throw AppException.Conflict($"Lô {batch.BatchCode} không còn trong cửa sổ bán cho phép (kể cả xả kho).");
 
 					if (batch.AvailableInBatch < orderDetail.Quantity)
 						throw AppException.Conflict($"Số lượng trong lô {batch.BatchCode} không đủ. Yêu cầu: {orderDetail.Quantity}.");

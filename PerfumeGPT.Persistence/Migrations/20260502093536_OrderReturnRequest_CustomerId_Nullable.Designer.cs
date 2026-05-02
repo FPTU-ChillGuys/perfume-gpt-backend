@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260502093536_OrderReturnRequest_CustomerId_Nullable")]
+    partial class OrderReturnRequest_CustomerId_Nullable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2043,9 +2046,6 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<int>("BatchExpiringSoonThresholdInDays")
                         .HasColumnType("int");
 
-                    b.Property<int>("ClearanceBufferDays")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -2089,7 +2089,6 @@ namespace PerfumeGPT.Persistence.Migrations
                         {
                             Id = new Guid("f6c2a71d-a76c-43cf-8f1f-315766251001"),
                             BatchExpiringSoonThresholdInDays = 30,
-                            ClearanceBufferDays = 7,
                             CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             DepositTimeoutMinutes = 15,
                             IsDepositRequiredForCOD = true,

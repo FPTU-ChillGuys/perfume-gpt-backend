@@ -16,6 +16,10 @@ namespace PerfumeGPT.Domain.Entities
 		public int OrderRewardPointsInDays { get; private set; }
 		public int BatchExpiringSoonThresholdInDays { get; private set; }
 		public int StopSellingBeforeExpiryDays { get; private set; }
+		/// <summary>
+		/// Lô xả kho (clearance) chỉ bán khi ExpiryDate còn sau mốc UtcNow + số ngày này (thường nhỏ hơn hoặc bằng StopSellingBeforeExpiryDays).
+		/// </summary>
+		public int ClearanceBufferDays { get; private set; }
 		public int ReturnOrderAllowanceInDays { get; private set; }
 		public int MaxAddressesPerUser { get; private set; }
 
@@ -33,6 +37,7 @@ namespace PerfumeGPT.Domain.Entities
 			int orderRewardPointsInDays,
 			int batchExpiringSoonThresholdInDays,
 			int stopSellingBeforeExpiryDays,
+			int clearanceBufferDays,
 			int returnOrderAllowanceInDays,
 			int maxAddressesPerUser)
 		{
@@ -42,6 +47,7 @@ namespace PerfumeGPT.Domain.Entities
 			};
 			policy.UpdateBatchExpiringSoonPolicy(batchExpiringSoonThresholdInDays);
 			policy.UpdateStopSellingBeforeExpiryPolicy(stopSellingBeforeExpiryDays);
+			policy.UpdateClearanceBufferPolicy(clearanceBufferDays);
 			policy.UpdateReviewPolicy(reviewRewardPoints);
 			policy.UpdateStockAdjustmentPolicy(stockAdjustmentAutoApprovalThreshold);
 			policy.UpdateOrderRewardPointsPolicy(orderRewardPointsInDays);
@@ -99,6 +105,17 @@ namespace PerfumeGPT.Domain.Entities
 			if (stopSellingBeforeExpiryDays < 0)
 				throw DomainException.BadRequest("Số ngày để ngừng bán trước khi hết hạn không hợp lệ.");
 			StopSellingBeforeExpiryDays = stopSellingBeforeExpiryDays;
+			if (ClearanceBufferDays > stopSellingBeforeExpiryDays)
+				ClearanceBufferDays = stopSellingBeforeExpiryDays;
+		}
+
+		public void UpdateClearanceBufferPolicy(int clearanceBufferDays)
+		{
+			if (clearanceBufferDays < 0)
+				throw DomainException.BadRequest("Số ngày buffer xả kho trước hết hạn không hợp lệ.");
+			if (clearanceBufferDays > StopSellingBeforeExpiryDays)
+				throw DomainException.BadRequest("Buffer xả kho không được lớn hơn số ngày ngừng bán thông thường trước hết hạn.");
+			ClearanceBufferDays = clearanceBufferDays;
 		}
 
 		public void UpdateReturnPolicy(int returnOrderAllowanceInDays)

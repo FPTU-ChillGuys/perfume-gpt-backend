@@ -8,7 +8,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderReturnRequests
 		public Guid Id { get; init; }
 		public Guid OrderId { get; init; }
 		public required string OrderCode { get; init; }
-		public Guid CustomerId { get; init; }
+		public Guid? CustomerId { get; init; }
 		public string? CustomerEmail { get; init; }
 		public Guid? ProcessedById { get; init; }
 		public string? ProcessedByName { get; init; }

@@ -10,6 +10,9 @@ namespace PerfumeGPT.Application.Validators.OrderReturnRequests
 			RuleFor(x => x.OrderId)
 				.NotEmpty().WithMessage("ID đơn hàng là bắt buộc.");
 
+			RuleFor(x => x.OrderCode)
+				.NotEmpty().WithMessage("Mã đơn hàng là bắt buộc.");
+
 			RuleFor(x => x.CustomerNote)
 				.MaximumLength(1000).WithMessage("Ghi chú của khách hàng không được vượt quá 1000 ký tự.")
 				.When(x => !string.IsNullOrWhiteSpace(x.CustomerNote));

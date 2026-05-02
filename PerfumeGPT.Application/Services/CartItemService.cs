@@ -1,4 +1,5 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.Carts;
+﻿using Microsoft.EntityFrameworkCore;
+using PerfumeGPT.Application.DTOs.Requests.Carts;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
@@ -11,14 +12,14 @@ namespace PerfumeGPT.Application.Services
 	{
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IStockService _stockService;
+		private readonly IStockReservationService _stockReservationService;
 
 		public CartItemService(
 			IUnitOfWork unitOfWork,
-			IStockService stockService)
+			IStockReservationService stockReservationService)
 		{
 			_unitOfWork = unitOfWork;
-			_stockService = stockService;
+			_stockReservationService = stockReservationService;
 		}
 		#endregion Dependencies
 
@@ -33,22 +34,8 @@ namespace PerfumeGPT.Application.Services
 			variant.EnsureAvailableForCart();
 
 			var totalQuantity = existing != null ? existing.Quantity + request.Quantity : request.Quantity;
-			// Trong CartItemService.cs -> AddToCartAsync
-			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
-			var bufferDays = storePolicy?.StopSellingBeforeExpiryDays;
 
-			var now = DateTime.UtcNow;
-           // Lấy các Batch đang chạy Xả kho
-			var activeClearancePromotions = await _unitOfWork.PromotionItems
-				.GetActiveClearancePromotionsByVariantIdAsync(request.VariantId, now);
-
-			var exemptedBatchIds = activeClearancePromotions.Select(p => p.BatchId!.Value).ToList();
-
-			var hasStock = await _stockService.HasSufficientStockAsync(request.VariantId, totalQuantity, bufferDays, exemptedBatchIds);
-			if (!hasStock)
-			{
-				throw AppException.BadRequest("Không đủ tồn kho cho số lượng yêu cầu");
-			}
+			await EnsureCartQuantityWithinSellableLimitsAsync(request.VariantId, totalQuantity);
 
 			if (existing != null)
 			{
@@ -99,17 +86,7 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Xóa sản phẩm khỏi giỏ hàng thành công");
 			}
 
-			var bufferDays = (await _unitOfWork.StorePolicies.GetCurrentPolicyAsync())?.StopSellingBeforeExpiryDays;
-			var now = DateTime.UtcNow;
-			var activeClearancePromotions = await _unitOfWork.PromotionItems
-				.GetActiveClearancePromotionsByVariantIdAsync(cartItem.VariantId, now);
-			var exemptedBatchIds = activeClearancePromotions.Select(p => p.BatchId!.Value).ToList();
-
-			var hasStock = await _stockService.HasSufficientStockAsync(cartItem.VariantId, request.Quantity, bufferDays, exemptedBatchIds);
-			if (!hasStock)
-			{
-				throw AppException.BadRequest("Không đủ tồn kho cho số lượng yêu cầu");
-			}
+			await EnsureCartQuantityWithinSellableLimitsAsync(cartItem.VariantId, request.Quantity);
 
 			cartItem.SetQuantity(request.Quantity);
 			_unitOfWork.CartItems.Update(cartItem);
@@ -117,6 +94,22 @@ namespace PerfumeGPT.Application.Services
 			await _unitOfWork.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Cập nhật sản phẩm trong giỏ hàng thành công");
+		}
+
+		private async Task EnsureCartQuantityWithinSellableLimitsAsync(Guid variantId, int requiredQuantity)
+		{
+			var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
+				?? throw AppException.NotFound("Không tìm thấy tồn kho cho biến thể sản phẩm.");
+
+			if (stock.AvailableQuantity < requiredQuantity)
+				throw AppException.BadRequest("Không đủ tồn kho cho số lượng yêu cầu.");
+
+			var (aggregated, safeOnly, hasClearanceBypass) = await _stockReservationService.GetVariantSellableSnapshotForCartAsync(variantId);
+			var maxByBatch = hasClearanceBypass ? aggregated : safeOnly;
+
+			var sellable = Math.Min(stock.AvailableQuantity, maxByBatch);
+			if (requiredQuantity > sellable)
+				throw AppException.BadRequest("Không đủ tồn kho cho số lượng yêu cầu.");
 		}
 	}
 }

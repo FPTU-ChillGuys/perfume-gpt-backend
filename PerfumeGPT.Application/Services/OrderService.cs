@@ -494,11 +494,6 @@ namespace PerfumeGPT.Application.Services
 					await _shippingHelper.SetupShippingInfoAsync(order, resolvedAddress, request.CustomerId, null, shippingFee, estimatedDeliveryDate);
 				}
 
-				var posReservationItems = pricedItems
-					.GroupBy(x => new { x.VariantId, x.BatchId })
-					.Select(g => (VariantId: g.Key.VariantId, BatchId: g.Key.BatchId!.Value, Quantity: g.Sum(x => x.Quantity)))
-					.ToList();
-
 				var primaryPendingAmount = requiresDepositForThisOrder
 					? order.RequiredDepositAmount
 					: order.TotalAmount;
@@ -635,7 +630,10 @@ namespace PerfumeGPT.Application.Services
 						Reason = request.Reason,
 						IsRefundRequired = true,
 						RefundAmount = order.PaidAmount, // Cửa hàng hủy nên trả 100% không phạt
-						StaffNote = $"Cửa hàng chủ động hủy. Hoàn trả 100%. Lý do: {request.Note}"
+						StaffNote = $"Cửa hàng chủ động hủy. Hoàn trả 100%. Lý do: {request.Note}",
+						RefundBankName = request.RefundBankName,
+						RefundAccountNumber = request.RefundAccountNumber,
+						RefundAccountName = request.RefundAccountName
 					};
 
 					var cancelRequest = OrderCancelRequest.Create(order.Id, staffId, payload);

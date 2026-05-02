@@ -73,6 +73,18 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpPost("guest-on-behalf")]
+		[Authorize(Roles = "admin,staff")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
+		public async Task<ActionResult<BaseResponse<string>>> CreateGuestReturnRequestOnBehalf([FromBody] CreateReturnRequestDto request)
+		{
+			var staffId = GetCurrentUserId();
+
+			var response = await _returnRequestService.CreateGuestReturnRequestByStaffAsync(staffId, request);
+			return HandleResponse(response);
+		}
+
 		[HttpPut("{id:guid}")]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
