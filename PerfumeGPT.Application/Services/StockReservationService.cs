@@ -18,105 +18,100 @@ namespace PerfumeGPT.Application.Services
 			_voucherService = voucherService;
 		}
 
-		public async Task ReserveStockForOrderAsync(Guid orderId, List<(Guid VariantId, int Quantity)> items, DateTime? expiresAt)
+		public async Task ReserveStockForOrderAsync(Order order)
 		{
-			foreach (var (variantId, quantity) in items)
+			var bufferDays = (await _unitOfWork.StorePolicies.GetCurrentPolicyAsync())?.StopSellingBeforeExpiryDays;
+			var safeDate = bufferDays.HasValue ? DateTime.UtcNow.AddDays(bufferDays.Value) : DateTime.UtcNow;
+
+			// Kéo toàn bộ Clearance Promotions lên RAM để check FEFO
+			var variantIds = order.OrderDetails.Select(od => od.VariantId).Distinct().ToList();
+			var activePromotions = await _unitOfWork.PromotionItems.GetAllAsync(
+				pi => variantIds.Contains(pi.TargetProductVariantId) && pi.IsActive && pi.BatchId.HasValue && pi.ItemType == PromotionType.Clearance);
+			var activeClearanceBatchIds = activePromotions.Select(p => p.BatchId!.Value).ToHashSet();
+
+			var detailsByVariant = order.OrderDetails.GroupBy(od => od.VariantId);
+
+			foreach (var group in detailsByVariant)
 			{
+				var variantId = group.Key;
+				var totalQtyForVariant = group.Sum(od => od.Quantity);
+
 				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
 					?? throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {variantId}.");
 
-				// 1. Reserve quantity in Stock 
-				stock.Reserve(quantity);
+				stock.Reserve(totalQtyForVariant); // 1. Trừ Stock tổng
 
-				// 2. Find available batches and reserve from them
-				var batches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
-				var remainingToReserve = quantity;
+				var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+				var validBatchesToPick = availableBatches
+					.Where(b => b.ExpiryDate > safeDate || activeClearanceBatchIds.Contains(b.Id))
+					.OrderByDescending(b => activeClearanceBatchIds.Contains(b.Id))
+					.ThenBy(b => b.ExpiryDate).ToList(); // 2. Lấy Batch FEFO
 
-				foreach (var batch in batches)
+				// Rải Batch vào từng OrderDetail
+				foreach (var orderDetail in group)
 				{
-					if (remainingToReserve <= 0) break;
+					var remainingToReserve = orderDetail.Quantity;
 
-					var availableInBatch = batch.AvailableInBatch;
-					if (availableInBatch <= 0) continue;
+					foreach (var batch in validBatchesToPick)
+					{
+						if (remainingToReserve <= 0) break;
+						if (batch.AvailableInBatch <= 0) continue;
 
-					var reserveFromBatch = Math.Min(remainingToReserve, availableInBatch);
+						var reserveFromBatch = Math.Min(remainingToReserve, batch.AvailableInBatch);
 
-					// Create StockReservation record
-					var reservation = new StockReservation(orderId, batch.Id, variantId, reserveFromBatch, expiresAt);
-					await _unitOfWork.StockReservations.AddAsync(reservation);
+						// 💡 Tạo Reservation và gắn vào Detail (EF Core Auto-fixup FK)
+						var reservation = new StockReservation(order.Id, batch.Id, variantId, reserveFromBatch, order.PaymentExpiresAt);
+						orderDetail.AddReservation(reservation);
 
-					// Decrease available quantity in batch
-					batch.Reserve(reserveFromBatch);
-					_unitOfWork.Batches.Update(batch);
+						batch.Reserve(reserveFromBatch);
+						remainingToReserve -= reserveFromBatch;
+					}
 
-					remainingToReserve -= reserveFromBatch;
-				}
-
-				// insufficient stock in batches
-				if (remainingToReserve > 0)
-				{
-					throw AppException.Conflict($"Dữ liệu không nhất quán: Các lô không đủ tồn kho cho biến thể {variantId}. Cần {quantity}, còn thiếu {remainingToReserve}.");
+					if (remainingToReserve > 0)
+						throw AppException.Conflict($"Dữ liệu không nhất quán: Các lô không đủ tồn kho cho biến thể {variantId}.");
 				}
 
 				_unitOfWork.Stocks.Update(stock);
 			}
 		}
 
-		public async Task ReserveExactBatchStockForOrderAsync(Guid orderId, List<(Guid VariantId, Guid BatchId, int Quantity)> items, DateTime? expiresAt)
+		public async Task ReserveExactBatchStockForOrderAsync(Order order)
 		{
-			if (items == null || items.Count == 0)
+			var detailsByVariant = order.OrderDetails.GroupBy(od => od.VariantId);
+
+			foreach (var group in detailsByVariant)
 			{
-				throw AppException.BadRequest("Cần ít nhất một mục giữ chỗ.");
-			}
+				var variantId = group.Key;
+				var totalQtyForVariant = group.Sum(od => od.Quantity);
 
-			var normalizedItems = items
-				.GroupBy(i => new { i.VariantId, i.BatchId })
-				.Select(g => (g.Key.VariantId, g.Key.BatchId, Quantity: g.Sum(x => x.Quantity)))
-				.ToList();
+				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
+				   ?? throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {variantId}.");
 
-			// 💥 BƯỚC 1: KIỂM TRA TẤT CẢ QUYỀN TRUY CẬP VÀ SỐ LƯỢNG (Chỉ ĐỌC, không GHI)
-			var batchDict = new Dictionary<Guid, Batch>();
-			foreach (var (VariantId, BatchId, Quantity) in normalizedItems)
-			{
-				var batch = await _unitOfWork.Batches.GetByIdAsync(BatchId)
-				  ?? throw AppException.NotFound($"Không tìm thấy lô {BatchId}.");
+				stock.Reserve(totalQtyForVariant);
 
-				if (batch.VariantId != VariantId)
-					throw AppException.BadRequest($"Lô {BatchId} không thuộc biến thể {VariantId}.");
+				foreach (var orderDetail in group)
+				{
+					if (!orderDetail.TransientBatchId.HasValue)
+						throw AppException.BadRequest("Đơn hàng tại quầy yêu cầu mã lô cụ thể.");
 
-				if (batch.ExpiryDate <= DateTime.UtcNow)
-					throw AppException.Conflict($"Lô {BatchId} đã hết hạn và không thể giữ chỗ.");
+					var batchId = orderDetail.TransientBatchId.Value;
+					var batch = await _unitOfWork.Batches.GetByIdAsync(batchId)
+					  ?? throw AppException.NotFound($"Không tìm thấy lô {batchId}.");
 
-				if (batch.AvailableInBatch < Quantity)
-					throw AppException.Conflict($"Số lượng trong lô {BatchId} không đủ. Khả dụng: {batch.AvailableInBatch}, yêu cầu: {Quantity}.");
+					if (batch.ExpiryDate <= DateTime.UtcNow)
+						throw AppException.Conflict($"Lô {batch.BatchCode} đã hết hạn.");
 
-				batchDict[BatchId] = batch; // Cache lại để dùng ở dưới, tránh Query DB 2 lần
-			}
+					if (batch.AvailableInBatch < orderDetail.Quantity)
+						throw AppException.Conflict($"Số lượng trong lô {batch.BatchCode} không đủ. Yêu cầu: {orderDetail.Quantity}.");
 
-			// 💥 BƯỚC 2: KHI ĐÃ CHẮC CHẮN 100% CÓ ĐỦ HÀNG -> THỰC THI THAY ĐỔI
-			var quantitiesByVariant = normalizedItems
-				.GroupBy(i => i.VariantId)
-				.Select(g => new { VariantId = g.Key, Quantity = g.Sum(x => x.Quantity) })
-				.ToList();
+					// 💡 Tạo Reservation và gắn vào Detail
+					var reservation = new StockReservation(order.Id, batch.Id, variantId, orderDetail.Quantity, order.PaymentExpiresAt);
+					orderDetail.AddReservation(reservation);
 
-			foreach (var item in quantitiesByVariant)
-			{
-				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == item.VariantId)
-				   ?? throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {item.VariantId}.");
-
-				stock.Reserve(item.Quantity);
+					batch.Reserve(orderDetail.Quantity);
+					_unitOfWork.Batches.Update(batch);
+				}
 				_unitOfWork.Stocks.Update(stock);
-			}
-
-			foreach (var (VariantId, BatchId, Quantity) in normalizedItems)
-			{
-				var batch = batchDict[BatchId]; // Lấy từ Cache
-
-				var reservation = new StockReservation(orderId, BatchId, VariantId, Quantity, expiresAt);
-				await _unitOfWork.StockReservations.AddAsync(reservation);
-
-				batch.Reserve(Quantity);
-				_unitOfWork.Batches.Update(batch);
 			}
 		}
 

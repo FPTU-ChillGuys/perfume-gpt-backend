@@ -268,14 +268,13 @@ namespace PerfumeGPT.Application.Services
 					_unitOfWork.PromotionItems.UpdateRange([.. promotionItems]);
 				}
 
+				await _stockReservationService.ReserveStockForOrderAsync(order);
 				await _unitOfWork.Orders.AddAsync(order);
 
 				if (request.DeliveryMethod == DeliveryMethod.Delivery)
 				{
 					await _shippingHelper.SetupShippingInfoAsync(order, resolvedAddress, userId, request.SavedAddressId, cartResponse.ShippingFee, estimatedDeliveryDate);
 				}
-
-				await _stockReservationService.ReserveStockForOrderAsync(order.Id, itemsToValidate, order.PaymentExpiresAt);
 
 				if (voucher != null)
 				{
@@ -476,6 +475,7 @@ namespace PerfumeGPT.Application.Services
 					_unitOfWork.PromotionItems.UpdateRange([.. promotionItems]);
 				}
 
+				await _stockReservationService.ReserveExactBatchStockForOrderAsync(order);
 				await _unitOfWork.Orders.AddAsync(order);
 
 				if (voucher != null)
@@ -498,8 +498,6 @@ namespace PerfumeGPT.Application.Services
 					.GroupBy(x => new { x.VariantId, x.BatchId })
 					.Select(g => (VariantId: g.Key.VariantId, BatchId: g.Key.BatchId!.Value, Quantity: g.Sum(x => x.Quantity)))
 					.ToList();
-
-				await _stockReservationService.ReserveExactBatchStockForOrderAsync(order.Id, posReservationItems, order.PaymentExpiresAt);
 
 				var primaryPendingAmount = requiresDepositForThisOrder
 					? order.RequiredDepositAmount

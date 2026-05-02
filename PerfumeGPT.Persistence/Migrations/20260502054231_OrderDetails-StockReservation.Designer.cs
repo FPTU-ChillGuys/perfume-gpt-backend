@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260502054231_OrderDetails-StockReservation")]
+    partial class OrderDetailsStockReservation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1224,7 +1227,7 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<Guid?>("BatchId")
+                    b.Property<Guid?>("FulfilledBatchId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("OrderId")
@@ -1253,7 +1256,7 @@ namespace PerfumeGPT.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BatchId");
+                    b.HasIndex("FulfilledBatchId");
 
                     b.HasIndex("OrderId");
 
@@ -1998,7 +2001,7 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid?>("OrderDetailId")
+                    b.Property<Guid>("OrderDetailId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("OrderId")
@@ -3032,9 +3035,10 @@ namespace PerfumeGPT.Persistence.Migrations
 
             modelBuilder.Entity("PerfumeGPT.Domain.Entities.OrderDetail", b =>
                 {
-                    b.HasOne("PerfumeGPT.Domain.Entities.Batch", null)
+                    b.HasOne("PerfumeGPT.Domain.Entities.Batch", "FulfilledBatch")
                         .WithMany("OrderDetails")
-                        .HasForeignKey("BatchId");
+                        .HasForeignKey("FulfilledBatchId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PerfumeGPT.Domain.Entities.Order", "Order")
                         .WithMany("OrderDetails")
@@ -3052,6 +3056,8 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasForeignKey("VariantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("FulfilledBatch");
 
                     b.Navigation("Order");
 
@@ -3390,7 +3396,8 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasOne("PerfumeGPT.Domain.Entities.OrderDetail", "OrderDetail")
                         .WithMany("StockReservations")
                         .HasForeignKey("OrderDetailId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("PerfumeGPT.Domain.Entities.Order", "Order")
                         .WithMany("StockReservations")

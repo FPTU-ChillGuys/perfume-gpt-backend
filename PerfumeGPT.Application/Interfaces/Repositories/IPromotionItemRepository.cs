@@ -6,5 +6,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	public interface IPromotionItemRepository : IGenericRepository<PromotionItem>
 	{
 		Task<List<PromotionItem>> GetActiveByCampaignIdsAsync(IEnumerable<Guid> campaignIds);
+		Task<List<PromotionItem>> GetActiveClearancePromotionsByVariantIdAsync(Guid variantId, DateTime now);
 	}
 }

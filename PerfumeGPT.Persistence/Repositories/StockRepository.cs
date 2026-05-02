@@ -15,24 +15,32 @@ namespace PerfumeGPT.Persistence.Repositories
 	{
 		public StockRepository(PerfumeDbContext context) : base(context) { }
 
-		public async Task<Stock> GetStockByVariantIdAsync(Guid variantId)
-		{
-			var stock = await _context.Stocks
-				.FirstOrDefaultAsync(s => s.VariantId == variantId && !s.ProductVariant.IsDeleted); // ADDED FILTER
-			return stock ?? throw AppException.NotFound($"Không tìm thấy kho hàng cho biến thể sản phẩm với ID {variantId}.");
-		}
-
 		public async Task<bool> IsLowStockAsync(Guid variantId)
 		=> await _context.Stocks
 			.Where(s => s.VariantId == variantId && !s.ProductVariant.IsDeleted) // ADDED FILTER
 			.Select(s => s.TotalQuantity <= s.LowStockThreshold)
 			.FirstOrDefaultAsync();
 
-		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
-		=> await _context.Stocks
-			.Where(s => s.VariantId == variantId && !s.ProductVariant.IsDeleted) // ADDED FILTER
-			.Select(s => (s.TotalQuantity - s.ReservedQuantity) >= requiredQuantity)
-			.FirstOrDefaultAsync();
+		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity, int? minBufferDays = null, IEnumerable<Guid>? exemptedBatchIds = null)
+		{
+			var minValidDate = minBufferDays.HasValue
+				? DateTime.UtcNow.AddDays(minBufferDays.Value)
+				: DateTime.UtcNow;
+
+			// 1. Xử lý List không null trước khi đưa vào LINQ
+			var safeExemptedIds = exemptedBatchIds?.ToList() ?? new List<Guid>();
+
+			var availableCommercialStock = await _context.Batches
+				.Where(b => b.VariantId == variantId && !b.ProductVariant.IsDeleted)
+				// LINQ giờ đây rất sạch sẽ, dễ dàng dịch thành câu lệnh IN (...)
+				.Where(b => b.ExpiryDate > minValidDate || safeExemptedIds.Contains(b.Id))
+				// 2. Dùng toán tử ba ngôi thay cho Math.Max để dịch thành CASE WHEN trong SQL
+				.SumAsync(b => (b.RemainingQuantity - b.ReservedQuantity) > 0
+					? (b.RemainingQuantity - b.ReservedQuantity)
+					: 0);
+
+			return availableCommercialStock >= requiredQuantity;
+		}
 
 		public async Task UpdateStockAsync(Guid variantId)
 		{

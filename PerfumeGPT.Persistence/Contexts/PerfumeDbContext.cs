@@ -588,11 +588,12 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(od => od.PromotionItemId)
 				.OnDelete(DeleteBehavior.Restrict);
 
-			// Batch -> OrderDetail (1:M)
-			builder.Entity<Batch>()
-				.HasMany(b => b.OrderDetails)
-			 .WithOne(od => od.FulfilledBatch)
-				.HasForeignKey(od => od.FulfilledBatchId)
+			// OrderDetail -> StockReservations (1:M)
+			builder.Entity<OrderDetail>()
+				.HasMany(od => od.StockReservations)
+				.WithOne(sr => sr.OrderDetail)
+				.HasForeignKey(sr => sr.OrderDetailId)
+				.IsRequired(false)
 				.OnDelete(DeleteBehavior.Restrict);
 
 			// Batch -> StockAdjustmentDetail (1:M)

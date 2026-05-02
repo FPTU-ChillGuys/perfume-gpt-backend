@@ -62,6 +62,7 @@ namespace PerfumeGPT.Domain.Entities
 
 			return new Order
 			{
+				Id = Guid.NewGuid(),
 				CustomerId = customerId,
 				Code = OrderCodeGenerator.Generate(OrderType.Online),
 				Type = OrderType.Online,
@@ -96,6 +97,7 @@ namespace PerfumeGPT.Domain.Entities
 
 			return new Order
 			{
+				Id = Guid.NewGuid(),
 				CustomerId = customerId,
 				GuestEmailOrPhone = guestEmailOrPhone,
 				StaffId = staffId,
@@ -169,6 +171,10 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("Chi tiết đơn hàng là bắt buộc.");
 
 			orderDetail.Order = this;
+			foreach (var reservation in orderDetail.StockReservations)
+			{
+				reservation.AssignOrderDetail(orderDetail);
+			}
 			OrderDetails.Add(orderDetail);
 		}
 
@@ -300,17 +306,6 @@ namespace PerfumeGPT.Domain.Entities
 		{
 			if (Type != OrderType.Online)
 				throw DomainException.BadRequest("Chỉ các đơn hàng trực tuyến mới được hỗ trợ cho thao tác này.");
-		}
-
-		public void FulfillOrderDetail(Guid orderDetailId, Guid fulfilledBatchId)
-		{
-			if (orderDetailId == Guid.Empty)
-				throw DomainException.BadRequest("ID chi tiết đơn hàng là bắt buộc.");
-
-			var orderDetail = OrderDetails.FirstOrDefault(od => od.Id == orderDetailId)
-				?? throw DomainException.NotFound("Chi tiết đơn hàng không tìm thấy trong đơn hàng này.");
-
-			orderDetail.Fulfill(fulfilledBatchId);
 		}
 
 		private static void ValidateTotalAmount(decimal totalAmount)

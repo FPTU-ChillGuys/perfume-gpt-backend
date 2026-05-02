@@ -35,8 +35,10 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<string>.Ok("Cập nhật tồn kho thành công.");
 		}
 
-		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity)
-			=> await _unitOfWork.Stocks.HasSufficientStockAsync(variantId, requiredQuantity);
+		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity, int? minBufferDays = null, List<Guid>? exemptedBatchIds = null)
+		{
+			return await _unitOfWork.Stocks.HasSufficientStockAsync(variantId, requiredQuantity, minBufferDays, exemptedBatchIds);
+		}
 
 		public async Task<BaseResponse<PagedResult<StockResponse>>> GetInventoryAsync(GetPagedInventoryRequest request)
 		{

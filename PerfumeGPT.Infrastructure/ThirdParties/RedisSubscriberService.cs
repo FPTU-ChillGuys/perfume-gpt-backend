@@ -33,42 +33,42 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 		protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 		{
-			while (!stoppingToken.IsCancellationRequested)
-			{
-				try
-				{
-					_logger.LogInformation("[Redis] Attempting to subscribe to channel: {Channel}", CatalogRequestChannel);
-					var subscriber = _redis.GetSubscriber();
+			//while (!stoppingToken.IsCancellationRequested)
+			//{
+			//	try
+			//	{
+			//		_logger.LogInformation("[Redis] Attempting to subscribe to channel: {Channel}", CatalogRequestChannel);
+			//		var subscriber = _redis.GetSubscriber();
 
-					await subscriber.SubscribeAsync(
-						RedisChannel.Literal(CatalogRequestChannel),
-						async (channel, message) => await HandleCatalogRequestAsync(message));
+			//		await subscriber.SubscribeAsync(
+			//			RedisChannel.Literal(CatalogRequestChannel),
+			//			async (channel, message) => await HandleCatalogRequestAsync(message));
 
-					_logger.LogInformation("[Redis] Successfully subscribed to channel: {Channel}", CatalogRequestChannel);
+			//		_logger.LogInformation("[Redis] Successfully subscribed to channel: {Channel}", CatalogRequestChannel);
 
-					// Wait here while the subscription is active. 
-					// SE.Redis will handle re-subscriptions automatically if the connection drops.
-					// We only exit this delay if the stoppingToken is cancelled.
-					await Task.Delay(Timeout.Infinite, stoppingToken);
-				}
-				catch (OperationCanceledException)
-				{
-					// App is shutting down, normal behavior
-					break;
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, "[Redis] Failed to subscribe to {Channel}. Retrying in 5 seconds...", CatalogRequestChannel);
-					try
-					{
-						await Task.Delay(5000, stoppingToken);
-					}
-					catch (OperationCanceledException)
-					{
-						break;
-					}
-				}
-			}
+			//		// Wait here while the subscription is active. 
+			//		// SE.Redis will handle re-subscriptions automatically if the connection drops.
+			//		// We only exit this delay if the stoppingToken is cancelled.
+			//		await Task.Delay(Timeout.Infinite, stoppingToken);
+			//	}
+			//	catch (OperationCanceledException)
+			//	{
+			//		// App is shutting down, normal behavior
+			//		break;
+			//	}
+			//	catch (Exception ex)
+			//	{
+			//		_logger.LogError(ex, "[Redis] Failed to subscribe to {Channel}. Retrying in 5 seconds...", CatalogRequestChannel);
+			//		try
+			//		{
+			//			await Task.Delay(5000, stoppingToken);
+			//		}
+			//		catch (OperationCanceledException)
+			//		{
+			//			break;
+			//		}
+			//	}
+			//}
 		}
 
 		public override async Task StopAsync(CancellationToken cancellationToken)

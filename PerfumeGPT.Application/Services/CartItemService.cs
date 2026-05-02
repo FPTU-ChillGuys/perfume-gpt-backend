@@ -13,7 +13,9 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IStockService _stockService;
 
-		public CartItemService(IUnitOfWork unitOfWork, IStockService stockService)
+		public CartItemService(
+			IUnitOfWork unitOfWork,
+			IStockService stockService)
 		{
 			_unitOfWork = unitOfWork;
 			_stockService = stockService;
@@ -31,8 +33,18 @@ namespace PerfumeGPT.Application.Services
 			variant.EnsureAvailableForCart();
 
 			var totalQuantity = existing != null ? existing.Quantity + request.Quantity : request.Quantity;
+			// Trong CartItemService.cs -> AddToCartAsync
+			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+			var bufferDays = storePolicy?.StopSellingBeforeExpiryDays;
 
-			var hasStock = await _stockService.HasSufficientStockAsync(request.VariantId, totalQuantity);
+			var now = DateTime.UtcNow;
+           // Lấy các Batch đang chạy Xả kho
+			var activeClearancePromotions = await _unitOfWork.PromotionItems
+				.GetActiveClearancePromotionsByVariantIdAsync(request.VariantId, now);
+
+			var exemptedBatchIds = activeClearancePromotions.Select(p => p.BatchId!.Value).ToList();
+
+			var hasStock = await _stockService.HasSufficientStockAsync(request.VariantId, totalQuantity, bufferDays, exemptedBatchIds);
 			if (!hasStock)
 			{
 				throw AppException.BadRequest("Không đủ tồn kho cho số lượng yêu cầu");
@@ -87,7 +99,13 @@ namespace PerfumeGPT.Application.Services
 				return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Xóa sản phẩm khỏi giỏ hàng thành công");
 			}
 
-			var hasStock = await _stockService.HasSufficientStockAsync(cartItem.VariantId, request.Quantity);
+			var bufferDays = (await _unitOfWork.StorePolicies.GetCurrentPolicyAsync())?.StopSellingBeforeExpiryDays;
+			var now = DateTime.UtcNow;
+			var activeClearancePromotions = await _unitOfWork.PromotionItems
+				.GetActiveClearancePromotionsByVariantIdAsync(cartItem.VariantId, now);
+			var exemptedBatchIds = activeClearancePromotions.Select(p => p.BatchId!.Value).ToList();
+
+			var hasStock = await _stockService.HasSufficientStockAsync(cartItem.VariantId, request.Quantity, bufferDays, exemptedBatchIds);
 			if (!hasStock)
 			{
 				throw AppException.BadRequest("Không đủ tồn kho cho số lượng yêu cầu");

@@ -11,17 +11,14 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 	{
 		private readonly IUnitOfWork _unitOfWork;
 
-		public OrderDetailsFactory(IUnitOfWork unitOfWork)
-		{
-			_unitOfWork = unitOfWork;
-		}
+		public OrderDetailsFactory(IUnitOfWork unitOfWork) { _unitOfWork = unitOfWork; }
 
 		public async Task CreateOrderDetailsAsync(Order order, List<CartCheckoutItemDto> items)
 		{
 			if (order == null) throw AppException.BadRequest("Đơn hàng là bắt buộc.");
 			if (items == null || items.Count == 0) throw AppException.BadRequest("Danh sách sản phẩm của đơn hàng là bắt buộc.");
 
-			// 1. Validate Tổng Tồn Kho
+			// Chặn lỗi nhanh: Xác thực tổng tồn kho trước khi đi tiếp
 			var stockItems = items.GroupBy(i => i.VariantId).Select(g => (VariantId: g.Key, Quantity: g.Sum(x => x.Quantity))).ToList();
 			var stockValidation = await ValidateStockAvailabilityAsync(stockItems);
 			if (!stockValidation) throw AppException.BadRequest("Xác thực tồn kho thất bại.");
@@ -29,7 +26,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			var variantIds = items.Select(i => i.VariantId).Distinct().ToList();
 			var variants = await _unitOfWork.Variants.GetVariantsWithDetailsByIdsAsync(variantIds);
 			var variantDictionary = variants.ToDictionary(v => v.Id);
-			var batchStockTracker = new Dictionary<Guid, int>();
 
 			var orderDetailsToAdd = new List<OrderDetail>();
 
@@ -38,103 +34,24 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				if (!variantDictionary.TryGetValue(item.VariantId, out var variant))
 					throw AppException.NotFound($"Biến thể sản phẩm {item.VariantId} không tồn tại.");
 
-				// Lấy trực tiếp 2 số tiền giảm từ DTO do Engine tính toán
 				var totalVoucherDiscount = item.ApportionedVoucherDiscount;
-
-				// Tính ngược lại tiền Promotion: Tiền Promotion = Tổng giảm - Tiền Voucher
 				var totalPromoDiscount = item.Discount - totalVoucherDiscount;
 
-				// TRƯỜNG HỢP 1: Có Batch cụ thể (Do Campaign hoặc user tự chọn ở POS)
-				if (item.BatchId.HasValue)
-				{
-					var batch = await _unitOfWork.Batches.FirstOrDefaultAsync(b => b.Id == item.BatchId.Value && b.VariantId == item.VariantId)
-						?? throw AppException.NotFound($"Lô hàng {item.BatchId.Value} cho biến thể {item.VariantId} không tồn tại.");
+				// Lập Snapshot không chứa Batch (Vì 1 dòng có thể xé thành nhiều Batch)
+				string snapshotJson = CreateSnapshotJson(variant, item.Quantity, item.SubTotal, totalPromoDiscount);
 
-					if (!batchStockTracker.ContainsKey(batch.Id)) batchStockTracker[batch.Id] = batch.AvailableInBatch;
-					if (batchStockTracker[batch.Id] < item.Quantity) throw AppException.Conflict($"Lô hàng {batch.BatchCode} không đủ tồn để cung cấp cho biến thể {item.VariantId}.");
+				var detail = OrderDetail.Create(item.VariantId, item.AppliedPromotionItemId, item.Quantity, variant.BasePrice, snapshotJson, totalVoucherDiscount, totalPromoDiscount);
 
-					batchStockTracker[batch.Id] -= item.Quantity;
+				// 💡 Lưu tạm BatchId (Nếu có) vào biến Tàng hình để lát nữa StockReservationService bốc ra dùng
+				detail.TransientBatchId = item.BatchId;
 
-					string snapshotJson = CreateSnapshotJson(variant, batch, item.Quantity, item.SubTotal, totalPromoDiscount);
-
-					//  GỌI HÀM CREATE MỚI VỚI ĐẦY ĐỦ THAM SỐ
-					var detail = OrderDetail.Create(
-						item.VariantId,
-						item.AppliedPromotionItemId,
-						item.Quantity,
-						variant.BasePrice,
-						snapshotJson,
-						totalVoucherDiscount, // Tiền gánh Voucher
-						totalPromoDiscount    // Tiền giảm Promotion
-					);
-					orderDetailsToAdd.Add(detail);
-					continue;
-				}
-
-				// TRƯỜNG HỢP 2: Không có Batch (Cắt Lô tự động FIFO - Chỉ xảy ra với hàng nguyên giá)
-				var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(item.VariantId);
-				var remainingToAllocate = item.Quantity;
-				var allocations = new List<(Batch Batch, int AllocatedQty)>();
-
-				foreach (var batch in availableBatches)
-				{
-					if (remainingToAllocate <= 0) break;
-					if (!batchStockTracker.ContainsKey(batch.Id)) batchStockTracker[batch.Id] = batch.AvailableInBatch;
-
-					var availableInBatch = batchStockTracker[batch.Id];
-					if (availableInBatch <= 0) continue;
-
-					var quantityFromBatch = Math.Min(remainingToAllocate, availableInBatch);
-					allocations.Add((batch, quantityFromBatch));
-					remainingToAllocate -= quantityFromBatch;
-					batchStockTracker[batch.Id] -= quantityFromBatch;
-				}
-
-				if (remainingToAllocate > 0) throw AppException.Conflict($"Tồn kho không đủ để cung cấp cho biến thể {item.VariantId}. Thiếu {remainingToAllocate} đơn vị.");
-
-				// Phân bổ 2 loại tiền giảm xuống cho các Lô con (Chỉ cần thiết nếu Voucher trải đều)
-				decimal allocatedPromo = 0m;
-				decimal allocatedVoucher = 0m;
-
-				for (int i = 0; i < allocations.Count; i++)
-				{
-					var (batch, allocatedQuantity) = allocations[i];
-					var detailLineTotal = variant.BasePrice * allocatedQuantity;
-					var isLast = i == allocations.Count - 1;
-
-					// Chia nhỏ tiền Promotion
-					var slicePromo = isLast
-						? totalPromoDiscount - allocatedPromo
-						: Math.Round((detailLineTotal / item.SubTotal) * totalPromoDiscount, 0, MidpointRounding.AwayFromZero);
-					allocatedPromo += slicePromo;
-
-					// Chia nhỏ tiền Voucher
-					var sliceVoucher = isLast
-						? totalVoucherDiscount - allocatedVoucher
-						: Math.Round((detailLineTotal / item.SubTotal) * totalVoucherDiscount, 0, MidpointRounding.AwayFromZero);
-					allocatedVoucher += sliceVoucher;
-
-					string snapshotJson = CreateSnapshotJson(variant, batch, allocatedQuantity, detailLineTotal, slicePromo);
-
-					// TẠO DÒNG CHI TIẾT
-					var detail = OrderDetail.Create(
-						item.VariantId,
-						item.AppliedPromotionItemId,
-						allocatedQuantity,
-						variant.BasePrice,
-						snapshotJson,
-						sliceVoucher,
-						slicePromo
-					);
-					orderDetailsToAdd.Add(detail);
-				}
+				orderDetailsToAdd.Add(detail);
 			}
 
-			// 3. Cuối cùng, nhét tất cả vào Order
 			order.AddOrderDetails(orderDetailsToAdd);
 		}
 
-		private static string CreateSnapshotJson(ProductVariant variant, Batch batch, int quantity, decimal lineTotal, decimal promoDiscount)
+		private static string CreateSnapshotJson(ProductVariant variant, int quantity, decimal lineTotal, decimal promoDiscount)
 		{
 			var snapshotData = new
 			{
@@ -144,10 +61,6 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 				variant.VolumeMl,
 				VariantType = variant.Type.ToString(),
 				Concentration = variant.Concentration?.Name,
-				BatchId = batch.Id,
-				batch.BatchCode,
-				batch.ExpiryDate,
-				// Giá cuối cùng mà khách hàng thấy trên hóa đơn cho món này (Chỉ trừ Promotion, ko trừ Voucher)
 				FinalUnitPrice = quantity > 0 ? (lineTotal - promoDiscount) / quantity : 0m
 			};
 			return JsonSerializer.Serialize(snapshotData);

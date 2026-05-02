@@ -926,17 +926,20 @@ namespace PerfumeGPT.Application.Services
 		private sealed record CheckoutLineAllocation(CartCheckoutItemDto Item, bool IsEligible);
 		private sealed record PricingContext(
 			Dictionary<Guid, int> BatchAvailability,
+			Dictionary<Guid, int> SafeBatchAvailability,
 			Dictionary<Guid, List<PromotionItem>> ActivePromotions);
 
 		private async Task<PricingContext> BuildPricingContextAsync(List<CartCheckoutItemDto> checkoutItems)
 		{
 			if (checkoutItems.Count == 0)
 			{
-				return new PricingContext([], []);
+				return new PricingContext([], [], []);
 			}
 
 			var variantIds = checkoutItems.Select(x => x.VariantId).Distinct().ToList();
 			var now = DateTime.UtcNow;
+			var bufferDays = (await _unitOfWork.StorePolicies.GetCurrentPolicyAsync())?.StopSellingBeforeExpiryDays ?? 0;
+			var safeDate = now.AddDays(bufferDays);
 
 			var promotionItems = await _unitOfWork.PromotionItems.GetAllAsync(
 				i => !i.IsDeleted
@@ -957,8 +960,18 @@ namespace PerfumeGPT.Application.Services
 				batchAvailability = batches.ToDictionary(b => b.Id, b => Math.Max(0, b.RemainingQuantity - b.ReservedQuantity));
 			}
 
+			var safeBatches = await _unitOfWork.Batches.GetAllAsync(
+				b => variantIds.Contains(b.VariantId) && b.ExpiryDate > safeDate,
+				asNoTracking: true);
+			var safeBatchAvailability = safeBatches
+				.GroupBy(b => b.VariantId)
+				.ToDictionary(
+					g => g.Key,
+					g => g.Sum(b => Math.Max(0, b.RemainingQuantity - b.ReservedQuantity)));
+
 			return new PricingContext(
 				batchAvailability,
+				safeBatchAvailability,
 				promotionItems.GroupBy(x => x.TargetProductVariantId).ToDictionary(g => g.Key, g => g.ToList()));
 		}
 
@@ -1001,9 +1014,21 @@ namespace PerfumeGPT.Application.Services
 
 			// 2. LẤY TỒN KHO THỰC TẾ (Để biết lô nào còn hàng mà chia)
 			var batchAvailability = new Dictionary<Guid, int>(context.BatchAvailability);
+			var safeBatchTracker = new Dictionary<Guid, int>(context.SafeBatchAvailability);
 
 			var resultItems = new List<CartCheckoutItemDto>();
 			var messageLines = new List<string>();
+
+			static void EnsureSafeStockForRegularPortion(Dictionary<Guid, int> tracker, Guid variantId, int quantity)
+			{
+				var safeAvailable = tracker.GetValueOrDefault(variantId, 0);
+				if (safeAvailable < quantity)
+				{
+					throw AppException.BadRequest("Không đủ tồn kho hợp lệ (đảm bảo hạn sử dụng) để bán nguyên giá. Vui lòng giảm số lượng sản phẩm hoặc chọn mua sản phẩm khác.");
+				}
+
+				tracker[variantId] = safeAvailable - quantity;
+			}
 
 			// 3. LẶP QUA GIỎ HÀNG VÀ XỬ LÝ PHÂN BỔ
 			foreach (var item in items)
@@ -1043,7 +1068,9 @@ namespace PerfumeGPT.Application.Services
 							var discountedSplit = CreateSplitItem(item, qtyToDiscount, item.BatchId);
 							resultItems.Add(ApplyDiscountToItem(discountedSplit, bestPromo, ref messageLines, qtyToDiscount));
 
-							var originalPriceSplit = CreateSplitItem(item, item.Quantity - qtyToDiscount, item.BatchId);
+							var regularQty = item.Quantity - qtyToDiscount;
+							EnsureSafeStockForRegularPortion(safeBatchTracker, item.VariantId, regularQty);
+							var originalPriceSplit = CreateSplitItem(item, regularQty, null);
 							resultItems.Add(originalPriceSplit);
 						}
 					}
@@ -1092,6 +1119,7 @@ namespace PerfumeGPT.Application.Services
 					// Nếu đã vét sạch các lô khuyến mãi mà khách đặt nhiều quá -> Phần dư giữ nguyên giá gốc
 					if (remainingQty > 0)
 					{
+						EnsureSafeStockForRegularPortion(safeBatchTracker, item.VariantId, remainingQty);
 						resultItems.Add(CreateSplitItem(item, remainingQty, null));
 					}
 				}
@@ -1122,7 +1150,9 @@ namespace PerfumeGPT.Application.Services
 								var discountedSplit = CreateSplitItem(item, qtyToDiscount, item.BatchId);
 								resultItems.Add(ApplyDiscountToItem(discountedSplit, bestPromo, ref messageLines, qtyToDiscount));
 
-								var originalPriceSplit = CreateSplitItem(item, item.Quantity - qtyToDiscount, item.BatchId);
+								var regularQty = item.Quantity - qtyToDiscount;
+								EnsureSafeStockForRegularPortion(safeBatchTracker, item.VariantId, regularQty);
+								var originalPriceSplit = CreateSplitItem(item, regularQty, null);
 								resultItems.Add(originalPriceSplit);
 							}
 						}

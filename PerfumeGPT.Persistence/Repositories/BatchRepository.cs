@@ -14,13 +14,19 @@ namespace PerfumeGPT.Persistence.Repositories
 	{
 		public BatchRepository(PerfumeDbContext context) : base(context) { }
 
-		public async Task<List<Batch>> GetAvailableBatchesByVariantIdAsync(Guid variantId)
-		=> await _context.Batches
-			.Where(b => b.VariantId == variantId
-				&& b.ExpiryDate > DateTime.UtcNow
-				&& (b.RemainingQuantity - b.ReservedQuantity) > 0)
-			.OrderBy(b => b.ExpiryDate)
-			.ToListAsync();
+		public async Task<List<Batch>> GetAvailableBatchesByVariantIdAsync(Guid variantId, int? minBufferDays = null)
+		{
+			var minValidDate = minBufferDays.HasValue
+				? DateTime.UtcNow.AddDays(minBufferDays.Value)
+				: DateTime.UtcNow;
+
+			return await _context.Batches
+				.Where(b => b.VariantId == variantId
+					&& b.ExpiryDate > minValidDate
+					&& (b.RemainingQuantity - b.ReservedQuantity) > 0)
+				.OrderBy(b => b.ExpiryDate)
+				.ToListAsync();
+		}
 
 		public async Task<(List<BatchDetailResponse> Batches, int TotalCount)> GetBatchesAsync(GetBatchesRequest request, int expiringSoonThresholdInDays)
 		{
