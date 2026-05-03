@@ -8,6 +8,7 @@ using PerfumeGPT.Persistence.Contexts;
 using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
 using System.Linq.Expressions;
+using System.Text.Json;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -86,20 +87,13 @@ namespace PerfumeGPT.Persistence.Repositories
 			}
 
 			IQueryable<Order> query = _context.Orders.Where(filter);
-
 			var totalCount = await query.CountAsync();
 
 			var allowedSortColumns = new HashSet<string>(StringComparer.Ordinal)
 			{
-				nameof(Order.Id),
-				nameof(Order.Code),
-				nameof(Order.Type),
-				nameof(Order.Status),
-				nameof(Order.PaymentStatus),
-				nameof(Order.TotalAmount),
-				nameof(Order.CreatedAt),
-				nameof(Order.UpdatedAt),
-				nameof(Order.PaymentExpiresAt)
+				nameof(Order.Id), nameof(Order.Code), nameof(Order.Type), nameof(Order.Status),
+				nameof(Order.PaymentStatus), nameof(Order.TotalAmount), nameof(Order.CreatedAt),
+				nameof(Order.UpdatedAt), nameof(Order.PaymentExpiresAt)
 			};
 
 			string? sortBy = null;
@@ -115,288 +109,27 @@ namespace PerfumeGPT.Persistence.Repositories
 				? query.ApplySorting(sortBy, request.IsDescending)
 				: query.OrderByDescending(o => o.CreatedAt);
 
-			var orders = await sortedQuery
+			// Kéo dữ liệu lên RAM trước để có thể parse JSON Snapshot an toàn
+			var dbOrders = await sortedQuery
 				.Skip((request.PageNumber - 1) * request.PageSize)
 				.Take(request.PageSize)
+				.Include(o => o.Customer)
+				.Include(o => o.Staff)
+				.Include(o => o.ForwardShipping)
+				.Include(o => o.PaymentTransactions)
+				.Include(o => o.OrderDetails)
+					.ThenInclude(od => od.ProductVariant).ThenInclude(v => v.Media)
 				.AsSplitQuery()
-				.Select(o => new OrderListItem
-				{
-					Id = o.Id,
-					Code = o.Code,
-					CustomerId = o.CustomerId,
-					CustomerName = o.Customer != null ? o.Customer.FullName : null,
-					StaffId = o.StaffId,
-					StaffName = o.Staff != null ? o.Staff.FullName : null,
-					Type = o.Type,
-					Status = o.Status,
-					PaymentStatus = o.PaymentStatus,
-					TotalAmount = o.TotalAmount,
-					RequiredDepositAmount = o.RequiredDepositAmount,
-					PaidAmount = o.PaidAmount,
-					RemainingAmount = o.TotalAmount - o.PaidAmount,
-					ItemCount = o.OrderDetails.Count,
-					IsReturnalbe = o.Status == OrderStatus.Delivered
-						   && o.ForwardShipping != null
-							&& o.ForwardShipping.ShippedDate.HasValue
-							&& o.ForwardShipping.ShippedDate.Value >= DateTime.UtcNow.AddDays(-returnOrderAllowanceInDays),
-					ShippingStatus = o.ForwardShipping != null ? o.ForwardShipping.Status : null,
-					CreatedAt = o.CreatedAt,
-					PaymentExpiresAt = o.PaymentExpiresAt,
-					UpdatedAt = o.UpdatedAt,
-					OrderDetails = o.OrderDetails.Select(od => new OrderDetailListItem
-					{
-						Id = od.Id,
-						VariantId = od.VariantId,
-						VariantName = od.ProductVariant != null ? $"{od.ProductVariant.Sku} - {od.ProductVariant.VolumeMl}ml" : string.Empty,
-						ImageUrl = od.ProductVariant != null && od.ProductVariant.Media.Count > 0
-							? (od.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
-								?? od.ProductVariant.Media.Select(m => m.Url).FirstOrDefault())
-							: null,
-						Quantity = od.Quantity,
-						UnitPrice = od.UnitPrice,
-						// Lấy Tổng tiền gốc - Tiền giảm Flash Sale - Tiền gánh Voucher
-						Total = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
-
-						// Lấy cái Total vừa tính ở trên chia đều cho số lượng
-						RefunablePrice = od.Quantity > 0
-						   ? ((od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount) / od.Quantity
-						   : 0m,
-					}).ToList(),
-					PaymentTransactions = o.PaymentTransactions
-					 .Select(pt => new PaymentInfoResponse
-					 {
-						 Id = pt.Id,
-						 TransactionType = pt.TransactionType,
-						 Status = pt.TransactionStatus,
-						 PaymentMethod = pt.Method,
-						 FailureReason = pt.FailureReason,
-						 TotalAmount = pt.Amount
-					 }).ToList(),
-				})
 				.ToListAsync();
 
-			return (orders, totalCount);
-		}
-
-		//public async Task<OrderResponse?> GetOrderWithFullDetailsAsync(Guid orderId)
-		//=> await _context.Orders
-		//	.Where(o => o.Id == orderId)
-		//	.Select(o => new OrderResponse
-		//	{
-		//		Id = o.Id,
-		//		Code = o.Code,
-		//		CustomerId = o.CustomerId,
-		//		CustomerName = o.Customer != null ? o.Customer.FullName : null,
-		//		CustomerEmail = o.Customer != null ? o.Customer.Email : null,
-		//		CustomerPhoneNumber = o.Customer != null ? o.Customer.PhoneNumber : o.GuestEmailOrPhone,
-		//		StaffId = o.StaffId,
-		//		StaffName = o.Staff != null ? o.Staff.FullName : null,
-		//		Type = o.Type,
-		//		Status = o.Status,
-		//		PaymentStatus = o.PaymentStatus,
-		//		TotalAmount = o.TotalAmount,
-		//		RequiredDepositAmount = o.RequiredDepositAmount,
-		//		PaidAmount = o.PaidAmount,
-		//		RemainingAmount = o.TotalAmount - o.PaidAmount,
-		//		SubTotal = o.OrderDetails.Sum(od => (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount),
-		//		ShippingFee = o.ForwardShipping != null ? o.ForwardShipping.ShippingFee : 0m,
-		//		VoucherId = o.UserVoucherId,
-		//		VoucherCode = o.UserVoucher != null ? o.UserVoucher.Voucher.Code : null,
-		//		VoucherType = o.UserVoucher != null ? o.UserVoucher.Voucher.ApplyType : null,
-		//		VoucherDiscountTotal = o.OrderDetails.Sum(od => od.ApportionedDiscount),
-		//		PaymentExpiresAt = o.PaymentExpiresAt,
-		//		PaidAt = o.PaidAt,
-		//		CreatedAt = o.CreatedAt,
-		//		UpdatedAt = o.UpdatedAt,
-		//		PaymentTransactions = o.PaymentTransactions
-		//			.Select(pt => new PaymentInfoResponse
-		//			{
-		//				Id = pt.Id,
-		//				TransactionType = pt.TransactionType,
-		//				Status = pt.TransactionStatus,
-		//				PaymentMethod = pt.Method,
-		//				FailureReason = pt.FailureReason,
-		//				TotalAmount = pt.Amount
-		//			}).ToList(),
-		//		ShippingInfo = o.ForwardShipping == null ? null : new ShippingInfoResponse
-		//		{
-		//			Id = o.ForwardShipping.Id,
-		//			CarrierName = o.ForwardShipping.CarrierName,
-		//			TrackingNumber = o.ForwardShipping.TrackingNumber,
-		//			ShippingFee = o.ForwardShipping.ShippingFee,
-		//			Status = o.ForwardShipping.Status,
-		//			EstimatedDeliveryDate = o.ForwardShipping.EstimatedDeliveryDate,
-		//			ShippedDate = o.ForwardShipping.ShippedDate
-		//		},
-		//		RecipientInfo = o.ContactAddress == null ? null : new RecipientInfoResponse
-		//		{
-		//			Id = o.ContactAddress.Id,
-		//			RecipientName = o.ContactAddress.ContactName,
-		//			RecipientPhoneNumber = o.ContactAddress.ContactPhoneNumber,
-		//			DistrictName = o.ContactAddress.DistrictName,
-		//			WardName = o.ContactAddress.WardName,
-		//			ProvinceName = o.ContactAddress.ProvinceName,
-		//			FullAddress = o.ContactAddress.FullAddress
-		//		},
-		//		OrderDetails = o.OrderDetails.Select(od => new OrderDetailResponse
-		//		{
-		//			Id = od.Id,
-		//			VariantId = od.VariantId,
-		//			VariantName = od.ProductVariant != null ? $"{od.ProductVariant.Sku} - {od.ProductVariant.VolumeMl}ml" : string.Empty,
-		//			ImageUrl = od.ProductVariant != null && od.ProductVariant.Media.Count > 0
-		//				? (od.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
-		//					?? od.ProductVariant.Media.Select(m => m.Url).FirstOrDefault())
-		//				: null,
-		//			Quantity = od.Quantity,
-		//			UnitPrice = od.UnitPrice,
-		//			CampaignDiscount = od.PromotionDiscountAmount,
-		//			CampaignPrice = od.Quantity > 0
-		//			   ? od.UnitPrice - (od.PromotionDiscountAmount / od.Quantity)
-		//			   : od.UnitPrice,
-		//			VoucherDiscount = od.ApportionedDiscount,
-		//			ItemTotal = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount,
-		//			RefunablePrice = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
-		//			Total = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
-		//			ReservedBatches = o.StockReservations
-		//				.Where(sr => sr.VariantId == od.VariantId)
-		//				.Select(sr => new ReservedBatchResponse
-		//				{
-		//					BatchId = sr.BatchId,
-		//					BatchCode = sr.Batch.BatchCode,
-		//					ReservedQuantity = sr.ReservedQuantity,
-		//					ExpiryDate = sr.Batch.ExpiryDate
-		//				}).ToList()
-		//		}).ToList()
-		//	})
-		//	.AsSplitQuery()
-		//	.FirstOrDefaultAsync();
-
-		public async Task<OrderResponse?> GetOrderWithFullDetailsAsync(Guid orderId)
-		{
-			// BƯỚC 1: Load Order + toàn bộ dữ liệu cần hiển thị
-			var orderFromDb = await _context.Orders
-			.AsNoTracking()
-			.Where(o => o.Id == orderId)
-			.Include(o => o.Customer)
-			.Include(o => o.Staff)
-			.Include(o => o.ForwardShipping)
-			.Include(o => o.ContactAddress)
-			.Include(o => o.UserVoucher).ThenInclude(uv => uv!.Voucher)
-			.Include(o => o.PaymentTransactions)
-			.Include(o => o.OrderDetails)
-				.ThenInclude(od => od.ProductVariant).ThenInclude(v => v.Media)
-			.Include(o => o.OrderDetails)
-				.ThenInclude(od => od.StockReservations) // INCLUDE THẲNG TỪ ORDER DETAIL
-					.ThenInclude(sr => sr.Batch)
-			.AsSplitQuery()
-			.FirstOrDefaultAsync();
-
-			if (orderFromDb == null) return null;
-
-			return new OrderResponse
-			{
-				Id = orderFromDb.Id,
-				Code = orderFromDb.Code,
-				CustomerId = orderFromDb.CustomerId,
-				CustomerName = orderFromDb.Customer?.FullName,
-				CustomerEmail = orderFromDb.Customer?.Email,
-				CustomerPhoneNumber = orderFromDb.Customer?.PhoneNumber ?? orderFromDb.GuestEmailOrPhone,
-				StaffId = orderFromDb.StaffId,
-				StaffName = orderFromDb.Staff?.FullName,
-				Type = orderFromDb.Type,
-				Status = orderFromDb.Status,
-				PaymentStatus = orderFromDb.PaymentStatus,
-				TotalAmount = orderFromDb.TotalAmount,
-				RequiredDepositAmount = orderFromDb.RequiredDepositAmount,
-				PaidAmount = orderFromDb.PaidAmount,
-				RemainingAmount = orderFromDb.TotalAmount - orderFromDb.PaidAmount,
-				SubTotal = orderFromDb.OrderDetails.Sum(od => (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount),
-				ShippingFee = orderFromDb.ForwardShipping != null ? orderFromDb.ForwardShipping.ShippingFee : 0m,
-				VoucherId = orderFromDb.UserVoucherId,
-				VoucherCode = orderFromDb.UserVoucher?.Voucher.Code,
-				VoucherType = orderFromDb.UserVoucher?.Voucher.ApplyType,
-				VoucherDiscountTotal = orderFromDb.OrderDetails.Sum(od => od.ApportionedDiscount),
-				PaymentExpiresAt = orderFromDb.PaymentExpiresAt,
-				PaidAt = orderFromDb.PaidAt,
-				CreatedAt = orderFromDb.CreatedAt,
-				UpdatedAt = orderFromDb.UpdatedAt,
-				PaymentTransactions = orderFromDb.PaymentTransactions
-					.Select(pt => new PaymentInfoResponse
-					{
-						Id = pt.Id,
-						TransactionType = pt.TransactionType,
-						Status = pt.TransactionStatus,
-						PaymentMethod = pt.Method,
-						FailureReason = pt.FailureReason,
-						TotalAmount = pt.Amount
-					}).ToList(),
-				ShippingInfo = orderFromDb.ForwardShipping == null ? null : new ShippingInfoResponse
-				{
-					Id = orderFromDb.ForwardShipping.Id,
-					CarrierName = orderFromDb.ForwardShipping.CarrierName,
-					TrackingNumber = orderFromDb.ForwardShipping.TrackingNumber,
-					ShippingFee = orderFromDb.ForwardShipping.ShippingFee,
-					Status = orderFromDb.ForwardShipping.Status,
-					EstimatedDeliveryDate = orderFromDb.ForwardShipping.EstimatedDeliveryDate,
-					ShippedDate = orderFromDb.ForwardShipping.ShippedDate
-				},
-				RecipientInfo = orderFromDb.ContactAddress == null ? null : new RecipientInfoResponse
-				{
-					Id = orderFromDb.ContactAddress.Id,
-					RecipientName = orderFromDb.ContactAddress.ContactName,
-					RecipientPhoneNumber = orderFromDb.ContactAddress.ContactPhoneNumber,
-					DistrictName = orderFromDb.ContactAddress.DistrictName,
-					WardName = orderFromDb.ContactAddress.WardName,
-					ProvinceName = orderFromDb.ContactAddress.ProvinceName,
-					FullAddress = orderFromDb.ContactAddress.FullAddress
-				},
-				OrderDetails = orderFromDb.OrderDetails.Select(od => new OrderDetailResponse
-				{
-					Id = od.Id,
-					VariantId = od.VariantId,
-					VariantName = od.ProductVariant != null ? $"{od.ProductVariant.Sku} - {od.ProductVariant.VolumeMl}ml" : string.Empty,
-					ImageUrl = od.ProductVariant != null && od.ProductVariant.Media.Count > 0
-						? (od.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
-							?? od.ProductVariant.Media.Select(m => m.Url).FirstOrDefault())
-						: null,
-					Quantity = od.Quantity,
-					UnitPrice = od.UnitPrice,
-					CampaignDiscount = od.PromotionDiscountAmount,
-					CampaignPrice = od.Quantity > 0
-						? od.UnitPrice - (od.PromotionDiscountAmount / od.Quantity)
-						: od.UnitPrice,
-					VoucherDiscount = od.ApportionedDiscount,
-					ItemTotal = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount,
-					RefunablePrice = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
-					Total = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
-
-					// Lấy trực tiếp danh sách Batch đang giữ chỗ hoặc đã xuất kho cho Dòng này
-					ReservedBatches = od.StockReservations
-				.Where(sr => sr.Status == ReservationStatus.Reserved || sr.Status == ReservationStatus.Committed)
-				.Select(sr => new ReservedBatchResponse
-				{
-					BatchId = sr.BatchId,
-					BatchCode = sr.Batch.BatchCode,
-					ReservedQuantity = sr.ReservedQuantity,
-					ExpiryDate = sr.Batch.ExpiryDate
-				}).ToList()
-				}).ToList()
-			};
-		}
-
-		public async Task<OrderResponse?> GetOrderWithFullDetailsByCodeAsync(string orderCode)
-		=> await _context.Orders
-			.Where(o => o.Code == orderCode)
-			.Select(o => new OrderResponse
+			return (dbOrders.Select(o => new OrderListItem
 			{
 				Id = o.Id,
 				Code = o.Code,
 				CustomerId = o.CustomerId,
-				CustomerName = o.Customer != null ? o.Customer.FullName : null,
-				CustomerEmail = o.Customer != null ? o.Customer.Email : null,
-				CustomerPhoneNumber = o.Customer != null ? o.Customer.PhoneNumber : o.GuestEmailOrPhone,
+				CustomerName = o.Customer?.FullName,
 				StaffId = o.StaffId,
-				StaffName = o.Staff != null ? o.Staff.FullName : null,
+				StaffName = o.Staff?.FullName,
 				Type = o.Type,
 				Status = o.Status,
 				PaymentStatus = o.PaymentStatus,
@@ -404,16 +137,27 @@ namespace PerfumeGPT.Persistence.Repositories
 				RequiredDepositAmount = o.RequiredDepositAmount,
 				PaidAmount = o.PaidAmount,
 				RemainingAmount = o.TotalAmount - o.PaidAmount,
-				SubTotal = o.OrderDetails.Sum(od => (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount),
-				ShippingFee = o.ForwardShipping != null ? o.ForwardShipping.ShippingFee : 0m,
-				VoucherId = o.UserVoucherId,
-				VoucherCode = o.UserVoucher != null ? o.UserVoucher.Voucher.Code : null,
-				VoucherType = o.UserVoucher != null ? o.UserVoucher.Voucher.ApplyType : null,
-				VoucherDiscountTotal = o.OrderDetails.Sum(od => od.ApportionedDiscount),
-				PaymentExpiresAt = o.PaymentExpiresAt,
-				PaidAt = o.PaidAt,
+				ItemCount = o.OrderDetails.Count,
+				IsReturnalbe = o.Status == OrderStatus.Delivered
+						&& o.ForwardShipping?.ShippedDate >= DateTime.UtcNow.AddDays(-returnOrderAllowanceInDays),
+				ShippingStatus = o.ForwardShipping?.Status,
 				CreatedAt = o.CreatedAt,
+				PaymentExpiresAt = o.PaymentExpiresAt,
 				UpdatedAt = o.UpdatedAt,
+				OrderDetails = o.OrderDetails.Select(od => new OrderDetailListItem
+				{
+					Id = od.Id,
+					VariantId = od.VariantId,
+					VariantName = ParseVariantNameForDisplay(od.Snapshot, od.ProductVariant),
+					ImageUrl = od.ProductVariant?.Media.FirstOrDefault(m => m.IsPrimary)?.Url
+							?? od.ProductVariant?.Media.FirstOrDefault()?.Url,
+					Quantity = od.Quantity,
+					UnitPrice = od.UnitPrice,
+					Total = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
+					RefunablePrice = od.Quantity > 0
+						? ((od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount) / od.Quantity
+						: 0m,
+				}).ToList(),
 				PaymentTransactions = o.PaymentTransactions
 					.Select(pt => new PaymentInfoResponse
 					{
@@ -424,149 +168,57 @@ namespace PerfumeGPT.Persistence.Repositories
 						FailureReason = pt.FailureReason,
 						TotalAmount = pt.Amount
 					}).ToList(),
-				ShippingInfo = o.ForwardShipping == null ? null : new ShippingInfoResponse
-				{
-					Id = o.ForwardShipping.Id,
-					CarrierName = o.ForwardShipping.CarrierName,
-					TrackingNumber = o.ForwardShipping.TrackingNumber,
-					ShippingFee = o.ForwardShipping.ShippingFee,
-					Status = o.ForwardShipping.Status,
-					EstimatedDeliveryDate = o.ForwardShipping.EstimatedDeliveryDate,
-					ShippedDate = o.ForwardShipping.ShippedDate
-				},
-				RecipientInfo = o.ContactAddress == null ? null : new RecipientInfoResponse
-				{
-					Id = o.ContactAddress.Id,
-					RecipientName = o.ContactAddress.ContactName,
-					RecipientPhoneNumber = o.ContactAddress.ContactPhoneNumber,
-					DistrictName = o.ContactAddress.DistrictName,
-					WardName = o.ContactAddress.WardName,
-					ProvinceName = o.ContactAddress.ProvinceName,
-					FullAddress = o.ContactAddress.FullAddress
-				},
-				OrderDetails = o.OrderDetails.Select(od => new OrderDetailResponse
-				{
-					Id = od.Id,
-					VariantId = od.VariantId,
-					VariantName = od.ProductVariant != null ? $"{od.ProductVariant.Sku} - {od.ProductVariant.VolumeMl}ml" : string.Empty,
-					ImageUrl = od.ProductVariant != null && od.ProductVariant.Media.Count > 0
-						? (od.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
-							?? od.ProductVariant.Media.Select(m => m.Url).FirstOrDefault())
-						: null,
-					Quantity = od.Quantity,
-					UnitPrice = od.UnitPrice,
-					CampaignDiscount = od.PromotionDiscountAmount,
-					CampaignPrice = od.Quantity > 0
-					   ? od.UnitPrice - (od.PromotionDiscountAmount / od.Quantity)
-					   : od.UnitPrice,
-					VoucherDiscount = od.ApportionedDiscount,
-					ItemTotal = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount,
-					RefunablePrice = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
-					Total = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
-					ReservedBatches = o.StockReservations
-						.Where(sr => sr.VariantId == od.VariantId)
-						.Select(sr => new ReservedBatchResponse
-						{
-							BatchId = sr.BatchId,
-							BatchCode = sr.Batch.BatchCode,
-							ReservedQuantity = sr.ReservedQuantity,
-							ExpiryDate = sr.Batch.ExpiryDate
-						}).ToList()
-				}).ToList()
-			})
-			.AsSplitQuery()
-			.FirstOrDefaultAsync();
+			}).ToList(), totalCount);
+		}
+
+		public async Task<OrderResponse?> GetOrderWithFullDetailsAsync(Guid orderId)
+		{
+			var orderFromDb = await GetOrderForDetailViewAsync(o => o.Id == orderId);
+			return orderFromDb == null ? null : MapToOrderResponse(orderFromDb);
+		}
+
+		public async Task<OrderResponse?> GetOrderWithFullDetailsByCodeAsync(string orderCode)
+		{
+			var orderFromDb = await GetOrderForDetailViewAsync(o => o.Code == orderCode);
+			return orderFromDb == null ? null : MapToOrderResponse(orderFromDb);
+		}
 
 		public async Task<UserOrderResponse?> GetUserOrderWithFullDetailsAsync(Guid orderId, Guid userId, int returnOrderAllowanceInDays)
-		=> await _context.Orders
-			.Where(o => o.Id == orderId && o.CustomerId == userId)
-			.Select(o => new UserOrderResponse
+		{
+			var orderFromDb = await GetOrderForDetailViewAsync(o => o.Id == orderId && o.CustomerId == userId);
+			if (orderFromDb == null) return null;
+
+			var response = MapToOrderResponse(orderFromDb);
+
+			return new UserOrderResponse
 			{
-				Id = o.Id,
-				Code = o.Code,
-				Type = o.Type,
-				Status = o.Status,
-				IsReturnable = o.Status == OrderStatus.Delivered
-					   && o.ForwardShipping != null
-						&& o.ForwardShipping.ShippedDate.HasValue
-						&& o.ForwardShipping.ShippedDate.Value >= DateTime.UtcNow.AddDays(-returnOrderAllowanceInDays),
-				PaymentStatus = o.PaymentStatus,
-				TotalAmount = o.TotalAmount,
-				RequiredDepositAmount = o.RequiredDepositAmount,
-				DepositAmount = o.PolicyDepositAmount,
-				PaidAmount = o.PaidAmount,
-				RemainingAmount = o.TotalAmount - o.PaidAmount,
-				SubTotal = o.OrderDetails.Sum(od => (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount),
-				ShippingFee = o.ForwardShipping != null ? o.ForwardShipping.ShippingFee : 0m,
-				VoucherCode = o.UserVoucher != null ? o.UserVoucher.Voucher.Code : null,
-				VoucherType = o.UserVoucher != null ? o.UserVoucher.Voucher.ApplyType : null,
-				VoucherDiscountTotal = o.OrderDetails.Sum(od => od.ApportionedDiscount),
-				PaymentExpiresAt = o.PaymentExpiresAt,
-				PaidAt = o.PaidAt,
-				CreatedAt = o.CreatedAt,
-				UpdatedAt = o.UpdatedAt,
-				PaymentTransactions = o.PaymentTransactions
-						.Select(pt => new PaymentInfoResponse
-						{
-							Id = pt.Id,
-							TransactionType = pt.TransactionType,
-							Status = pt.TransactionStatus,
-							PaymentMethod = pt.Method,
-							FailureReason = pt.FailureReason,
-							TotalAmount = pt.Amount
-						}).ToList(),
-				ShippingInfo = o.ForwardShipping == null ? null : new ShippingInfoResponse
-				{
-					Id = o.ForwardShipping.Id,
-					CarrierName = o.ForwardShipping.CarrierName,
-					TrackingNumber = o.ForwardShipping.TrackingNumber,
-					ShippingFee = o.ForwardShipping.ShippingFee,
-					Status = o.ForwardShipping.Status,
-					EstimatedDeliveryDate = o.ForwardShipping.EstimatedDeliveryDate,
-					ShippedDate = o.ForwardShipping.ShippedDate
-				},
-				RecipientInfo = o.ContactAddress == null ? null : new RecipientInfoResponse
-				{
-					Id = o.ContactAddress.Id,
-					RecipientName = o.ContactAddress.ContactName,
-					RecipientPhoneNumber = o.ContactAddress.ContactPhoneNumber,
-					DistrictName = o.ContactAddress.DistrictName,
-					WardName = o.ContactAddress.WardName,
-					ProvinceName = o.ContactAddress.ProvinceName,
-					FullAddress = o.ContactAddress.FullAddress
-				},
-				OrderDetails = o.OrderDetails.Select(od => new OrderDetailResponse
-				{
-					Id = od.Id,
-					VariantId = od.VariantId,
-					VariantName = od.ProductVariant != null ? $"{od.ProductVariant.Sku} - {od.ProductVariant.VolumeMl}ml" : string.Empty,
-					ImageUrl = od.ProductVariant != null && od.ProductVariant.Media.Count > 0
-						? (od.ProductVariant.Media.Where(m => m.IsPrimary).Select(m => m.Url).FirstOrDefault()
-							?? od.ProductVariant.Media.Select(m => m.Url).FirstOrDefault())
-						: null,
-					Quantity = od.Quantity,
-					UnitPrice = od.UnitPrice,
-					CampaignDiscount = od.PromotionDiscountAmount,
-					CampaignPrice = od.Quantity > 0
-					   ? od.UnitPrice - (od.PromotionDiscountAmount / od.Quantity)
-					   : od.UnitPrice,
-					VoucherDiscount = od.ApportionedDiscount,
-					ItemTotal = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount,
-					RefunablePrice = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
-					Total = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
-					ReservedBatches = o.StockReservations
-						.Where(sr => sr.VariantId == od.VariantId)
-						.Select(sr => new ReservedBatchResponse
-						{
-							BatchId = sr.BatchId,
-							BatchCode = sr.Batch.BatchCode,
-							ReservedQuantity = sr.ReservedQuantity,
-							ExpiryDate = sr.Batch.ExpiryDate
-						}).ToList(),
-				}).ToList()
-			})
-			.AsSplitQuery()
-			.FirstOrDefaultAsync();
+				Id = response.Id,
+				Code = response.Code,
+				Type = response.Type,
+				Status = response.Status,
+				IsReturnable = orderFromDb.Status == OrderStatus.Delivered
+					&& orderFromDb.ForwardShipping?.ShippedDate >= DateTime.UtcNow.AddDays(-returnOrderAllowanceInDays),
+				PaymentStatus = response.PaymentStatus,
+				TotalAmount = response.TotalAmount,
+				RequiredDepositAmount = response.RequiredDepositAmount,
+				DepositAmount = orderFromDb.PolicyDepositAmount,
+				PaidAmount = response.PaidAmount,
+				RemainingAmount = response.RemainingAmount,
+				SubTotal = response.SubTotal,
+				ShippingFee = response.ShippingFee,
+				VoucherCode = response.VoucherCode,
+				VoucherType = response.VoucherType,
+				VoucherDiscountTotal = response.VoucherDiscountTotal,
+				PaymentExpiresAt = response.PaymentExpiresAt,
+				PaidAt = response.PaidAt,
+				CreatedAt = response.CreatedAt,
+				UpdatedAt = response.UpdatedAt,
+				PaymentTransactions = response.PaymentTransactions,
+				ShippingInfo = response.ShippingInfo,
+				RecipientInfo = response.RecipientInfo,
+				OrderDetails = response.OrderDetails
+			};
+		}
 
 		public async Task<ReceiptResponse?> GetInvoiceAsync(Guid orderId)
 		{
@@ -584,103 +236,180 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			var order = await GetOrderForInvoiceAsync(orderId);
 			if (order == null || order.Type != OrderType.Online || order.PaymentStatus != PaymentStatus.Paid)
-			{
 				return null;
-			}
 
 			if (string.IsNullOrWhiteSpace(order.Customer?.Email))
-			{
 				return null;
-			}
 
 			var invoice = MapToReceiptResponse(order);
 			return (order.Customer.Email!, invoice, order.Code);
 		}
 
+		// Mọi truy vấn Order liên quan nghiệp vụ nội bộ đều được gộp về đây
+		#region Standard Internal Queries
 		public async Task<Order?> GetOrderForStatusUpdateAsync(Guid orderId)
-			=> await _context.Orders
-				.Include(o => o.ForwardShipping)
-				.Include(o => o.ContactAddress)
-				.Include(o => o.OrderDetails)
-				.Include(o => o.PaymentTransactions)
-				.AsSplitQuery()
+			=> await _context.Orders.Include(o => o.ForwardShipping).Include(o => o.ContactAddress)
+				.Include(o => o.OrderDetails).Include(o => o.PaymentTransactions).AsSplitQuery()
 				.FirstOrDefaultAsync(o => o.Id == orderId);
 
 		public async Task<Order?> GetOrderForReturnRequestAsync(Guid orderId)
-			=> await _context.Orders
-				.Include(o => o.ForwardShipping)
-				.Include(o => o.OrderDetails)
-				.AsSplitQuery()
+			=> await _context.Orders.Include(o => o.ForwardShipping).Include(o => o.OrderDetails).AsSplitQuery()
 				.FirstOrDefaultAsync(o => o.Id == orderId);
 
 		public async Task<Order?> GetOrderForCancellationAsync(Guid orderId)
-			=> await _context.Orders
-				.Include(o => o.ForwardShipping)
-				.FirstOrDefaultAsync(o => o.Id == orderId);
+			=> await _context.Orders.Include(o => o.ForwardShipping).FirstOrDefaultAsync(o => o.Id == orderId);
 
 		public async Task<Order?> GetOrderForMarkUsedVoucherAsync(Guid orderId)
-		=> await _context.Orders
-			.Include(o => o.UserVoucher)
-			.FirstOrDefaultAsync(o => o.Id == orderId);
+			=> await _context.Orders.Include(o => o.UserVoucher).FirstOrDefaultAsync(o => o.Id == orderId);
 
 		public async Task<Order?> GetOrderForPaymentSuccessLogAsync(Guid orderId)
-		=> await _context.Orders
-			.Include(o => o.Customer)
-			.Include(o => o.PaymentTransactions)
-			.AsSplitQuery()
-			.FirstOrDefaultAsync(o => o.Id == orderId);
+			=> await _context.Orders.Include(o => o.Customer).Include(o => o.PaymentTransactions).AsSplitQuery()
+				.FirstOrDefaultAsync(o => o.Id == orderId);
 
 		public async Task<Order?> GetOrderForPickListAsync(Guid orderId)
-		=> await _context.Orders
-			.Include(o => o.OrderDetails)
-			.FirstOrDefaultAsync(o => o.Id == orderId && o.Status == OrderStatus.Preparing);
+			=> await _context.Orders.Include(o => o.OrderDetails)
+				.FirstOrDefaultAsync(o => o.Id == orderId && o.Status == OrderStatus.Preparing);
 
 		public async Task<Order?> GetOrderForFulfillmentAsync(Guid orderId)
-		=> await _context.Orders
-			.Include(o => o.ContactAddress)
-			.Include(o => o.ForwardShipping)
-			.Include(o => o.OrderDetails)
-			.FirstOrDefaultAsync(o => o.Id == orderId);
+			=> await _context.Orders.Include(o => o.ContactAddress).Include(o => o.ForwardShipping).Include(o => o.OrderDetails)
+				.FirstOrDefaultAsync(o => o.Id == orderId);
 
 		public async Task<Order?> GetOrderForSwapDamagedStockAsync(Guid orderId)
-		=> await _context.Orders
-			.Include(o => o.OrderDetails)
-			.FirstOrDefaultAsync(o => o.Id == orderId);
+			=> await _context.Orders.Include(o => o.OrderDetails).FirstOrDefaultAsync(o => o.Id == orderId);
 
 		public async Task<Order?> GetOrderWithDetailsForShippingAsync(Guid orderId)
-		=> await _context.Orders
-			.Include(o => o.OrderDetails)
-			.ThenInclude(od => od.ProductVariant)
-			.FirstOrDefaultAsync(o => o.Id == orderId);
+			=> await _context.Orders.Include(o => o.OrderDetails).ThenInclude(od => od.ProductVariant)
+				.FirstOrDefaultAsync(o => o.Id == orderId);
 
-		private sealed class ReservationAllocation
+		public async Task<List<Order>> GetExpiringUnpaidOrdersAsync(int limit)
 		{
-			public Guid BatchId { get; init; }
-			public string BatchCode { get; init; } = string.Empty;
-			public DateTime ExpiryDate { get; init; }
-			public int RemainingQuantity { get; set; }
+			var now = DateTime.UtcNow;
+			return await _context.Orders
+				.Where(o => o.Status == OrderStatus.Pending && o.PaymentStatus == PaymentStatus.Unpaid
+						&& o.PaymentExpiresAt.HasValue && o.PaymentExpiresAt.Value < now)
+				.Include(o => o.OrderDetails).OrderBy(o => o.PaymentExpiresAt).Take(limit).ToListAsync();
+		}
+
+		public async Task<string?> GetOrderCodeAsync(Guid orderId)
+			=> await _context.Orders.Where(o => o.Id == orderId).Select(o => o.Code).FirstOrDefaultAsync();
+		#endregion
+
+		#region Data Mapping Helpers
+		private async Task<Order?> GetOrderForDetailViewAsync(Expression<Func<Order, bool>> predicate)
+		{
+			return await _context.Orders
+				.AsNoTracking()
+				.Where(predicate)
+				.Include(o => o.Customer)
+				.Include(o => o.Staff)
+				.Include(o => o.ForwardShipping)
+				.Include(o => o.ContactAddress)
+				.Include(o => o.UserVoucher).ThenInclude(uv => uv!.Voucher)
+				.Include(o => o.PaymentTransactions)
+				.Include(o => o.OrderDetails)
+					.ThenInclude(od => od.ProductVariant).ThenInclude(v => v.Media)
+				.Include(o => o.OrderDetails)
+					.ThenInclude(od => od.StockReservations)
+						.ThenInclude(sr => sr.Batch)
+				.AsSplitQuery()
+				.FirstOrDefaultAsync();
+		}
+
+		private static OrderResponse MapToOrderResponse(Order order)
+		{
+			return new OrderResponse
+			{
+				Id = order.Id,
+				Code = order.Code,
+				CustomerId = order.CustomerId,
+				CustomerName = order.Customer?.FullName,
+				CustomerEmail = order.Customer?.Email,
+				CustomerPhoneNumber = order.Customer?.PhoneNumber ?? order.GuestEmailOrPhone,
+				StaffId = order.StaffId,
+				StaffName = order.Staff?.FullName,
+				Type = order.Type,
+				Status = order.Status,
+				PaymentStatus = order.PaymentStatus,
+				TotalAmount = order.TotalAmount,
+				RequiredDepositAmount = order.RequiredDepositAmount,
+				PaidAmount = order.PaidAmount,
+				RemainingAmount = order.TotalAmount - order.PaidAmount,
+				SubTotal = order.OrderDetails.Sum(od => (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount),
+				ShippingFee = order.ForwardShipping?.ShippingFee ?? 0m,
+				VoucherId = order.UserVoucherId,
+				VoucherCode = order.UserVoucher?.Voucher.Code,
+				VoucherType = order.UserVoucher?.Voucher.ApplyType,
+				VoucherDiscountTotal = order.OrderDetails.Sum(od => od.ApportionedDiscount),
+				PaymentExpiresAt = order.PaymentExpiresAt,
+				PaidAt = order.PaidAt,
+				CreatedAt = order.CreatedAt,
+				UpdatedAt = order.UpdatedAt,
+				PaymentTransactions = order.PaymentTransactions.Select(pt => new PaymentInfoResponse
+				{
+					Id = pt.Id,
+					TransactionType = pt.TransactionType,
+					Status = pt.TransactionStatus,
+					PaymentMethod = pt.Method,
+					FailureReason = pt.FailureReason,
+					TotalAmount = pt.Amount
+				}).ToList(),
+				ShippingInfo = order.ForwardShipping == null ? null : new ShippingInfoResponse
+				{
+					Id = order.ForwardShipping.Id,
+					CarrierName = order.ForwardShipping.CarrierName,
+					TrackingNumber = order.ForwardShipping.TrackingNumber,
+					ShippingFee = order.ForwardShipping.ShippingFee,
+					Status = order.ForwardShipping.Status,
+					EstimatedDeliveryDate = order.ForwardShipping.EstimatedDeliveryDate,
+					ShippedDate = order.ForwardShipping.ShippedDate
+				},
+				RecipientInfo = order.ContactAddress == null ? null : new RecipientInfoResponse
+				{
+					Id = order.ContactAddress.Id,
+					RecipientName = order.ContactAddress.ContactName,
+					RecipientPhoneNumber = order.ContactAddress.ContactPhoneNumber,
+					DistrictName = order.ContactAddress.DistrictName,
+					WardName = order.ContactAddress.WardName,
+					ProvinceName = order.ContactAddress.ProvinceName,
+					FullAddress = order.ContactAddress.FullAddress
+				},
+				OrderDetails = order.OrderDetails.Select(od => new OrderDetailResponse
+				{
+					Id = od.Id,
+					VariantId = od.VariantId,
+					VariantName = ParseVariantNameForDisplay(od.Snapshot, od.ProductVariant),
+					ImageUrl = od.ProductVariant?.Media.FirstOrDefault(m => m.IsPrimary)?.Url ?? od.ProductVariant?.Media.FirstOrDefault()?.Url,
+					Quantity = od.Quantity,
+					UnitPrice = od.UnitPrice,
+					CampaignDiscount = od.PromotionDiscountAmount,
+					CampaignPrice = od.Quantity > 0 ? od.UnitPrice - (od.PromotionDiscountAmount / od.Quantity) : od.UnitPrice,
+					VoucherDiscount = od.ApportionedDiscount,
+					ItemTotal = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount,
+					RefunablePrice = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
+					Total = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
+					ReservedBatches = od.StockReservations
+						.Where(sr => sr.Status == ReservationStatus.Reserved || sr.Status == ReservationStatus.Committed)
+						.Select(sr => new ReservedBatchResponse
+						{
+							BatchId = sr.BatchId,
+							BatchCode = sr.Batch.BatchCode,
+							ReservedQuantity = sr.ReservedQuantity,
+							ExpiryDate = sr.Batch.ExpiryDate
+						}).ToList()
+				}).ToList()
+			};
 		}
 
 		private Task<Order?> GetOrderForInvoiceAsync(Guid orderId, Guid? userId = null)
 		{
 			var query = _context.Orders.AsNoTracking()
-				.Include(o => o.Customer)
-				.Include(o => o.Staff)
-				.Include(o => o.ContactAddress)
-				.Include(o => o.ForwardShipping)
-				.Include(o => o.PaymentTransactions)
-				.Include(o => o.OrderDetails)
-					.ThenInclude(od => od.ProductVariant)
-						.ThenInclude(v => v.Product)
-				.Include(o => o.OrderDetails)
-					.ThenInclude(od => od.ProductVariant)
-						.ThenInclude(v => v.Concentration)
+				.Include(o => o.Customer).Include(o => o.Staff).Include(o => o.ContactAddress)
+				.Include(o => o.ForwardShipping).Include(o => o.PaymentTransactions)
+				.Include(o => o.OrderDetails).ThenInclude(od => od.ProductVariant).ThenInclude(v => v.Product)
+				.Include(o => o.OrderDetails).ThenInclude(od => od.ProductVariant).ThenInclude(v => v.Concentration)
 				.AsSplitQuery();
 
-			if (userId.HasValue)
-			{
-				query = query.Where(o => o.CustomerId == userId.Value);
-			}
+			if (userId.HasValue) query = query.Where(o => o.CustomerId == userId.Value);
 
 			return query.FirstOrDefaultAsync(o => o.Id == orderId);
 		}
@@ -689,29 +418,15 @@ namespace PerfumeGPT.Persistence.Repositories
 		{
 			var subtotal = order.OrderDetails.Sum(od => od.UnitPrice * od.Quantity);
 			var shippingFee = order.ForwardShipping?.ShippingFee ?? 0m;
-			var discount = subtotal + shippingFee > order.TotalAmount
-				? subtotal + shippingFee - order.TotalAmount
-				: 0m;
+			var discount = subtotal + shippingFee > order.TotalAmount ? subtotal + shippingFee - order.TotalAmount : 0m;
 
-			var successfulPayment = order.PaymentTransactions
-				.Where(pt => pt.TransactionStatus == TransactionStatus.Success)
-				.OrderByDescending(pt => pt.UpdatedAt ?? pt.CreatedAt)
-				.FirstOrDefault();
+			var successfulPayment = order.PaymentTransactions.Where(pt => pt.TransactionStatus == TransactionStatus.Success)
+				.OrderByDescending(pt => pt.UpdatedAt ?? pt.CreatedAt).FirstOrDefault();
 
-			var latestPayment = successfulPayment ?? order.PaymentTransactions
-				.OrderByDescending(pt => pt.UpdatedAt ?? pt.CreatedAt)
-				.FirstOrDefault();
+			var latestPayment = successfulPayment ?? order.PaymentTransactions.OrderByDescending(pt => pt.UpdatedAt ?? pt.CreatedAt).FirstOrDefault();
 
-			var recipientAddress = order.ContactAddress == null
-				  ? "N/A"
-				  : string.Join(", ",
-					  new[]
-					  {
-						order.ContactAddress.FullAddress,
-						order.ContactAddress.WardName,
-						order.ContactAddress.DistrictName,
-						order.ContactAddress.ProvinceName
-					  }.Where(x => !string.IsNullOrWhiteSpace(x)));
+			var recipientAddress = order.ContactAddress == null ? "N/A"
+				  : string.Join(", ", new[] { order.ContactAddress.FullAddress, order.ContactAddress.WardName, order.ContactAddress.DistrictName, order.ContactAddress.ProvinceName }.Where(x => !string.IsNullOrWhiteSpace(x)));
 
 			return new ReceiptResponse
 			{
@@ -723,7 +438,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				CustomerName = order.Customer?.FullName ?? order.ContactAddress?.ContactName ?? "Guest customer",
 				RecipientPhone = order.ContactAddress?.ContactPhoneNumber ?? order.Customer?.PhoneNumber ?? "N/A",
 				RecipientAddress = recipientAddress,
-				Items = [.. order.OrderDetails.Select(MapToReceiptItem)],
+				Items = order.OrderDetails.Select(MapToReceiptItem).ToList(),
 				Subtotal = subtotal,
 				DepositeAmount = order.PolicyDepositAmount,
 				RemainingAmount = order.TotalAmount - order.PaidAmount,
@@ -732,57 +447,70 @@ namespace PerfumeGPT.Persistence.Repositories
 				Tax = 0,
 				Total = order.TotalAmount,
 				PaymentMethod = latestPayment?.Method.ToString() ?? "N/A",
-				Note = order.Type == OrderType.Offline
-					? "Hóa đơn mua hàng tại cửa hàng."
-					: "Hóa đơn mua hàng trực tuyến. Cảm ơn quý khách đã mua sắm tại PerfumeGPT!"
+				Note = order.Type == OrderType.Offline ? "Hóa đơn mua hàng tại cửa hàng." : "Hóa đơn mua hàng trực tuyến. Cảm ơn quý khách đã mua sắm tại PerfumeGPT!"
 			};
 		}
 
+		// 💡 NÂNG CẤP: Dùng JSON Snapshot để xuất biên lai, bất di bất dịch dù Product có bị xóa!
 		private static ReceiptItemDto MapToReceiptItem(OrderDetail detail)
 		{
-			var variant = detail.ProductVariant;
-			var variantParts = new List<string>();
+			string productName = "Unknown Product";
+			string variantInfo = "N/A";
 
-			if (variant != null)
+			try
 			{
-				variantParts.Add($"{variant.VolumeMl}ml");
-				if (!string.IsNullOrWhiteSpace(variant.Concentration?.Name))
-				{
-					variantParts.Add(variant.Concentration.Name);
-				}
+				using var doc = JsonDocument.Parse(detail.Snapshot);
+				var root = doc.RootElement;
+				productName = root.TryGetProperty("ProductName", out var n) ? n.GetString() ?? productName : productName;
 
-				variantParts.Add(variant.Type.ToString());
+				var volume = root.TryGetProperty("VolumeMl", out var v) ? v.GetInt32() : 0;
+				var concentration = root.TryGetProperty("Concentration", out var c) ? c.GetString() : null;
+				var type = root.TryGetProperty("VariantType", out var t) ? t.GetString() : null;
+
+				var parts = new List<string>();
+				if (volume > 0) parts.Add($"{volume}ml");
+				if (!string.IsNullOrWhiteSpace(concentration)) parts.Add(concentration);
+				if (!string.IsNullOrWhiteSpace(type)) parts.Add(type);
+
+				if (parts.Count > 0) variantInfo = string.Join(" ", parts);
+			}
+			catch
+			{
+				if (detail.ProductVariant != null)
+				{
+					productName = detail.ProductVariant.Product?.Name ?? "Unknown Product";
+					var parts = new List<string> { $"{detail.ProductVariant.VolumeMl}ml" };
+					if (!string.IsNullOrWhiteSpace(detail.ProductVariant.Concentration?.Name)) parts.Add(detail.ProductVariant.Concentration.Name);
+					parts.Add(detail.ProductVariant.Type.ToString());
+					variantInfo = string.Join(" ", parts);
+				}
 			}
 
 			return new ReceiptItemDto
 			{
-				ProductName = variant?.Product?.Name ?? "Unknown Product",
-				VariantInfo = variantParts.Count > 0 ? string.Join(" ", variantParts) : "N/A",
+				ProductName = productName,
+				VariantInfo = variantInfo,
 				Quantity = detail.Quantity,
 				UnitPrice = detail.UnitPrice,
 				Subtotal = detail.UnitPrice * detail.Quantity - detail.ApportionedDiscount
 			};
 		}
 
-		public async Task<List<Order>> GetExpiringUnpaidOrdersAsync(int limit)
+		private static string ParseVariantNameForDisplay(string snapshot, ProductVariant? fallback)
 		{
-			var now = DateTime.UtcNow;
-
-			return await _context.Orders
-				.Where(o => o.Status == OrderStatus.Pending
-						&& o.PaymentStatus == PaymentStatus.Unpaid // BẢO VỆ ĐƠN ĐÃ CỌC: Chỉ quét đơn Unpaid
-						&& o.PaymentExpiresAt.HasValue
-						 && o.PaymentExpiresAt.Value < now)
-				.Include(o => o.OrderDetails)
-				.OrderBy(o => o.PaymentExpiresAt)
-				.Take(limit)
-				.ToListAsync();
+			try
+			{
+				using var doc = JsonDocument.Parse(snapshot);
+				var root = doc.RootElement;
+				var sku = root.TryGetProperty("Sku", out var s) ? s.GetString() : "Unknown";
+				var volume = root.TryGetProperty("VolumeMl", out var v) ? v.GetInt32().ToString() : "0";
+				return $"{sku} - {volume}ml";
+			}
+			catch
+			{
+				return fallback != null ? $"{fallback.Sku} - {fallback.VolumeMl}ml" : string.Empty;
+			}
 		}
-
-		public async Task<string?> GetOrderCodeAsync(Guid orderId)
-		=> await _context.Orders
-				.Where(o => o.Id == orderId)
-				.Select(o => o.Code)
-				.FirstOrDefaultAsync();
+		#endregion
 	}
 }

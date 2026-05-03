@@ -444,6 +444,11 @@ namespace PerfumeGPT.Application.Services
 			var batches = await _unitOfWork.Batches.GetAllAsync(b => batchIds.Contains(b.Id), asNoTracking: true);
 			var batchDict = batches.ToDictionary(b => b.Id);
 
+			// Lấy cấu hình ngày hạn sử dụng an toàn từ Store Policy
+			var policy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+			var clearanceBufferDays = policy?.ClearanceBufferDays ?? 0;
+			var clearanceSafeDate = DateTime.UtcNow.AddDays(clearanceBufferDays);
+
 			// 3. IN-MEMORY VALIDATION
 			foreach (var item in itemList)
 			{
@@ -466,6 +471,10 @@ namespace PerfumeGPT.Application.Services
 
 					if (batch.VariantId != item.ProductVariantId)
 						throw AppException.BadRequest("Lô không thuộc biến thể sản phẩm đã chỉ định.");
+
+					// Chặn lô hàng đã hết hạn sử dụng (hoặc đã quá cận ngày an toàn cho phép xả kho)
+					if (batch.ExpiryDate <= clearanceSafeDate)
+						throw AppException.BadRequest($"Lô hàng {batch.BatchCode} đã hết hạn sử dụng hoặc không đủ ngày an toàn ({clearanceBufferDays} ngày) để được phép bán ra. Không thể thêm vào chương trình khuyến mãi.");
 				}
 			}
 		}
