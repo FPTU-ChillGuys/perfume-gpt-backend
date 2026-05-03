@@ -86,5 +86,12 @@ namespace PerfumeGPT.Domain.Entities
 			OrderDetail = orderDetail;
 			OrderDetailId = orderDetail.Id;
 		}
+
+		public void IncreaseQuantity(int quantity)
+		{
+			if (quantity <= 0)
+				throw DomainException.BadRequest("Số lượng tăng thêm không hợp lệ.");
+			ReservedQuantity += quantity;
+		}
 	}
 }

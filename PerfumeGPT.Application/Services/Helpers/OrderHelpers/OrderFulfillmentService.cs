@@ -5,7 +5,6 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
-using PerfumeGPT.Application.Services;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using static PerfumeGPT.Domain.Entities.StockAdjustmentDetail;
@@ -287,12 +286,26 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 
 				foreach (var (repBatch, repQty) in replacementAllocations)
 				{
-					var repRes = new StockReservation(orderId, repBatch.Id, variantId, repQty, damagedReservation.ExpiresAt);
+					var existingReservation = targetOrderDetail.StockReservations
+						.FirstOrDefault(r => r.BatchId == repBatch.Id && r.Status == ReservationStatus.Reserved);
 
-					// SỬA Ở ĐÂY: Dùng hàm AddReservation để Entity tự gán OrderDetailId cho repRes
-					targetOrderDetail.AddReservation(repRes);
+					if (existingReservation != null)
+					{
+						// Nếu đã có sẵn Lô này đang được giữ chỗ trong cùng OrderDetail -> CỘNG DỒN
+						existingReservation.IncreaseQuantity(repQty);
+						_unitOfWork.StockReservations.Update(existingReservation);
 
-					primaryNewReservation ??= repRes;
+						primaryNewReservation ??= existingReservation;
+					}
+					else
+					{
+						// Nếu chưa có -> TẠO MỚI như bình thường
+						var repRes = new StockReservation(orderId, repBatch.Id, variantId, repQty, damagedReservation.ExpiresAt);
+						targetOrderDetail.AddReservation(repRes);
+
+						primaryNewReservation ??= repRes;
+					}
+
 					if (primaryReplacementBatch is null)
 					{
 						primaryReplacementBatch = repBatch;
