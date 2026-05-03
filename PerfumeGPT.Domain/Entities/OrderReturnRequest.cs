@@ -15,7 +15,9 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid? ProcessedById { get; private set; }
 		public Guid? InspectedById { get; private set; }
 		public Guid? ReturnShippingId { get; private set; }
-		public Guid PickupAddressId { get; private set; }
+		public Guid? PickupAddressId { get; private set; }
+
+		public bool IsReturnInStore { get; private set; }
 
 		public ReturnOrderReason Reason { get; private set; }
 		public string? CustomerNote { get; private set; }
@@ -40,7 +42,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual User? ProcessedBy { get; set; }
 		public virtual User? InspectedBy { get; set; }
 		public virtual ShippingInfo? ReturnShipping { get; set; }
-		public virtual ContactAddress? PickupAddress { get; set; } = null!;
+		public virtual ContactAddress? PickupAddress { get; set; }
 		public virtual ICollection<Media> ProofImages { get; set; } = [];
 		public virtual ICollection<OrderReturnRequestDetail> ReturnDetails { get; set; } = [];
 
@@ -49,7 +51,7 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime? UpdatedAt { get; set; }
 
 		// Factory methods
-		public static OrderReturnRequest Create(Guid orderId, Guid? customerId, ReturnRequestPayload payload)
+		public static OrderReturnRequest Create(Guid orderId, Guid? customerId, ReturnRequestPayload payload, bool isReturnInStore = false)
 		{
 			if (orderId == Guid.Empty)
 				throw DomainException.BadRequest("ID đơn hàng là bắt buộc.");
@@ -58,6 +60,9 @@ namespace PerfumeGPT.Domain.Entities
 				throw DomainException.BadRequest("ID khách hàng không hợp lệ.");
 
 			var returnDetails = BuildReturnDetails(payload.ReturnDetails);
+			var id = Guid.NewGuid();
+			foreach (var detail in returnDetails)
+				detail.BindToReturnRequest(id);
 
 			if (payload.RequestedRefundAmount < 0)
 				throw DomainException.BadRequest("Số tiền hoàn trả yêu cầu không được âm.");
@@ -78,6 +83,7 @@ namespace PerfumeGPT.Domain.Entities
 
 			return new OrderReturnRequest
 			{
+				Id = id,
 				OrderId = orderId,
 				CustomerId = customerId,
 				Reason = payload.Reason,
@@ -87,6 +93,7 @@ namespace PerfumeGPT.Domain.Entities
 				ApprovedRefundAmount = null,
 				IsRefunded = false,
 				IsRefundOnly = payload.IsRefundOnly,
+				IsReturnInStore = isReturnInStore,
 				ReturnDetails = returnDetails,
 
 				RefundBankName = payload.RefundBankName?.Trim(),

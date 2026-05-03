@@ -37,6 +37,15 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
+		/// <summary>Gán FK cha trước khi lưu (tránh ReturnRequestId = Guid.Empty khiến INSERT chi tiết vượt FK).</summary>
+		public void BindToReturnRequest(Guid returnRequestId)
+		{
+			if (returnRequestId == Guid.Empty)
+				throw DomainException.BadRequest("ID yêu cầu trả hàng không hợp lệ.");
+
+			ReturnRequestId = returnRequestId;
+		}
+
 		public record ReturnRequestDetailPayload
 		{
 			public required Guid OrderDetailId { get; init; }

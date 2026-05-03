@@ -11,6 +11,8 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<OrderReturnRequestResponse>> GetReturnRequestByIdAsync(Guid requestId, Guid requesterId, bool isPrivilegedUser);
 		Task<BaseResponse<string>> CreateReturnRequestAsync(Guid customerId, CreateReturnRequestDto request);
 		Task<BaseResponse<string>> CreateGuestReturnRequestByStaffAsync(Guid staffId, CreateReturnRequestDto request);
+		/// <summary>POS: trả tại quầy — tạo yêu cầu, duyệt, kiểm định và chốt hoàn tiền đề xuất trong một bước.</summary>
+		Task<BaseResponse<string>> ProcessInStoreReturnFastTrackAsync(Guid staffId, ProcessInStoreReturnFastTrackDto request);
 		Task<BaseResponse<string>> UpdateReturnRequestAsync(Guid customerId, Guid requestId, UpdateReturnRequestDto request);
 		Task<BaseResponse<string>> CancelReturnRequestByCustomerAsync(Guid customerId, Guid requestId);
 		Task<BaseResponse<string>> ProcessInitialRequestAsync(Guid processedById, Guid requestId, ProcessInitialReturnDto request);

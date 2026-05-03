@@ -61,6 +61,18 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpPost("in-store-fast-track")]
+		[Authorize(Roles = "admin,staff")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
+		public async Task<ActionResult<BaseResponse<string>>> ProcessInStoreReturnFastTrack([FromBody] ProcessInStoreReturnFastTrackDto request)
+		{
+			var staffId = GetCurrentUserId();
+
+			var response = await _returnRequestService.ProcessInStoreReturnFastTrackAsync(staffId, request);
+			return HandleResponse(response);
+		}
+
 		[HttpPost]
 		[Authorize(Roles = "user")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
@@ -170,7 +182,7 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpPost("videos/temporary")]
-		[Authorize(Roles = "user")]
+		[Authorize(Roles = "user, staff, admin")]
 		[RequestSizeLimit(104_857_600)]
 		[RequestFormLimits(MultipartBodyLengthLimit = 104_857_600)]
 		[ProducesResponseType(typeof(BaseResponse<BulkActionResult<List<TemporaryMediaResponse>>>), StatusCodes.Status200OK)]

@@ -868,6 +868,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(rd => rd.ReturnRequestId)
 				.OnDelete(DeleteBehavior.Cascade);
 
+			builder.Entity<OrderReturnRequest>()
+				.HasOne(orr => orr.PickupAddress)
+				.WithMany()
+				.HasForeignKey(orr => orr.PickupAddressId)
+				.IsRequired(false)
+				.OnDelete(DeleteBehavior.Restrict);
+
 			builder.Entity<OrderDetail>()
 				.HasMany(od => od.ReturnRequestDetails)
 				.WithOne(rd => rd.OrderDetail)
