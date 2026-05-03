@@ -163,7 +163,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ProductResponse>> GetAdminProductAsync(Guid productId)
 		{
-			var response = await _unitOfWork.Products.GetProductResponseAsync(productId)
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var response = await _unitOfWork.Products.GetProductResponseAsync(productId, sellable)
 				?? throw AppException.NotFound("Không tìm thấy sản phẩm");
 
 			return BaseResponse<ProductResponse>.Ok(response, "Lấy thông tin sản phẩm thành công");
@@ -171,7 +172,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PublicProductResponse>> GetPublicProductAsync(Guid productId)
 		{
-			var response = await _unitOfWork.Products.GetPublicProductResponseAsync(productId)
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var response = await _unitOfWork.Products.GetPublicProductResponseAsync(productId, sellable)
 				?? throw AppException.NotFound("Không tìm thấy sản phẩm");
 
 			return BaseResponse<PublicProductResponse>.Ok(response, "Lấy chi tiết sản phẩm thành công");
@@ -179,7 +181,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetProductsAsync(GetPagedProductRequest request)
 		{
-			var (items, totalCount) = await _unitOfWork.Products.GetPagedProductListItemsAsync(request);
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var (items, totalCount) = await _unitOfWork.Products.GetPagedProductListItemsAsync(request, sellable);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
 			 "Lấy danh sách sản phẩm thành công");
@@ -193,7 +196,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetBestSellerProductsAsync(GetPagedProductRequest request)
 		{
-			var (items, totalCount) = await _unitOfWork.Products.GetBestSellerProductsAsync(request);
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var (items, totalCount) = await _unitOfWork.Products.GetBestSellerProductsAsync(request, sellable);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
 			 "Lấy danh sách sản phẩm bán chạy thành công");
@@ -201,7 +205,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetNewArrivalProductsAsync(GetPagedProductRequest request)
 		{
-			var (items, totalCount) = await _unitOfWork.Products.GetNewArrivalProductsAsync(request);
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var (items, totalCount) = await _unitOfWork.Products.GetNewArrivalProductsAsync(request, sellable);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
 			 "Lấy danh sách sản phẩm mới về thành công");
@@ -209,7 +214,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetCampaignProductsAsync(Guid campaignId, GetPagedProductRequest request)
 		{
-			var (items, totalCount) = await _unitOfWork.Products.GetCampaignProductsAsync(campaignId, request);
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var (items, totalCount) = await _unitOfWork.Products.GetCampaignProductsAsync(campaignId, request, sellable);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
 				"Lấy danh sách sản phẩm theo chiến dịch thành công");
@@ -226,7 +232,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ProductFastLookResponse>> GetProductFastLookAsync(Guid productId)
 		{
-			var response = await _unitOfWork.Products.GetProductFastLookAsync(productId)
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var response = await _unitOfWork.Products.GetProductFastLookAsync(productId, sellable)
 				?? throw AppException.NotFound("Không tìm thấy sản phẩm");
 
 			return BaseResponse<ProductFastLookResponse>.Ok(

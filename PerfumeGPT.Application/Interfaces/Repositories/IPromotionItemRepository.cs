@@ -7,5 +7,9 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	{
 		Task<List<PromotionItem>> GetActiveByCampaignIdsAsync(IEnumerable<Guid> campaignIds);
 		Task<List<PromotionItem>> GetActiveClearancePromotionsByVariantIdAsync(Guid variantId, DateTime now);
+		/// <summary>
+		/// Id lô đang thuộc promotion clearance active (khớp điều kiện StockReservationService). Danh sách variant rỗng = toàn hệ thống.
+		/// </summary>
+		Task<HashSet<Guid>> GetClearanceBatchIdsForSellableStockAsync(IReadOnlyList<Guid> scopedVariantIds);
 	}
 }

@@ -11,6 +11,7 @@ using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
+using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 
@@ -62,7 +63,8 @@ namespace PerfumeGPT.Application.Services
 				})
 				.ToList();
 
-			var barcodeLookups = await _unitOfWork.Variants.GetFastLookByBarcodesAsync(groupedScans.Select(x => x.Barcode));
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var barcodeLookups = await _unitOfWork.Variants.GetFastLookByBarcodesAsync(groupedScans.Select(x => x.Barcode), sellable);
 			var variantByBarcode = barcodeLookups
 				.GroupBy(x => x.Barcode)
 				.ToDictionary(g => g.Key, g => g.First());

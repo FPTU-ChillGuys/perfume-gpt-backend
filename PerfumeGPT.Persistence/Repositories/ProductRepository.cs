@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
+using PerfumeGPT.Application.DTOs.Commons;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
@@ -58,9 +59,12 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsNoTracking()
 				.ToListAsync();
 
-		public async Task<ProductResponse?> GetProductResponseAsync(Guid productId)
+		public async Task<ProductResponse?> GetProductResponseAsync(Guid productId, SellableStockQueryContext sellable)
 		{
 			var now = DateTime.UtcNow;
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
 
 			var raw = await _context.Products
 				.AsNoTracking()
@@ -123,9 +127,9 @@ namespace PerfumeGPT.Persistence.Repositories
 								Status = v.Status,
 								Sillage = v.Sillage,
 								Longevity = v.Longevity,
-								StockQuantity = v.Stock != null
-									? v.Stock.TotalQuantity - v.Stock.ReservedQuantity
-									: 0,
+								StockQuantity = v.Batches
+									.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+									.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0),
 								Media = v.Media
 									.Where(m => !m.IsDeleted)
 									.OrderBy(m => m.DisplayOrder)
@@ -264,9 +268,12 @@ namespace PerfumeGPT.Persistence.Repositories
 			};
 		}
 
-		public async Task<PublicProductResponse?> GetPublicProductResponseAsync(Guid productId)
+		public async Task<PublicProductResponse?> GetPublicProductResponseAsync(Guid productId, SellableStockQueryContext sellable)
 		{
 			var now = DateTime.UtcNow;
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
 
 			var raw = await _context.Products
 				.AsNoTracking()
@@ -307,9 +314,9 @@ namespace PerfumeGPT.Persistence.Repositories
 								Type = v.Type,
 								BasePrice = v.BasePrice,
 								RetailPrice = v.RetailPrice,
-								StockQuantity = v.Stock != null
-									? v.Stock.TotalQuantity - v.Stock.ReservedQuantity
-									: 0,
+								StockQuantity = v.Batches
+									.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+									.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0),
 								ProductName = p.Name,
 								Media = v.Media
 									.Where(m => !m.IsDeleted)
@@ -435,9 +442,12 @@ namespace PerfumeGPT.Persistence.Repositories
 			};
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductListItemsAsync(GetPagedProductRequest request)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductListItemsAsync(GetPagedProductRequest request, SellableStockQueryContext sellable)
 		{
 			var now = DateTime.UtcNow;
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
 
 			var query = _context.Products
 				.Where(p => !p.IsDeleted)
@@ -468,7 +478,9 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(p =>
 					p.Variants.Any(v =>
 						!v.IsDeleted &&
-						v.Stock.TotalQuantity - v.Stock.ReservedQuantity > 0));
+						v.Batches
+							.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+							.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0) > 0));
 
 			var totalCount = await query.CountAsync();
 
@@ -567,16 +579,21 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetBestSellerProductsAsync(GetPagedProductRequest request)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetBestSellerProductsAsync(GetPagedProductRequest request, SellableStockQueryContext sellable)
 		{
 			var now = DateTime.UtcNow;
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
 
 			var limitDate = DateTime.UtcNow.AddDays(-30);
 
 			var query = _context.Products
 			 .Where(p => !p.IsDeleted && p.Variants.Any(v =>
 					!v.IsDeleted &&
-					v.Stock.TotalQuantity - v.Stock.ReservedQuantity > 0))
+					v.Batches
+						.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+						.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0) > 0))
 				.Select(p => new
 				{
 					Product = p,
@@ -664,14 +681,19 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetNewArrivalProductsAsync(GetPagedProductRequest request)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetNewArrivalProductsAsync(GetPagedProductRequest request, SellableStockQueryContext sellable)
 		{
 			var now = DateTime.UtcNow;
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
 
 			var query = _context.Products
 			  .Where(p => !p.IsDeleted && p.Variants.Any(v =>
 					 !v.IsDeleted &&
-					 v.Stock.TotalQuantity - v.Stock.ReservedQuantity > 0))
+					 v.Batches
+						 .Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+						 .Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0) > 0))
 				.AsQueryable();
 
 			var totalCount = await query.CountAsync();
@@ -762,9 +784,12 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetCampaignProductsAsync(Guid campaignId, GetPagedProductRequest request)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetCampaignProductsAsync(Guid campaignId, GetPagedProductRequest request, SellableStockQueryContext sellable)
 		{
 			var now = DateTime.UtcNow;
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
 
 			var query = _context.Products
 			 .Where(p => !p.IsDeleted && p.Variants.Any(v =>
@@ -803,7 +828,9 @@ namespace PerfumeGPT.Persistence.Repositories
 				query = query.Where(p =>
 					p.Variants.Any(v =>
 						!v.IsDeleted &&
-						v.Stock.TotalQuantity - v.Stock.ReservedQuantity > 0));
+						v.Batches
+							.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+							.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0) > 0));
 
 			var totalCount = await query.CountAsync();
 
@@ -933,8 +960,13 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
 
-		public async Task<ProductFastLookResponse?> GetProductFastLookAsync(Guid productId)
-			=> await _context.Products
+		public async Task<ProductFastLookResponse?> GetProductFastLookAsync(Guid productId, SellableStockQueryContext sellable)
+		{
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
+
+			return await _context.Products
 			  .Where(p => !p.IsDeleted && p.Id == productId)
 				.Select(p => new ProductFastLookResponse
 				{
@@ -968,7 +1000,9 @@ namespace PerfumeGPT.Persistence.Repositories
 							DisplayName = $"{v.Concentration.Name} - {v.VolumeMl}ml",
 							Price = v.BasePrice,
 							RetailPrice = v.RetailPrice,
-							StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
+							StockQuantity = v.Batches
+								.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+								.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0),
 							Media = v.Media
 								.Where(m => m.IsPrimary && !m.IsDeleted)
 								.Select(m => new MediaResponse
@@ -988,6 +1022,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsSplitQuery()
 				.AsNoTracking()
 				.FirstOrDefaultAsync();
+		}
 
 		public async Task<List<ProductDailySaleFigureResponse>> GetProductDailySaleFiguresAsync(DateOnly date)
 		{

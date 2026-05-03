@@ -11,6 +11,7 @@ using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
 using PerfumeGPT.Application.Interfaces.Services.OrderHelpers;
+using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
@@ -113,8 +114,13 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<OrderResponse>> GetOrderByIdAsync(Guid orderId)
 		{
-			var order = await _unitOfWork.Orders.GetOrderWithFullDetailsAsync(orderId)
-				 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+			var storePolicy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync()
+				?? throw AppException.NotFound("Không tìm thấy cấu hình chính sách cửa hàng.");
+
+			var order = await _unitOfWork.Orders.GetOrderWithFullDetailsAsync(
+					orderId,
+					storePolicy.ReturnOrderAllowanceInDays)
+				?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 			return BaseResponse<OrderResponse>.Ok(order, "Lấy thông tin đơn hàng thành công.");
 		}
@@ -353,7 +359,8 @@ namespace PerfumeGPT.Application.Services
 				.Select(g => new { g.Key.Barcode, g.Key.BatchCode, Quantity = g.Sum(item => item.Quantity) })
 				.ToList();
 
-			var barcodeLookups = await _unitOfWork.Variants.GetFastLookByBarcodesAsync(groupedScans.Select(x => x.Barcode));
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var barcodeLookups = await _unitOfWork.Variants.GetFastLookByBarcodesAsync(groupedScans.Select(x => x.Barcode), sellable);
 			var variantByBarcode = barcodeLookups
 				.GroupBy(x => x.Barcode)
 				.ToDictionary(g => g.Key, g => g.First());

@@ -171,16 +171,16 @@ namespace PerfumeGPT.Persistence.Repositories
 			}).ToList(), totalCount);
 		}
 
-		public async Task<OrderResponse?> GetOrderWithFullDetailsAsync(Guid orderId)
+		public async Task<OrderResponse?> GetOrderWithFullDetailsAsync(Guid orderId, int returnOrderAllowanceInDays)
 		{
 			var orderFromDb = await GetOrderForDetailViewAsync(o => o.Id == orderId);
-			return orderFromDb == null ? null : MapToOrderResponse(orderFromDb);
+			return orderFromDb == null ? null : MapToOrderResponse(orderFromDb, returnOrderAllowanceInDays);
 		}
 
 		public async Task<OrderResponse?> GetOrderWithFullDetailsByCodeAsync(string orderCode)
 		{
 			var orderFromDb = await GetOrderForDetailViewAsync(o => o.Code == orderCode);
-			return orderFromDb == null ? null : MapToOrderResponse(orderFromDb);
+			return orderFromDb == null ? null : MapToOrderResponse(orderFromDb, 0);
 		}
 
 		public async Task<UserOrderResponse?> GetUserOrderWithFullDetailsAsync(Guid orderId, Guid userId, int returnOrderAllowanceInDays)
@@ -188,7 +188,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			var orderFromDb = await GetOrderForDetailViewAsync(o => o.Id == orderId && o.CustomerId == userId);
 			if (orderFromDb == null) return null;
 
-			var response = MapToOrderResponse(orderFromDb);
+			var response = MapToOrderResponse(orderFromDb, returnOrderAllowanceInDays);
 
 			return new UserOrderResponse
 			{
@@ -196,8 +196,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				Code = response.Code,
 				Type = response.Type,
 				Status = response.Status,
-				IsReturnable = orderFromDb.Status == OrderStatus.Delivered
-					&& orderFromDb.ForwardShipping?.ShippedDate >= DateTime.UtcNow.AddDays(-returnOrderAllowanceInDays),
+				IsReturnable = response.IsReturnable,
 				PaymentStatus = response.PaymentStatus,
 				TotalAmount = response.TotalAmount,
 				RequiredDepositAmount = response.RequiredDepositAmount,
@@ -315,7 +314,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.FirstOrDefaultAsync();
 		}
 
-		private static OrderResponse MapToOrderResponse(Order order)
+		private static OrderResponse MapToOrderResponse(Order order, int returnOrderAllowanceInDays)
 		{
 			return new OrderResponse
 			{
@@ -329,6 +328,8 @@ namespace PerfumeGPT.Persistence.Repositories
 				StaffName = order.Staff?.FullName,
 				Type = order.Type,
 				Status = order.Status,
+				IsReturnable = order.Status == OrderStatus.Delivered
+					&& order.ForwardShipping?.ShippedDate >= DateTime.UtcNow.AddDays(-returnOrderAllowanceInDays),
 				PaymentStatus = order.PaymentStatus,
 				TotalAmount = order.TotalAmount,
 				RequiredDepositAmount = order.RequiredDepositAmount,

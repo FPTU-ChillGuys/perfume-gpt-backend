@@ -61,5 +61,20 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsNoTracking()
 				.ToListAsync();
 		}
+
+		public async Task<HashSet<Guid>> GetClearanceBatchIdsForSellableStockAsync(IReadOnlyList<Guid> scopedVariantIds)
+		{
+			IQueryable<PromotionItem> q = _context.Promotions
+				.Where(pi =>
+					pi.IsActive &&
+					pi.BatchId.HasValue &&
+					pi.ItemType == PromotionType.Clearance);
+
+			if (scopedVariantIds.Count > 0)
+				q = q.Where(pi => scopedVariantIds.Contains(pi.TargetProductVariantId));
+
+			var ids = await q.Select(pi => pi.BatchId!.Value).ToListAsync();
+			return ids.ToHashSet();
+		}
 	}
 }
