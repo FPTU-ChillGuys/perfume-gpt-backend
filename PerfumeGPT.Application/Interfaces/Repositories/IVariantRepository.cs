@@ -1,4 +1,5 @@
-﻿using PerfumeGPT.Application.DTOs.Requests.Variants;
+﻿using PerfumeGPT.Application.DTOs.Commons;
+using PerfumeGPT.Application.DTOs.Requests.Variants;
 using PerfumeGPT.Application.DTOs.Responses.Variants;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Domain.Entities;
@@ -13,10 +14,10 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<ProductVariant?> GetBySkuAsync(string sku);
 		Task<ProductVariant?> GetByIdWithAttributesAsync(Guid variantId);
 		Task<List<ProductVariant>> GetVariantsWithDetailsByIdsAsync(IEnumerable<Guid> variantIds);
-		Task<List<VariantFastLookResponse>> GetFastLookByBarcodesAsync(IEnumerable<string> barcodes);
-		Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId);
-		Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(GetPagedVariantsRequest request);
-		Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsByCampaignIdAsync(Guid campaignId, GetPagedVariantsRequest request);
+		Task<List<VariantFastLookResponse>> GetFastLookByBarcodesAsync(IEnumerable<string> barcodes, SellableStockQueryContext sellable);
+		Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId, SellableStockQueryContext sellable);
+		Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(GetPagedVariantsRequest request, SellableStockQueryContext sellable);
+		Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsByCampaignIdAsync(Guid campaignId, GetPagedVariantsRequest request, SellableStockQueryContext sellable);
 		Task<List<Guid>> GetExistingIdsAsync(List<Guid> ids);
 		Task<VariantCreateOrder?> GetVariantForCreateOrderAsync(Guid variantId);
 	}

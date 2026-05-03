@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260502135707_StorePolicy_ClearanceBufferDays")]
+    partial class StorePolicy_ClearanceBufferDays
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1298,13 +1301,10 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<bool>("IsRestocked")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("IsReturnInStore")
-                        .HasColumnType("bit");
-
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("PickupAddressId")
+                    b.Property<Guid>("PickupAddressId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("ProcessedById")
@@ -3088,7 +3088,8 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasOne("PerfumeGPT.Domain.Entities.ContactAddress", "PickupAddress")
                         .WithMany()
                         .HasForeignKey("PickupAddressId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("PerfumeGPT.Domain.Entities.User", "ProcessedBy")
                         .WithMany("ProcessedReturnRequests")

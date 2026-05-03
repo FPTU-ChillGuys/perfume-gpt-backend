@@ -1,16 +1,16 @@
 ﻿using PerfumeGPT.Domain.Commons;
 using PerfumeGPT.Domain.Exceptions;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace PerfumeGPT.Domain.Entities
 {
 	public class OrderDetail : BaseEntity<Guid>
 	{
-		protected OrderDetail() { }
+		protected OrderDetail() { Id = Guid.NewGuid(); }
 
 		public Guid OrderId { get; private set; }
 		public Guid VariantId { get; private set; }
 		public Guid? PromotionItemId { get; private set; }
-		public Guid? FulfilledBatchId { get; private set; }
 		public int Quantity { get; private set; }
 		public decimal UnitPrice { get; private set; }
 		public decimal PromotionDiscountAmount { get; private set; }
@@ -19,13 +19,16 @@ namespace PerfumeGPT.Domain.Entities
 		public decimal FinalTotal => (UnitPrice * Quantity) - ApportionedDiscount - PromotionDiscountAmount;
 		public decimal RefundableUnitPrice => Quantity > 0 ? FinalTotal / Quantity : 0;
 
+		[NotMapped]
+		public Guid? TransientBatchId { get; set; }
+
 		// Navigation properties
 		public virtual Order Order { get; set; } = null!;
 		public virtual ProductVariant ProductVariant { get; set; } = null!;
 		public virtual Review? Review { get; set; }
-		public virtual Batch? FulfilledBatch { get; set; } = null!;
 		public virtual PromotionItem? PromotionItem { get; set; }
 		public virtual ICollection<OrderReturnRequestDetail> ReturnRequestDetails { get; set; } = [];
+		public virtual ICollection<StockReservation> StockReservations { get; set; } = [];
 
 		// Factory methods
 		public static OrderDetail Create(
@@ -38,22 +41,23 @@ namespace PerfumeGPT.Domain.Entities
 		decimal promotionDiscountAmount = 0)
 		{
 			if (variantId == Guid.Empty)
-                throw DomainException.BadRequest("Variant ID là bắt buộc.");
+				throw DomainException.BadRequest("Variant ID là bắt buộc.");
 
 			if (quantity <= 0)
-               throw DomainException.BadRequest("Số lượng phải lớn hơn 0.");
+				throw DomainException.BadRequest("Số lượng phải lớn hơn 0.");
 
 			if (unitPrice < 0)
-             throw DomainException.BadRequest("Đơn giá không được âm.");
+				throw DomainException.BadRequest("Đơn giá không được âm.");
 
 			if (apportionedVoucherDiscount + promotionDiscountAmount > (unitPrice * quantity))
-                throw DomainException.BadRequest("Tổng giảm giá không được vượt quá tổng tiền dòng sản phẩm.");
+				throw DomainException.BadRequest("Tổng giảm giá không được vượt quá tổng tiền dòng sản phẩm.");
 
 			if (string.IsNullOrWhiteSpace(snapshot))
-              throw DomainException.BadRequest("Snapshot là bắt buộc.");
+				throw DomainException.BadRequest("Snapshot là bắt buộc.");
 
 			return new OrderDetail
 			{
+				Id = Guid.NewGuid(),
 				VariantId = variantId,
 				PromotionItemId = promotionItemId,
 				Quantity = quantity,
@@ -67,27 +71,26 @@ namespace PerfumeGPT.Domain.Entities
 		public void ApplyDiscounts(decimal apportionedVoucherDiscount, decimal promotionDiscountAmount)
 		{
 			if (apportionedVoucherDiscount + promotionDiscountAmount > (UnitPrice * Quantity))
-                throw DomainException.BadRequest("Tổng giảm giá không được vượt quá tổng tiền dòng sản phẩm.");
+				throw DomainException.BadRequest("Tổng giảm giá không được vượt quá tổng tiền dòng sản phẩm.");
 
 			ApportionedDiscount = apportionedVoucherDiscount;
 			PromotionDiscountAmount = promotionDiscountAmount;
 		}
 
-		public void Fulfill(Guid actualBatchId)
-		{
-			if (actualBatchId == Guid.Empty)
-               throw DomainException.BadRequest("Actual Batch ID là bắt buộc khi hoàn tất đơn.");
-
-			FulfilledBatchId = actualBatchId;
-		}
-
 		public void UpdateQuantityAndDiscount(int newQuantity, decimal newApportionedDiscount)
 		{
 			if (newQuantity <= 0)
-                throw DomainException.BadRequest("Số lượng phải lớn hơn 0.");
+				throw DomainException.BadRequest("Số lượng phải lớn hơn 0.");
 
 			Quantity = newQuantity;
 			ApportionedDiscount = newApportionedDiscount;
+		}
+
+		public void AddReservation(StockReservation reservation)
+		{
+			if (reservation == null) throw DomainException.BadRequest("Giữ chỗ không hợp lệ.");
+			reservation.AssignOrderDetail(this);
+			StockReservations.Add(reservation);
 		}
 	}
 }

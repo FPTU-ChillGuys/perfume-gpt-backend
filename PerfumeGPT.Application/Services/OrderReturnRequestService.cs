@@ -21,6 +21,7 @@ namespace PerfumeGPT.Application.Services
 {
 	public class OrderReturnRequestService : IOrderReturnRequestService
 	{
+		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IVnPayService _vnPayService; // Refund via VNPay API not working, just assume it works and return success response, then update refund status in database
 		private readonly IMomoService _momoService;
@@ -52,6 +53,9 @@ namespace PerfumeGPT.Application.Services
 			_backgroundJobService = backgroundJobService;
 			_logger = logger;
 		}
+		#endregion Dependencies
+
+
 
 		public async Task<BaseResponse<PagedResult<OrderReturnRequestResponse>>> GetPagedReturnRequestsAsync(GetPagedReturnRequestsRequest request)
 		{
@@ -109,24 +113,93 @@ namespace PerfumeGPT.Application.Services
 			return new string('*', accountNumber.Length - 4) + accountNumber[^4..];
 		}
 
+		private void TryNotifyReturnRequestCustomer(
+			Guid? customerId,
+			Guid returnRequestId,
+			string title,
+			string message,
+			NotificationType type = NotificationType.Info)
+		{
+			if (!customerId.HasValue)
+				return;
+
+			_backgroundJobService.EnqueueCustomerNotificationWithFcm(
+				_logger,
+				customerId.Value,
+				title,
+				message,
+				type,
+				returnRequestId,
+				NotifiReferecneType.OrderReturnRequest);
+		}
+
 		public async Task<BaseResponse<string>> CreateReturnRequestAsync(Guid customerId, CreateReturnRequestDto request)
 		{
-			// 1. Fast-fail: Tránh mở Transaction vô ích nếu dữ liệu không hợp lệ
 			if (request.ReturnItems == null || request.ReturnItems.Count == 0)
 				throw AppException.BadRequest("Danh sách sản phẩm trả về không được để trống.");
+
+			return await CreateReturnRequestCoreAsync(
+				request,
+				isReturnInStore: false,
+				returnRequestCustomerId: customerId,
+				contactAddressCustomerId: customerId,
+				order =>
+				{
+					if (!string.Equals(order.Code, request.OrderCode, StringComparison.Ordinal))
+						throw AppException.BadRequest("Mã đơn hàng không khớp với đơn đã chọn.");
+					if (order.CustomerId != customerId)
+						throw AppException.Forbidden("Bạn không có quyền tạo yêu cầu trả hàng cho đơn này.");
+				},
+				roleNotifyDetail: $"Khách hàng đã yêu cầu trả đơn #{request.OrderCode}.");
+		}
+
+		public async Task<BaseResponse<string>> CreateGuestReturnRequestByStaffAsync(Guid staffId, CreateReturnRequestDto request)
+		{
+			if (request.ReturnItems == null || request.ReturnItems.Count == 0)
+				throw AppException.BadRequest("Danh sách sản phẩm trả về không được để trống.");
+
+			if (request.SavedAddressId.HasValue)
+				throw AppException.BadRequest("Đơn khách vãng lai không dùng được địa chỉ đã lưu; vui lòng nhập đầy đủ thông tin địa chỉ lấy hàng theo khách cung cấp.");
+			if (request.Recipient == null)
+				throw AppException.BadRequest("Bắt buộc nhập thông tin người liên hệ và địa chỉ lấy hàng theo khách cung cấp.");
+
+			var response = await CreateReturnRequestCoreAsync(
+				request,
+				isReturnInStore: false,
+				returnRequestCustomerId: null,
+				contactAddressCustomerId: null,
+				order =>
+				{
+					if (!string.Equals(order.Code, request.OrderCode, StringComparison.Ordinal))
+						throw AppException.BadRequest("Mã đơn hàng không khớp với đơn đã chọn.");
+					if (order.CustomerId.HasValue)
+						throw AppException.BadRequest("Chỉ tạo được yêu cầu trả hộ cho đơn không gắn tài khoản (khách vãng lai). Đơn này đã gắn tài khoản; khách vui lòng tạo yêu cầu qua ứng dụng.");
+				},
+				roleNotifyDetail: $"Nhân viên đã tạo yêu cầu trả hộ cho đơn khách vãng lai #{request.OrderCode}.");
+
+			_logger.LogInformation("Staff {StaffId} created guest return request for order {OrderId}", staffId, request.OrderId);
+			return response;
+		}
+
+		public async Task<BaseResponse<string>> ProcessInStoreReturnFastTrackAsync(Guid staffId, ProcessInStoreReturnFastTrackDto request)
+		{
+			if (request.ReturnItems == null || request.ReturnItems.Count == 0)
+				throw AppException.BadRequest("Danh sách sản phẩm trả về không được để trống.");
+
+			const string autoApproveStaffNote = "Hệ thống tự động duyệt trả hàng tại cửa hàng (fast-track).";
+			const string inStoreInspectionNote = "Kiểm định trực tiếp tại quầy (fast-track).";
 
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
 				var order = await _unitOfWork.Orders.GetOrderForReturnRequestAsync(request.OrderId)
-					 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+					?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
-				if (order.CustomerId != customerId)
-					throw AppException.Forbidden("Bạn không có quyền tạo yêu cầu trả hàng cho đơn này.");
+				if (!string.Equals(order.Code, request.OrderCode, StringComparison.Ordinal))
+					throw AppException.BadRequest("Mã đơn hàng không khớp với đơn đã chọn.");
 
 				if (order.Status != OrderStatus.Delivered)
 					throw AppException.BadRequest("Chỉ đơn hàng đã giao mới có thể tạo yêu cầu trả hàng.");
 
-				// 2. TỐI ƯU DB: Lấy tất cả Status bằng 1 câu query duy nhất (Tiết kiệm 1 round-trip)
 				var existingStatuses = await _unitOfWork.OrderReturnRequests.GetStatusesByOrderIdAsync(order.Id);
 
 				if (existingStatuses.Any(s => s != ReturnRequestStatus.Rejected && s != ReturnRequestStatus.Completed))
@@ -137,7 +210,6 @@ namespace PerfumeGPT.Application.Services
 
 				var orderDetailsById = order.OrderDetails.ToDictionary(x => x.Id);
 
-				// 3. TỐI ƯU VÒNG LẶP: Cấp phát bộ nhớ sẵn cho List và tính toán trong 1 lần duyệt
 				var payloadDetails = new List<OrderReturnRequest.ReturnRequestDetailPayload>(request.ReturnItems.Count);
 				decimal requestedRefundAmount = 0m;
 
@@ -156,7 +228,129 @@ namespace PerfumeGPT.Application.Services
 						OrderedQuantity = orderDetail.Quantity
 					});
 
-					// Tính tổng tiền ngay tại đây
+					requestedRefundAmount += orderDetail.RefundableUnitPrice * item.Quantity;
+				}
+
+				if (IsFullOrderReturn(orderDetailsById, request.ReturnItems))
+					requestedRefundAmount += order.ForwardShipping?.ShippingFee ?? 0m;
+
+				var refundableCap = await GetRefundableOrderAmountAsync(order.Id, order.TotalAmount, IsFullOrderReturn(orderDetailsById, request.ReturnItems));
+				if (request.ApprovedRefundAmount > refundableCap)
+					throw AppException.BadRequest($"Số tiền hoàn đề xuất vượt quá mức cho phép. Tối đa: {refundableCap:N0}.");
+
+				var requestPayload = new OrderReturnRequest.ReturnRequestPayload
+				{
+					Reason = request.Reason,
+					RequestedRefundAmount = requestedRefundAmount,
+					IsRefundOnly = request.IsRefundOnly,
+					ReturnDetails = payloadDetails,
+					CustomerNote = request.CustomerNote,
+					RefundBankName = request.RefundBankName,
+					RefundAccountNumber = request.RefundAccountNumber,
+					RefundAccountName = request.RefundAccountName
+				};
+
+				var returnRequest = OrderReturnRequest.Create(request.OrderId, order.CustomerId, requestPayload, isReturnInStore: true);
+
+				await _unitOfWork.OrderReturnRequests.AddAsync(returnRequest);
+
+				returnRequest.Process(staffId, isApproved: true, isRequestMoreInfo: false, autoApproveStaffNote);
+
+				if (!returnRequest.IsRefundOnly)
+				{
+					returnRequest.StartInspection(staffId, inStoreInspectionNote);
+					returnRequest.RecordInspectionResult(
+						request.ApprovedRefundAmount,
+						request.IsRestocked,
+						request.InspectionNote);
+					await ApplyPostRecordInspectionAsync(
+						returnRequest,
+						order,
+						staffId,
+						request.ApprovedRefundAmount,
+						request.IsRestocked,
+						shouldUpdateReturnRequest: false);
+				}
+				else
+				{
+					var approvedAfterProcess = returnRequest.ApprovedRefundAmount ?? 0m;
+					if (request.ApprovedRefundAmount != approvedAfterProcess)
+						returnRequest.OverrideRefundAmount(request.ApprovedRefundAmount, request.InspectionNote);
+
+					EnqueueAdminRefundReadyNotification(returnRequest, order);
+				}
+
+				return BaseResponse<string>.Ok(returnRequest.Id.ToString(), "Đã xử lý trả hàng tại quầy (fast-track). Đơn đang chờ kế toán hoàn tiền.");
+			});
+
+			if (!Guid.TryParse(response.Payload, out var createdRequestId))
+				throw AppException.Internal("Không thể phân tích ID yêu cầu trả hàng.");
+
+			if (request.TemporaryMediaIds == null || request.TemporaryMediaIds.Count == 0)
+			{
+				_logger.LogInformation("Staff {StaffId} completed in-store return fast-track for order {OrderId}, return request {ReturnRequestId}", staffId, request.OrderId, createdRequestId);
+				return response;
+			}
+
+			var conversionResult = await _mediaBulkActionHelper.ConvertTemporaryMediaToPermanentAsync(
+				request.TemporaryMediaIds,
+				EntityType.OrderReturnRequest,
+				createdRequestId);
+
+			var message = conversionResult.HasError
+				? $"Đã xử lý fast-track nhưng có {conversionResult.FailedItems.Count} ảnh minh chứng tải lên thất bại."
+				: response.Message;
+
+			_logger.LogInformation("Staff {StaffId} completed in-store return fast-track for order {OrderId}, return request {ReturnRequestId}", staffId, request.OrderId, createdRequestId);
+			return BaseResponse<string>.Ok(createdRequestId.ToString(), message);
+		}
+
+		private async Task<BaseResponse<string>> CreateReturnRequestCoreAsync(
+			CreateReturnRequestDto request,
+			bool isReturnInStore,
+			Guid? returnRequestCustomerId,
+			Guid? contactAddressCustomerId,
+			Action<Order> validateOrder,
+			string roleNotifyDetail)
+		{
+			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
+			{
+				var order = await _unitOfWork.Orders.GetOrderForReturnRequestAsync(request.OrderId)
+					 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
+
+				validateOrder(order);
+
+				if (order.Status != OrderStatus.Delivered)
+					throw AppException.BadRequest("Chỉ đơn hàng đã giao mới có thể tạo yêu cầu trả hàng.");
+
+				var existingStatuses = await _unitOfWork.OrderReturnRequests.GetStatusesByOrderIdAsync(order.Id);
+
+				if (existingStatuses.Any(s => s != ReturnRequestStatus.Rejected && s != ReturnRequestStatus.Completed))
+					throw AppException.Conflict("Đơn hàng này đã có yêu cầu trả hàng đang xử lý.");
+
+				if (existingStatuses.Any(s => s == ReturnRequestStatus.Completed))
+					throw AppException.Conflict("Đơn hàng này đã từng được trả trước đó. Vui lòng liên hệ hỗ trợ để được xử lý thêm.");
+
+				var orderDetailsById = order.OrderDetails.ToDictionary(x => x.Id);
+
+				var payloadDetails = new List<OrderReturnRequest.ReturnRequestDetailPayload>(request.ReturnItems.Count);
+				decimal requestedRefundAmount = 0m;
+
+				foreach (var item in request.ReturnItems)
+				{
+					if (!orderDetailsById.TryGetValue(item.OrderDetailId, out var orderDetail))
+						throw AppException.BadRequest($"Chi tiết đơn hàng {item.OrderDetailId} không thuộc đơn này.");
+
+					if (item.Quantity > orderDetail.Quantity)
+						throw AppException.BadRequest($"Số lượng trả cho chi tiết đơn hàng {item.OrderDetailId} không được vượt quá số lượng đã mua.");
+
+					payloadDetails.Add(new OrderReturnRequest.ReturnRequestDetailPayload
+					{
+						OrderDetailId = item.OrderDetailId,
+						RequestedQuantity = item.Quantity,
+						OrderedQuantity = orderDetail.Quantity
+					});
+
 					requestedRefundAmount += orderDetail.RefundableUnitPrice * item.Quantity;
 				}
 
@@ -177,11 +371,14 @@ namespace PerfumeGPT.Application.Services
 					RefundAccountName = request.RefundAccountName
 				};
 
-				var pickupAddress = await _recipientService.CreateContactAddressAsync(request.Recipient, request.SavedAddressId, customerId);
+				var returnRequest = OrderReturnRequest.Create(request.OrderId, returnRequestCustomerId, requestPayload, isReturnInStore);
 
-				var returnRequest = OrderReturnRequest.Create(request.OrderId, customerId, requestPayload);
-				returnRequest.AttachPickupAddress(pickupAddress.Id);
-				returnRequest.PickupAddress = pickupAddress;
+				if (!isReturnInStore)
+				{
+					var pickupAddress = await _recipientService.CreateContactAddressAsync(request.Recipient, request.SavedAddressId, contactAddressCustomerId);
+					returnRequest.AttachPickupAddress(pickupAddress.Id);
+					returnRequest.PickupAddress = pickupAddress;
+				}
 
 				await _unitOfWork.OrderReturnRequests.AddAsync(returnRequest);
 
@@ -195,7 +392,7 @@ namespace PerfumeGPT.Application.Services
 				_logger,
 				UserRole.admin,
 				"Yêu cầu trả hàng mới",
-				$"Khách hàng đã yêu cầu trả đơn #{request.OrderCode}.",
+				roleNotifyDetail,
 				NotificationType.Warning,
 				referenceId: createdRequestId,
 				referenceType: NotifiReferecneType.OrderReturnRequest);
@@ -204,7 +401,7 @@ namespace PerfumeGPT.Application.Services
 				_logger,
 				UserRole.staff,
 				"Yêu cầu trả hàng mới",
-				$"Khách hàng đã yêu cầu trả đơn #{request.OrderCode}.",
+				roleNotifyDetail,
 				NotificationType.Warning,
 				referenceId: createdRequestId,
 				referenceType: NotifiReferecneType.OrderReturnRequest);
@@ -342,9 +539,8 @@ namespace PerfumeGPT.Application.Services
 				?? throw AppException.NotFound("Không tìm thấy yêu cầu trả hàng.");
 
 			var orderCode = returnRequest.Order.Code;
-			var customerId = returnRequest.CustomerId;
 
-			if (request.IsApproved && !returnRequest.IsRefundOnly)
+			if (request.IsApproved && !returnRequest.IsRefundOnly && !returnRequest.IsReturnInStore)
 			{
 				var pickupAddress = returnRequest.PickupAddress
 					?? throw AppException.Internal("Không tìm thấy địa chỉ lấy hàng cho yêu cầu trả hàng đã duyệt.");
@@ -355,7 +551,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				returnRequest.Process(processedById, request.IsApproved, request.IsRequestMoreInfo, request.StaffNote);
 
-				if (request.IsApproved && !returnRequest.IsRefundOnly)
+				if (request.IsApproved && !returnRequest.IsRefundOnly && !returnRequest.IsReturnInStore)
 				{
 					var contactInfo = returnRequest.PickupAddress ?? throw AppException.Internal("Không tìm thấy địa chỉ lấy hàng cho yêu cầu trả hàng đã duyệt.");
 					var leadTime = estimatedDeliveryDate
@@ -385,14 +581,12 @@ namespace PerfumeGPT.Application.Services
 
 					if (!shippingCreated)
 					{
-						_backgroundJobService.EnqueueCustomerNotificationWithFcm(
-							_logger,
+						TryNotifyReturnRequestCustomer(
 							requestForGhn.CustomerId,
+							requestForGhn.Id,
 							"Yêu cầu trả hàng đã được chấp thuận",
 							$"Yêu cầu trả đơn #{orderCode} của bạn đã được chấp thuận và đang tạo vận đơn hoàn trả.",
-							NotificationType.Success,
-							referenceId: requestForGhn.Id,
-							referenceType: NotifiReferecneType.OrderReturnRequest);
+							NotificationType.Success);
 
 						return BaseResponse<string>.Ok(
 							   "Yêu cầu trả hàng đã được duyệt cục bộ, NHƯNG tạo đơn hoàn trả GHN thất bại. Vui lòng kiểm tra cấu hình GHN và thử đồng bộ lại thủ công.");
@@ -400,27 +594,23 @@ namespace PerfumeGPT.Application.Services
 				}
 				catch (Exception ex)
 				{
-					_backgroundJobService.EnqueueCustomerNotificationWithFcm(
-						_logger,
+					TryNotifyReturnRequestCustomer(
 						requestForGhn.CustomerId,
+						requestForGhn.Id,
 						"Yêu cầu trả hàng đã được chấp thuận",
 						$"Yêu cầu trả đơn #{orderCode} của bạn đã được chấp thuận và đang xử lý vận chuyển hoàn trả.",
-						NotificationType.Success,
-						referenceId: requestForGhn.Id,
-						referenceType: NotifiReferecneType.OrderReturnRequest);
+						NotificationType.Success);
 
 					return BaseResponse<string>.Ok(
 						   $"Yêu cầu trả hàng đã được duyệt cục bộ, NHƯNG GHN API trả lỗi: {ex.Message}. Vui lòng thử đồng bộ lại thủ công.");
 				}
 
-				_backgroundJobService.EnqueueCustomerNotificationWithFcm(
-					_logger,
+				TryNotifyReturnRequestCustomer(
 					requestForGhn.CustomerId,
+					requestForGhn.Id,
 					"Yêu cầu trả hàng đã được chấp thuận",
 					$"Yêu cầu trả đơn #{orderCode} của bạn đã được chấp thuận.",
-					NotificationType.Success,
-					referenceId: requestForGhn.Id,
-					referenceType: NotifiReferecneType.OrderReturnRequest);
+					NotificationType.Success);
 
 				return BaseResponse<string>.Ok("Đã duyệt yêu cầu trả hàng để vận chuyển và tạo đơn GHN thành công.");
 			}
@@ -430,14 +620,15 @@ namespace PerfumeGPT.Application.Services
 				var approvedRequest = await _unitOfWork.OrderReturnRequests.GetByIdAsync(requestId)
 					?? throw AppException.NotFound("Không tìm thấy yêu cầu trả hàng.");
 
-				_backgroundJobService.EnqueueCustomerNotificationWithFcm(
-					_logger,
+				TryNotifyReturnRequestCustomer(
 					approvedRequest.CustomerId,
+					approvedRequest.Id,
 					"Yêu cầu trả hàng đã được chấp thuận",
 					$"Yêu cầu trả đơn #{orderCode} của bạn đã được chấp thuận.",
-					NotificationType.Success,
-					referenceId: approvedRequest.Id,
-					referenceType: NotifiReferecneType.OrderReturnRequest);
+					NotificationType.Success);
+
+				if (approvedRequest.IsReturnInStore && !approvedRequest.IsRefundOnly && approvedRequest.Status == ReturnRequestStatus.ApprovedForReturn)
+					return BaseResponse<string>.Ok("Đã duyệt yêu cầu trả tại quầy. Tiếp theo: kiểm định hàng với khách tại quầy.");
 
 				return BaseResponse<string>.Ok("Yêu cầu trả hàng đã được duyệt và chuyển sang bước hoàn tiền.");
 			}
@@ -447,14 +638,12 @@ namespace PerfumeGPT.Application.Services
 				var userRequest = await _unitOfWork.OrderReturnRequests.GetByIdAsync(requestId)
 					?? throw AppException.NotFound("Không tìm thấy yêu cầu trả hàng.");
 
-				_backgroundJobService.EnqueueCustomerNotificationWithFcm(
-					_logger,
+				TryNotifyReturnRequestCustomer(
 					userRequest.CustomerId,
+					userRequest.Id,
 					"Cần bổ sung bằng chứng",
 					$"Vui lòng cập nhật thêm bằng chứng cho đơn #{orderCode}.",
-					NotificationType.Warning,
-					referenceId: userRequest.Id,
-					referenceType: NotifiReferecneType.OrderReturnRequest);
+					NotificationType.Warning);
 
 				return BaseResponse<string>.Ok("Yêu cầu trả hàng cần khách hàng bổ sung thêm thông tin.");
 			}
@@ -462,14 +651,12 @@ namespace PerfumeGPT.Application.Services
 			var rejectedRequest = await _unitOfWork.OrderReturnRequests.GetByIdAsync(requestId)
 				?? throw AppException.NotFound("Không tìm thấy yêu cầu trả hàng.");
 
-			_backgroundJobService.EnqueueCustomerNotificationWithFcm(
-				_logger,
+			TryNotifyReturnRequestCustomer(
 				rejectedRequest.CustomerId,
+				rejectedRequest.Id,
 				"Yêu cầu trả hàng đã bị từ chối",
 				$"Yêu cầu trả đơn #{orderCode} của bạn đã bị từ chối.",
-				NotificationType.Warning,
-				referenceId: rejectedRequest.Id,
-				referenceType: NotifiReferecneType.OrderReturnRequest);
+				NotificationType.Warning);
 
 			return BaseResponse<string>.Ok("Yêu cầu trả hàng đã bị từ chối.");
 		}
@@ -479,7 +666,7 @@ namespace PerfumeGPT.Application.Services
 			var returnRequest = await _unitOfWork.OrderReturnRequests.GetByIdWithOrderAsync(requestId)
 				?? throw AppException.NotFound("Không tìm thấy yêu cầu trả hàng.");
 
-			bool isArrived = returnRequest.ReturnShipping?.Status == ShippingStatus.Delivered;
+			bool isArrived = returnRequest.IsReturnInStore || returnRequest.ReturnShipping?.Status == ShippingStatus.Delivered;
 
 			if (!isArrived)
 				throw AppException.BadRequest("Kiện hàng trả chưa được giao đến cửa hàng. Không thể bắt đầu kiểm định.");
@@ -489,6 +676,127 @@ namespace PerfumeGPT.Application.Services
 			await _unitOfWork.SaveChangesAsync();
 
 			return BaseResponse<string>.Ok("Đã bắt đầu kiểm định.");
+		}
+
+		private void EnqueueAdminRefundReadyNotification(OrderReturnRequest returnRequest, Order order)
+		{
+			string notiTitle = returnRequest.IsReturnInStore
+				? "[ƯU TIÊN] Hoàn tiền tại quầy"
+				: "Yêu cầu hoàn tiền mới";
+
+			string notiMessage = returnRequest.IsReturnInStore
+				? $"Khách hàng đang đợi tại quầy. Cần Admin xử lý hoàn tiền gấp cho đơn {order.Code}."
+				: $"Yêu cầu trả hàng {order.Code} đã sẵn sàng hoàn tiền.";
+
+			_backgroundJobService.EnqueueRoleNotification(
+				_logger,
+				UserRole.admin,
+				notiTitle,
+				notiMessage,
+				returnRequest.IsReturnInStore ? NotificationType.Error : NotificationType.Warning,
+				referenceId: returnRequest.Id,
+				referenceType: NotifiReferecneType.OrderReturnRequest);
+		}
+
+		private async Task ApplyPostRecordInspectionAsync(OrderReturnRequest returnRequest, Order order, Guid inspectedById, decimal approvedRefundAmount, bool isRestocked, bool shouldUpdateReturnRequest = true)
+		{
+			var refundableOrderAmount = await GetRefundableOrderAmountAsync(order.Id, order.TotalAmount, IsFullOrderReturn(returnRequest));
+			var isFullyRefunded = approvedRefundAmount >= refundableOrderAmount;
+
+			if (isFullyRefunded)
+			{
+				if (order.Status == OrderStatus.Returning) order.SetStatus(OrderStatus.Returned);
+			}
+			else
+			{
+				if (order.Status == OrderStatus.Returning) order.SetStatus(OrderStatus.Partial_Returned);
+			}
+
+			if (isRestocked)
+			{
+				var stockAdjustment = StockAdjustment.Create(
+					inspectedById,
+					DateTime.UtcNow,
+					StockAdjustmentReason.Return,
+					$"Hệ thống tự động nhập kho từ yêu cầu trả hàng {returnRequest.Id}");
+
+				var orderDetailsById = order.OrderDetails.ToDictionary(d => d.Id);
+
+				if (returnRequest.ReturnDetails == null || returnRequest.ReturnDetails.Count == 0)
+					throw AppException.Internal("Thiếu chi tiết trả hàng. Không thể xử lý nhập trả kho.");
+
+				var batchIds = new HashSet<Guid>();
+				var variantIds = new HashSet<Guid>();
+
+				foreach (var returnDetail in returnRequest.ReturnDetails)
+				{
+					var orderDetail = orderDetailsById[returnDetail.OrderDetailId];
+					try
+					{
+						using var doc = JsonDocument.Parse(orderDetail.Snapshot);
+						batchIds.Add(doc.RootElement.GetProperty("BatchId").GetGuid());
+						variantIds.Add(orderDetail.VariantId);
+					}
+					catch
+					{
+						throw AppException.Internal($"Không thể trích xuất BatchId từ snapshot của OrderDetail {orderDetail.Id}.");
+					}
+				}
+
+				var batches = await _unitOfWork.Batches.GetAllAsync(b => batchIds.Contains(b.Id));
+				var batchesById = batches.ToDictionary(b => b.Id);
+
+				var stocks = await _unitOfWork.Stocks.GetAllAsync(s => variantIds.Contains(s.VariantId));
+				var stocksByVariantId = stocks.ToDictionary(s => s.VariantId);
+
+				foreach (var returnDetail in returnRequest.ReturnDetails)
+				{
+					var orderDetail = orderDetailsById[returnDetail.OrderDetailId];
+					var quantityToRestock = returnDetail.RequestedQuantity;
+
+					if (quantityToRestock <= 0) continue;
+
+					using var doc = JsonDocument.Parse(orderDetail.Snapshot);
+					var batchId = doc.RootElement.GetProperty("BatchId").GetGuid();
+
+					if (!batchesById.TryGetValue(batchId, out var batch))
+						throw AppException.NotFound($"Lô {batchId} trong snapshot không tồn tại trong cơ sở dữ liệu.");
+
+					if (!stocksByVariantId.TryGetValue(orderDetail.VariantId, out var stock))
+						throw AppException.NotFound($"Tồn kho cho biến thể {orderDetail.VariantId} không tồn tại.");
+
+					var detailPayload = new StockAdjustmentDetailPayload
+					{
+						ProductVariantId = orderDetail.VariantId,
+						BatchId = batchId,
+						AdjustmentQuantity = quantityToRestock,
+						Note = $"Yêu cầu trả hàng {returnRequest.Id}: nhập lại kho hàng hóa đạt tiêu chuẩn"
+					};
+					stockAdjustment.AddApprovedDetail(detailPayload, approvedQuantity: quantityToRestock);
+
+					batch.IncreaseQuantity(
+						quantityToRestock,
+						StockTransactionType.Adjustment,
+						returnRequest.Id,
+						inspectedById,
+						$"Nhập lại tồn kho từ đơn trả hàng {returnRequest.OrderId}");
+
+					stock.Increase(quantityToRestock);
+				}
+
+				stockAdjustment.UpdateStatus(StockAdjustmentStatus.InProgress);
+				stockAdjustment.Complete(inspectedById);
+				await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
+
+				_unitOfWork.Batches.UpdateRange([.. batches]);
+				_unitOfWork.Stocks.UpdateRange([.. stocks]);
+			}
+
+			_unitOfWork.Orders.Update(order);
+			if (shouldUpdateReturnRequest)
+				_unitOfWork.OrderReturnRequests.Update(returnRequest);
+
+			EnqueueAdminRefundReadyNotification(returnRequest, order);
 		}
 
 		public async Task<BaseResponse<string>> RecordInspectionResultAsync(Guid inspectedById, Guid requestId, RecordInspectionDto request)
@@ -506,116 +814,13 @@ namespace PerfumeGPT.Application.Services
 					 request.IsRestocked,
 					 request.InspectionNote);
 
-				var order = returnRequest.Order;
-				var refundableOrderAmount = await GetRefundableOrderAmountAsync(order.Id, order.TotalAmount, IsFullOrderReturn(returnRequest));
-				var isFullyRefunded = request.ApprovedRefundAmount >= refundableOrderAmount;
-
-				if (isFullyRefunded)
-				{
-					if (order.Status == OrderStatus.Returning) order.SetStatus(OrderStatus.Returned);
-				}
-				else
-				{
-					if (order.Status == OrderStatus.Returning) order.SetStatus(OrderStatus.Partial_Returned);
-				}
-
-				if (returnRequest.IsRestocked)
-				{
-					var stockAdjustment = StockAdjustment.Create(
-						inspectedById,
-						DateTime.UtcNow,
-						StockAdjustmentReason.Return,
-						$"Hệ thống tự động nhập kho từ yêu cầu trả hàng {returnRequest.Id}");
-
-					var orderDetailsById = returnRequest.Order.OrderDetails.ToDictionary(d => d.Id);
-
-					if (returnRequest.ReturnDetails == null || returnRequest.ReturnDetails.Count == 0)
-						throw AppException.Internal("Thiếu chi tiết trả hàng. Không thể xử lý nhập trả kho.");
-
-					// ==============================================================
-					// 1. QUÉT 1 VÒNG ĐỂ LẤY TOÀN BỘ BATCH ID VÀ VARIANT ID
-					// ==============================================================
-					var batchIds = new HashSet<Guid>();
-					var variantIds = new HashSet<Guid>();
-
-					foreach (var returnDetail in returnRequest.ReturnDetails)
-					{
-						var orderDetail = orderDetailsById[returnDetail.OrderDetailId];
-						try
-						{
-							using var doc = JsonDocument.Parse(orderDetail.Snapshot);
-							batchIds.Add(doc.RootElement.GetProperty("BatchId").GetGuid());
-							variantIds.Add(orderDetail.VariantId);
-						}
-						catch
-						{
-							throw AppException.Internal($"Không thể trích xuất BatchId từ snapshot của OrderDetail {orderDetail.Id}.");
-						}
-					}
-
-					// ==============================================================
-					// 2. BULK READ: Kéo dữ liệu lên RAM (Bỏ asNoTracking vì cần Update)
-					// ==============================================================
-					var batches = await _unitOfWork.Batches.GetAllAsync(b => batchIds.Contains(b.Id));
-					var batchesById = batches.ToDictionary(b => b.Id);
-
-					var stocks = await _unitOfWork.Stocks.GetAllAsync(s => variantIds.Contains(s.VariantId));
-					var stocksByVariantId = stocks.ToDictionary(s => s.VariantId);
-
-					// ==============================================================
-					// 3. XỬ LÝ LOGIC TRÊN RAM (IN-MEMORY UPDATE)
-					// ==============================================================
-					foreach (var returnDetail in returnRequest.ReturnDetails)
-					{
-						var orderDetail = orderDetailsById[returnDetail.OrderDetailId];
-						var quantityToRestock = returnDetail.RequestedQuantity;
-
-						if (quantityToRestock <= 0) continue;
-
-						using var doc = JsonDocument.Parse(orderDetail.Snapshot);
-						var batchId = doc.RootElement.GetProperty("BatchId").GetGuid();
-
-						if (!batchesById.TryGetValue(batchId, out var batch))
-							throw AppException.NotFound($"Lô {batchId} trong snapshot không tồn tại trong cơ sở dữ liệu.");
-
-						if (!stocksByVariantId.TryGetValue(orderDetail.VariantId, out var stock))
-							throw AppException.NotFound($"Tồn kho cho biến thể {orderDetail.VariantId} không tồn tại.");
-
-						// 3.1. Ghi log phiếu nhập kho (StockAdjustment)
-						var detailPayload = new StockAdjustmentDetailPayload
-						{
-							ProductVariantId = orderDetail.VariantId,
-							BatchId = batchId,
-							AdjustmentQuantity = quantityToRestock,
-							Note = $"Yêu cầu trả hàng {returnRequest.Id}: nhập lại kho hàng hóa đạt tiêu chuẩn"
-						};
-						stockAdjustment.AddApprovedDetail(detailPayload, approvedQuantity: quantityToRestock);
-
-						// 3.2. CỘNG LẠI SỐ LƯỢNG VẬT LÝ VÀO LÔ HÀNG (Điều mà Cursor đã quên)
-						batch.IncreaseQuantity(
-							quantityToRestock,
-							StockTransactionType.Adjustment,
-							returnRequest.Id,
-							inspectedById,
-							$"Nhập lại tồn kho từ đơn trả hàng {returnRequest.OrderId}");
-
-						// 3.3. CỘNG LẠI TỔNG TỒN KHO CHO BIẾN THỂ
-						stock.Increase(quantityToRestock);
-					}
-
-					stockAdjustment.UpdateStatus(StockAdjustmentStatus.InProgress);
-					stockAdjustment.Complete(inspectedById);
-					await _unitOfWork.StockAdjustments.AddAsync(stockAdjustment);
-
-					// ==============================================================
-					// 4. BULK WRITE: Lưu toàn bộ lô hàng và tồn kho xuống DB bằng 1 mẻ
-					// ==============================================================
-					_unitOfWork.Batches.UpdateRange([.. batches]);
-					_unitOfWork.Stocks.UpdateRange([.. stocks]);
-				}
-
-				_unitOfWork.Orders.Update(order);
-				_unitOfWork.OrderReturnRequests.Update(returnRequest);
+				await ApplyPostRecordInspectionAsync(
+					returnRequest,
+					returnRequest.Order,
+					inspectedById,
+					request.ApprovedRefundAmount,
+					request.IsRestocked,
+					shouldUpdateReturnRequest: true);
 
 				return BaseResponse<string>.Ok("Đã ghi nhận kết quả kiểm định.");
 			});
@@ -676,7 +881,7 @@ namespace PerfumeGPT.Application.Services
 
 				case PaymentMethod.ExternalBankTransfer:
 				case PaymentMethod.CashInStore:
-					if (string.IsNullOrWhiteSpace(request.ManualTransactionReference))
+					if (string.IsNullOrWhiteSpace(request.ManualTransactionReference) && request.RefundMethod == PaymentMethod.ExternalBankTransfer)
 						throw AppException.BadRequest("Bắt buộc nhập mã tham chiếu giao dịch thủ công (mã chuyển khoản) cho hoàn tiền thủ công.");
 
 					originalPayment = successfulOnlinePayments.FirstOrDefault()
@@ -742,7 +947,7 @@ namespace PerfumeGPT.Application.Services
 				case PaymentMethod.CashInStore:
 					isRefundSuccess = true;
 					refundMessage = request.Note ?? "Đã ghi nhận hoàn tiền thủ công bởi quản trị tài chính";
-					refundTransactionNo = request.ManualTransactionReference!.Trim();
+					refundTransactionNo = request.ManualTransactionReference?.Trim();
 					break;
 
 				default:

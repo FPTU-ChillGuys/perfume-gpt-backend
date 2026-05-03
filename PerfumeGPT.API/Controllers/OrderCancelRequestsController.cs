@@ -30,7 +30,7 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpGet("my-requests")]
-		[Authorize(Roles = "user")]
+		[Authorize(Roles = "user, staff")]
 		[ProducesResponseType(typeof(BaseResponse<PagedResult<OrderCancelRequestResponse>>), StatusCodes.Status200OK)]
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<PagedResult<OrderCancelRequestResponse>>>> GetMyRequests([FromQuery] GetPagedCancelRequestsRequest request)

@@ -10,11 +10,14 @@ namespace PerfumeGPT.Domain.Entities
 		protected OrderReturnRequest() { }
 
 		public Guid OrderId { get; private set; }
-		public Guid CustomerId { get; private set; }
+		/// <summary>Khách đã đăng nhập; null khi nhân viên tạo hộ đơn khách vãng lai.</summary>
+		public Guid? CustomerId { get; private set; }
 		public Guid? ProcessedById { get; private set; }
 		public Guid? InspectedById { get; private set; }
 		public Guid? ReturnShippingId { get; private set; }
-		public Guid PickupAddressId { get; private set; }
+		public Guid? PickupAddressId { get; private set; }
+
+		public bool IsReturnInStore { get; private set; }
 
 		public ReturnOrderReason Reason { get; private set; }
 		public string? CustomerNote { get; private set; }
@@ -35,11 +38,11 @@ namespace PerfumeGPT.Domain.Entities
 
 		// Navigation properties
 		public virtual Order Order { get; set; } = null!;
-		public virtual User Customer { get; set; } = null!;
+		public virtual User? Customer { get; set; }
 		public virtual User? ProcessedBy { get; set; }
 		public virtual User? InspectedBy { get; set; }
 		public virtual ShippingInfo? ReturnShipping { get; set; }
-		public virtual ContactAddress? PickupAddress { get; set; } = null!;
+		public virtual ContactAddress? PickupAddress { get; set; }
 		public virtual ICollection<Media> ProofImages { get; set; } = [];
 		public virtual ICollection<OrderReturnRequestDetail> ReturnDetails { get; set; } = [];
 
@@ -48,15 +51,18 @@ namespace PerfumeGPT.Domain.Entities
 		public DateTime? UpdatedAt { get; set; }
 
 		// Factory methods
-		public static OrderReturnRequest Create(Guid orderId, Guid customerId, ReturnRequestPayload payload)
+		public static OrderReturnRequest Create(Guid orderId, Guid? customerId, ReturnRequestPayload payload, bool isReturnInStore = false)
 		{
 			if (orderId == Guid.Empty)
 				throw DomainException.BadRequest("ID đơn hàng là bắt buộc.");
 
-			if (customerId == Guid.Empty)
-				throw DomainException.BadRequest("ID khách hàng là bắt buộc.");
+			if (customerId.HasValue && customerId.Value == Guid.Empty)
+				throw DomainException.BadRequest("ID khách hàng không hợp lệ.");
 
 			var returnDetails = BuildReturnDetails(payload.ReturnDetails);
+			var id = Guid.NewGuid();
+			foreach (var detail in returnDetails)
+				detail.BindToReturnRequest(id);
 
 			if (payload.RequestedRefundAmount < 0)
 				throw DomainException.BadRequest("Số tiền hoàn trả yêu cầu không được âm.");
@@ -77,6 +83,7 @@ namespace PerfumeGPT.Domain.Entities
 
 			return new OrderReturnRequest
 			{
+				Id = id,
 				OrderId = orderId,
 				CustomerId = customerId,
 				Reason = payload.Reason,
@@ -86,6 +93,7 @@ namespace PerfumeGPT.Domain.Entities
 				ApprovedRefundAmount = null,
 				IsRefunded = false,
 				IsRefundOnly = payload.IsRefundOnly,
+				IsReturnInStore = isReturnInStore,
 				ReturnDetails = returnDetails,
 
 				RefundBankName = payload.RefundBankName?.Trim(),
@@ -141,6 +149,9 @@ namespace PerfumeGPT.Domain.Entities
 			   string? refundAccountNumber = null,
 			   string? refundAccountName = null)
 		{
+			if (!CustomerId.HasValue)
+				throw DomainException.BadRequest("Yêu cầu trả hàng không gắn tài khoản khách hàng; vui lòng liên hệ cửa hàng để cập nhật.");
+
 			if (CustomerId != customerId)
 				throw DomainException.Forbidden("Bạn không có quyền cập nhật yêu cầu hoàn trả này.");
 
@@ -204,6 +215,9 @@ namespace PerfumeGPT.Domain.Entities
 
 		public void CancelByCustomer(Guid customerId)
 		{
+			if (!CustomerId.HasValue)
+				throw DomainException.BadRequest("Yêu cầu trả hàng không gắn tài khoản khách hàng; vui lòng liên hệ cửa hàng để hủy.");
+
 			if (CustomerId != customerId)
 				throw DomainException.Forbidden("Bạn không có quyền hủy yêu cầu hoàn trả này.");
 

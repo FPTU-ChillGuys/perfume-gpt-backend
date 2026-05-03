@@ -4,6 +4,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PerfumeGPT.Persistence.Contexts;
 
@@ -12,9 +13,11 @@ using PerfumeGPT.Persistence.Contexts;
 namespace PerfumeGPT.Persistence.Migrations
 {
     [DbContext(typeof(PerfumeDbContext))]
-    partial class PerfumeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260502062307_Remove_OrderDetails_Batches")]
+    partial class Remove_OrderDetails_Batches
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1277,7 +1280,7 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid?>("CustomerId")
+                    b.Property<Guid>("CustomerId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("CustomerNote")
@@ -1298,13 +1301,10 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<bool>("IsRestocked")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("IsReturnInStore")
-                        .HasColumnType("bit");
-
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("PickupAddressId")
+                    b.Property<Guid>("PickupAddressId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("ProcessedById")
@@ -2001,7 +2001,7 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid?>("OrderDetailId")
+                    b.Property<Guid>("OrderDetailId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("OrderId")
@@ -2044,9 +2044,6 @@ namespace PerfumeGPT.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("BatchExpiringSoonThresholdInDays")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ClearanceBufferDays")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
@@ -2092,7 +2089,6 @@ namespace PerfumeGPT.Persistence.Migrations
                         {
                             Id = new Guid("f6c2a71d-a76c-43cf-8f1f-315766251001"),
                             BatchExpiringSoonThresholdInDays = 30,
-                            ClearanceBufferDays = 7,
                             CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             DepositTimeoutMinutes = 15,
                             IsDepositRequiredForCOD = true,
@@ -3072,7 +3068,8 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasOne("PerfumeGPT.Domain.Entities.User", "Customer")
                         .WithMany("CustomerReturnRequests")
                         .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("PerfumeGPT.Domain.Entities.User", "InspectedBy")
                         .WithMany("InspectedReturnRequests")
@@ -3088,7 +3085,8 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasOne("PerfumeGPT.Domain.Entities.ContactAddress", "PickupAddress")
                         .WithMany()
                         .HasForeignKey("PickupAddressId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("PerfumeGPT.Domain.Entities.User", "ProcessedBy")
                         .WithMany("ProcessedReturnRequests")
@@ -3395,7 +3393,8 @@ namespace PerfumeGPT.Persistence.Migrations
                     b.HasOne("PerfumeGPT.Domain.Entities.OrderDetail", "OrderDetail")
                         .WithMany("StockReservations")
                         .HasForeignKey("OrderDetailId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("PerfumeGPT.Domain.Entities.Order", "Order")
                         .WithMany("StockReservations")

@@ -588,11 +588,12 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(od => od.PromotionItemId)
 				.OnDelete(DeleteBehavior.Restrict);
 
-			// Batch -> OrderDetail (1:M)
-			builder.Entity<Batch>()
-				.HasMany(b => b.OrderDetails)
-			 .WithOne(od => od.FulfilledBatch)
-				.HasForeignKey(od => od.FulfilledBatchId)
+			// OrderDetail -> StockReservations (1:M)
+			builder.Entity<OrderDetail>()
+				.HasMany(od => od.StockReservations)
+				.WithOne(sr => sr.OrderDetail)
+				.HasForeignKey(sr => sr.OrderDetailId)
+				.IsRequired(false)
 				.OnDelete(DeleteBehavior.Restrict);
 
 			// Batch -> StockAdjustmentDetail (1:M)
@@ -839,11 +840,12 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(orr => orr.ReturnShippingId)
 				.OnDelete(DeleteBehavior.Restrict);
 
-			// OrderReturnRequest -> Customer (M:1)
+			// OrderReturnRequest -> Customer (M:1, nullable — yêu cầu tạo hộ khách vãng lai)
 			builder.Entity<OrderReturnRequest>()
 			 .HasOne(orr => orr.Customer)
 				.WithMany(u => u.CustomerReturnRequests)
 				.HasForeignKey(orr => orr.CustomerId)
+				.IsRequired(false)
 				.OnDelete(DeleteBehavior.Restrict);
 
 			// OrderReturnRequest -> ProcessedBy (M:1, nullable)
@@ -865,6 +867,13 @@ namespace PerfumeGPT.Persistence.Contexts
 				.WithOne(rd => rd.ReturnRequest)
 				.HasForeignKey(rd => rd.ReturnRequestId)
 				.OnDelete(DeleteBehavior.Cascade);
+
+			builder.Entity<OrderReturnRequest>()
+				.HasOne(orr => orr.PickupAddress)
+				.WithMany()
+				.HasForeignKey(orr => orr.PickupAddressId)
+				.IsRequired(false)
+				.OnDelete(DeleteBehavior.Restrict);
 
 			builder.Entity<OrderDetail>()
 				.HasMany(od => od.ReturnRequestDetails)

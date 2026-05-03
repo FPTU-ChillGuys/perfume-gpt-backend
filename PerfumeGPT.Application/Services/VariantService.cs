@@ -155,7 +155,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<VariantPagedItem>>> GetPagedVariantsAsync(GetPagedVariantsRequest request)
 		{
-			var (items, totalCount) = await _unitOfWork.Variants.GetPagedVariantsWithDetailsAsync(request);
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var (items, totalCount) = await _unitOfWork.Variants.GetPagedVariantsWithDetailsAsync(request, sellable);
 			return BaseResponse<PagedResult<VariantPagedItem>>.Ok(
 				new PagedResult<VariantPagedItem>(items, request.PageNumber, request.PageSize, totalCount),
 			 "Lấy danh sách biến thể thành công");
@@ -167,7 +168,8 @@ namespace PerfumeGPT.Application.Services
 			if (!campaignExists)
 				throw AppException.NotFound("Không tìm thấy chiến dịch");
 
-			var (items, totalCount) = await _unitOfWork.Variants.GetPagedVariantsByCampaignIdAsync(campaignId, request);
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var (items, totalCount) = await _unitOfWork.Variants.GetPagedVariantsByCampaignIdAsync(campaignId, request, sellable);
 			return BaseResponse<PagedResult<VariantPagedItem>>.Ok(
 				new PagedResult<VariantPagedItem>(items, request.PageNumber, request.PageSize, totalCount),
 				"Lấy danh sách biến thể theo chiến dịch thành công");
@@ -175,7 +177,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<ProductVariantResponse>> GetVariantByIdAsync(Guid variantId)
 		{
-			var variant = await _unitOfWork.Variants.GetVariantWithDetailsAsync(variantId)
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork, [variantId]);
+			var variant = await _unitOfWork.Variants.GetVariantWithDetailsAsync(variantId, sellable)
 				?? throw AppException.NotFound("Không tìm thấy biến thể");
 
 			return BaseResponse<ProductVariantResponse>.Ok(variant, "Lấy thông tin biến thể thành công");

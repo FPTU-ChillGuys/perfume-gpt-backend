@@ -10,6 +10,7 @@ namespace PerfumeGPT.Domain.Entities
 		protected StockReservation() { }
 
 		public Guid OrderId { get; private set; }
+		public Guid? OrderDetailId { get; private set; }
 		public Guid BatchId { get; private set; }
 		public Guid VariantId { get; private set; }
 		public int ReservedQuantity { get; private set; }
@@ -20,6 +21,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual Order Order { get; private set; } = null!;
 		public virtual Batch Batch { get; private set; } = null!;
 		public virtual ProductVariant ProductVariant { get; private set; } = null!;
+		public virtual OrderDetail? OrderDetail { get; private set; }
 
 		// IHasTimestamps implementation
 		public DateTime? UpdatedAt { get; set; }
@@ -74,6 +76,22 @@ namespace PerfumeGPT.Domain.Entities
 		public void SetExpiration(DateTime? expiresAt)
 		{
 			ExpiresAt = expiresAt;
+		}
+
+		public void AssignOrderDetail(OrderDetail orderDetail)
+		{
+			if (orderDetail is null)
+				throw DomainException.BadRequest("Chi tiết đơn hàng là bắt buộc.");
+
+			OrderDetail = orderDetail;
+			OrderDetailId = orderDetail.Id;
+		}
+
+		public void IncreaseQuantity(int quantity)
+		{
+			if (quantity <= 0)
+				throw DomainException.BadRequest("Số lượng tăng thêm không hợp lệ.");
+			ReservedQuantity += quantity;
 		}
 	}
 }

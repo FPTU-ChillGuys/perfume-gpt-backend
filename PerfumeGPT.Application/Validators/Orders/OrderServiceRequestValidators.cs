@@ -178,9 +178,39 @@ namespace PerfumeGPT.Application.Validators.Orders
 	{
 		public StaffCancelOrderRequestValidator()
 		{
+			RuleFor(x => x.Reason).IsInEnum().WithMessage("Lý do hủy không hợp lệ.");
+
 			RuleFor(x => x.Note)
 			   .MaximumLength(1000).WithMessage("Ghi chú không được vượt quá 1000 ký tự.")
 				.When(x => !string.IsNullOrWhiteSpace(x.Note));
+
+			RuleFor(x => x.RefundBankName)
+			 .MaximumLength(255).WithMessage("Tên ngân hàng hoàn tiền không được vượt quá 255 ký tự.")
+				.When(x => !string.IsNullOrWhiteSpace(x.RefundBankName));
+
+			RuleFor(x => x.RefundAccountNumber)
+			  .MaximumLength(50).WithMessage("Số tài khoản hoàn tiền không được vượt quá 50 ký tự.")
+				.When(x => !string.IsNullOrWhiteSpace(x.RefundAccountNumber));
+
+			RuleFor(x => x.RefundAccountName)
+			  .MaximumLength(255).WithMessage("Tên chủ tài khoản hoàn tiền không được vượt quá 255 ký tự.")
+				.When(x => !string.IsNullOrWhiteSpace(x.RefundAccountName));
+
+			RuleFor(x => x)
+				.Must(x =>
+				{
+					var hasBankInfo = !string.IsNullOrWhiteSpace(x.RefundBankName)
+						|| !string.IsNullOrWhiteSpace(x.RefundAccountNumber)
+						|| !string.IsNullOrWhiteSpace(x.RefundAccountName);
+
+					if (!hasBankInfo)
+						return true;
+
+					return !string.IsNullOrWhiteSpace(x.RefundBankName)
+						&& !string.IsNullOrWhiteSpace(x.RefundAccountNumber)
+						&& !string.IsNullOrWhiteSpace(x.RefundAccountName);
+				})
+			   .WithMessage("Thông tin ngân hàng chưa đầy đủ. Khi yêu cầu hoàn tiền thủ công, bắt buộc có tên ngân hàng, số tài khoản và tên chủ tài khoản.");
 		}
 	}
 

@@ -14,6 +14,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Orders
 		public string? StaffName { get; init; }
 		public OrderType Type { get; init; }
 		public OrderStatus Status { get; init; }
+		public bool IsReturnable { get; init; }
 		public PaymentStatus PaymentStatus { get; init; }
 		public decimal TotalAmount { get; init; }
 		public decimal RequiredDepositAmount { get; init; }

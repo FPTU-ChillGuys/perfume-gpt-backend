@@ -11,8 +11,8 @@ namespace PerfumeGPT.Application.DTOs.Responses.StorePolicies
 		public int OrderRewardPointsInDays { get; init; }
 		public int BatchExpiringSoonThresholdInDays { get; init; }
 		public int StopSellingBeforeExpiryDays { get; init; }
+		public int ClearanceBufferDays { get; init; }
 		public int ReturnOrderAllowanceInDays { get; init; }
 		public int MaxAddressesPerUser { get; init; }
-		public int ReturnOrderAllowAfterDeliveryInDays { get; init; }
 	}
 }

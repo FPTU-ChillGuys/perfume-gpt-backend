@@ -39,6 +39,7 @@ namespace PerfumeGPT.Application.Services
 			policy.UpdateOrderRewardPointsPolicy(request.OrderRewardPointsInDays);
 			policy.UpdateBatchExpiringSoonPolicy(request.BatchExpiringSoonThresholdInDays);
 			policy.UpdateStopSellingBeforeExpiryPolicy(request.StopSellingBeforeExpiryDays);
+			policy.UpdateClearanceBufferPolicy(request.ClearanceBufferDays);
 			policy.UpdateReturnPolicy(request.ReturnOrderAllowanceInDays);
 			policy.UpdateAddressPolicy(request.MaxAddressesPerUser);
 
@@ -61,6 +62,7 @@ namespace PerfumeGPT.Application.Services
 				OrderRewardPointsInDays = policy.OrderRewardPointsInDays,
 				BatchExpiringSoonThresholdInDays = policy.BatchExpiringSoonThresholdInDays,
 				StopSellingBeforeExpiryDays = policy.StopSellingBeforeExpiryDays,
+				ClearanceBufferDays = policy.ClearanceBufferDays,
 				ReturnOrderAllowanceInDays = policy.ReturnOrderAllowanceInDays,
 				MaxAddressesPerUser = policy.MaxAddressesPerUser
 			};

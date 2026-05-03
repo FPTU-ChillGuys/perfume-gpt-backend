@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using PerfumeGPT.Application.DTOs.Commons;
 using PerfumeGPT.Application.DTOs.Requests.Variants;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.ProductAttributes;
@@ -136,7 +137,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.AsNoTracking()
 				.ToListAsync();
 
-		public async Task<List<VariantFastLookResponse>> GetFastLookByBarcodesAsync(IEnumerable<string> barcodes)
+		public async Task<List<VariantFastLookResponse>> GetFastLookByBarcodesAsync(IEnumerable<string> barcodes, SellableStockQueryContext sellable)
 		{
 			var normalizedBarcodes = barcodes
 				.Where(b => !string.IsNullOrWhiteSpace(b))
@@ -149,6 +150,10 @@ namespace PerfumeGPT.Persistence.Repositories
 				return [];
 			}
 
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
+
 			return await _context.ProductVariants
 				.Where(v => !v.IsDeleted && normalizedBarcodes.Contains(v.Barcode))
 				.Select(v => new VariantFastLookResponse
@@ -160,7 +165,9 @@ namespace PerfumeGPT.Persistence.Repositories
 					VolumeMl = v.VolumeMl,
 					Price = v.BasePrice,
 					RetailPrice = v.RetailPrice,
-					StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
+					StockQuantity = v.Batches
+						.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+						.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0),
 					Media = v.Media
 						.Where(m => !m.IsDeleted && m.IsPrimary)
 						.OrderBy(m => m.DisplayOrder)
@@ -180,9 +187,12 @@ namespace PerfumeGPT.Persistence.Repositories
 				.ToListAsync();
 		}
 
-		public async Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId)
+		public async Task<ProductVariantResponse?> GetVariantWithDetailsAsync(Guid variantId, SellableStockQueryContext sellable)
 		{
 			var now = DateTime.UtcNow;
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
 
 			var raw = await _context.ProductVariants
 		.AsNoTracking()
@@ -206,7 +216,9 @@ namespace PerfumeGPT.Persistence.Repositories
 				Status = v.Status,
 				Sillage = v.Sillage,
 				Longevity = v.Longevity,
-				StockQuantity = v.Stock != null ? v.Stock.TotalQuantity - v.Stock.ReservedQuantity : 0,
+				StockQuantity = v.Batches
+					.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+					.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0),
 				Media = v.Media
 							.Where(m => !m.IsDeleted)
 							.OrderBy(m => m.DisplayOrder)
@@ -327,8 +339,12 @@ namespace PerfumeGPT.Persistence.Repositories
 			.FirstOrDefaultAsync();
 
 		public async Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsWithDetailsAsync(
-		GetPagedVariantsRequest request)
+		GetPagedVariantsRequest request, SellableStockQueryContext sellable)
 		{
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
+
 			var query = _context.ProductVariants
 				   .Where(v => !v.IsDeleted)
 				   .AsQueryable();
@@ -375,7 +391,9 @@ namespace PerfumeGPT.Persistence.Repositories
 					   BasePrice = v.BasePrice,
 					   RetailPrice = v.RetailPrice,
 					   Status = v.Status,
-					   StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
+					   StockQuantity = v.Batches
+						   .Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+						   .Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0),
 					   PrimaryImageUrl = v.Media
 						   .Where(m => m.IsPrimary && !m.IsDeleted)
 						   .Select(m => m.Url).FirstOrDefault(),
@@ -396,9 +414,12 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<(List<VariantPagedItem> Items, int TotalCount)> GetPagedVariantsByCampaignIdAsync(
 			Guid campaignId,
-			GetPagedVariantsRequest request)
+			GetPagedVariantsRequest request, SellableStockQueryContext sellable)
 		{
 			var now = DateTime.UtcNow;
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
 
 			var query = _context.ProductVariants
 				.Where(v => !v.IsDeleted && v.PromotionItems.Any(pi => !pi.IsDeleted && pi.CampaignId == campaignId));
@@ -447,7 +468,9 @@ namespace PerfumeGPT.Persistence.Repositories
 							BasePrice = v.BasePrice,
 							RetailPrice = v.RetailPrice,
 							Status = v.Status,
-							StockQuantity = v.Stock.TotalQuantity - v.Stock.ReservedQuantity,
+							StockQuantity = v.Batches
+								.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+								.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0),
 							PrimaryImageUrl = v.Media
 								 .Where(m => m.IsPrimary && !m.IsDeleted)
 								 .Select(m => m.Url)

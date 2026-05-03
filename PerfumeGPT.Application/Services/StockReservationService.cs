@@ -18,105 +18,185 @@ namespace PerfumeGPT.Application.Services
 			_voucherService = voucherService;
 		}
 
-		public async Task ReserveStockForOrderAsync(Guid orderId, List<(Guid VariantId, int Quantity)> items, DateTime? expiresAt)
+		public async Task<IReadOnlyDictionary<Guid, int>> GetAggregatedSellableBatchAvailableByVariantsAsync(IReadOnlyList<Guid> variantIds)
 		{
-			foreach (var (variantId, quantity) in items)
+			var distinctIds = variantIds.Distinct().ToList();
+			if (distinctIds.Count == 0)
+				return new Dictionary<Guid, int>();
+
+			var (normalAfter, clearanceAfter, clearanceBatchIds) = await LoadReservationBatchRulesAsync(distinctIds);
+			var result = new Dictionary<Guid, int>(distinctIds.Count);
+
+			foreach (var variantId in distinctIds)
 			{
+				var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+				var validBatches = OrderBatchesForReservation(availableBatches, normalAfter, clearanceAfter, clearanceBatchIds);
+				result[variantId] = validBatches.Sum(b => Math.Max(0, b.AvailableInBatch));
+			}
+
+			return result;
+		}
+
+		public async Task<IReadOnlyDictionary<Guid, int>> GetSafeDateOnlySellableBatchAvailableByVariantsAsync(IReadOnlyList<Guid> variantIds)
+		{
+			var distinctIds = variantIds.Distinct().ToList();
+			if (distinctIds.Count == 0)
+				return new Dictionary<Guid, int>();
+
+			var bufferDays = (await _unitOfWork.StorePolicies.GetCurrentPolicyAsync())?.StopSellingBeforeExpiryDays;
+			var normalAfter = bufferDays.HasValue ? DateTime.UtcNow.AddDays(bufferDays.Value) : DateTime.UtcNow;
+			var result = new Dictionary<Guid, int>(distinctIds.Count);
+
+			foreach (var variantId in distinctIds)
+			{
+				var batches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+				result[variantId] = batches.Where(b => b.ExpiryDate > normalAfter).Sum(b => Math.Max(0, b.AvailableInBatch));
+			}
+
+			return result;
+		}
+
+		public async Task<(int AggregatedSellable, int SafeDateOnlySellable, bool HasClearanceBypass)> GetVariantSellableSnapshotForCartAsync(Guid variantId)
+		{
+			if (variantId == Guid.Empty)
+				return (0, 0, false);
+
+			var ids = new List<Guid> { variantId };
+			var (normalAfter, clearanceAfter, clearanceIds) = await LoadReservationBatchRulesAsync(ids);
+			var batches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+			var orderedForReservation = OrderBatchesForReservation(batches, normalAfter, clearanceAfter, clearanceIds);
+			var aggregated = orderedForReservation.Sum(b => Math.Max(0, b.AvailableInBatch));
+			var safeOnly = batches.Where(b => b.ExpiryDate > normalAfter).Sum(b => Math.Max(0, b.AvailableInBatch));
+			return (aggregated, safeOnly, clearanceIds.Count > 0);
+		}
+
+		public Task<(DateTime NormalSellableAfterUtc, DateTime ClearanceSellableAfterUtc, HashSet<Guid> ClearanceBatchIds)> GetReservationBatchSellingWindowsAsync(IReadOnlyList<Guid> variantIds)
+			=> LoadReservationBatchRulesAsync(variantIds);
+
+		public async Task ReserveStockForOrderAsync(Order order)
+		{
+			var variantIds = order.OrderDetails.Select(od => od.VariantId).Distinct().ToList();
+			var (normalAfter, clearanceAfter, activeClearanceBatchIds) = await LoadReservationBatchRulesAsync(variantIds);
+
+			var detailsByVariant = order.OrderDetails.GroupBy(od => od.VariantId);
+
+			foreach (var group in detailsByVariant)
+			{
+				var variantId = group.Key;
+				var totalQtyForVariant = group.Sum(od => od.Quantity);
+
 				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
 					?? throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {variantId}.");
 
-				// 1. Reserve quantity in Stock 
-				stock.Reserve(quantity);
+				stock.Reserve(totalQtyForVariant); // 1. Trừ Stock tổng
 
-				// 2. Find available batches and reserve from them
-				var batches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
-				var remainingToReserve = quantity;
+				var availableBatches = await _unitOfWork.Batches.GetAvailableBatchesByVariantIdAsync(variantId);
+				var validBatchesToPick = OrderBatchesForReservation(availableBatches, normalAfter, clearanceAfter, activeClearanceBatchIds);
 
-				foreach (var batch in batches)
+				// Rải Batch vào từng OrderDetail
+				foreach (var orderDetail in group)
 				{
-					if (remainingToReserve <= 0) break;
+					var remainingToReserve = orderDetail.Quantity;
 
-					var availableInBatch = batch.AvailableInBatch;
-					if (availableInBatch <= 0) continue;
+					foreach (var batch in validBatchesToPick)
+					{
+						if (remainingToReserve <= 0) break;
+						if (batch.AvailableInBatch <= 0) continue;
 
-					var reserveFromBatch = Math.Min(remainingToReserve, availableInBatch);
+						var reserveFromBatch = Math.Min(remainingToReserve, batch.AvailableInBatch);
 
-					// Create StockReservation record
-					var reservation = new StockReservation(orderId, batch.Id, variantId, reserveFromBatch, expiresAt);
-					await _unitOfWork.StockReservations.AddAsync(reservation);
+						// 💡 Tạo Reservation và gắn vào Detail (EF Core Auto-fixup FK)
+						var reservation = new StockReservation(order.Id, batch.Id, variantId, reserveFromBatch, order.PaymentExpiresAt);
+						orderDetail.AddReservation(reservation);
 
-					// Decrease available quantity in batch
-					batch.Reserve(reserveFromBatch);
-					_unitOfWork.Batches.Update(batch);
+						batch.Reserve(reserveFromBatch);
+						remainingToReserve -= reserveFromBatch;
+					}
 
-					remainingToReserve -= reserveFromBatch;
-				}
-
-				// insufficient stock in batches
-				if (remainingToReserve > 0)
-				{
-					throw AppException.Conflict($"Dữ liệu không nhất quán: Các lô không đủ tồn kho cho biến thể {variantId}. Cần {quantity}, còn thiếu {remainingToReserve}.");
+					if (remainingToReserve > 0)
+						throw AppException.Conflict($"Dữ liệu không nhất quán: Các lô không đủ tồn kho cho biến thể {variantId}.");
 				}
 
 				_unitOfWork.Stocks.Update(stock);
 			}
 		}
 
-		public async Task ReserveExactBatchStockForOrderAsync(Guid orderId, List<(Guid VariantId, Guid BatchId, int Quantity)> items, DateTime? expiresAt)
+		private async Task<(DateTime NormalSellableAfterUtc, DateTime ClearanceSellableAfterUtc, HashSet<Guid> ClearanceBatchIds)> LoadReservationBatchRulesAsync(IReadOnlyList<Guid> variantIds)
 		{
-			if (items == null || items.Count == 0)
-			{
-				throw AppException.BadRequest("Cần ít nhất một mục giữ chỗ.");
-			}
+			var policy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+			var now = DateTime.UtcNow;
+			var normalAfter = policy != null ? now.AddDays(policy.StopSellingBeforeExpiryDays) : now;
+			var clearanceAfter = policy != null ? now.AddDays(policy.ClearanceBufferDays) : now;
 
-			var normalizedItems = items
-				.GroupBy(i => new { i.VariantId, i.BatchId })
-				.Select(g => (g.Key.VariantId, g.Key.BatchId, Quantity: g.Sum(x => x.Quantity)))
+			if (variantIds.Count == 0)
+				return (normalAfter, clearanceAfter, new HashSet<Guid>());
+
+			var activePromotions = await _unitOfWork.PromotionItems.GetAllAsync(
+				pi => variantIds.Contains(pi.TargetProductVariantId) && pi.IsActive && pi.BatchId.HasValue && pi.ItemType == PromotionType.Clearance);
+
+			var clearanceBatchIds = activePromotions.Select(p => p.BatchId!.Value).ToHashSet();
+			return (normalAfter, clearanceAfter, clearanceBatchIds);
+		}
+
+		public static bool IsBatchEligibleForReservationSelling(Batch b, DateTime normalSellableAfterUtc, DateTime clearanceSellableAfterUtc, HashSet<Guid> clearanceBatchIds)
+		{
+			return clearanceBatchIds.Contains(b.Id)
+				? b.ExpiryDate > clearanceSellableAfterUtc
+				: b.ExpiryDate > normalSellableAfterUtc;
+		}
+
+		private static List<Batch> OrderBatchesForReservation(List<Batch> availableBatches, DateTime normalSellableAfterUtc, DateTime clearanceSellableAfterUtc, HashSet<Guid> clearanceBatchIds)
+		{
+			return availableBatches
+				.Where(b => IsBatchEligibleForReservationSelling(b, normalSellableAfterUtc, clearanceSellableAfterUtc, clearanceBatchIds))
+				.OrderByDescending(b => clearanceBatchIds.Contains(b.Id))
+				.ThenBy(b => b.ExpiryDate)
 				.ToList();
+		}
 
-			// 💥 BƯỚC 1: KIỂM TRA TẤT CẢ QUYỀN TRUY CẬP VÀ SỐ LƯỢNG (Chỉ ĐỌC, không GHI)
-			var batchDict = new Dictionary<Guid, Batch>();
-			foreach (var (VariantId, BatchId, Quantity) in normalizedItems)
+		public async Task ReserveExactBatchStockForOrderAsync(Order order)
+		{
+			var variantIds = order.OrderDetails.Select(od => od.VariantId).Distinct().ToList();
+			var (normalAfter, clearanceAfter, clearanceBatchIds) = await LoadReservationBatchRulesAsync(variantIds);
+
+			var detailsByVariant = order.OrderDetails.GroupBy(od => od.VariantId);
+
+			foreach (var group in detailsByVariant)
 			{
-				var batch = await _unitOfWork.Batches.GetByIdAsync(BatchId)
-				  ?? throw AppException.NotFound($"Không tìm thấy lô {BatchId}.");
+				var variantId = group.Key;
+				var totalQtyForVariant = group.Sum(od => od.Quantity);
 
-				if (batch.VariantId != VariantId)
-					throw AppException.BadRequest($"Lô {BatchId} không thuộc biến thể {VariantId}.");
+				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == variantId)
+				   ?? throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {variantId}.");
 
-				if (batch.ExpiryDate <= DateTime.UtcNow)
-					throw AppException.Conflict($"Lô {BatchId} đã hết hạn và không thể giữ chỗ.");
+				stock.Reserve(totalQtyForVariant);
 
-				if (batch.AvailableInBatch < Quantity)
-					throw AppException.Conflict($"Số lượng trong lô {BatchId} không đủ. Khả dụng: {batch.AvailableInBatch}, yêu cầu: {Quantity}.");
+				foreach (var orderDetail in group)
+				{
+					if (!orderDetail.TransientBatchId.HasValue)
+						throw AppException.BadRequest("Đơn hàng tại quầy yêu cầu mã lô cụ thể.");
 
-				batchDict[BatchId] = batch; // Cache lại để dùng ở dưới, tránh Query DB 2 lần
-			}
+					var batchId = orderDetail.TransientBatchId.Value;
+					var batch = await _unitOfWork.Batches.GetByIdAsync(batchId)
+					  ?? throw AppException.NotFound($"Không tìm thấy lô {batchId}.");
 
-			// 💥 BƯỚC 2: KHI ĐÃ CHẮC CHẮN 100% CÓ ĐỦ HÀNG -> THỰC THI THAY ĐỔI
-			var quantitiesByVariant = normalizedItems
-				.GroupBy(i => i.VariantId)
-				.Select(g => new { VariantId = g.Key, Quantity = g.Sum(x => x.Quantity) })
-				.ToList();
+					if (batch.ExpiryDate <= DateTime.UtcNow)
+						throw AppException.Conflict($"Lô {batch.BatchCode} đã hết hạn.");
 
-			foreach (var item in quantitiesByVariant)
-			{
-				var stock = await _unitOfWork.Stocks.FirstOrDefaultAsync(s => s.VariantId == item.VariantId)
-				   ?? throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {item.VariantId}.");
+					if (!IsBatchEligibleForReservationSelling(batch, normalAfter, clearanceAfter, clearanceBatchIds))
+						throw AppException.Conflict($"Lô {batch.BatchCode} không còn trong cửa sổ bán cho phép (kể cả xả kho).");
 
-				stock.Reserve(item.Quantity);
+					if (batch.AvailableInBatch < orderDetail.Quantity)
+						throw AppException.Conflict($"Số lượng trong lô {batch.BatchCode} không đủ. Yêu cầu: {orderDetail.Quantity}.");
+
+					// 💡 Tạo Reservation và gắn vào Detail
+					var reservation = new StockReservation(order.Id, batch.Id, variantId, orderDetail.Quantity, order.PaymentExpiresAt);
+					orderDetail.AddReservation(reservation);
+
+					batch.Reserve(orderDetail.Quantity);
+					_unitOfWork.Batches.Update(batch);
+				}
 				_unitOfWork.Stocks.Update(stock);
-			}
-
-			foreach (var (VariantId, BatchId, Quantity) in normalizedItems)
-			{
-				var batch = batchDict[BatchId]; // Lấy từ Cache
-
-				var reservation = new StockReservation(orderId, BatchId, VariantId, Quantity, expiresAt);
-				await _unitOfWork.StockReservations.AddAsync(reservation);
-
-				batch.Reserve(Quantity);
-				_unitOfWork.Batches.Update(batch);
 			}
 		}
 
