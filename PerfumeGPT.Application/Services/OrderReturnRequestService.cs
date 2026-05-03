@@ -176,7 +176,6 @@ namespace PerfumeGPT.Application.Services
 						throw AppException.BadRequest("Chỉ tạo được yêu cầu trả hộ cho đơn không gắn tài khoản (khách vãng lai). Đơn này đã gắn tài khoản; khách vui lòng tạo yêu cầu qua ứng dụng.");
 				},
 				roleNotifyDetail: $"Nhân viên đã tạo yêu cầu trả hộ cho đơn khách vãng lai #{request.OrderCode}.");
-
 			_logger.LogInformation("Staff {StaffId} created guest return request for order {OrderId}", staffId, request.OrderId);
 			return response;
 		}

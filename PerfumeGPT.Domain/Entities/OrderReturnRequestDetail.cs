@@ -19,16 +19,16 @@ namespace PerfumeGPT.Domain.Entities
 		public static OrderReturnRequestDetail Create(ReturnRequestDetailPayload payload)
 		{
 			if (payload.OrderDetailId == Guid.Empty)
-               throw DomainException.BadRequest("Order detail ID là bắt buộc.");
+				throw DomainException.BadRequest("Order detail ID là bắt buộc.");
 
 			if (payload.RequestedQuantity <= 0)
-              throw DomainException.BadRequest("Số lượng trả phải lớn hơn 0.");
+				throw DomainException.BadRequest("Số lượng trả phải lớn hơn 0.");
 
 			if (payload.OrderedQuantity <= 0)
-               throw DomainException.BadRequest("Số lượng đã đặt phải lớn hơn 0.");
+				throw DomainException.BadRequest("Số lượng đã đặt phải lớn hơn 0.");
 
 			if (payload.RequestedQuantity > payload.OrderedQuantity)
-              throw DomainException.BadRequest("Số lượng trả không được vượt quá số lượng đã đặt.");
+				throw DomainException.BadRequest("Số lượng trả không được vượt quá số lượng đã đặt.");
 
 			return new OrderReturnRequestDetail
 			{
@@ -37,7 +37,6 @@ namespace PerfumeGPT.Domain.Entities
 			};
 		}
 
-		/// <summary>Gán FK cha trước khi lưu (tránh ReturnRequestId = Guid.Empty khiến INSERT chi tiết vượt FK).</summary>
 		public void BindToReturnRequest(Guid returnRequestId)
 		{
 			if (returnRequestId == Guid.Empty)

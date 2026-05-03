@@ -10,7 +10,6 @@ namespace PerfumeGPT.Domain.Entities
 		protected OrderReturnRequest() { }
 
 		public Guid OrderId { get; private set; }
-		/// <summary>Khách đã đăng nhập; null khi nhân viên tạo hộ đơn khách vãng lai.</summary>
 		public Guid? CustomerId { get; private set; }
 		public Guid? ProcessedById { get; private set; }
 		public Guid? InspectedById { get; private set; }

@@ -2,9 +2,6 @@ using PerfumeGPT.Domain.Enums;
 
 namespace PerfumeGPT.Application.DTOs.Requests.OrderReturnRequests
 {
-	/// <summary>
-	/// POS: gộp tạo yêu cầu trả tại quầy, duyệt, kiểm định và chốt số tiền hoàn trong một giao dịch.
-	/// </summary>
 	public record ProcessInStoreReturnFastTrackDto
 	{
 		public Guid OrderId { get; init; }
