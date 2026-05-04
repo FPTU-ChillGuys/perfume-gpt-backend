@@ -46,14 +46,5 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _adminDashboardService.GetTopProductsAsync(request);
 			return HandleResponse(response);
 		}
-
-		[HttpGet("overview")]
-		[ProducesResponseType(typeof(BaseResponse<AdminDashboardOverviewResponse>), StatusCodes.Status200OK)]
-		[ProducesDefaultResponseType(typeof(BaseResponse))]
-		public async Task<ActionResult<BaseResponse<AdminDashboardOverviewResponse>>> GetOverview([FromQuery] GetDashboardOverviewRequest request)
-		{
-			var response = await _adminDashboardService.GetOverviewAsync(request);
-			return HandleResponse(response);
-		}
 	}
 }

@@ -9,6 +9,5 @@ namespace PerfumeGPT.Application.Interfaces.Services
 		Task<BaseResponse<RevenueSummaryResponse>> GetRevenueAsync(GetDashboardDateRangeRequest request);
 		Task<BaseResponse<InventoryLevelsResponse>> GetInventoryLevelsAsync();
 		Task<BaseResponse<List<TopProductResponse>>> GetTopProductsAsync(GetTopProductsRequest request);
-		Task<BaseResponse<AdminDashboardOverviewResponse>> GetOverviewAsync(GetDashboardOverviewRequest request);
 	}
 }

@@ -43,24 +43,6 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<List<TopProductResponse>>.Ok(response);
 		}
 
-		public async Task<BaseResponse<AdminDashboardOverviewResponse>> GetOverviewAsync(GetDashboardOverviewRequest request)
-		{
-			var (fromDate, toDate) = ResolveDateRange(request.FromDate, request.ToDate);
-			var storePolicies = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
-			var expiringWithinDays = storePolicies?.BatchExpiringSoonThresholdInDays ?? 30;
-			var top = request.Top <= 0 ? 10 : request.Top;
-
-			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
-			var payload = new AdminDashboardOverviewResponse
-			{
-				Revenue = await _dashboardRepository.GetRevenueSummaryAsync(fromDate, toDate),
-				InventoryLevels = await _dashboardRepository.GetInventoryLevelsAsync(DateTime.UtcNow, expiringWithinDays, sellable),
-				TopProducts = await _dashboardRepository.GetTopProductsAsync(fromDate, toDate, top)
-			};
-
-			return BaseResponse<AdminDashboardOverviewResponse>.Ok(payload);
-		}
-
 		private static (DateTime FromDateUtc, DateTime ToDateUtc) ResolveDateRange(DateTime? fromDate, DateTime? toDate)
 		{
 			var to = toDate?.ToUniversalTime() ?? DateTime.UtcNow;
