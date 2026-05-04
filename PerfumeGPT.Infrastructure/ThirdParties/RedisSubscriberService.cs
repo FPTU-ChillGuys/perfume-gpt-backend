@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using StackExchange.Redis;
 using System.Text.Json;
 
@@ -16,6 +17,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 	public class RedisSubscriberService : BackgroundService
 	{
 		private const string CatalogRequestChannel = "catalog_request";
+		private const string CartUpdatedChannel = "cart:updated";
 
 		private readonly IConnectionMultiplexer _redis;
 		private readonly IServiceScopeFactory _scopeFactory;
@@ -40,11 +42,15 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 					_logger.LogInformation("[Redis] Attempting to subscribe to channel: {Channel}", CatalogRequestChannel);
 					var subscriber = _redis.GetSubscriber();
 
-					await subscriber.SubscribeAsync(
-						RedisChannel.Literal(CatalogRequestChannel),
-						async (channel, message) => await HandleCatalogRequestAsync(message));
+			await subscriber.SubscribeAsync(
+					RedisChannel.Literal(CatalogRequestChannel),
+					async (channel, message) => await HandleCatalogRequestAsync(message));
 
-					_logger.LogInformation("[Redis] Successfully subscribed to channel: {Channel}", CatalogRequestChannel);
+					await subscriber.SubscribeAsync(
+					RedisChannel.Literal(CartUpdatedChannel),
+					async (channel, message) => await HandleCartUpdatedAsync(message));
+
+					_logger.LogInformation("[Redis] Successfully subscribed to channels: {CatalogChannel}, {CartChannel}", CatalogRequestChannel, CartUpdatedChannel);
 
 					// Wait here while the subscription is active. 
 					// SE.Redis will handle re-subscriptions automatically if the connection drops.
@@ -75,7 +81,8 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 		{
 			var subscriber = _redis.GetSubscriber();
 			await subscriber.UnsubscribeAsync(RedisChannel.Literal(CatalogRequestChannel));
-			_logger.LogInformation("[Redis] Unsubscribed from channel: {Channel}", CatalogRequestChannel);
+			await subscriber.UnsubscribeAsync(RedisChannel.Literal(CartUpdatedChannel));
+			_logger.LogInformation("[Redis] Unsubscribed from all channels");
 			await base.StopAsync(cancellationToken);
 		}
 
@@ -149,6 +156,39 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 						// Swallow — don't let error reporting crash anything
 					}
 				}
+			}
+		}
+
+		private async Task HandleCartUpdatedAsync(RedisValue message)
+		{
+			if (message.IsNullOrEmpty)
+				return;
+
+			try
+			{
+				using var doc = JsonDocument.Parse(message.ToString());
+				var root = doc.RootElement;
+
+				if (!root.TryGetProperty("userId", out var userIdElement)
+					|| !Guid.TryParse(userIdElement.GetString(), out var userId))
+				{
+					_logger.LogWarning("[Redis] cart:updated received but missing or invalid 'userId'.");
+					return;
+				}
+
+				var cartItemCount = root.TryGetProperty("cartItemCount", out var countElement)
+					? countElement.GetInt32()
+					: 0;
+
+				_logger.LogInformation("[Redis] Handling cart:updated for userId={UserId}, count={Count}", userId, cartItemCount);
+
+				await using var scope = _scopeFactory.CreateAsyncScope();
+				var signalRService = scope.ServiceProvider.GetRequiredService<ISignalRService>();
+				await signalRService.SendCartUpdateAsync(userId, cartItemCount);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "[Redis] Error handling cart:updated. Message: {Message}", message);
 			}
 		}
 	}

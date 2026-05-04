@@ -23,6 +23,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IVoucherService _voucherService;
 		private readonly ISignalRService _signalRService;
+		private readonly IRedisPublisherService _redisPublisher;
 		private readonly IGHNService _ghnService;
 		private readonly IStockReservationService _stockReservationService;
 
@@ -30,12 +31,14 @@ namespace PerfumeGPT.Application.Services
 			IUnitOfWork unitOfWork,
 			IVoucherService voucherService,
 			ISignalRService signalRService,
+			IRedisPublisherService redisPublisher,
 			IGHNService ghnService,
 			IStockReservationService stockReservationService)
 		{
 			_unitOfWork = unitOfWork;
 			_voucherService = voucherService;
 			_signalRService = signalRService;
+			_redisPublisher = redisPublisher;
 			_ghnService = ghnService;
 			_stockReservationService = stockReservationService;
 		}
@@ -246,6 +249,8 @@ namespace PerfumeGPT.Application.Services
 					}
 				}
 			}
+			await _signalRService.SendCartUpdateAsync(userId, 0);
+			await _redisPublisher.PublishCartUpdatedAsync(userId, 0);
 			return BaseResponse<string>.Ok("Xóa giỏ hàng thành công");
 		}
 

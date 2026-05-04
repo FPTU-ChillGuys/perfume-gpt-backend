@@ -11,5 +11,11 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		Task NotifyPosPaymentCompletedAsync(string sessionId, PosPaymentCompletedDto paymentData);
 		Task NotifyPosPaymentFailedAsync(string sessionId, PosPaymentCompletedDto paymentData);
 		Task NotifyPosPaymentLinkUpdatedAsync(string sessionId, PosPaymentLinkDto paymentData);
+
+		/// <summary>
+		/// Sends a real-time cart item count update to a specific user via SignalR.
+		/// Used to synchronize cart badges across all connected clients for the same user.
+		/// </summary>
+		Task SendCartUpdateAsync(Guid userId, int cartItemCount);
 	}
 }

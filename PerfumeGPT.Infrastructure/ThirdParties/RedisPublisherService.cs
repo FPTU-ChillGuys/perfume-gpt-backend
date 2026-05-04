@@ -13,6 +13,7 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 	{
 		private const string OrderCreatedChannel = "order_created";
 		private const string ReviewCreatedChannel = "review_created";
+		private const string CartUpdatedChannel = "cart:updated";
 
 		private readonly IConnectionMultiplexer _redis;
 		private readonly ILogger<RedisPublisherService> _logger;
@@ -66,6 +67,29 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			catch (Exception ex)
 			{
 				_logger.LogWarning(ex, "[Redis] Failed to publish review_created for variantId={VariantId}. Skipping.", variantId);
+			}
+		}
+
+		public async Task PublishCartUpdatedAsync(Guid userId, int cartItemCount)
+		{
+			try
+			{
+				var publisher = _redis.GetSubscriber();
+				var payload = JsonSerializer.Serialize(new
+				{
+					userId = userId.ToString(),
+					cartItemCount
+				});
+
+				await publisher.PublishAsync(
+					RedisChannel.Literal(CartUpdatedChannel),
+					payload);
+
+				_logger.LogInformation("[Redis] Published cart:updated: userId={UserId}, count={Count}", userId, cartItemCount);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "[Redis] Failed to publish cart:updated for userId={UserId}. Skipping.", userId);
 			}
 		}
 	}

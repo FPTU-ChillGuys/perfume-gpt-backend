@@ -4,6 +4,7 @@ using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
 using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Services
@@ -13,15 +14,31 @@ namespace PerfumeGPT.Application.Services
 		#region Dependencies
 		private readonly IUnitOfWork _unitOfWork;
 		private readonly IStockReservationService _stockReservationService;
+		private readonly ISignalRService _signalRService;
+		private readonly IRedisPublisherService _redisPublisher;
 
 		public CartItemService(
 			IUnitOfWork unitOfWork,
-			IStockReservationService stockReservationService)
+			IStockReservationService stockReservationService,
+			ISignalRService signalRService,
+			IRedisPublisherService redisPublisher)
 		{
 			_unitOfWork = unitOfWork;
 			_stockReservationService = stockReservationService;
+			_signalRService = signalRService;
+			_redisPublisher = redisPublisher;
 		}
 		#endregion Dependencies
+
+		private async Task PushCartUpdateAsync(Guid userId)
+		{
+			var count = await _unitOfWork.CartItems.Query()
+				.Where(ci => ci.UserId == userId)
+				.SumAsync(ci => ci.Quantity);
+
+			await _signalRService.SendCartUpdateAsync(userId, count);
+			await _redisPublisher.PublishCartUpdatedAsync(userId, count);
+		}
 
 		public async Task<BaseResponse<string>> AddToCartAsync(Guid userId, CreateCartItemRequest request)
 		{
@@ -43,6 +60,7 @@ namespace PerfumeGPT.Application.Services
 				_unitOfWork.CartItems.Update(existing);
 
 				await _unitOfWork.SaveChangesAsync();
+				await PushCartUpdateAsync(userId);
 				return BaseResponse<string>.Ok(existing.Id.ToString(), "Cập nhật số lượng sản phẩm trong giỏ hàng thành công");
 			}
 
@@ -58,6 +76,7 @@ namespace PerfumeGPT.Application.Services
 				throw AppException.Conflict("Sản phẩm đã được thêm vào giỏ hàng bởi một yêu cầu khác. Vui lòng tải lại trang.");
 			}
 
+			await PushCartUpdateAsync(userId);
 			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Thêm sản phẩm vào giỏ hàng thành công");
 		}
 
@@ -71,6 +90,7 @@ namespace PerfumeGPT.Application.Services
 			_unitOfWork.CartItems.Remove(cartItem);
 			await _unitOfWork.SaveChangesAsync();
 
+			await PushCartUpdateAsync(userId);
 			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Xóa sản phẩm khỏi giỏ hàng thành công");
 		}
 
@@ -83,6 +103,7 @@ namespace PerfumeGPT.Application.Services
 			{
 				_unitOfWork.CartItems.Remove(cartItem);
 				await _unitOfWork.SaveChangesAsync();
+				await PushCartUpdateAsync(userId);
 				return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Xóa sản phẩm khỏi giỏ hàng thành công");
 			}
 
@@ -93,6 +114,7 @@ namespace PerfumeGPT.Application.Services
 
 			await _unitOfWork.SaveChangesAsync();
 
+			await PushCartUpdateAsync(userId);
 			return BaseResponse<string>.Ok(cartItem.Id.ToString(), "Cập nhật sản phẩm trong giỏ hàng thành công");
 		}
 
