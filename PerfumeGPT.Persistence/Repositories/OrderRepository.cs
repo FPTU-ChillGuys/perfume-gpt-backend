@@ -137,7 +137,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				RequiredDepositAmount = o.RequiredDepositAmount,
 				PaidAmount = o.PaidAmount,
 				RemainingAmount = o.TotalAmount - o.PaidAmount,
-				ItemCount = o.OrderDetails.Count,
+				ItemCount = o.OrderDetails.Sum(od => od.Quantity),
 				IsReturnalbe = o.Status == OrderStatus.Delivered
 						&& o.ForwardShipping?.ShippedDate >= DateTime.UtcNow.AddDays(-returnOrderAllowanceInDays),
 				ShippingStatus = o.ForwardShipping?.Status,

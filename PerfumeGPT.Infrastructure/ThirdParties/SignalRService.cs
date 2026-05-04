@@ -68,5 +68,14 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			await _posHubContext.Clients.Group(sessionId).PaymentLinkUpdated(paymentData);
 		}
+
+		public async Task SendCartUpdateAsync(Guid userId, int cartItemCount)
+		{
+			if (userId == Guid.Empty)
+				return;
+
+			await _hubContext.Clients.Group($"User_{userId}")
+				.SendAsync("CartUpdated", cartItemCount);
+		}
 	}
 }

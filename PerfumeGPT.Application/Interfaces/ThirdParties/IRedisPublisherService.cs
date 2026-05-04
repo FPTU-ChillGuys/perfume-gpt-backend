@@ -16,5 +16,12 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		/// Implementations should be fire-and-forget safe — errors must not propagate to the caller.
 		/// </summary>
 		Task PublishReviewCreatedAsync(Guid variantId);
+
+		/// <summary>
+		/// Publishes a "cart:updated" event to Redis so other services (AI backend, other .NET instances)
+		/// know the cart has changed. The subscriber on this side will forward it to SignalR.
+		/// Implementations should be fire-and-forget safe — errors must not propagate to the caller.
+		/// </summary>
+		Task PublishCartUpdatedAsync(Guid userId, int cartItemCount);
 	}
 }
