@@ -117,42 +117,40 @@ namespace PerfumeGPT.Application.Services
 
 			if (existingMedia != null)
 			{
-				var fileMetadata = new FileMetadata
-				{
-					Url = avatarUrl,
-					PublicId = null,
-					FileSize = null,
-					MimeType = mimeType
-				};
-
-				existingMedia.UpdateFile(fileMetadata, altText);
+				existingMedia.UnsetPrimary();
 				_unitOfWork.Media.Update(existingMedia);
 			}
-			else
-			{
-				var basicInfo = new BasicMediaInfo
-				{
-					Url = avatarUrl,
-					AltText = altText,
-					MimeType = mimeType
-				};
 
-				var profileMedia = Media.CreateBasic(EntityType.User, userId, basicInfo);
-				await _unitOfWork.Media.AddAsync(profileMedia);
-			}
+			var basicInfo = new BasicMediaInfo
+			{
+				Url = avatarUrl,
+				AltText = altText,
+				MimeType = mimeType
+			};
+
+			var profileMedia = Media.CreateBasic(EntityType.User, userId, basicInfo);
+			await _unitOfWork.Media.AddAsync(profileMedia);
 
 			return await _unitOfWork.SaveChangesAsync();
 		}
 
 		public async Task<BaseResponse<string>> UploadProfileAvatarAsync(Guid userId, ProfileAvtarUploadRequest request)
 		{
+			// 1. Get current primary avatar
 			var existingMedia = await _unitOfWork.Media.GetPrimaryMediaAsync(EntityType.User, userId);
 
-			// 1. Clean up old image on Cloud
+			// 2. Clean up old image on Cloud and unset old primary
 			if (existingMedia != null && !string.IsNullOrEmpty(existingMedia.PublicId))
+			{
 				await _supabaseService.DeleteImageAsync(existingMedia.Url, GetBucketName(EntityType.User));
+			}
+			if (existingMedia != null)
+			{
+				existingMedia.UnsetPrimary();
+				_unitOfWork.Media.Update(existingMedia);
+			}
 
-			// 2. Upload new image
+			// 3. Upload new image
 			using var stream = request.Avatar!.OpenReadStream();
 			var url = await _supabaseService.UploadImageAsync(
 				stream, request.Avatar.FileName, GetBucketName(EntityType.User));
@@ -168,23 +166,16 @@ namespace PerfumeGPT.Application.Services
 				MimeType = GetMimeType(request.Avatar.FileName)
 			};
 
-			if (existingMedia != null)
+			// 4. Always create new media for avatar history (1:N)
+			var displayInfo = new MediaDisplayInfo
 			{
-				existingMedia.UpdateFile(fileMetadata, request.AltText);
-				_unitOfWork.Media.Update(existingMedia);
-			}
-			else
-			{
-				var displayInfo = new MediaDisplayInfo
-				{
-					AltText = request.AltText ?? "Profile picture",
-					DisplayOrder = 0,
-					IsPrimary = true
-				};
+				AltText = request.AltText ?? "Profile picture",
+				DisplayOrder = 0,
+				IsPrimary = true
+			};
 
-				var profileMedia = Media.Create(EntityType.User, userId, fileMetadata, displayInfo);
-				await _unitOfWork.Media.AddAsync(profileMedia);
-			}
+			var profileMedia = Media.Create(EntityType.User, userId, fileMetadata, displayInfo);
+			await _unitOfWork.Media.AddAsync(profileMedia);
 
 			// 5. Commit Transaction
 			var saved = await _unitOfWork.SaveChangesAsync();

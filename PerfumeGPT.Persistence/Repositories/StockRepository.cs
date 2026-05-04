@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PerfumeGPT.Application.DTOs.Commons;
 using PerfumeGPT.Application.DTOs.Requests.Inventory;
 using PerfumeGPT.Application.DTOs.Responses.Inventory;
 using PerfumeGPT.Application.Exceptions;
@@ -15,11 +16,24 @@ namespace PerfumeGPT.Persistence.Repositories
 	{
 		public StockRepository(PerfumeDbContext context) : base(context) { }
 
-		public async Task<bool> IsLowStockAsync(Guid variantId)
-		=> await _context.Stocks
-			.Where(s => s.VariantId == variantId && !s.ProductVariant.IsDeleted) // ADDED FILTER
-			.Select(s => s.TotalQuantity <= s.LowStockThreshold)
-			.FirstOrDefaultAsync();
+		public async Task<bool> IsLowStockAsync(Guid variantId, SellableStockQueryContext sellable)
+		{
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
+
+			return await _context.Stocks
+				.Where(s => s.VariantId == variantId && !s.ProductVariant.IsDeleted)
+				.Select(s => new
+				{
+					s.LowStockThreshold,
+					AvailableQuantity = s.ProductVariant.Batches
+						.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+						.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0)
+				})
+				.Select(x => x.AvailableQuantity > 0 && x.AvailableQuantity <= x.LowStockThreshold)
+				.FirstOrDefaultAsync();
+		}
 
 		public async Task<bool> HasSufficientStockAsync(Guid variantId, int requiredQuantity, int? minBufferDays = null, IEnumerable<Guid>? exemptedBatchIds = null)
 		{
@@ -68,8 +82,12 @@ namespace PerfumeGPT.Persistence.Repositories
 			variant.ApplyStockPolicy(stock.TotalQuantity);
 		}
 
-		public async Task<(IEnumerable<StockResponse> Stocks, int TotalCount)> GetPagedInventoryAsync(GetPagedInventoryRequest request)
+		public async Task<(IEnumerable<StockResponse> Stocks, int TotalCount)> GetPagedInventoryAsync(GetPagedInventoryRequest request, SellableStockQueryContext sellable)
 		{
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
+
 			IQueryable<Stock> query = _context.Stocks
 				.Where(s => !s.ProductVariant.IsDeleted) // ADDED FILTER: Exclude deleted variants globally for this query
 				.AsNoTracking();
@@ -111,10 +129,21 @@ namespace PerfumeGPT.Persistence.Repositories
 					? char.ToUpper(trimmedSortBy[0]).ToString()
 					: char.ToUpper(trimmedSortBy[0]) + trimmedSortBy.Substring(1);
 
-				if (allowedSortColumns.Contains(normalizedSortBy))
+				if (allowedSortColumns.Contains(normalizedSortBy) && normalizedSortBy != nameof(Stock.AvailableQuantity))
 				{
 					var descending = request.SortOrder?.ToLower() == "desc";
 					query = query.ApplySorting(normalizedSortBy, descending);
+				}
+				else if (normalizedSortBy == nameof(Stock.AvailableQuantity))
+				{
+					var descending = request.SortOrder?.ToLower() == "desc";
+					query = descending
+						? query.OrderByDescending(s => s.ProductVariant.Batches
+							.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+							.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0))
+						: query.OrderBy(s => s.ProductVariant.Batches
+							.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+							.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0));
 				}
 				else if (request.DaysUntilExpiry.HasValue)
 				{
@@ -160,7 +189,9 @@ namespace PerfumeGPT.Persistence.Repositories
 				 VolumeMl = s.ProductVariant.VolumeMl,
 				 ConcentrationName = s.ProductVariant.Concentration.Name,
 				 TotalQuantity = s.TotalQuantity,
-				 AvailableQuantity = s.AvailableQuantity,
+				 AvailableQuantity = s.ProductVariant.Batches
+					.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+					.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0),
 				 LowStockThreshold = s.LowStockThreshold,
 				 Status = s.Status
 			 })
@@ -169,8 +200,13 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (stocks, totalCount);
 		}
 
-		public async Task<StockResponse?> GetStockWithDetailsByVariantIdAsync(Guid variantId)
-		=> await _context.Stocks
+		public async Task<StockResponse?> GetStockWithDetailsByVariantIdAsync(Guid variantId, SellableStockQueryContext sellable)
+		{
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
+
+			return await _context.Stocks
 			.AsNoTracking()
 			.Where(s => s.VariantId == variantId && !s.ProductVariant.IsDeleted) // ADDED FILTER
 			.Select(s => new StockResponse
@@ -188,38 +224,65 @@ namespace PerfumeGPT.Persistence.Repositories
 				VolumeMl = s.ProductVariant.VolumeMl,
 				ConcentrationName = s.ProductVariant.Concentration.Name,
 				TotalQuantity = s.TotalQuantity,
-				AvailableQuantity = s.AvailableQuantity,
+				AvailableQuantity = s.ProductVariant.Batches
+					.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+					.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0),
 				LowStockThreshold = s.LowStockThreshold,
 				Status = s.Status
 			})
 			.FirstOrDefaultAsync();
+		}
 
-		public async Task<(int TotalVariants, int TotalStockQuantity, int LowStockVariantsCount)> GetInventorySummaryDataAsync()
+		public async Task<(int TotalVariants, int TotalStockQuantity, int LowStockVariantsCount)> GetInventorySummaryDataAsync(SellableStockQueryContext sellable)
 		{
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
+
 			// ADDED FILTERS to all summary calculations
 			var baseQuery = _context.Stocks.Where(s => !s.ProductVariant.IsDeleted);
 
 			var totalVariants = await baseQuery.CountAsync();
 			var totalStockQuantity = await baseQuery.SumAsync(s => s.TotalQuantity);
-			var lowStockVariantsCount = await baseQuery.CountAsync(s => s.TotalQuantity <= s.LowStockThreshold);
+			var lowStockVariantsCount = await baseQuery.CountAsync(s =>
+				s.ProductVariant.Batches
+					.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+					.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0) > 0
+				&& s.ProductVariant.Batches
+					.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+					.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0) <= s.LowStockThreshold);
 
 			return (totalVariants, totalStockQuantity, lowStockVariantsCount);
 		}
 
-		public async Task<List<LowStockAlertItem>> GetLowStockAlertItemsAsync()
-		=> await _context.Stocks
-			.AsNoTracking()
-			.Where(s => s.TotalQuantity <= s.LowStockThreshold && !s.ProductVariant.IsDeleted) // ADDED FILTER
-			.OrderBy(s => s.TotalQuantity)
-			.Select(s => new LowStockAlertItem
-			{
-				VariantId = s.VariantId,
-				VariantSku = s.ProductVariant.Sku,
-				ProductName = s.ProductVariant.Product.Name,
-				TotalQuantity = s.TotalQuantity,
-				AvailableQuantity = s.AvailableQuantity,
-				LowStockThreshold = s.LowStockThreshold
-			})
-			.ToListAsync();
+		public async Task<List<LowStockAlertItem>> GetLowStockAlertItemsAsync(SellableStockQueryContext sellable)
+		{
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
+
+			return await _context.Stocks
+				.AsNoTracking()
+				.Where(s => !s.ProductVariant.IsDeleted)
+				.Select(s => new
+				{
+					Stock = s,
+					AvailableQuantity = s.ProductVariant.Batches
+						.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+						.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0)
+				})
+				.Where(x => x.AvailableQuantity > 0 && x.AvailableQuantity <= x.Stock.LowStockThreshold)
+				.OrderBy(x => x.AvailableQuantity)
+				.Select(x => new LowStockAlertItem
+				{
+					VariantId = x.Stock.VariantId,
+					VariantSku = x.Stock.ProductVariant.Sku,
+					ProductName = x.Stock.ProductVariant.Product.Name,
+					TotalQuantity = x.Stock.TotalQuantity,
+					AvailableQuantity = x.AvailableQuantity,
+					LowStockThreshold = x.Stock.LowStockThreshold
+				})
+				.ToListAsync();
+		}
 	}
 }

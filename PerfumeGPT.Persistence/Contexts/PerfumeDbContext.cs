@@ -778,11 +778,11 @@ namespace PerfumeGPT.Persistence.Contexts
 				.HasForeignKey(pa => pa.VariantId)
 				.OnDelete(DeleteBehavior.Restrict);
 
-			// Media -> User (1:1) for ProfilePicture using UserId
+			// User -> Media (1:M)
 			builder.Entity<User>()
-				.HasOne(u => u.ProfilePicture)
+				.HasMany(u => u.ProfilePictures)
 				.WithOne(m => m.User)
-				.HasForeignKey<Media>(m => m.UserId)
+				.HasForeignKey(m => m.UserId)
 				.OnDelete(DeleteBehavior.SetNull);
 
 			// Review -> User (M:1)

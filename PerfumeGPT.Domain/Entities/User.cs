@@ -24,7 +24,7 @@ namespace PerfumeGPT.Domain.Entities
 		public virtual ICollection<UserNotificationRead> NotificationReadStates { get; set; } = [];
 		public virtual ICollection<UserVoucher> UserVouchers { get; set; } = [];
 		public virtual ICollection<CartItem> CartItems { get; set; } = [];
-		public virtual Media? ProfilePicture { get; set; }
+		public virtual ICollection<Media> ProfilePictures { get; set; } = [];
 		public virtual ICollection<Order> Orders { get; set; } = [];
 		public virtual ICollection<Review> Reviews { get; set; } = [];
 		public virtual ICollection<Review> AnswerReviews { get; set; } = [];

@@ -4,6 +4,7 @@ using PerfumeGPT.Application.DTOs.Responses.Inventory;
 using PerfumeGPT.Application.Exceptions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 
 namespace PerfumeGPT.Application.Services
@@ -42,7 +43,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<PagedResult<StockResponse>>> GetInventoryAsync(GetPagedInventoryRequest request)
 		{
-			var (stockResponses, totalCount) = await _unitOfWork.Stocks.GetPagedInventoryAsync(request);
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var (stockResponses, totalCount) = await _unitOfWork.Stocks.GetPagedInventoryAsync(request, sellable);
 
 			var pagedResult = new PagedResult<StockResponse>(
 				stockResponses,
@@ -56,7 +58,8 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<StockResponse>> GetStockByVariantIdAsync(Guid variantId)
 		{
-			var response = await _unitOfWork.Stocks.GetStockWithDetailsByVariantIdAsync(variantId)
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork, [variantId]);
+			var response = await _unitOfWork.Stocks.GetStockWithDetailsByVariantIdAsync(variantId, sellable)
 			 ?? throw AppException.NotFound($"Không tìm thấy tồn kho cho biến thể {variantId}");
 
 			return BaseResponse<StockResponse>.Ok(response);
@@ -67,7 +70,8 @@ namespace PerfumeGPT.Application.Services
 			var now = DateTime.UtcNow;
 			var expiringSoonDate = now.AddDays(30);
 
-			var (totalVariants, totalStockQuantity, lowStockVariantsCount) = await _unitOfWork.Stocks.GetInventorySummaryDataAsync();
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var (totalVariants, totalStockQuantity, lowStockVariantsCount) = await _unitOfWork.Stocks.GetInventorySummaryDataAsync(sellable);
 
 			var totalBatches = await _unitOfWork.Batches.CountAsync();
 			var expiredBatchesCount = await _unitOfWork.Batches.CountAsync(b => b.ExpiryDate < now);
