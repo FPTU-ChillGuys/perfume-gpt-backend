@@ -25,5 +25,9 @@ namespace PerfumeGPT.Application.DTOs.Responses.OrderCancelRequests
 
 		public DateTime CreatedAt { get; init; }
 		public DateTime? UpdatedAt { get; init; }
+
+		public TransactionStatus RefundedPaymentStatus { get; init; }
+		public PaymentMethod RefundedPaymentMethod { get; init; }
+		public decimal RefundedAmount { get; init; }
 	}
 }

@@ -4,6 +4,7 @@ using PerfumeGPT.Application.DTOs.Responses.OrderCancelRequests;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Persistence.Contexts;
+using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Repositories.Commons;
 
 namespace PerfumeGPT.Persistence.Repositories
@@ -124,7 +125,25 @@ namespace PerfumeGPT.Persistence.Repositories
 					RefundAccountNumber = r.RefundAccountNumber,
 					VnpTransactionNo = r.RefundTransactionReference,
 					CreatedAt = r.CreatedAt,
-					UpdatedAt = r.UpdatedAt
+					UpdatedAt = r.UpdatedAt,
+					RefundedPaymentStatus = r.Order.PaymentTransactions
+						.Where(pt => pt.TransactionType == TransactionType.Refund
+							&& pt.TransactionStatus == TransactionStatus.Success)
+						.OrderByDescending(pt => pt.CreatedAt)
+						.Select(pt => pt.TransactionStatus)
+						.FirstOrDefault(),
+					RefundedPaymentMethod = r.Order.PaymentTransactions
+						.Where(pt => pt.TransactionType == TransactionType.Refund
+							&& pt.TransactionStatus == TransactionStatus.Success)
+						.OrderByDescending(pt => pt.CreatedAt)
+						.Select(pt => pt.Method)
+						.FirstOrDefault(),
+					RefundedAmount = r.Order.PaymentTransactions
+						.Where(pt => pt.TransactionType == TransactionType.Refund
+							&& pt.TransactionStatus == TransactionStatus.Success)
+						.OrderByDescending(pt => pt.CreatedAt)
+						.Select(pt => Math.Abs(pt.Amount))
+						.FirstOrDefault(),
 				})
 				.FirstOrDefaultAsync();
 	}
