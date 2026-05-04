@@ -328,8 +328,16 @@ namespace PerfumeGPT.Persistence.Repositories
 				StaffName = order.Staff?.FullName,
 				Type = order.Type,
 				Status = order.Status,
-				IsReturnable = order.Status == OrderStatus.Delivered
-					&& order.ForwardShipping?.ShippedDate >= DateTime.UtcNow.AddDays(-returnOrderAllowanceInDays),
+				IsReturnable = order.Status == OrderStatus.Delivered &&
+					(
+						// Trường hợp 1: Đơn giao qua đối tác vận chuyển (Online)
+						(order.ForwardShipping != null && order.ForwardShipping.ShippedDate.HasValue
+						 && order.ForwardShipping.ShippedDate.Value >= DateTime.UtcNow.AddDays(-returnOrderAllowanceInDays))
+						||
+						// Trường hợp 2: Đơn khách nhận trực tiếp tại quầy (Offline, không có shipping)
+						(order.ForwardShipping == null
+						 && (order.UpdatedAt ?? order.CreatedAt) >= DateTime.UtcNow.AddDays(-returnOrderAllowanceInDays))
+					),
 				PaymentStatus = order.PaymentStatus,
 				TotalAmount = order.TotalAmount,
 				RequiredDepositAmount = order.RequiredDepositAmount,
@@ -345,7 +353,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				PaidAt = order.PaidAt,
 				CreatedAt = order.CreatedAt,
 				UpdatedAt = order.UpdatedAt,
-				PaymentTransactions = order.PaymentTransactions.Select(pt => new PaymentInfoResponse
+				PaymentTransactions = [.. order.PaymentTransactions.Select(pt => new PaymentInfoResponse
 				{
 					Id = pt.Id,
 					TransactionType = pt.TransactionType,
@@ -353,7 +361,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					PaymentMethod = pt.Method,
 					FailureReason = pt.FailureReason,
 					TotalAmount = pt.Amount
-				}).ToList(),
+				})],
 				ShippingInfo = order.ForwardShipping == null ? null : new ShippingInfoResponse
 				{
 					Id = order.ForwardShipping.Id,
@@ -374,7 +382,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					ProvinceName = order.ContactAddress.ProvinceName,
 					FullAddress = order.ContactAddress.FullAddress
 				},
-				OrderDetails = order.OrderDetails.Select(od => new OrderDetailResponse
+				OrderDetails = [.. order.OrderDetails.Select(od => new OrderDetailResponse
 				{
 					Id = od.Id,
 					VariantId = od.VariantId,
@@ -388,7 +396,7 @@ namespace PerfumeGPT.Persistence.Repositories
 					ItemTotal = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount,
 					RefunablePrice = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
 					Total = (od.UnitPrice * od.Quantity) - od.PromotionDiscountAmount - od.ApportionedDiscount,
-					ReservedBatches = od.StockReservations
+					ReservedBatches = [.. od.StockReservations
 						.Where(sr => sr.Status == ReservationStatus.Reserved || sr.Status == ReservationStatus.Committed)
 						.Select(sr => new ReservedBatchResponse
 						{
@@ -396,8 +404,8 @@ namespace PerfumeGPT.Persistence.Repositories
 							BatchCode = sr.Batch.BatchCode,
 							ReservedQuantity = sr.ReservedQuantity,
 							ExpiryDate = sr.Batch.ExpiryDate
-						}).ToList()
-				}).ToList()
+						})]
+				})]
 			};
 		}
 
@@ -452,7 +460,7 @@ namespace PerfumeGPT.Persistence.Repositories
 			};
 		}
 
-		// 💡 NÂNG CẤP: Dùng JSON Snapshot để xuất biên lai, bất di bất dịch dù Product có bị xóa!
+		// NÂNG CẤP: Dùng JSON Snapshot để xuất biên lai, bất di bất dịch dù Product có bị xóa!
 		private static ReceiptItemDto MapToReceiptItem(OrderDetail detail)
 		{
 			string productName = "Unknown Product";
