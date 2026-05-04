@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using PerfumeGPT.Application.DTOs.Requests.Users;
 using PerfumeGPT.Application.DTOs.Responses.Users;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
 using PerfumeGPT.Persistence.Contexts;
+using PerfumeGPT.Persistence.Extensions;
 using PerfumeGPT.Persistence.Repositories.Commons;
+using System.Linq.Expressions;
 
 namespace PerfumeGPT.Persistence.Repositories
 {
@@ -99,6 +102,47 @@ namespace PerfumeGPT.Persistence.Repositories
 					ProfileImageUrl = u.ProfilePicture != null ? u.ProfilePicture.Url : null,
 				})
 				.AsNoTracking()
+				.ToListAsync();
+		}
+
+		public async Task<List<UserLookupItem>> GetUserLookupAsync(GetUserLookupRequest request)
+		{
+			Expression<Func<User, bool>> filter = u => !u.IsDeleted;
+
+			if (!string.IsNullOrWhiteSpace(request.FullName))
+			{
+				var normalizedFullName = request.FullName.Trim();
+				var fullNameFilter = EfCollationExtensions.CollateContains<User>(u => u.FullName, normalizedFullName);
+				filter = filter.AndAlso(fullNameFilter);
+			}
+
+			if (!string.IsNullOrWhiteSpace(request.Email))
+			{
+				var normalizedEmail = request.Email.Trim();
+				var emailFilter = EfCollationExtensions.CollateContains<User>(u => u.Email, normalizedEmail);
+				filter = filter.AndAlso(emailFilter);
+			}
+
+			if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
+			{
+				var normalizedPhoneNumber = request.PhoneNumber.Trim();
+				var phoneFilter = EfCollationExtensions.CollateContains<User>(u => u.PhoneNumber, normalizedPhoneNumber);
+				filter = filter.AndAlso(phoneFilter);
+			}
+
+			var userQuery = _context.Users
+				.AsNoTracking()
+				.Where(filter);
+
+			var sortedQuery = userQuery.ApplySorting(nameof(User.FullName), false);
+
+			return await sortedQuery
+				.Select(u => new UserLookupItem
+				{
+					Id = u.Id,
+					FullName = u.FullName ?? string.Empty,
+					Email = u.Email ?? string.Empty
+				})
 				.ToListAsync();
 		}
 	}

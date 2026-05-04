@@ -59,33 +59,33 @@ namespace PerfumeGPT.Application.Services
 
 		public async Task<BaseResponse<List<StaffLookupItem>>> GetStaffLookupAsync()
 		{
-			try
-			{
-				// Get all users in the "staff" role
-				var staffUsers = await _userManager.GetUsersInRoleAsync("staff");
+			// Get all users in the "staff" role
+			var staffUsers = await _userManager.GetUsersInRoleAsync("staff");
 
-				// Also get users in the "admin" role (admins can also verify)
-				var adminUsers = await _userManager.GetUsersInRoleAsync("admin");
+			// Also get users in the "admin" role (admins can also verify)
+			var adminUsers = await _userManager.GetUsersInRoleAsync("admin");
 
-				// Combine and remove duplicates (in case a user has both roles)
-				var allStaff = staffUsers.Union(adminUsers)
-					.Where(u => !u.IsDeleted && u.IsActive)
-					.OrderBy(u => u.FullName)
-					.Select(u => new StaffLookupItem
-					{
-						Id = u.Id,
-						UserName = u.UserName ?? string.Empty,
-						FullName = u.FullName,
-						Email = u.Email ?? string.Empty
-					})
-					.ToList();
+			// Combine and remove duplicates (in case a user has both roles)
+			var allStaff = staffUsers.Union(adminUsers)
+				.Where(u => !u.IsDeleted && u.IsActive)
+				.OrderBy(u => u.FullName)
+				.Select(u => new StaffLookupItem
+				{
+					Id = u.Id,
+					UserName = u.UserName ?? string.Empty,
+					FullName = u.FullName,
+					Email = u.Email ?? string.Empty
+				})
+				.ToList();
 
-				return BaseResponse<List<StaffLookupItem>>.Ok(allStaff, "Lấy danh sách tra cứu nhân viên thành công.");
-			}
-			catch (Exception ex)
-			{
-				return BaseResponse<List<StaffLookupItem>>.Fail($"Lỗi khi lấy danh sách tra cứu nhân viên: {ex.Message}", ResponseErrorType.InternalError);
-			}
+			return BaseResponse<List<StaffLookupItem>>.Ok(allStaff, "Lấy danh sách tra cứu nhân viên thành công.");
+		}
+
+
+		public async Task<BaseResponse<List<UserLookupItem>>> GetUserLookupAsync(GetUserLookupRequest request)
+		{
+			var users = await _userRepository.GetUserLookupAsync(request);
+			return BaseResponse<List<UserLookupItem>>.Ok(users, "Lấy danh sách tra cứu người dùng thành công.");
 		}
 
 		public async Task<BaseResponse<List<StaffManageItem>>> GetStaffForManagementAsync()

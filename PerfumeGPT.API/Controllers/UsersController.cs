@@ -69,6 +69,15 @@ namespace PerfumeGPT.API.Controllers
 			return HandleResponse(response);
 		}
 
+		[HttpGet("user-lookup")]
+		[ProducesResponseType(typeof(BaseResponse<List<UserLookupItem>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
+		public async Task<ActionResult<BaseResponse<List<UserLookupItem>>>> GetUserLookup([FromQuery] GetUserLookupRequest request)
+		{
+			var response = await _userService.GetUserLookupAsync(request);
+			return HandleResponse(response);
+		}
+
 		[HttpGet("staff-manage")]
 		[Authorize(Roles = "admin")]
 		[ProducesResponseType(typeof(BaseResponse<List<StaffManageItem>>), StatusCodes.Status200OK)]

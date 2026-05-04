@@ -8,6 +8,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface IUserService
 	{
 		Task<BaseResponse<List<StaffLookupItem>>> GetStaffLookupAsync();
+		Task<BaseResponse<List<UserLookupItem>>> GetUserLookupAsync(GetUserLookupRequest request);
 		Task<BaseResponse<List<StaffManageItem>>> GetStaffForManagementAsync();
 		Task<BaseResponse<List<UserManageItem>>> GetUsersForManagementAsync();
 		Task<BaseResponse<string>> InactiveUserAsync(Guid userId);

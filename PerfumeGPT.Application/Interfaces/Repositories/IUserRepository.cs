@@ -1,6 +1,7 @@
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.DTOs.Responses.Users;
 using PerfumeGPT.Domain.Entities;
+using PerfumeGPT.Application.DTOs.Requests.Users;
 
 namespace PerfumeGPT.Application.Interfaces.Repositories
 {
@@ -12,5 +13,6 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 		Task<List<string>> GetActiveAdminEmailsAsync();
 		Task<List<StaffManageItem>> GetStaffForManagementAsync();
 		Task<List<UserManageItem>> GetUsersForManagementAsync();
+		Task<List<UserLookupItem>> GetUserLookupAsync(GetUserLookupRequest request);
 	}
 }
