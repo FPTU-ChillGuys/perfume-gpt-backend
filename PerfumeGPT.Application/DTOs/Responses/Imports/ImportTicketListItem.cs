@@ -9,7 +9,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Imports
 		public string? VerifiedByName { get; init; }
 		public required string SupplierName { get; init; }
 		public DateTime ExpectedArrivalDate { get; init; }
-		public DateTime ActualImportDate { get; init; }
+		public DateTime? ActualImportDate { get; init; }
 		public decimal TotalCost { get; init; }
 		public ImportStatus Status { get; init; }
 		public int TotalItems { get; init; }

@@ -14,7 +14,7 @@ namespace PerfumeGPT.Domain.Entities
 		public Guid? VerifiedById { get; private set; }
 		public int SupplierId { get; private set; }
 		public DateTime ExpectedArrivalDate { get; private set; }
-		public DateTime ActualImportDate { get; private set; }
+		public DateTime? ActualImportDate { get; private set; }
 		public decimal TotalCost { get; private set; }
 		public ImportStatus Status { get; private set; }
 
