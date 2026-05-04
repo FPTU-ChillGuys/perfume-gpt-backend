@@ -700,15 +700,11 @@ namespace PerfumeGPT.Application.Services
 		private async Task ApplyPostRecordInspectionAsync(OrderReturnRequest returnRequest, Order order, Guid inspectedById, decimal approvedRefundAmount, bool isRestocked, bool shouldUpdateReturnRequest = true)
 		{
 			var refundableOrderAmount = await GetRefundableOrderAmountAsync(order.Id, order.TotalAmount, IsFullOrderReturn(returnRequest));
-			var isFullyRefunded = approvedRefundAmount >= refundableOrderAmount;
+			bool isFullPhysicalReturn = IsFullOrderReturn(returnRequest);
 
-			if (isFullyRefunded)
+			if (order.Status == OrderStatus.Returning || order.Status == OrderStatus.Delivered)
 			{
-				if (order.Status == OrderStatus.Returning) order.SetStatus(OrderStatus.Returned);
-			}
-			else
-			{
-				if (order.Status == OrderStatus.Returning) order.SetStatus(OrderStatus.Partial_Returned);
+				order.SetStatus(isFullPhysicalReturn ? OrderStatus.Returned : OrderStatus.Partial_Returned);
 			}
 
 			if (isRestocked)
@@ -991,19 +987,29 @@ namespace PerfumeGPT.Application.Services
 				if (isFullyRefunded)
 				{
 					order.MarkRefunded();
-
-					if (order.Status != OrderStatus.Returned)
-					{
-						order.SetStatus(OrderStatus.Returned);
-					}
 				}
 				else
 				{
 					order.MarkPartiallyRefunded();
+				}
 
-					if (order.Status != OrderStatus.Partial_Returned && order.Status != OrderStatus.Returned)
+				if (freshReturnRequest.IsRefundOnly)
+				{
+					bool isFullPhysicalReturn = IsFullOrderReturn(freshReturnRequest);
+
+					if (isFullPhysicalReturn)
 					{
-						order.SetStatus(OrderStatus.Partial_Returned);
+						if (order.Status != OrderStatus.Returned)
+						{
+							order.SetStatus(OrderStatus.Returned);
+						}
+					}
+					else
+					{
+						if (order.Status != OrderStatus.Partial_Returned && order.Status != OrderStatus.Returned)
+						{
+							order.SetStatus(OrderStatus.Partial_Returned);
+						}
 					}
 				}
 
