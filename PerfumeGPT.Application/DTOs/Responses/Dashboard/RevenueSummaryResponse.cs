@@ -26,6 +26,8 @@ namespace PerfumeGPT.Application.DTOs.Responses.Dashboard
 	public record DailyRevenueItem
 	{
 		public DateTime Date { get; init; }
-		public decimal Revenue { get; init; }
+		public decimal GrossRevenue { get; init; }
+		public decimal RefundedAmount { get; init; }
+		public decimal NetRevenue { get; init; }
 	}
 }

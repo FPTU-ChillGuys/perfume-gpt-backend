@@ -65,7 +65,9 @@ namespace PerfumeGPT.Persistence.Repositories
 					return new DailyRevenueItem
 					{
 						Date = date,
-						Revenue = paymentAmount + refundAmount
+						GrossRevenue = paymentAmount,
+						RefundedAmount = refundAmount,
+						NetRevenue = paymentAmount + refundAmount
 					};
 				})
 				.ToList();
