@@ -932,33 +932,33 @@ namespace PerfumeGPT.Persistence.Repositories
 		}
 
 		public async Task<ProductInforResponse?> GetProductInfoAsync(Guid productId)
-			=> await _context.Products
-			  .Where(p => !p.IsDeleted && p.Id == productId)
-			  .Select(p => new ProductInforResponse
-			  {
-				  ProductCode = p.Id.ToString(),
-				  BrandName = p.Brand.Name,
-				  Origin = p.Origin,
-				  ReleaseYear = p.ReleaseYear,
-				  Gender = p.Gender,
-				  ScentGroup = string.Join(", ", p.ProductFamilyMaps.Select(pfm => pfm.OlfactoryFamily.Name)),
-				  Style = string.Join(", ", p.ProductAttributes
-						.Where(pa => pa.Attribute.InternalCode == "STYLE")
-						.Select(pa => pa.Value.Value)),
-				  TopNotes = string.Join(", ", p.ProductScentMaps
-						.Where(psm => psm.NoteType == NoteType.Top)
-						.Select(psm => psm.ScentNote.Name)),
-				  HeartNotes = string.Join(", ", p.ProductScentMaps
-						.Where(psm => psm.NoteType == NoteType.Heart)
-						.Select(psm => psm.ScentNote.Name)),
-				  BaseNotes = string.Join(", ", p.ProductScentMaps
-						.Where(psm => psm.NoteType == NoteType.Base)
-						.Select(psm => psm.ScentNote.Name)),
-				  Description = p.Description ?? string.Empty
-			  })
-				.AsSplitQuery()
-				.AsNoTracking()
-				.FirstOrDefaultAsync();
+		=> await _context.Products
+			 .Where(p => !p.IsDeleted && p.Id == productId)
+			 .Select(p => new ProductInforResponse
+			 {
+				 ProductCode = p.Id.ToString(),
+				 BrandName = p.Brand.Name,
+				 Origin = p.Origin,
+				 ReleaseYear = p.ReleaseYear,
+				 Gender = p.Gender,
+				 ScentGroup = string.Join(", ", p.ProductFamilyMaps.Select(pfm => pfm.OlfactoryFamily.Name)),
+				 Style = string.Join(", ", p.ProductAttributes
+					.Where(pa => pa.Attribute.InternalCode == "STYLE")
+					.Select(pa => pa.Value.Value)),
+				 TopNotes = string.Join(", ", p.ProductScentMaps
+					.Where(psm => psm.NoteType == NoteType.Top)
+					.Select(psm => psm.ScentNote.Name)),
+				 HeartNotes = string.Join(", ", p.ProductScentMaps
+					.Where(psm => psm.NoteType == NoteType.Heart)
+					.Select(psm => psm.ScentNote.Name)),
+				 BaseNotes = string.Join(", ", p.ProductScentMaps
+					.Where(psm => psm.NoteType == NoteType.Base)
+					.Select(psm => psm.ScentNote.Name)),
+				 Description = p.Description ?? string.Empty
+			 })
+			.AsSplitQuery()
+			.AsNoTracking()
+			.FirstOrDefaultAsync();
 
 		public async Task<ProductFastLookResponse?> GetProductFastLookAsync(Guid productId, SellableStockQueryContext sellable)
 		{

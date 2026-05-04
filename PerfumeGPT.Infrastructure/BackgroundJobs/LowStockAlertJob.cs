@@ -1,12 +1,15 @@
 using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
+using PerfumeGPT.Application.Services.Helpers;
 
 namespace PerfumeGPT.Infrastructure.BackgroundJobs
 {
 	public class LowStockAlertJob
 	{
 		private readonly IStockRepository _stockRepository;
+		private readonly IUnitOfWork _unitOfWork;
 		private readonly IUserRepository _userRepository;
 		private readonly IEmailService _emailService;
 		private readonly IEmailTemplateService _emailTemplateService;
@@ -14,12 +17,14 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 
 		public LowStockAlertJob(
 			IStockRepository stockRepository,
+			IUnitOfWork unitOfWork,
 			IUserRepository userRepository,
 			IEmailService emailService,
 			IEmailTemplateService emailTemplateService,
 			ILogger<LowStockAlertJob> logger)
 		{
 			_stockRepository = stockRepository;
+			_unitOfWork = unitOfWork;
 			_userRepository = userRepository;
 			_emailService = emailService;
 			_emailTemplateService = emailTemplateService;
@@ -30,7 +35,8 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 		{
 			try
 			{
-				var lowStockItems = await _stockRepository.GetLowStockAlertItemsAsync();
+				var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+				var lowStockItems = await _stockRepository.GetLowStockAlertItemsAsync(sellable);
 				if (lowStockItems.Count == 0)
 				{
 					_logger.LogInformation("No low stock items found.");

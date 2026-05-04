@@ -24,7 +24,10 @@ namespace PerfumeGPT.Persistence.Repositories
 			  Id = r.Id,
 			  UserId = r.UserId,
 			  UserFullName = r.User.FullName,
-			  UserProfilePictureUrl = r.User.ProfilePicture != null ? r.User.ProfilePicture.Url : null,
+			  UserProfilePictureUrl = r.User.ProfilePictures
+					.Where(m => !m.IsDeleted && m.IsPrimary)
+					.Select(m => m.Url)
+					.FirstOrDefault(),
 			  OrderDetailId = r.OrderDetailId,
 			  OrderId = r.OrderDetail.OrderId,
 			  Quantity = r.OrderDetail.Quantity,
@@ -129,7 +132,10 @@ namespace PerfumeGPT.Persistence.Repositories
 					Id = r.Id,
 					UserId = r.UserId,
 					UserFullName = r.User.FullName,
-					UserProfilePictureUrl = r.User.ProfilePicture != null ? r.User.ProfilePicture.Url : null,
+					UserProfilePictureUrl = r.User.ProfilePictures
+						.Where(m => !m.IsDeleted && m.IsPrimary)
+						.Select(m => m.Url)
+						.FirstOrDefault(),
 					VariantId = r.OrderDetail.VariantId,
 					VariantName = r.OrderDetail.ProductVariant.Product.Name + " " + r.OrderDetail.ProductVariant.VolumeMl + "ml " + r.OrderDetail.ProductVariant.Concentration.Name,
 					Rating = r.Rating,
@@ -153,7 +159,10 @@ namespace PerfumeGPT.Persistence.Repositories
 				Id = r.Id,
 				UserId = r.UserId,
 				UserFullName = r.User.FullName,
-				UserProfilePictureUrl = r.User.ProfilePicture != null ? r.User.ProfilePicture.Url : null,
+				UserProfilePictureUrl = r.User.ProfilePictures
+					.Where(m => !m.IsDeleted && m.IsPrimary)
+					.Select(m => m.Url)
+					.FirstOrDefault(),
 				OrderDetailId = r.OrderDetailId,
 				VariantId = r.OrderDetail.VariantId,
 				VariantName = r.OrderDetail.ProductVariant.Product.Name + " " + r.OrderDetail.ProductVariant.VolumeMl + "ml " + r.OrderDetail.ProductVariant.Concentration.Name,
@@ -188,7 +197,10 @@ namespace PerfumeGPT.Persistence.Repositories
 				Id = r.Id,
 				UserId = r.UserId,
 				UserFullName = r.User.FullName,
-				UserProfilePictureUrl = r.User.ProfilePicture != null ? r.User.ProfilePicture.Url : null,
+				UserProfilePictureUrl = r.User.ProfilePictures
+					.Where(m => !m.IsDeleted && m.IsPrimary)
+					.Select(m => m.Url)
+					.FirstOrDefault(),
 				OrderDetailId = r.OrderDetailId,
 				VariantId = r.OrderDetail.VariantId,
 				VariantName = r.OrderDetail.ProductVariant.Product.Name + " " + r.OrderDetail.ProductVariant.VolumeMl + "ml " + r.OrderDetail.ProductVariant.Concentration.Name,

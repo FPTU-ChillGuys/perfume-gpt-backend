@@ -70,7 +70,7 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task<(List<ImportTicketListItem> Items, int TotalCount)> GetPagedAsync(GetPagedImportTicketsRequest request)
 		{
-			var query = _context.ImportTickets.AsNoTracking().AsQueryable();
+			var query = _context.ImportTickets.Where(it => !it.IsDeleted).AsNoTracking().AsQueryable();
 
 			if (request.SupplierId.HasValue)
 				query = query.Where(it => it.SupplierId == request.SupplierId.Value);

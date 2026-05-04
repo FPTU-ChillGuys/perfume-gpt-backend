@@ -14,7 +14,11 @@ namespace PerfumeGPT.Application.Mappings
 				.Map(dest => dest.FullName, src => src.FullName)
 				.Map(dest => dest.PhoneNumber, src => src.PhoneNumber ?? string.Empty)
 				.Map(dest => dest.Email, src => src.Email ?? string.Empty)
-				.Map(dest => dest.ProfilePictureUrl, src => src.ProfilePicture != null ? src.ProfilePicture.PublicId : string.Empty);
+				.Map(dest => dest.ProfilePictureUrl, src =>
+					src.ProfilePictures
+						.Where(m => !m.IsDeleted && m.IsPrimary)
+						.Select(m => m.Url)
+						.FirstOrDefault() ?? string.Empty);
 		}
 	}
 }

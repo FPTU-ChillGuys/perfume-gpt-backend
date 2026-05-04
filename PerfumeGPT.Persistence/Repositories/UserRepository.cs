@@ -69,7 +69,10 @@ namespace PerfumeGPT.Persistence.Repositories
 					Email = u.Email ?? string.Empty,
 					PhoneNumber = u.PhoneNumber ?? string.Empty,
 					IsActive = u.IsActive,
-					ProfileImageUrl = u.ProfilePicture != null ? u.ProfilePicture.Url : null,
+					ProfileImageUrl = u.ProfilePictures
+						.Where(m => !m.IsDeleted && m.IsPrimary)
+						.Select(m => m.Url)
+						.FirstOrDefault(),
 					DeliveryRefusalCount = u.DeliveryRefusalCount,
 					CodBlockedUntil = u.CodBlockedUntil
 				})
@@ -99,7 +102,10 @@ namespace PerfumeGPT.Persistence.Repositories
 					Email = u.Email ?? string.Empty,
 					PhoneNumber = u.PhoneNumber ?? string.Empty,
 					IsActive = u.IsActive,
-					ProfileImageUrl = u.ProfilePicture != null ? u.ProfilePicture.Url : null,
+					ProfileImageUrl = u.ProfilePictures
+						.Where(m => !m.IsDeleted && m.IsPrimary)
+						.Select(m => m.Url)
+						.FirstOrDefault(),
 				})
 				.AsNoTracking()
 				.ToListAsync();
