@@ -197,7 +197,7 @@ namespace PerfumeGPT.Domain.Entities
 				{ OrderStatus.Preparing, [OrderStatus.ReadyToPick, OrderStatus.Cancelled] },
 				{ OrderStatus.ReadyToPick, [OrderStatus.Delivering, OrderStatus.Delivered, OrderStatus.Cancelled] },
 				{ OrderStatus.Delivering, [OrderStatus.Delivered, OrderStatus.Returning, OrderStatus.Cancelled] },
-				{ OrderStatus.Delivered, [OrderStatus.Returning, OrderStatus.Returned] },
+				{ OrderStatus.Delivered, [OrderStatus.Returning, OrderStatus.Returned, OrderStatus.Partial_Returned] },
 				{ OrderStatus.Returning, [OrderStatus.Returned, OrderStatus.Partial_Returned] },
 				{ OrderStatus.Cancelled, [] },
 				{ OrderStatus.Partial_Returned, [] },

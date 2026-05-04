@@ -992,29 +992,18 @@ namespace PerfumeGPT.Application.Services
 				{
 					order.MarkRefunded();
 
-					if (freshReturnRequest.IsRefundOnly && order.Status != OrderStatus.Returned)
+					if (order.Status != OrderStatus.Returned)
 					{
-						if (order.Status == OrderStatus.Delivered || order.Status == OrderStatus.Returning)
-						{
-							order.SetStatus(OrderStatus.Returned);
-						}
+						order.SetStatus(OrderStatus.Returned);
 					}
 				}
 				else
 				{
 					order.MarkPartiallyRefunded();
 
-					if (freshReturnRequest.IsRefundOnly)
+					if (order.Status != OrderStatus.Partial_Returned && order.Status != OrderStatus.Returned)
 					{
-						if (order.Status == OrderStatus.Delivered)
-						{
-							order.SetStatus(OrderStatus.Returning);
-						}
-
-						if (order.Status == OrderStatus.Returning)
-						{
-							order.SetStatus(OrderStatus.Partial_Returned);
-						}
+						order.SetStatus(OrderStatus.Partial_Returned);
 					}
 				}
 
