@@ -32,9 +32,9 @@ namespace PerfumeGPT.API.Controllers
 		[HttpGet("inventory-levels")]
 		[ProducesResponseType(typeof(BaseResponse<InventoryLevelsResponse>), StatusCodes.Status200OK)]
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
-		public async Task<ActionResult<BaseResponse<InventoryLevelsResponse>>> GetInventoryLevels([FromQuery] GetInventoryLevelsRequest request)
+		public async Task<ActionResult<BaseResponse<InventoryLevelsResponse>>> GetInventoryLevels()
 		{
-			var response = await _adminDashboardService.GetInventoryLevelsAsync(request);
+			var response = await _adminDashboardService.GetInventoryLevelsAsync();
 			return HandleResponse(response);
 		}
 

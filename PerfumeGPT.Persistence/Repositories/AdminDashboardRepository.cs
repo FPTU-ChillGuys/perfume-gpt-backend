@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PerfumeGPT.Application.DTOs.Commons;
 using PerfumeGPT.Application.DTOs.Responses.Dashboard;
 using PerfumeGPT.Application.Interfaces.Repositories;
 using PerfumeGPT.Domain.Enums;
@@ -35,6 +36,39 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Select(pt => pt.OrderId)
 				.Distinct()
 				.CountAsync();
+			var dailyPayments = await successfulTransactionsQuery
+				  .GroupBy(pt => pt.CreatedAt.Date)
+				  .Select(g => new
+				  {
+					  Date = g.Key,
+					  Amount = g.Sum(pt => pt.Amount)
+				  })
+				  .ToListAsync();
+			var dailyRefunds = await refundedTransactionsQuery
+				.GroupBy(pt => pt.CreatedAt.Date)
+				.Select(g => new
+				{
+					Date = g.Key,
+					Amount = g.Sum(pt => pt.Amount)
+				})
+				.ToListAsync();
+			var paymentByDate = dailyPayments.ToDictionary(x => x.Date, x => x.Amount);
+			var refundByDate = dailyRefunds.ToDictionary(x => x.Date, x => x.Amount);
+			var fromDate = fromDateUtc.Date;
+			var toDate = toDateUtc.Date;
+			var chartData = Enumerable.Range(0, (toDate - fromDate).Days + 1)
+				.Select(offset =>
+				{
+					var date = fromDate.AddDays(offset);
+					paymentByDate.TryGetValue(date, out var paymentAmount);
+					refundByDate.TryGetValue(date, out var refundAmount);
+					return new DailyRevenueItem
+					{
+						Date = date,
+						Revenue = paymentAmount + refundAmount
+					};
+				})
+				.ToList();
 			var paymentMethodStats = await successfulTransactionsQuery
 				.GroupBy(pt => pt.Method)
 				.Select(g => new
@@ -63,25 +97,44 @@ namespace PerfumeGPT.Persistence.Repositories
 				ToDate = toDateUtc,
 				GrossRevenue = grossRevenue,
 				RefundedAmount = refundedAmount,
-				NetRevenue = grossRevenue - refundedAmount,
+				NetRevenue = grossRevenue + refundedAmount,
 				SuccessfulTransactionsCount = successfulTransactionsCount,
 				PaidOrdersCount = paidOrdersCount,
-				PaymentMethodDistribution = paymentMethodDistribution
+				PaymentMethodDistribution = paymentMethodDistribution,
+				ChartData = chartData
 			};
 		}
 
-		public async Task<InventoryLevelsResponse> GetInventoryLevelsAsync(DateTime nowUtc, int expiringWithinDays)
+		public async Task<InventoryLevelsResponse> GetInventoryLevelsAsync(DateTime nowUtc, int expiringWithinDays, SellableStockQueryContext sellable)
 		{
 			var expiringDate = nowUtc.AddDays(expiringWithinDays);
+			var normalAfter = sellable.NormalSellableAfterUtc;
+			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
+			var clearanceBatchIds = sellable.ClearanceBatchIds;
 
 			var stocksQuery = _context.Stocks
-				.AsNoTracking();
+				.AsNoTracking()
+				.Where(s => !s.ProductVariant.IsDeleted);
 
 			var totalVariants = await stocksQuery.CountAsync();
 			var totalStockQuantity = await stocksQuery.SumAsync(s => (int?)s.TotalQuantity) ?? 0;
-			var totalAvailableQuantity = await stocksQuery.SumAsync(s => (int?)(s.TotalQuantity - s.ReservedQuantity)) ?? 0;
-			var lowStockVariantsCount = await stocksQuery.CountAsync(s => s.TotalQuantity <= s.LowStockThreshold);
-			var outOfStockVariantsCount = await stocksQuery.CountAsync(s => s.TotalQuantity - s.ReservedQuantity <= 0);
+			var totalAvailableQuantity = await stocksQuery.SumAsync(s =>
+				s.ProductVariant.Batches
+					.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+					.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0));
+
+			var lowStockVariantsCount = await stocksQuery.CountAsync(s =>
+				s.ProductVariant.Batches
+					.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+					.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0) > 0
+				&& s.ProductVariant.Batches
+					.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+					.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0) <= s.LowStockThreshold);
+
+			var outOfStockVariantsCount = await stocksQuery.CountAsync(s =>
+				s.ProductVariant.Batches
+					.Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
+					.Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0) <= 0);
 
 			var batchesQuery = _context.Batches.AsNoTracking();
 			var totalBatches = await batchesQuery.CountAsync();
@@ -114,23 +167,29 @@ namespace PerfumeGPT.Persistence.Repositories
 
 			var topProducts = await _context.OrderDetails
 				.AsNoTracking()
-				.Where(od => paidOrderIds.Contains(od.OrderId)
+				.Where(od => od.Order.PaymentStatus == PaymentStatus.Paid
+					&& od.Order.CreatedAt >= fromDateUtc
+					&& od.Order.CreatedAt <= toDateUtc
 					&& !od.ProductVariant.IsDeleted
 					&& !od.ProductVariant.Product.IsDeleted)
 				.GroupBy(od => new
 				{
 					od.ProductVariant.ProductId,
-					od.ProductVariant.Product.Name
+					od.ProductVariant.Product.Name,
+					PrimaryImage = od.ProductVariant.Product.Media
+						.Where(m => m.IsPrimary && !m.IsDeleted)
+						.Select(m => m.Url)
+						.FirstOrDefault()
 				})
 				.Select(g => new TopProductResponse
 				{
 					ProductId = g.Key.ProductId,
 					ProductName = g.Key.Name,
+					ImageUrl = g.Key.PrimaryImage,
 					TotalUnitsSold = g.Sum(od => od.Quantity),
 					Revenue = g.Sum(od => od.Quantity * od.UnitPrice)
 				})
 				.OrderByDescending(tp => tp.TotalUnitsSold)
-				.ThenByDescending(tp => tp.Revenue)
 				.Take(top)
 				.ToListAsync();
 

@@ -2,17 +2,21 @@ using PerfumeGPT.Application.DTOs.Requests.Dashboard;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Dashboard;
 using PerfumeGPT.Application.Interfaces.Repositories;
+using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Services.Helpers;
 
 namespace PerfumeGPT.Application.Services
 {
 	public class AdminDashboardService : IAdminDashboardService
 	{
 		private readonly IAdminDashboardRepository _dashboardRepository;
+		private readonly IUnitOfWork _unitOfWork;
 
-		public AdminDashboardService(IAdminDashboardRepository dashboardRepository)
+		public AdminDashboardService(IAdminDashboardRepository dashboardRepository, IUnitOfWork unitOfWork)
 		{
 			_dashboardRepository = dashboardRepository;
+			_unitOfWork = unitOfWork;
 		}
 
 		public async Task<BaseResponse<RevenueSummaryResponse>> GetRevenueAsync(GetDashboardDateRangeRequest request)
@@ -22,10 +26,12 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<RevenueSummaryResponse>.Ok(response);
 		}
 
-		public async Task<BaseResponse<InventoryLevelsResponse>> GetInventoryLevelsAsync(GetInventoryLevelsRequest request)
+		public async Task<BaseResponse<InventoryLevelsResponse>> GetInventoryLevelsAsync()
 		{
-			var expiringWithinDays = request.ExpiringWithinDays <= 0 ? 30 : request.ExpiringWithinDays;
-			var response = await _dashboardRepository.GetInventoryLevelsAsync(DateTime.UtcNow, expiringWithinDays);
+			var storePolicies = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+			var expiringWithinDays = storePolicies?.BatchExpiringSoonThresholdInDays ?? 30;
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
+			var response = await _dashboardRepository.GetInventoryLevelsAsync(DateTime.UtcNow, expiringWithinDays, sellable);
 			return BaseResponse<InventoryLevelsResponse>.Ok(response);
 		}
 
@@ -40,13 +46,15 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<AdminDashboardOverviewResponse>> GetOverviewAsync(GetDashboardOverviewRequest request)
 		{
 			var (fromDate, toDate) = ResolveDateRange(request.FromDate, request.ToDate);
-			var expiringWithinDays = request.ExpiringWithinDays <= 0 ? 30 : request.ExpiringWithinDays;
+			var storePolicies = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+			var expiringWithinDays = storePolicies?.BatchExpiringSoonThresholdInDays ?? 30;
 			var top = request.Top <= 0 ? 10 : request.Top;
 
+			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
 			var payload = new AdminDashboardOverviewResponse
 			{
 				Revenue = await _dashboardRepository.GetRevenueSummaryAsync(fromDate, toDate),
-				InventoryLevels = await _dashboardRepository.GetInventoryLevelsAsync(DateTime.UtcNow, expiringWithinDays),
+				InventoryLevels = await _dashboardRepository.GetInventoryLevelsAsync(DateTime.UtcNow, expiringWithinDays, sellable),
 				TopProducts = await _dashboardRepository.GetTopProductsAsync(fromDate, toDate, top)
 			};
 

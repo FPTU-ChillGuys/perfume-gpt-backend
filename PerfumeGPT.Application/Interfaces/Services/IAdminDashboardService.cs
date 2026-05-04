@@ -7,7 +7,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface IAdminDashboardService
 	{
 		Task<BaseResponse<RevenueSummaryResponse>> GetRevenueAsync(GetDashboardDateRangeRequest request);
-		Task<BaseResponse<InventoryLevelsResponse>> GetInventoryLevelsAsync(GetInventoryLevelsRequest request);
+		Task<BaseResponse<InventoryLevelsResponse>> GetInventoryLevelsAsync();
 		Task<BaseResponse<List<TopProductResponse>>> GetTopProductsAsync(GetTopProductsRequest request);
 		Task<BaseResponse<AdminDashboardOverviewResponse>> GetOverviewAsync(GetDashboardOverviewRequest request);
 	}

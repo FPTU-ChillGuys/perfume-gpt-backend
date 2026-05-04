@@ -4,6 +4,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.Dashboard
 	{
 		public Guid ProductId { get; init; }
 		public required string ProductName { get; init; }
+		public string? ImageUrl { get; init; }
 		public int TotalUnitsSold { get; init; }
 		public decimal Revenue { get; init; }
 	}
