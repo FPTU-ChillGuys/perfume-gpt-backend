@@ -46,7 +46,7 @@ namespace PerfumeGPT.Application.Services
 			if (exists)
 				throw AppException.Conflict("Tên nồng độ đã tồn tại.");
 
-			var entity = Concentration.Create(normalizedName);
+			var entity = Concentration.Create(request.Name);
 			await _unitOfWork.Concentrations.AddAsync(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
@@ -65,7 +65,7 @@ namespace PerfumeGPT.Application.Services
 			if (exists)
 				throw AppException.Conflict("Tên nồng độ đã tồn tại.");
 
-			entity.Rename(normalizedName);
+			entity.Rename(request.Name);
 			_unitOfWork.Concentrations.Update(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
