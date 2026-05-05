@@ -49,7 +49,9 @@ namespace PerfumeGPT.Persistence.Repositories
 					&& (!isActive || (
 						x.Status == CampaignStatus.Active
 						&& x.StartDate <= now
-						&& x.EndDate >= now)))
+						&& x.EndDate >= now))
+					&& x.Status != CampaignStatus.Cancelled
+					&& x.Status != CampaignStatus.Completed)
 				.OrderBy(x => x.Name)
 				.Select(x => new CampaignLookupItem
 				{
