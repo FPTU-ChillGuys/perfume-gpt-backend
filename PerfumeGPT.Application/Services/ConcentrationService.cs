@@ -80,7 +80,7 @@ namespace PerfumeGPT.Application.Services
 			  ?? throw AppException.NotFound("Không tìm thấy nồng độ");
 
 			var hasVariants = await _unitOfWork.Concentrations.HasVariantsAsync(id);
-			if (!hasVariants) throw AppException.Conflict("Không thể xóa nồng độ có biến thể liên kết.");
+			if (hasVariants) throw AppException.Conflict("Không thể xóa nồng độ có biến thể liên kết.");
 
 			_unitOfWork.Concentrations.Remove(entity);
 

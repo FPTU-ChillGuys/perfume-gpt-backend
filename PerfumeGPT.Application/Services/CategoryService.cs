@@ -82,7 +82,7 @@ namespace PerfumeGPT.Application.Services
 				   ?? throw AppException.NotFound("Không tìm thấy danh mục");
 
 			var hasProducts = await _unitOfWork.Categories.HasProductsAsync(id);
-			if (!hasProducts) throw AppException.Conflict("Không thể xóa danh mục có sản phẩm liên kết.");
+			if (hasProducts) throw AppException.Conflict("Không thể xóa danh mục có sản phẩm liên kết.");
 
 			_unitOfWork.Categories.Remove(entity);
 			var saved = await _unitOfWork.SaveChangesAsync();
