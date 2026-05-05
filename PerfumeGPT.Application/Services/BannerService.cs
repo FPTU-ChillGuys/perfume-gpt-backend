@@ -108,6 +108,8 @@ namespace PerfumeGPT.Application.Services
 		{
 			var banner = await _unitOfWork.Banners.GetByIdAsync(bannerId)
 				?? throw AppException.NotFound("Không tìm thấy banner.");
+			var previousStartDate = banner.StartDate;
+			var previousEndDate = banner.EndDate;
 
 			TemporaryMedia? temporaryDesktopImage = null;
 			TemporaryMedia? temporaryMobileImage = null;
@@ -163,7 +165,15 @@ namespace PerfumeGPT.Application.Services
 
 			await _unitOfWork.SaveChangesAsync();
 
-			ScheduleBannerJobs(banner);
+			if (banner.StartDate != previousStartDate && banner.StartDate.HasValue)
+			{
+				_backgroundJobService.ScheduleBannerStart(_logger, banner.Id, banner.StartDate.Value);
+			}
+
+			if (banner.EndDate != previousEndDate && banner.EndDate.HasValue)
+			{
+				_backgroundJobService.ScheduleBannerEnd(_logger, banner.Id, banner.EndDate.Value);
+			}
 
 			return BaseResponse<string>.Ok(banner.Id.ToString(), "Cập nhật banner thành công.");
 		}

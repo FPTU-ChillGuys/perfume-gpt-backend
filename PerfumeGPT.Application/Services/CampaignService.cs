@@ -159,6 +159,8 @@ namespace PerfumeGPT.Application.Services
 				  ?? throw AppException.NotFound("Không tìm thấy chiến dịch.");
 
 			campaign.EnsureIsNotActive("update");
+			var previousStartDate = campaign.StartDate;
+			var previousEndDate = campaign.EndDate;
 
 			// 2. Business validations (DB calls)
 			await ValidateCampaignItemsAsync(request.Items);
@@ -224,6 +226,16 @@ namespace PerfumeGPT.Application.Services
 
 				campaign.SyncPromotionItems(itemFactors, campaign.Status == CampaignStatus.Active);
 				campaign.SyncVouchers(voucherFactors);
+
+				if (campaign.StartDate != previousStartDate)
+				{
+					_backgroundJobService.ScheduleCampaignStart(_logger, campaign.Id, campaign.StartDate);
+				}
+
+				if (campaign.EndDate != previousEndDate)
+				{
+					_backgroundJobService.ScheduleCampaignEnd(_logger, campaign.Id, campaign.EndDate);
+				}
 
 				return BaseResponse<string>.Ok(campaignId.ToString(), "Cập nhật chiến dịch thành công.");
 			});
