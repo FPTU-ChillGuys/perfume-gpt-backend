@@ -8,7 +8,7 @@ namespace PerfumeGPT.Application.Interfaces.Repositories
 	public interface ICampaignRepository : IGenericRepository<Campaign>
 	{
 		Task<List<CampaignResponse>> GetHomeCampaignsAsync();
-		Task<List<CampaignLookupItem>> GetCampaignLookupListAsync(bool isActive);
+		Task<List<CampaignLookupItem>> GetCampaignLookupListAsync(bool isActive, bool isAll);
 		Task<(List<CampaignResponse> Items, int TotalCount)> GetPagedCampaignsAsync(GetPagedCampaignsRequest request);
 		Task<CampaignResponse?> GetCampaignByIdDtoAsync(Guid campaignId);
 		Task<List<CampaignPromotionItemResponse>> GetCampaignItemsAsync(Guid campaignId, bool asNoTracking = true);
