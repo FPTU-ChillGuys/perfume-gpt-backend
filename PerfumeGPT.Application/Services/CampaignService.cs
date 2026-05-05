@@ -42,10 +42,10 @@ namespace PerfumeGPT.Application.Services
 			return BaseResponse<List<CampaignResponse>>.Ok(campaigns, "Lấy danh sách chiến dịch trang chủ thành công.");
 		}
 
-		public async Task<BaseResponse<List<CampaignLookupItem>>> GetActiveCampaignLookupListAsync()
+		public async Task<BaseResponse<List<CampaignLookupItem>>> GetCampaignLookupListAsync(bool isActive)
 		{
-			var campaigns = await _unitOfWork.Campaigns.GetActiveCampaignLookupListAsync();
-			return BaseResponse<List<CampaignLookupItem>>.Ok(campaigns, "Lấy danh sách tra cứu chiến dịch đang hoạt động thành công.");
+			var campaigns = await _unitOfWork.Campaigns.GetCampaignLookupListAsync(isActive);
+			return BaseResponse<List<CampaignLookupItem>>.Ok(campaigns, "Lấy danh sách tra cứu chiến dịch thành công.");
 		}
 
 		public async Task<BaseResponse<PagedResult<CampaignResponse>>> GetPagedCampaignsAsync(GetPagedCampaignsRequest request)

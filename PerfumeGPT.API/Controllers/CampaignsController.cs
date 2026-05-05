@@ -48,7 +48,17 @@ namespace PerfumeGPT.API.Controllers
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<List<CampaignLookupItem>>>> GetActiveCampaignLookupList()
 		{
-			var response = await _campaignService.GetActiveCampaignLookupListAsync();
+			var response = await _campaignService.GetCampaignLookupListAsync(true);
+			return HandleResponse(response);
+		}
+
+		[HttpGet("lookup")]
+		[AllowAnonymous]
+		[ProducesResponseType(typeof(BaseResponse<List<CampaignLookupItem>>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
+		public async Task<ActionResult<BaseResponse<List<CampaignLookupItem>>>> GetCampaignLookupList()
+		{
+			var response = await _campaignService.GetCampaignLookupListAsync(false);
 			return HandleResponse(response);
 		}
 

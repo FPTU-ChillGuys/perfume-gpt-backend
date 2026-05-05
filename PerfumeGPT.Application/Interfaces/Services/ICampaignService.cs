@@ -10,7 +10,7 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface ICampaignService
 	{
 		Task<BaseResponse<List<CampaignResponse>>> GetHomeCampaignsAsync();
-		Task<BaseResponse<List<CampaignLookupItem>>> GetActiveCampaignLookupListAsync();
+		Task<BaseResponse<List<CampaignLookupItem>>> GetCampaignLookupListAsync(bool isActive);
 		Task<BaseResponse<string>> CreateCampaignAsync(CreateCampaignRequest request);
 		Task<BaseResponse<PagedResult<CampaignResponse>>> GetPagedCampaignsAsync(GetPagedCampaignsRequest request);
 		Task<BaseResponse<CampaignResponse>> GetCampaignByIdAsync(Guid campaignId);
