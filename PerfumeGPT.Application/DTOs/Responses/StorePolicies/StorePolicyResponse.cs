@@ -10,6 +10,7 @@ namespace PerfumeGPT.Application.DTOs.Responses.StorePolicies
 		public int StockAdjustmentAutoApprovalThreshold { get; init; }
 		public int OrderRewardPointsInDays { get; init; }
 		public int BatchExpiringSoonThresholdInDays { get; init; }
+		public int NewTagThresholdInDays { get; init; }
 		public int StopSellingBeforeExpiryDays { get; init; }
 		public int ClearanceBufferDays { get; init; }
 		public int ReturnOrderAllowanceInDays { get; init; }

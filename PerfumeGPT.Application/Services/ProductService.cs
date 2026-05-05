@@ -182,7 +182,9 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetProductsAsync(GetPagedProductRequest request)
 		{
 			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
-			var (items, totalCount) = await _unitOfWork.Products.GetPagedProductListItemsAsync(request, sellable);
+			var policy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+			var newTagThresholdInDays = policy?.NewTagThresholdInDays ?? 30;
+			var (items, totalCount) = await _unitOfWork.Products.GetPagedProductListItemsAsync(request, sellable, newTagThresholdInDays);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
 			 "Lấy danh sách sản phẩm thành công");
@@ -197,7 +199,9 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetBestSellerProductsAsync(GetPagedProductRequest request)
 		{
 			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
-			var (items, totalCount) = await _unitOfWork.Products.GetBestSellerProductsAsync(request, sellable);
+			var policy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+			var newTagThresholdInDays = policy?.NewTagThresholdInDays ?? 30;
+			var (items, totalCount) = await _unitOfWork.Products.GetBestSellerProductsAsync(request, sellable, newTagThresholdInDays);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
 			 "Lấy danh sách sản phẩm bán chạy thành công");
@@ -206,7 +210,9 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetNewArrivalProductsAsync(GetPagedProductRequest request)
 		{
 			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
-			var (items, totalCount) = await _unitOfWork.Products.GetNewArrivalProductsAsync(request, sellable);
+			var policy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+			var newTagThresholdInDays = policy?.NewTagThresholdInDays ?? 30;
+			var (items, totalCount) = await _unitOfWork.Products.GetNewArrivalProductsAsync(request, sellable, newTagThresholdInDays);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
 			 "Lấy danh sách sản phẩm mới về thành công");
@@ -215,7 +221,9 @@ namespace PerfumeGPT.Application.Services
 		public async Task<BaseResponse<PagedResult<ProductListItem>>> GetCampaignProductsAsync(Guid campaignId, GetPagedProductRequest request)
 		{
 			var sellable = await SellableStockContextLoader.LoadAsync(_unitOfWork);
-			var (items, totalCount) = await _unitOfWork.Products.GetCampaignProductsAsync(campaignId, request, sellable);
+			var policy = await _unitOfWork.StorePolicies.GetCurrentPolicyAsync();
+			var newTagThresholdInDays = policy?.NewTagThresholdInDays ?? 30;
+			var (items, totalCount) = await _unitOfWork.Products.GetCampaignProductsAsync(campaignId, request, sellable, newTagThresholdInDays);
 			return BaseResponse<PagedResult<ProductListItem>>.Ok(
 				new PagedResult<ProductListItem>(items, request.PageNumber, request.PageSize, totalCount),
 				"Lấy danh sách sản phẩm theo chiến dịch thành công");

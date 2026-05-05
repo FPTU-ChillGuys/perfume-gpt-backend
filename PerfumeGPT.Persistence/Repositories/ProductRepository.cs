@@ -344,7 +344,13 @@ namespace PerfumeGPT.Persistence.Repositories
 									// 1. Kiểm tra Quota (MaxUsage)
 									(!pi.MaxUsage.HasValue || pi.CurrentUsage < pi.MaxUsage.Value) &&
 									// 2. RÀO CHẮN MỚI: Nếu KM áp dụng cho Lô cụ thể, Lô đó BẮT BUỘC phải còn hàng
-									(!pi.BatchId.HasValue || (pi.Batch != null && pi.Batch.RemainingQuantity > pi.Batch.ReservedQuantity)))
+									(!pi.BatchId.HasValue ||
+										(pi.Batch != null &&
+										pi.Batch.RemainingQuantity > pi.Batch.ReservedQuantity &&
+										((pi.Batch.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(pi.Batch.Id) && pi.Batch.ExpiryDate > clearanceAfter))
+										)
+									)
+								)
 								.Select(pi => new
 								{
 									CampaignName = pi.Campaign.Name,
@@ -442,9 +448,10 @@ namespace PerfumeGPT.Persistence.Repositories
 			};
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductListItemsAsync(GetPagedProductRequest request, SellableStockQueryContext sellable)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetPagedProductListItemsAsync(GetPagedProductRequest request, SellableStockQueryContext sellable, int newTagThresholdInDays)
 		{
 			var now = DateTime.UtcNow;
+			var newTagThreshold = now.AddDays(-newTagThresholdInDays);
 			var normalAfter = sellable.NormalSellableAfterUtc;
 			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
 			var clearanceBatchIds = sellable.ClearanceBatchIds;
@@ -546,17 +553,15 @@ namespace PerfumeGPT.Persistence.Repositories
 								 pi.Campaign.Status == CampaignStatus.Active &&
 								 pi.Campaign.StartDate <= now &&
 								 pi.Campaign.EndDate >= now &&
-								 pi.IsActive)),
-						 HasNewTag = p.Variants.Any(v =>
-							 !v.IsDeleted &&
-							 v.PromotionItems.Any(pi =>
-								 !pi.IsDeleted &&
-								 !pi.Campaign.IsDeleted &&
-								 pi.ItemType == PromotionType.NewArrival &&
-								 pi.Campaign.Status == CampaignStatus.Active &&
-								 pi.Campaign.StartDate <= now &&
-								 pi.Campaign.EndDate >= now &&
-								 pi.IsActive))
+								 pi.IsActive &&
+								 (!pi.BatchId.HasValue ||
+									 (pi.Batch != null &&
+									  pi.Batch.RemainingQuantity > pi.Batch.ReservedQuantity &&
+									  ((pi.Batch.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(pi.Batch.Id) && pi.Batch.ExpiryDate > clearanceAfter))
+									 )
+								 )
+							)),
+						 HasNewTag = p.CreatedAt >= newTagThreshold
 					 })
 					 .AsSplitQuery()
 					 .AsNoTracking()
@@ -579,9 +584,10 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetBestSellerProductsAsync(GetPagedProductRequest request, SellableStockQueryContext sellable)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetBestSellerProductsAsync(GetPagedProductRequest request, SellableStockQueryContext sellable, int newTagThresholdInDays)
 		{
 			var now = DateTime.UtcNow;
+			var newTagThreshold = now.AddDays(-newTagThresholdInDays);
 			var normalAfter = sellable.NormalSellableAfterUtc;
 			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
 			var clearanceBatchIds = sellable.ClearanceBatchIds;
@@ -648,17 +654,14 @@ namespace PerfumeGPT.Persistence.Repositories
 							   pi.Campaign.Status == CampaignStatus.Active &&
 							   pi.Campaign.StartDate <= now &&
 							   pi.Campaign.EndDate >= now &&
-							   pi.IsActive)),
-					   HasNewTag = p.Variants.Any(v =>
-						   !v.IsDeleted &&
-						   v.PromotionItems.Any(pi =>
-							   !pi.IsDeleted &&
-							   !pi.Campaign.IsDeleted &&
-							   pi.ItemType == PromotionType.NewArrival &&
-							   pi.Campaign.Status == CampaignStatus.Active &&
-							   pi.Campaign.StartDate <= now &&
-							   pi.Campaign.EndDate >= now &&
-							   pi.IsActive))
+							   pi.IsActive &&
+							   (!pi.BatchId.HasValue ||
+								   (pi.Batch != null &&
+									pi.Batch.RemainingQuantity > pi.Batch.ReservedQuantity &&
+									((pi.Batch.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(pi.Batch.Id) && pi.Batch.ExpiryDate > clearanceAfter))
+								   )
+							   ))),
+					   HasNewTag = p.CreatedAt >= newTagThreshold
 				   })
 				   .AsSplitQuery()
 				   .AsNoTracking()
@@ -681,16 +684,17 @@ namespace PerfumeGPT.Persistence.Repositories
 			return (items, totalCount);
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetNewArrivalProductsAsync(GetPagedProductRequest request, SellableStockQueryContext sellable)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetNewArrivalProductsAsync(GetPagedProductRequest request, SellableStockQueryContext sellable, int newTagThresholdInDays)
 		{
 			var now = DateTime.UtcNow;
+			var newTagThreshold = now.AddDays(-newTagThresholdInDays);
 			var normalAfter = sellable.NormalSellableAfterUtc;
 			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
 			var clearanceBatchIds = sellable.ClearanceBatchIds;
 
 			var query = _context.Products
-			  .Where(p => !p.IsDeleted && p.Variants.Any(v =>
-					 !v.IsDeleted &&
+			  	.Where(p => !p.IsDeleted && p.Variants.Any(v =>
+					 !v.IsDeleted && p.CreatedAt >= newTagThreshold &&
 					 v.Batches
 						 .Where(b => (b.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(b.Id) && b.ExpiryDate > clearanceAfter))
 						 .Sum(b => b.RemainingQuantity - b.ReservedQuantity > 0 ? b.RemainingQuantity - b.ReservedQuantity : 0) > 0))
@@ -760,7 +764,14 @@ namespace PerfumeGPT.Persistence.Repositories
 								  pi.Campaign.Status == CampaignStatus.Active &&
 								  pi.Campaign.StartDate <= now &&
 								  pi.Campaign.EndDate >= now &&
-								  pi.IsActive))
+								  pi.IsActive &&
+								  (!pi.BatchId.HasValue ||
+									  (pi.Batch != null &&
+									   pi.Batch.RemainingQuantity > pi.Batch.ReservedQuantity &&
+									   ((pi.Batch.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(pi.Batch.Id) && pi.Batch.ExpiryDate > clearanceAfter))
+									  )
+								  ))),
+						  HasNewTag = p.CreatedAt >= newTagThreshold
 					  })
 					  .AsSplitQuery()
 					  .AsNoTracking()
@@ -769,24 +780,25 @@ namespace PerfumeGPT.Persistence.Repositories
 			var items = itemsWithTags
 				.Select(x =>
 				{
-					var finalTags = new List<string>
-					{
-						"new"
-					};
+					var finalTags = new List<string>();
+
+					if (x.HasNewTag)
+						finalTags.Add("new");
 
 					if (x.HasSaleTag)
 						finalTags.Add("sale");
 
-					return x.Item with { Tags = finalTags };
+					return x.Item with { Tags = finalTags.Count != 0 ? finalTags : null };
 				})
 				.ToList();
 
 			return (items, totalCount);
 		}
 
-		public async Task<(List<ProductListItem> Items, int TotalCount)> GetCampaignProductsAsync(Guid campaignId, GetPagedProductRequest request, SellableStockQueryContext sellable)
+		public async Task<(List<ProductListItem> Items, int TotalCount)> GetCampaignProductsAsync(Guid campaignId, GetPagedProductRequest request, SellableStockQueryContext sellable, int newTagThresholdInDays)
 		{
 			var now = DateTime.UtcNow;
+			var newTagThreshold = now.AddDays(-newTagThresholdInDays);
 			var normalAfter = sellable.NormalSellableAfterUtc;
 			var clearanceAfter = sellable.ClearanceSellableAfterUtc;
 			var clearanceBatchIds = sellable.ClearanceBatchIds;
@@ -897,18 +909,14 @@ namespace PerfumeGPT.Persistence.Repositories
 							   !pi.Campaign.IsDeleted &&
 							   pi.Campaign.Status == CampaignStatus.Active &&
 							   pi.Campaign.StartDate <= now &&
-							   pi.Campaign.EndDate >= now)),
-					   HasNewTag = p.Variants.Any(v =>
-						   !v.IsDeleted &&
-						   v.PromotionItems.Any(pi =>
-							   !pi.IsDeleted &&
-							   pi.IsActive &&
-							   pi.CampaignId == campaignId &&
-							   !pi.Campaign.IsDeleted &&
-							   pi.ItemType == PromotionType.NewArrival &&
-							   pi.Campaign.Status == CampaignStatus.Active &&
-							   pi.Campaign.StartDate <= now &&
-							   pi.Campaign.EndDate >= now))
+							   pi.Campaign.EndDate >= now &&
+							   (!pi.BatchId.HasValue ||
+								   (pi.Batch != null &&
+									pi.Batch.RemainingQuantity > pi.Batch.ReservedQuantity &&
+									((pi.Batch.ExpiryDate > normalAfter) || (clearanceBatchIds.Contains(pi.Batch.Id) && pi.Batch.ExpiryDate > clearanceAfter))
+								   )
+							   ))),
+					   HasNewTag = p.CreatedAt >= newTagThreshold
 				   })
 				   .AsSplitQuery()
 				   .AsNoTracking()

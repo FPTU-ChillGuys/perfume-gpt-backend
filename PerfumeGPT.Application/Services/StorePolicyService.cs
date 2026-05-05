@@ -38,6 +38,7 @@ namespace PerfumeGPT.Application.Services
 			policy.UpdateStockAdjustmentPolicy(request.StockAdjustmentAutoApprovalThreshold);
 			policy.UpdateOrderRewardPointsPolicy(request.OrderRewardPointsInDays);
 			policy.UpdateBatchExpiringSoonPolicy(request.BatchExpiringSoonThresholdInDays);
+			policy.UpdateNewTagPolicy(request.NewTagThresholdInDays);
 			policy.UpdateStopSellingBeforeExpiryPolicy(request.StopSellingBeforeExpiryDays);
 			policy.UpdateClearanceBufferPolicy(request.ClearanceBufferDays);
 			policy.UpdateReturnPolicy(request.ReturnOrderAllowanceInDays);
@@ -61,6 +62,7 @@ namespace PerfumeGPT.Application.Services
 				StockAdjustmentAutoApprovalThreshold = policy.StockAdjustmentAutoApprovalThreshold,
 				OrderRewardPointsInDays = policy.OrderRewardPointsInDays,
 				BatchExpiringSoonThresholdInDays = policy.BatchExpiringSoonThresholdInDays,
+				NewTagThresholdInDays = policy.NewTagThresholdInDays,
 				StopSellingBeforeExpiryDays = policy.StopSellingBeforeExpiryDays,
 				ClearanceBufferDays = policy.ClearanceBufferDays,
 				ReturnOrderAllowanceInDays = policy.ReturnOrderAllowanceInDays,

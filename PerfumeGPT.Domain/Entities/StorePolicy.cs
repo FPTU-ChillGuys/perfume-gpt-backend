@@ -15,10 +15,8 @@ namespace PerfumeGPT.Domain.Entities
 		public int StockAdjustmentAutoApprovalThreshold { get; private set; }
 		public int OrderRewardPointsInDays { get; private set; }
 		public int BatchExpiringSoonThresholdInDays { get; private set; }
+		public int NewTagThresholdInDays { get; private set; }
 		public int StopSellingBeforeExpiryDays { get; private set; }
-		/// <summary>
-		/// Lô xả kho (clearance) chỉ bán khi ExpiryDate còn sau mốc UtcNow + số ngày này (thường nhỏ hơn hoặc bằng StopSellingBeforeExpiryDays).
-		/// </summary>
 		public int ClearanceBufferDays { get; private set; }
 		public int ReturnOrderAllowanceInDays { get; private set; }
 		public int MaxAddressesPerUser { get; private set; }
@@ -36,6 +34,7 @@ namespace PerfumeGPT.Domain.Entities
 			int stockAdjustmentAutoApprovalThreshold,
 			int orderRewardPointsInDays,
 			int batchExpiringSoonThresholdInDays,
+			int newTagThresholdInDays,
 			int stopSellingBeforeExpiryDays,
 			int clearanceBufferDays,
 			int returnOrderAllowanceInDays,
@@ -52,6 +51,7 @@ namespace PerfumeGPT.Domain.Entities
 			policy.UpdateStockAdjustmentPolicy(stockAdjustmentAutoApprovalThreshold);
 			policy.UpdateOrderRewardPointsPolicy(orderRewardPointsInDays);
 			policy.UpdateDepositPolicy(percentage, timeoutMinutes, isRequired);
+			policy.UpdateNewTagPolicy(newTagThresholdInDays);
 			policy.UpdateReturnPolicy(returnOrderAllowanceInDays);
 			policy.UpdateAddressPolicy(maxAddressesPerUser);
 			return policy;
@@ -98,6 +98,13 @@ namespace PerfumeGPT.Domain.Entities
 			if (batchExpiringSoonThresholdInDays < 0)
 				throw DomainException.BadRequest("Số ngày để xác định lô hàng sắp hết hạn không hợp lệ.");
 			BatchExpiringSoonThresholdInDays = batchExpiringSoonThresholdInDays;
+		}
+
+		public void UpdateNewTagPolicy(int newTagThresholdInDays)
+		{
+			if (newTagThresholdInDays < 0)
+				throw DomainException.BadRequest("Số ngày để gán nhãn sản phẩm mới không hợp lệ.");
+			NewTagThresholdInDays = newTagThresholdInDays;
 		}
 
 		public void UpdateStopSellingBeforeExpiryPolicy(int stopSellingBeforeExpiryDays)
