@@ -53,7 +53,9 @@ namespace PerfumeGPT.Persistence.Repositories
 				.Select(x => new CampaignLookupItem
 				{
 					Id = x.Id,
-					Name = x.Name
+					Name = x.Name,
+					StartDate = x.StartDate,
+					EndDate = x.EndDate
 				})
 				.ToListAsync();
 		}
