@@ -83,6 +83,20 @@ namespace PerfumeGPT.Domain.Entities
 			Type = details.Type;
 		}
 
+		public void RecalculateStatusBySchedule(DateTime nowUtc)
+		{
+			if (EndDate <= nowUtc)
+			{
+				Status = CampaignStatus.Completed;
+				return;
+			}
+
+			if (StartDate > nowUtc)
+			{
+				Status = CampaignStatus.Upcoming;
+			}
+		}
+
 		public PromotionItem AddPromotionItem(PromotionItemConfigFactor details)
 		{
 			Items ??= [];

@@ -223,6 +223,7 @@ namespace PerfumeGPT.Application.Services
 					.ToList();
 
 				campaign.UpdateInfo(_mapper.Map<Campaign.CampaignUpdateInfoFactor>(request));
+				campaign.RecalculateStatusBySchedule(DateTime.UtcNow);
 
 				campaign.SyncPromotionItems(itemFactors, campaign.Status == CampaignStatus.Active);
 				campaign.SyncVouchers(voucherFactors);

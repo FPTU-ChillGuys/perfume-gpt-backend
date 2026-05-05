@@ -151,7 +151,18 @@ namespace PerfumeGPT.Application.Services
 			await HandleDisplayOrderAsync(banner, request.DisplayOrder);
 			banner.UpdateSchedule(request.StartDate, request.EndDate);
 			banner.UpdateLink(request.LinkType, request.LinkTarget);
+
+			var scheduleChanged = banner.StartDate != previousStartDate || banner.EndDate != previousEndDate;
+			var nowUtc = DateTime.UtcNow;
+			var outsideCurrentWindow =
+				(banner.StartDate.HasValue && nowUtc < banner.StartDate.Value)
+				|| (banner.EndDate.HasValue && nowUtc > banner.EndDate.Value);
+
 			banner.SetActiveStatus(request.IsActive);
+			if (scheduleChanged && outsideCurrentWindow)
+			{
+				banner.SetActiveStatus(false);
+			}
 
 			if (temporaryDesktopImage != null)
 			{
