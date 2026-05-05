@@ -276,9 +276,6 @@ namespace PerfumeGPT.Application.Services
 				importTicket.Complete(verifiedByUserId, DateTime.UtcNow);
 				_unitOfWork.ImportTickets.Update(importTicket);
 
-				// Persist newly created batches first so stock aggregation can read the latest state from DB.
-				await _unitOfWork.SaveChangesAndReturnCountAsync();
-
 				foreach (var variantId in variantsToSync)
 				{
 					await _unitOfWork.Stocks.UpdateStockAsync(variantId);

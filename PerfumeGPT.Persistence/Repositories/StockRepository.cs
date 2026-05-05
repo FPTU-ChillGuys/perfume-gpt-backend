@@ -58,12 +58,28 @@ namespace PerfumeGPT.Persistence.Repositories
 
 		public async Task UpdateStockAsync(Guid variantId)
 		{
-			// 1. Calculate total quantity from batches
-			// Note: Depending on your logic, you might also want to exclude batches of deleted variants here,
-			// though typically if a variant is deleted, you wouldn't be updating its stock.
-			var totalQuantity = await _context.Batches
-				.Where(b => b.VariantId == variantId)
+			// Calculate total from DB plus pending tracked changes so callers are safe
+			// even when they invoke this method before SaveChanges().
+			var trackedBatchEntries = _context.ChangeTracker
+				.Entries<Batch>()
+				.Where(e => e.Entity.VariantId == variantId
+					&& (e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted))
+				.ToList();
+
+			var trackedExistingBatchIds = trackedBatchEntries
+				.Where(e => e.State != EntityState.Added)
+				.Select(e => e.Entity.Id)
+				.ToHashSet();
+
+			var persistedQuantity = await _context.Batches
+				.Where(b => b.VariantId == variantId && !trackedExistingBatchIds.Contains(b.Id))
 				.SumAsync(b => b.RemainingQuantity);
+
+			var trackedQuantity = trackedBatchEntries
+				.Where(e => e.State != EntityState.Deleted)
+				.Sum(e => (int)e.CurrentValues[nameof(Batch.RemainingQuantity)]!);
+
+			var totalQuantity = persistedQuantity + trackedQuantity;
 
 			// 2. Load Entity (Include check for IsDeleted on the Variant)
 			var stock = await _context.Stocks
