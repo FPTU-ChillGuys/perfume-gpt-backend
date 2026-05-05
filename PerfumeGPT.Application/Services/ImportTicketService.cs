@@ -257,6 +257,8 @@ namespace PerfumeGPT.Application.Services
 			// 3. Execution (Atomic Transaction)
 			return await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
+				var variantsToSync = new HashSet<Guid>();
+
 				foreach (var item in validatedItems)
 				{
 					importTicket.VerifyDetail(item.Detail.Id, item.Verification);
@@ -267,11 +269,20 @@ namespace PerfumeGPT.Application.Services
 							item.Detail.ProductVariantId,
 							item.Detail.Id,
 							item.MergedBatches);
+						variantsToSync.Add(item.Detail.ProductVariantId);
 					}
 				}
 
 				importTicket.Complete(verifiedByUserId, DateTime.UtcNow);
 				_unitOfWork.ImportTickets.Update(importTicket);
+
+				// Persist newly created batches first so stock aggregation can read the latest state from DB.
+				await _unitOfWork.SaveChangesAndReturnCountAsync();
+
+				foreach (var variantId in variantsToSync)
+				{
+					await _unitOfWork.Stocks.UpdateStockAsync(variantId);
+				}
 
 				return BaseResponse<string>.Ok(importTicket.Id.ToString(), "Xác nhận phiếu nhập thành công.");
 			});

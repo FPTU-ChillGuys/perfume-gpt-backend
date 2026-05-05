@@ -37,7 +37,6 @@ namespace PerfumeGPT.Application.Services
 
 				await _unitOfWork.Batches.AddAsync(batch);
 			}
-			await _unitOfWork.Stocks.UpdateStockAsync(variantId);
 		}
 
 		public async Task<BaseResponse<PagedResult<BatchDetailResponse>>> GetBatchesAsync(GetBatchesRequest request)
