@@ -48,7 +48,7 @@ namespace PerfumeGPT.Application.Services
 			if (exists)
 				throw AppException.Conflict("Tên danh mục đã tồn tại.");
 
-			var entity = Category.Create(normalizedName);
+			var entity = Category.Create(request.Name);
 			await _unitOfWork.Categories.AddAsync(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
@@ -67,7 +67,7 @@ namespace PerfumeGPT.Application.Services
 			if (exists)
 				throw AppException.Conflict("Tên danh mục đã tồn tại.");
 
-			entity.Rename(normalizedName);
+			entity.Rename(request.Name);
 			_unitOfWork.Categories.Update(entity);
 
 			var saved = await _unitOfWork.SaveChangesAsync();
