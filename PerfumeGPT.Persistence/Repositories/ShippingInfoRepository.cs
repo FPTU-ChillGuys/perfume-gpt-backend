@@ -123,7 +123,9 @@ namespace PerfumeGPT.Persistence.Repositories
 					&& !string.IsNullOrWhiteSpace(o.ForwardShipping.TrackingNumber)
 					&& o.ForwardShipping.Status != ShippingStatus.Cancelled
 					&& o.ForwardShipping.Status != ShippingStatus.Delivered
-					&& o.ForwardShipping.Status != ShippingStatus.Returned)
+					&& o.ForwardShipping.Status != ShippingStatus.Returned
+					&& o.ForwardShipping.Status != ShippingStatus.Damaged
+					&& o.ForwardShipping.Status != ShippingStatus.Lost)
 				.Select(o => o.ForwardShipping!);
 
 			var returnShippingCandidates = _context.OrderReturnRequests
@@ -132,7 +134,9 @@ namespace PerfumeGPT.Persistence.Repositories
 					&& !string.IsNullOrWhiteSpace(r.ReturnShipping.TrackingNumber)
 					&& r.ReturnShipping.Status != ShippingStatus.Cancelled
 					&& r.ReturnShipping.Status != ShippingStatus.Delivered
-					&& r.ReturnShipping.Status != ShippingStatus.Returned)
+					&& r.ReturnShipping.Status != ShippingStatus.Returned
+					&& r.ReturnShipping.Status != ShippingStatus.Damaged
+					&& r.ReturnShipping.Status != ShippingStatus.Lost)
 				.Select(r => r.ReturnShipping!);
 
 			return await forwardShippingCandidates
@@ -149,7 +153,9 @@ namespace PerfumeGPT.Persistence.Repositories
 					&& !string.IsNullOrWhiteSpace(o.ForwardShipping.TrackingNumber)
 					&& o.ForwardShipping.Status != ShippingStatus.Cancelled
 					&& o.ForwardShipping.Status != ShippingStatus.Delivered
-					&& o.ForwardShipping.Status != ShippingStatus.Returned)
+					&& o.ForwardShipping.Status != ShippingStatus.Returned
+					&& o.ForwardShipping.Status != ShippingStatus.Damaged
+					&& o.ForwardShipping.Status != ShippingStatus.Lost)
 				.Select(o => o.ForwardShipping!);
 
 			var returnShippingCandidates = _context.OrderReturnRequests
@@ -159,7 +165,9 @@ namespace PerfumeGPT.Persistence.Repositories
 					&& !string.IsNullOrWhiteSpace(r.ReturnShipping.TrackingNumber)
 					&& r.ReturnShipping.Status != ShippingStatus.Cancelled
 					&& r.ReturnShipping.Status != ShippingStatus.Delivered
-					&& r.ReturnShipping.Status != ShippingStatus.Returned)
+					&& r.ReturnShipping.Status != ShippingStatus.Returned
+					&& r.ReturnShipping.Status != ShippingStatus.Damaged
+					&& r.ReturnShipping.Status != ShippingStatus.Lost)
 				.Select(r => r.ReturnShipping!);
 
 			return await forwardShippingCandidates
@@ -178,7 +186,9 @@ namespace PerfumeGPT.Persistence.Repositories
 					&& !string.IsNullOrWhiteSpace(o.ForwardShipping.TrackingNumber)
 					&& o.ForwardShipping.Status != ShippingStatus.Cancelled
 					&& o.ForwardShipping.Status != ShippingStatus.Delivered
-					&& o.ForwardShipping.Status != ShippingStatus.Returned)
+					&& o.ForwardShipping.Status != ShippingStatus.Returned
+					&& o.ForwardShipping.Status != ShippingStatus.Damaged
+					&& o.ForwardShipping.Status != ShippingStatus.Lost)
 				.Select(o => new ValueTuple<ShippingInfo, Order?, OrderReturnRequest?>(o.ForwardShipping!, o, null))
 				.ToListAsync();
 
@@ -191,7 +201,9 @@ namespace PerfumeGPT.Persistence.Repositories
 					&& !string.IsNullOrWhiteSpace(r.ReturnShipping.TrackingNumber)
 					&& r.ReturnShipping.Status != ShippingStatus.Cancelled
 					&& r.ReturnShipping.Status != ShippingStatus.Delivered
-					&& r.ReturnShipping.Status != ShippingStatus.Returned)
+					&& r.ReturnShipping.Status != ShippingStatus.Returned
+					&& r.ReturnShipping.Status != ShippingStatus.Damaged
+					&& r.ReturnShipping.Status != ShippingStatus.Lost)
 				.Select(r => new ValueTuple<ShippingInfo, Order?, OrderReturnRequest?>(r.ReturnShipping!, null, r))
 				.ToListAsync();
 

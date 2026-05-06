@@ -224,6 +224,14 @@ namespace PerfumeGPT.Domain.Entities
 			}
 		}
 
+		public void MarkRefusedByCustomer()
+		{
+			if (CustomerId.HasValue)
+			{
+				AddDomainEvent(new Events.OrderRefusedDomainEvent(CustomerId.Value, Id));
+			}
+		}
+
 		public void CancelCashInStore(CancelOrderReason cancelReason)
 		{
 			if (Status != OrderStatus.ReadyToPick)

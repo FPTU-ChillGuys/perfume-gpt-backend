@@ -50,6 +50,17 @@ namespace PerfumeGPT.Domain.Entities
 			Status = ShippingStatus.Cancelled;
 		}
 
+		public void MarkAsCarrierIncident(ShippingStatus incidentStatus)
+		{
+			if (incidentStatus != ShippingStatus.Damaged && incidentStatus != ShippingStatus.Lost)
+				throw DomainException.BadRequest("Chỉ hỗ trợ damage hoặc lost.");
+
+			if (Status == ShippingStatus.Delivered)
+				throw DomainException.BadRequest("Không thể đánh dấu hư hỏng/thất lạc khi đã giao thành công.");
+
+			Status = incidentStatus;
+		}
+
 		public void MarkAsDelivering()
 		{
 			if (Status == ShippingStatus.Delivered)

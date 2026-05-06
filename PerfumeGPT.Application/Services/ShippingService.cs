@@ -136,6 +136,8 @@ namespace PerfumeGPT.Application.Services
 				"picking" or "picked" or "storing" or "sorting" or "transporting" or "delivering" or "money_collect_picking" or "money_collect_delivering" => ShippingStatus.Delivering,
 				"delivered" => ShippingStatus.Delivered,
 				"cancel" => ShippingStatus.Cancelled,
+				"damage" => ShippingStatus.Damaged,
+				"lost" => ShippingStatus.Lost,
 				"returning" or "return" or "return_transporting" or "return_sorting" or "waiting_to_return" or "delivery_fail" or "return_fail" => ShippingStatus.Returning,
 				"returned" => ShippingStatus.Returned,
 				_ => null
@@ -176,6 +178,14 @@ namespace PerfumeGPT.Application.Services
 					if (shippingInfo.Status != ShippingStatus.Delivered)
 					{
 						shippingInfo.Cancel();
+						return true;
+					}
+					break;
+				case ShippingStatus.Damaged:
+				case ShippingStatus.Lost:
+					if (shippingInfo.Status != ShippingStatus.Delivered)
+					{
+						shippingInfo.MarkAsCarrierIncident(targetStatus);
 						return true;
 					}
 					break;

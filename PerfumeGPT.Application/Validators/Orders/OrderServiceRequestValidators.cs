@@ -222,8 +222,8 @@ namespace PerfumeGPT.Application.Validators.Orders
 			 .NotEmpty().WithMessage("Danh sách sản phẩm hoàn tất đơn là bắt buộc.");
 
 			RuleFor(x => x.Items)
-				.Must(items => items.Select(i => i.OrderDetailId).Distinct().Count() == items.Count)
-			   .WithMessage("Không cho phép OrderDetail ID trùng lặp trong danh sách hoàn tất đơn.");
+				.Must(items => items.Select(i => new { i.OrderDetailId, i.ScannedBatchCode }).Distinct().Count() == items.Count)
+				.WithMessage("Không cho phép trùng lặp cùng một lô hàng cho cùng một chi tiết đơn.");
 
 			RuleForEach(x => x.Items)
 				.SetValidator(new FulfillOrderItemRequestValidator());

@@ -9,6 +9,6 @@ namespace PerfumeGPT.Application.Interfaces.Services
 	public interface IOrderCancellationFinalizeService
 	{
 		/// <returns>Mã vận đơn (nếu có) để enqueue hủy với đối tác vận chuyển.</returns>
-		Task<string?> FinalizeOrderCancellationAsync(Order order, CancelOrderReason cancelReason);
+		Task<string?> FinalizeOrderCancellationAsync(Order order, CancelOrderReason cancelReason, bool shouldRestock);
 	}
 }

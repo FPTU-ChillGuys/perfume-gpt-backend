@@ -14,21 +14,18 @@ namespace PerfumeGPT.Application.Services
 		private readonly IBackgroundJobService _backgroundJobService;
 		private readonly ILogger<OrderWorkflowService> _logger;
 		private readonly IUnitOfWork _unitOfWork;
-		private readonly IStockReservationService _stockReservationService;
-		private readonly IVoucherService _voucherService;
+		private readonly IOrderCancellationFinalizeService _orderCancellationFinalizeService;
 
 		public OrderWorkflowService(
 			IBackgroundJobService backgroundJobService,
 			ILogger<OrderWorkflowService> logger,
 			IUnitOfWork unitOfWork,
-			IStockReservationService stockReservationService,
-			IVoucherService voucherService)
+			IOrderCancellationFinalizeService orderCancellationFinalizeService)
 		{
 			_backgroundJobService = backgroundJobService;
 			_logger = logger;
 			_unitOfWork = unitOfWork;
-			_stockReservationService = stockReservationService;
-			_voucherService = voucherService;
+			_orderCancellationFinalizeService = orderCancellationFinalizeService;
 		}
 
 		public async Task ProcessForwardShippingStatusAsync(Order order, ShippingStatus newShippingStatus, DateTime? deliveredAtUtc = null)
@@ -75,78 +72,183 @@ namespace PerfumeGPT.Application.Services
 					break;
 
 				case ShippingStatus.Returned:
-					if (order.Status == OrderStatus.ReadyToPick || order.Status == OrderStatus.Delivering)
-						order.SetStatus(OrderStatus.Returning);
-
-					if (order.Status != OrderStatus.Returned)
-						order.MarkReturnedByPartner(); // Hàm này đã có Domain Event phạt user boom hàng
-
-					var failedCod = order.PaymentTransactions?.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
-					if (failedCod != null)
+					// GHN returned ở chiều giao đi: giao thất bại, hàng quay về kho => coi là hủy đơn (không phải return-after-delivery).
+					if (order.Status != OrderStatus.Cancelled)
 					{
-						failedCod.MarkCancelled("Khách không nhận hàng, hoàn về kho.");
-						_unitOfWork.Payments.Update(failedCod);
+						await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, CancelOrderReason.UnreachableCustomer, true);
 					}
-
-					await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(order.Id);
+					order.MarkRefusedByCustomer();
 
 					if (order.PaidAmount > 0)
 					{
 						var hasPendingRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(r => r.OrderId == order.Id && r.Status == CancelRequestStatus.Pending);
 						if (!hasPendingRequest)
 						{
-							// Trừ đi khoản phạt bom hàng (100% tiền cọc)
-							var actualRefund = Math.Max(0, order.PaidAmount - order.RequiredDepositAmount);
+							// Trừ đi khoản phạt bom hàng theo mức cọc chính sách (snapshot khi tạo đơn).
+							var actualRefund = Math.Max(0, order.PaidAmount - order.PolicyDepositAmount);
 
 							var payload = new CancelRequestPayload
 							{
 								Reason = CancelOrderReason.UnreachableCustomer, // Lý do Bom hàng
 								IsRefundRequired = actualRefund > 0,
 								RefundAmount = actualRefund > 0 ? actualRefund : null,
-								StaffNote = $"Hệ thống tạo yêu cầu hoàn tiền do khách bom hàng. Đã khấu trừ phạt cọc: {order.RequiredDepositAmount:N0}đ."
+								StaffNote = $"Hệ thống tạo yêu cầu hoàn tiền do khách bom hàng. Đã khấu trừ phạt cọc theo chính sách: {order.PolicyDepositAmount:N0}đ."
 							};
-							var cancelReq = OrderCancelRequest.Create(order.Id, order.CustomerId ?? Guid.Empty, payload);
-							await _unitOfWork.OrderCancelRequests.AddAsync(cancelReq);
-						}
-					}
-					break;
 
-				case ShippingStatus.Cancelled:
-					// Kịch bản: GHN làm mất hàng, hoặc lấy hàng thất bại ở Chiều Đi
-					// KHÔNG CÒN logic check ReturnRequest ở đây nữa!
-					if (order.Status != OrderStatus.Cancelled)
-					{
-						order.SetStatus(OrderStatus.Cancelled);
-
-						var cancelCod = order.PaymentTransactions?.FirstOrDefault(t => t.Method == PaymentMethod.CashOnDelivery && t.TransactionStatus == TransactionStatus.Pending);
-						if (cancelCod != null)
-						{
-							cancelCod.MarkCancelled("Giao vận bị huỷ.");
-							_unitOfWork.Payments.Update(cancelCod);
-						}
-
-						await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(order.Id);
-						await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
-
-						if (order.PaymentStatus == PaymentStatus.Paid)
-						{
-							var hasPendingRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(r => r.OrderId == order.Id && r.Status == CancelRequestStatus.Pending);
-							if (!hasPendingRequest)
+							var requesterId = ResolveAutoRequesterId(order);
+							if (requesterId.HasValue)
 							{
-								var payload = new CancelRequestPayload
-								{
-									Reason = CancelOrderReason.Other,
-									IsRefundRequired = true,
-									RefundAmount = order.TotalAmount,
-									StaffNote = "Hệ thống tự động tạo yêu cầu hoàn tiền do GHN huỷ vận đơn."
-								};
-								var cancelReq = OrderCancelRequest.Create(order.Id, order.CustomerId ?? Guid.Empty, payload);
+								var cancelReq = OrderCancelRequest.Create(order.Id, requesterId.Value, payload);
 								await _unitOfWork.OrderCancelRequests.AddAsync(cancelReq);
+								EnqueueAutoRefundApprovalNotifications(cancelReq.Id, order.Code, newShippingStatus);
 							}
 						}
 					}
+
+					EnqueueCustomerCancellationNotification(order, newShippingStatus);
+					break;
+
+				case ShippingStatus.Damaged:
+				case ShippingStatus.Lost:
+					// GHN damage / lost: kết thúc đơn như hủy (hoàn KM, kho, voucher) nhưng ShippingInfo giữ Damaged/Lost (đã set ở TryApplyShippingStatus).
+					if (order.Status != OrderStatus.Cancelled)
+					{
+						await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, CancelOrderReason.Other, false);
+					}
+
+					if (order.PaidAmount > 0)
+					{
+						var hasPendingRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(r => r.OrderId == order.Id && r.Status == CancelRequestStatus.Pending);
+						if (!hasPendingRequest)
+						{
+							var staffNote = newShippingStatus == ShippingStatus.Damaged
+								? "Hệ thống tự động tạo yêu cầu hoàn tiền do GHN báo hàng hư hỏng (damage)."
+								: "Hệ thống tự động tạo yêu cầu hoàn tiền do GHN báo thất lạc (lost).";
+
+							var payload = new CancelRequestPayload
+							{
+								Reason = CancelOrderReason.Other,
+								IsRefundRequired = true,
+								RefundAmount = order.PaidAmount, // BẮT BUỘC ĐỔI THÀNH PaidAmount (Hoàn đúng số tiền khách đã trả/cọc)
+								StaffNote = staffNote
+							};
+
+							var requesterId = ResolveAutoRequesterId(order);
+							if (requesterId.HasValue)
+							{
+								var cancelReq = OrderCancelRequest.Create(order.Id, requesterId.Value, payload);
+								await _unitOfWork.OrderCancelRequests.AddAsync(cancelReq);
+								EnqueueAutoRefundApprovalNotifications(cancelReq.Id, order.Code, newShippingStatus);
+							}
+						}
+					}
+
+					EnqueueCustomerCancellationNotification(order, newShippingStatus);
+					break;
+
+				case ShippingStatus.Cancelled:
+					// GHN "cancel": hủy vận đơn trước khi giao (tương đương hủy đơn thường), khác damage/lost.
+					// State machine GHN: https://api.ghn.vn/home/docs/detail?id=85
+					if (order.Status != OrderStatus.Cancelled)
+					{
+						await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, CancelOrderReason.Other, true);
+					}
+
+					if (order.PaidAmount > 0)
+					{
+						var hasPendingRequest = await _unitOfWork.OrderCancelRequests.AnyAsync(r => r.OrderId == order.Id && r.Status == CancelRequestStatus.Pending);
+						if (!hasPendingRequest)
+						{
+							var payload = new CancelRequestPayload
+							{
+								Reason = CancelOrderReason.Other,
+								IsRefundRequired = true,
+								RefundAmount = order.PaidAmount, // BẮT BUỘC ĐỔI THÀNH PaidAmount (Hoàn đúng số tiền khách đã trả/cọc)
+								StaffNote = "Hệ thống tự động tạo yêu cầu hoàn tiền do GHN hủy vận đơn (cancel — đơn không được giao)."
+							};
+
+							var requesterId = ResolveAutoRequesterId(order);
+							if (requesterId.HasValue)
+							{
+								var cancelReq = OrderCancelRequest.Create(order.Id, requesterId.Value, payload);
+								await _unitOfWork.OrderCancelRequests.AddAsync(cancelReq);
+								EnqueueAutoRefundApprovalNotifications(cancelReq.Id, order.Code, newShippingStatus);
+							}
+						}
+					}
+
+					EnqueueCustomerCancellationNotification(order, newShippingStatus);
 					break;
 			}
+		}
+
+		private Guid? ResolveAutoRequesterId(Order order)
+		{
+			if (order.CustomerId.HasValue)
+				return order.CustomerId.Value;
+
+			if (order.StaffId.HasValue)
+				return order.StaffId.Value;
+
+			_logger.LogWarning("Skip creating auto cancel request for order {OrderId} because requester cannot be resolved.", order.Id);
+			return null;
+		}
+
+		private void EnqueueCustomerCancellationNotification(Order order, ShippingStatus shippingStatus)
+		{
+			if (!order.CustomerId.HasValue)
+				return;
+
+			var reasonText = shippingStatus switch
+			{
+				ShippingStatus.Cancelled => "đơn vận chuyển bị hủy bởi GHN",
+				ShippingStatus.Returned => "GHN hoàn hàng do không liên lạc được với bạn hoặc không thể giao thành công",
+				ShippingStatus.Damaged => "GHN báo hàng bị hư hỏng trong quá trình vận chuyển",
+				ShippingStatus.Lost => "GHN báo hàng bị thất lạc trong quá trình vận chuyển",
+				_ => "đơn hàng không thể tiếp tục giao"
+			};
+
+			_backgroundJobService.EnqueueCustomerNotificationWithFcm(
+				_logger,
+				order.CustomerId.Value,
+				"Đơn hàng đã bị hủy",
+				$"Đơn hàng #{order.Code} đã bị hủy do {reasonText}.",
+				NotificationType.Warning,
+				order.Id,
+				NotifiReferecneType.Order);
+		}
+
+		private void EnqueueAutoRefundApprovalNotifications(Guid cancelRequestId, string orderCode, ShippingStatus shippingStatus)
+		{
+			var shippingFailureText = shippingStatus switch
+			{
+				ShippingStatus.Cancelled => "GHN hủy vận đơn",
+				ShippingStatus.Damaged => "GHN báo hàng hư hỏng",
+				ShippingStatus.Lost => "GHN báo hàng thất lạc",
+				ShippingStatus.Returned => "GHN hoàn hàng do giao không thành công",
+				_ => "sự cố giao hàng"
+			};
+
+			var title = "Yêu cầu duyệt hoàn tiền tự động";
+			var message = $"Hệ thống tự động tạo yêu cầu duyệt hoàn tiền cho đơn #{orderCode} do {shippingFailureText}.";
+
+			_backgroundJobService.EnqueueRoleNotification(
+				_logger,
+				UserRole.staff,
+				title,
+				message,
+				NotificationType.Warning,
+				cancelRequestId,
+				NotifiReferecneType.OrderCancelRequest);
+
+			_backgroundJobService.EnqueueRoleNotification(
+				_logger,
+				UserRole.admin,
+				title,
+				message,
+				NotificationType.Warning,
+				cancelRequestId,
+				NotifiReferecneType.OrderCancelRequest);
 		}
 	}
 }

@@ -8,6 +8,8 @@
 		Delivered,
 		Cancelled,
 		Returning,
-		Returned
+		Returned,
+		Damaged,
+		Lost
 	}
 }

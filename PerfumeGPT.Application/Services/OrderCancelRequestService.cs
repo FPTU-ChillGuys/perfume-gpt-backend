@@ -253,7 +253,9 @@ namespace PerfumeGPT.Application.Services
 						order.MarkRefunded();
 					}
 
-					await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, cancelRequest.Reason);
+					// Đơn Returned (bom hàng / không giao được): KM + voucher đã xử lý ở webhook; chỉ chốt hoàn tiền.
+					if (order.Status != OrderStatus.Returned)
+						await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, cancelRequest.Reason, true);
 				}
 
 				_unitOfWork.OrderCancelRequests.Update(cancelRequest);
@@ -301,8 +303,10 @@ namespace PerfumeGPT.Application.Services
 			if (order.ForwardShipping == null)
 				return false;
 
-			var isShippingFailureStatus = order.Status is OrderStatus.Returned or OrderStatus.Cancelled;
-			var isShippingFailureCarrierStatus = order.ForwardShipping.Status is ShippingStatus.Returned or ShippingStatus.Cancelled;
+			// Rule phạt vận chuyển áp cho kịch bản giao thất bại do không liên lạc được khách (GHN returned), lúc này order đã bị hủy.
+			var isShippingFailureStatus = order.Status == OrderStatus.Cancelled
+				&& cancelRequest.Reason == CancelOrderReason.UnreachableCustomer;
+			var isShippingFailureCarrierStatus = order.ForwardShipping.Status == ShippingStatus.Returned;
 
 			return isShippingFailureStatus && isShippingFailureCarrierStatus;
 		}

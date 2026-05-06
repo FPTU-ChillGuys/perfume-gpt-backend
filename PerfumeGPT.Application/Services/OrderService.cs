@@ -655,7 +655,7 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				// NẾU CHƯA THU TIỀN: Hủy trực tiếp ngay lập tức
-				trackingNumberToCancel = await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, request.Reason);
+				trackingNumberToCancel = await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, request.Reason, true);
 
 				order.SetStaff(staffId);
 				_unitOfWork.Orders.Update(order);
@@ -731,7 +731,7 @@ namespace PerfumeGPT.Application.Services
 				// Pending + Unpaid => auto cancel immediately
 				if (order.Status == OrderStatus.Pending && !isRefundRequired)
 				{
-					trackingNumberToCancel = await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, request.Reason);
+					trackingNumberToCancel = await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, request.Reason, true);
 
 					return BaseResponse<string>.Ok("Hủy đơn hàng thành công.");
 				}

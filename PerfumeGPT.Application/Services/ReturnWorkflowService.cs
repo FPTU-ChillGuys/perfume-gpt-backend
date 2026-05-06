@@ -23,38 +23,52 @@ namespace PerfumeGPT.Application.Services
 			{
 				case ShippingStatus.Delivering:
 				case ShippingStatus.Delivered:
-					// GHN đã lấy được hàng từ khách và đang trên đường chở về kho
-					// TODO: Đổi thành Enum tương ứng của bạn (VD: ReturningToWarehouse)
 					if (order.Status == OrderStatus.Delivered)
 					{
 						order.SetStatus(OrderStatus.Returning);
 					}
 					break;
 
+				// NHÓM 1: KHÁCH KHÔNG GIAO HÀNG CHO SHIPPER (HỦY YÊU CẦU)
 				case ShippingStatus.Returned:
 				case ShippingStatus.Cancelled:
-					// Kịch bản: GHN tới nhà khách gọi nhiều lần nhưng khách không đưa hàng, 
-					// hoặc khách đổi ý không muốn trả hàng nữa nên GHN hủy vận đơn hoàn.
 					if (returnRequest.Status == ReturnRequestStatus.ApprovedForReturn)
 					{
 						returnRequest.CancelBySystemWhenReturnPickupFailed("GHN không thể lấy hàng hoàn từ khách hoặc vận đơn bị hủy. Yêu cầu trả hàng đã bị hệ thống tự động hủy.");
-
 						if (returnRequest.ReturnShipping != null)
 						{
 							returnRequest.ReturnShipping.Cancel();
 							_unitOfWork.ShippingInfos.Update(returnRequest.ReturnShipping);
 						}
-
 						if (order.Status == OrderStatus.Returning)
 						{
-							order.SetStatus(OrderStatus.Delivered);
+							order.SetStatus(OrderStatus.Delivered); // Trả lại hàng cho khách
+						}
+					}
+					break;
+
+				// NHÓM 2: GHN LÀM MẤT/HƯ HỎNG HÀNG SAU KHI ĐÃ LẤY (ĐẨY THẲNG SANG HOÀN TIỀN)
+				case ShippingStatus.Damaged:
+				case ShippingStatus.Lost:
+					if (returnRequest.Status == ReturnRequestStatus.ApprovedForReturn || returnRequest.Status == ReturnRequestStatus.Inspecting)
+					{
+						// 1. Ghi nhận kết quả kiểm định tự động: Duyệt hoàn toàn bộ tiền, KHÔNG NHẬP KHO
+						returnRequest.RecordInspectionResult(
+							approvedRefundAmount: returnRequest.RequestedRefundAmount,
+							isRestocked: false, // BẮT BUỘC FALSE VÌ HÀNG ĐÃ MẤT/HƯ!
+							inspectionNote: $"Hệ thống tự động duyệt hoàn tiền do GHN báo sự cố ({(newShippingStatus == ShippingStatus.Damaged ? "Hư hỏng" : "Thất lạc")}). Chờ kế toán làm việc bồi thường với GHN."
+						);
+
+						// 2. Chuyển trạng thái Order
+						if (order.Status == OrderStatus.Returning)
+						{
+							order.SetStatus(OrderStatus.Partial_Returned); // Vì không nhập kho lại vật lý, đánh dấu Partial
 						}
 					}
 					break;
 			}
 
 			_unitOfWork.OrderReturnRequests.Update(returnRequest);
-			// Lưu ý: Không gọi SaveChangesAsync ở đây vì sẽ được gọi tập trung ở ShippingService
 		}
 	}
 }
