@@ -311,5 +311,29 @@ namespace PerfumeGPT.Application.Services
 			return isShippingFailureStatus && isShippingFailureCarrierStatus;
 		}
 
+		public async Task<BaseResponse<string>> UpdateRequestAsync(Guid requestId, Guid requesterId, UpdateCancelRequest request)
+		{
+			var cancelRequest = await _unitOfWork.OrderCancelRequests.GetByIdAsync(requestId)
+				?? throw AppException.NotFound("Không tìm thấy yêu cầu hủy đơn.");
+
+			//if (cancelRequest.RequestedById != requesterId)
+			//	throw AppException.Forbidden("Bạn không có quyền sửa yêu cầu này.");
+
+			var payload = new OrderCancelRequest.CancelRequestPayload
+			{
+				Reason = request.Reason,
+				IsRefundRequired = request.IsRefundRequired,
+				RefundAmount = request.RefundAmount,
+				StaffNote = request.StaffNote,
+				RefundBankName = request.RefundBankName,
+				RefundAccountNumber = request.RefundAccountNumber,
+				RefundAccountName = request.RefundAccountName,
+			};
+			cancelRequest.Update(payload);
+
+			await _unitOfWork.SaveChangesAsync();
+
+			return BaseResponse<string>.Ok("Cập nhật yêu cầu hủy đơn thành công.");
+		}
 	}
 }

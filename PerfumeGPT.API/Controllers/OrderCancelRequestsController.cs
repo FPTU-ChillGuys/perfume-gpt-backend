@@ -68,5 +68,17 @@ namespace PerfumeGPT.API.Controllers
 			var response = await _cancelRequestService.ProcessRefundAsync(id, staffId, userRole, request);
 			return HandleResponse(response);
 		}
+
+		[HttpPut("{id:guid}")]
+		[Authorize(Roles = "user")]
+		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
+		[ProducesDefaultResponseType(typeof(BaseResponse))]
+		public async Task<ActionResult<BaseResponse<string>>> UpdateRequest([FromRoute] Guid id, [FromBody] UpdateCancelRequest request)
+		{
+			var userId = GetCurrentUserId();
+
+			var response = await _cancelRequestService.UpdateRequestAsync(id, userId, request);
+			return HandleResponse(response);
+		}
 	}
 }
