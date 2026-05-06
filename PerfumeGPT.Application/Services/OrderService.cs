@@ -32,6 +32,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IStockReservationService _stockReservationService;
 		private readonly IOrderFulfillmentService _fulfillmentService;
 		private readonly IBackgroundJobService _backgroundJobService;
+		private readonly IOrderCancellationFinalizeService _orderCancellationFinalizeService;
 		private readonly ILogger<OrderService> _logger;
 
 		public OrderService(
@@ -44,6 +45,7 @@ namespace PerfumeGPT.Application.Services
 			IStockReservationService stockReservationService,
 			IOrderFulfillmentService fulfillmentService,
 			IBackgroundJobService backgroundJobService,
+			IOrderCancellationFinalizeService orderCancellationFinalizeService,
 			ILogger<OrderService> logger,
 			IContactAddressService contactAddressService)
 		{
@@ -56,6 +58,7 @@ namespace PerfumeGPT.Application.Services
 			_stockReservationService = stockReservationService;
 			_fulfillmentService = fulfillmentService;
 			_backgroundJobService = backgroundJobService;
+			_orderCancellationFinalizeService = orderCancellationFinalizeService;
 			_logger = logger;
 			_contactAddressService = contactAddressService;
 		}
@@ -652,7 +655,7 @@ namespace PerfumeGPT.Application.Services
 				}
 
 				// NẾU CHƯA THU TIỀN: Hủy trực tiếp ngay lập tức
-				trackingNumberToCancel = await HandleOrderCancellationAsync(order, request.Reason);
+				trackingNumberToCancel = await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, request.Reason);
 
 				order.SetStaff(staffId);
 				_unitOfWork.Orders.Update(order);
@@ -728,8 +731,7 @@ namespace PerfumeGPT.Application.Services
 				// Pending + Unpaid => auto cancel immediately
 				if (order.Status == OrderStatus.Pending && !isRefundRequired)
 				{
-					trackingNumberToCancel = await HandleOrderCancellationAsync(order, request.Reason);
-					_unitOfWork.Orders.Update(order);
+					trackingNumberToCancel = await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, request.Reason);
 
 					return BaseResponse<string>.Ok("Hủy đơn hàng thành công.");
 				}
@@ -868,56 +870,6 @@ namespace PerfumeGPT.Application.Services
 
 
 		#region Private Helper Methods
-		private async Task<string?> HandleOrderCancellationAsync(Order order, CancelOrderReason cancelReason)
-		{
-			var orderWithDetails = order.OrderDetails.Count > 0
-				  ? order
-				  : await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(order.Id)
-					 ?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
-
-			var promoUsageMap = orderWithDetails.OrderDetails
-				.Where(x => x.PromotionItemId.HasValue)
-				.GroupBy(x => x.PromotionItemId!.Value)
-				.ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
-
-			if (promoUsageMap.Count > 0)
-			{
-				var promoIds = promoUsageMap.Keys.ToList();
-				var promotionItems = (await _unitOfWork.PromotionItems.GetAllAsync(p => promoIds.Contains(p.Id))).ToList();
-				if (promotionItems.Count != promoIds.Count)
-					throw AppException.BadRequest("Không tìm thấy khuyến mãi cho sản phẩm đã áp dụng.");
-
-				foreach (var promo in promotionItems)
-				{
-					promo.DecreaseCurrentUsage(promoUsageMap[promo.Id]);
-				}
-
-				_unitOfWork.PromotionItems.UpdateRange(promotionItems);
-			}
-
-			var trackingNumberToCancel = order.ForwardShipping?.TrackingNumber;
-
-			if (order.Status == OrderStatus.ReadyToPick && orderWithDetails.PaymentTransactions.Any(p => p.Method == PaymentMethod.CashInStore))
-			{
-				order.CancelCashInStore(cancelReason);
-			}
-			else
-			{
-				order.SetStatus(OrderStatus.Cancelled);
-			}
-
-			foreach (var payment in orderWithDetails.PaymentTransactions.Where(p => p.IsPending()))
-			{
-				payment.MarkCancelled("Đơn hàng đã bị hủy.");
-				_unitOfWork.Payments.Update(payment);
-			}
-
-			await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(order.Id);
-
-			await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
-			return trackingNumberToCancel;
-		}
-
 		private async Task<VoucherResponse> ValidateAndGetVoucherAsync(string voucherCode, Guid? userId, string? phoneNumber, decimal totalPrice, IEnumerable<Guid>? cartVariantIds = null)
 		{
 			// Get voucher details

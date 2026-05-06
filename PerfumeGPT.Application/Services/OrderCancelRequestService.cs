@@ -22,8 +22,7 @@ namespace PerfumeGPT.Application.Services
 		private readonly IVnPayService _vnPayService;
 		private readonly IMomoService _momoService;
 		private readonly IHttpContextAccessor _httpContextAccessor;
-		private readonly IStockReservationService _stockReservationService;
-		private readonly IVoucherService _voucherService;
+		private readonly IOrderCancellationFinalizeService _orderCancellationFinalizeService;
 		private readonly IBackgroundJobService _backgroundJobService;
 		private readonly ILogger<OrderCancelRequestService> _logger;
 
@@ -32,8 +31,7 @@ namespace PerfumeGPT.Application.Services
 			IVnPayService vnPayService,
 			IMomoService momoService,
 			IHttpContextAccessor httpContextAccessor,
-			IStockReservationService stockReservationService,
-			IVoucherService voucherService,
+			IOrderCancellationFinalizeService orderCancellationFinalizeService,
 			IBackgroundJobService backgroundJobService,
 			ILogger<OrderCancelRequestService> logger)
 		{
@@ -41,8 +39,7 @@ namespace PerfumeGPT.Application.Services
 			_vnPayService = vnPayService;
 			_momoService = momoService;
 			_httpContextAccessor = httpContextAccessor;
-			_stockReservationService = stockReservationService;
-			_voucherService = voucherService;
+			_orderCancellationFinalizeService = orderCancellationFinalizeService;
 			_backgroundJobService = backgroundJobService;
 			_logger = logger;
 		}
@@ -122,7 +119,7 @@ namespace PerfumeGPT.Application.Services
 			if (cancelRequest.IsRefundRequired && userRole != UserRole.admin.ToString())
 				throw AppException.Forbidden("Chỉ Quản trị viên mới có thể duyệt yêu cầu hủy đơn có hoàn tiền.");
 
-			var order = await _unitOfWork.Orders.GetOrderForCancellationAsync(cancelRequest.OrderId)
+			var order = await _unitOfWork.Orders.GetOrderForStatusUpdateAsync(cancelRequest.OrderId)
 			  ?? throw AppException.NotFound("Không tìm thấy đơn hàng liên quan.");
 
 			PaymentTransaction? originalPayment = null;
@@ -256,21 +253,7 @@ namespace PerfumeGPT.Application.Services
 						order.MarkRefunded();
 					}
 
-					// Hủy Order và Giao vận
-					order.SetStatus(OrderStatus.Cancelled);
-					_unitOfWork.Orders.Update(order);
-
-					if (order.ForwardShipping != null)
-					{
-						order.ForwardShipping.Cancel();
-						_unitOfWork.ShippingInfos.Update(order.ForwardShipping);
-					}
-
-					// Nhả tồn kho & Hoàn Voucher
-					await _stockReservationService.ReleaseOrRestockCancelledOrderAsync(order.Id);
-
-					if (order.UserVoucherId.HasValue)
-						await _voucherService.RefundVoucherForCancelledOrderAsync(order.Id);
+					await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, cancelRequest.Reason);
 				}
 
 				_unitOfWork.OrderCancelRequests.Update(cancelRequest);
@@ -323,5 +306,6 @@ namespace PerfumeGPT.Application.Services
 
 			return isShippingFailureStatus && isShippingFailureCarrierStatus;
 		}
+
 	}
 }
