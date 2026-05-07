@@ -26,9 +26,21 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 
 		public async Task NotifyOrderPreparingAsync(Guid orderId, string orderCode, Guid customerId)
 		{
+			var preparingTitle = "Đơn hàng đã được xác nhận";
+			var existedPreparingNotification = await _unitOfWork.Notifications.AnyAsync(n =>
+				n.UserId == customerId
+				&& n.ReferenceId == orderId
+				&& n.ReferenceType == NotifiReferecneType.Order
+				&& n.Title == preparingTitle);
+
+			if (existedPreparingNotification)
+			{
+				return;
+			}
+
 			await NotifyCustomerWithFcmAsync(
 				customerId,
-				"Đơn hàng đã được xác nhận",
+				preparingTitle,
 				$"Đơn hàng #{orderCode} của bạn đã được xác nhận và đang xử lý.",
 				NotificationType.Info,
 				orderId,

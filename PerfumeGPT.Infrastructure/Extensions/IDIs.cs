@@ -203,56 +203,80 @@ namespace PerfumeGPT.Infrastructure.Extensions
 			// ==========================================
 			try
 			{
-				// Lấy giá trị từ các biến môi trường hoặc file config
-				var firebaseConfigValue = Environment.GetEnvironmentVariable("FIREBASE_JSON_CONTENT")
-									   ?? configuration["Firebase:ServiceAccountKeyPath"]
-									   ?? Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
-
-				if (!string.IsNullOrWhiteSpace(firebaseConfigValue))
+				FirebaseApp? firebaseApp = null;
+				try
 				{
-					firebaseConfigValue = firebaseConfigValue.Trim();
-					string finalJsonData;
+					firebaseApp = FirebaseApp.DefaultInstance;
+					if (firebaseApp != null)
+					{
+						Console.WriteLine($"[Firebase] Reusing existing app: {firebaseApp.Name}");
+					}
+				}
+				catch (InvalidOperationException)
+				{
+					// Default app chưa tồn tại, tiếp tục khởi tạo mới.
+				}
 
-					// 1. Nếu chuỗi bắt đầu bằng dấu ngoặc nhọn '{', chứng tỏ nó là chuỗi JSON
-					if (firebaseConfigValue.StartsWith("{"))
-					{
-						finalJsonData = firebaseConfigValue;
-						Console.WriteLine($"[Firebase] Initialized using raw JSON string.");
-					}
-					// 2. Nếu không phải JSON, ta kiểm tra xem nó có phải đường dẫn file vật lý không
-					else if (File.Exists(firebaseConfigValue))
-					{
-						finalJsonData = File.ReadAllText(firebaseConfigValue);
-						Console.WriteLine($"[Firebase] Initialized by reading JSON file at: {firebaseConfigValue}");
-					}
-					else
-					{
-						// Văng lỗi rõ ràng để bạn dễ debug thay vì ném vào thư viện của Google
-						throw new Exception($"Cấu hình Firebase không hợp lệ! Không phải JSON, cũng không tìm thấy file tại đường dẫn: {firebaseConfigValue}");
-					}
-
-					// Tắt cảnh báo CS0618 và khởi tạo Firebase
-#pragma warning disable CS0618
-					FirebaseApp.Create(new AppOptions()
-					{
-						Credential = GoogleCredential.FromJson(finalJsonData)
-					});
-#pragma warning restore CS0618
+				if (firebaseApp != null)
+				{
+					services.AddScoped<IFcmNotificationService, FcmNotificationService>();
 				}
 				else
 				{
-					// Fallback về cơ chế tự động (ADC) của Google Cloud
-					FirebaseApp.Create();
-					Console.WriteLine("[Firebase] Initialized using Application Default Credentials (ADC).");
+					// Lấy giá trị từ các biến môi trường hoặc file config
+					var firebaseConfigValue = Environment.GetEnvironmentVariable("FIREBASE_JSON_CONTENT")
+										   ?? configuration["Firebase:ServiceAccountKeyPath"]
+										   ?? Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
+
+					if (!string.IsNullOrWhiteSpace(firebaseConfigValue))
+					{
+						firebaseConfigValue = firebaseConfigValue.Trim();
+						string finalJsonData;
+
+						// 1. Nếu chuỗi bắt đầu bằng dấu ngoặc nhọn '{', chứng tỏ nó là chuỗi JSON
+						if (firebaseConfigValue.StartsWith("{"))
+						{
+							finalJsonData = firebaseConfigValue;
+							Console.WriteLine($"[Firebase] Initialized using raw JSON string.");
+						}
+						// 2. Nếu không phải JSON, ta kiểm tra xem nó có phải đường dẫn file vật lý không
+						else if (File.Exists(firebaseConfigValue))
+						{
+							finalJsonData = File.ReadAllText(firebaseConfigValue);
+							Console.WriteLine($"[Firebase] Initialized by reading JSON file at: {firebaseConfigValue}");
+						}
+						else
+						{
+							// Văng lỗi rõ ràng để bạn dễ debug thay vì ném vào thư viện của Google
+							throw new Exception($"Cấu hình Firebase không hợp lệ! Không phải JSON, cũng không tìm thấy file tại đường dẫn: {firebaseConfigValue}");
+						}
+
+						// Tắt cảnh báo CS0618 và khởi tạo Firebase
+#pragma warning disable CS0618
+						firebaseApp = FirebaseApp.Create(new AppOptions()
+						{
+							Credential = GoogleCredential.FromJson(finalJsonData)
+						});
+#pragma warning restore CS0618
+					}
+					else
+					{
+						// Fallback về cơ chế tự động (ADC) của Google Cloud
+						firebaseApp = FirebaseApp.Create();
+						Console.WriteLine("[Firebase] Initialized using Application Default Credentials (ADC).");
+					}
+
+					if (firebaseApp == null)
+					{
+						throw new InvalidOperationException("Firebase app was not created.");
+					}
 				}
-			}
-			catch (ArgumentException)
-			{
-				Console.WriteLine("[Firebase] Default app is already initialized (Hot Reloaded).");
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"[Firebase] Initialization failed: {ex.Message}");
+				throw new InvalidOperationException(
+					$"[Firebase] Initialization failed. Please verify FIREBASE_JSON_CONTENT / Firebase:ServiceAccountKeyPath / GOOGLE_APPLICATION_CREDENTIALS. Details: {ex.Message}",
+					ex);
 			}
 
 			// Đăng ký Service

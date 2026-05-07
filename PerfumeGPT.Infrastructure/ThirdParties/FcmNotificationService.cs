@@ -1,4 +1,5 @@
 ﻿using FirebaseAdmin.Messaging;
+using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.DTOs.Requests.Notifications;
 using PerfumeGPT.Application.Interfaces.ThirdParties;
 
@@ -6,8 +7,21 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 {
 	public class FcmNotificationService : IFcmNotificationService
 	{
+		private readonly ILogger<FcmNotificationService> _logger;
+
+		public FcmNotificationService(ILogger<FcmNotificationService> logger)
+		{
+			_logger = logger;
+		}
+
 		public async Task<bool> SendToDeviceAsync(SendPushNotificationRequest request)
 		{
+			if (request == null || string.IsNullOrWhiteSpace(request.DeviceToken))
+			{
+				_logger.LogWarning("Skip sending FCM because request or device token is invalid.");
+				return false;
+			}
+
 			var message = new Message()
 			{
 				Token = request.DeviceToken,
@@ -26,7 +40,14 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 
 			try
 			{
-				string response = await FirebaseMessaging.DefaultInstance.SendAsync(message);
+				var firebaseMessaging = FirebaseMessaging.DefaultInstance;
+				if (firebaseMessaging == null)
+				{
+					_logger.LogWarning("Skip sending FCM because FirebaseMessaging.DefaultInstance is not initialized.");
+					return false;
+				}
+
+				string response = await firebaseMessaging.SendAsync(message);
 				return true;
 			}
 			catch (FirebaseMessagingException ex)
@@ -38,6 +59,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 					// TODO: Token này đã bị vô hiệu hóa (User gỡ app hoặc clear data).
 					// Bạn cần gọi IUnitOfWork để xóa token này khỏi database để lần sau không gửi nhầm nữa.
 				}
+				return false;
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Unexpected error while sending FCM.");
 				return false;
 			}
 		}
