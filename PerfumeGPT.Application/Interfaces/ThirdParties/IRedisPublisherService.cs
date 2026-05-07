@@ -1,3 +1,6 @@
+using System;
+using System.Threading.Tasks;
+
 namespace PerfumeGPT.Application.Interfaces.ThirdParties
 {
 	/// <summary>
@@ -23,5 +26,12 @@ namespace PerfumeGPT.Application.Interfaces.ThirdParties
 		/// Implementations should be fire-and-forget safe — errors must not propagate to the caller.
 		/// </summary>
 		Task PublishCartUpdatedAsync(Guid userId, int cartItemCount);
+
+		/// <summary>
+		/// Publishes a "product:updated" event to Redis when a product is created, updated, or deleted.
+		/// The NestJS backend listens on this channel to rebuild embeddings and refresh BM25 indexes.
+		/// Implementations should be fire-and-forget safe — errors must not propagate to the caller.
+		/// </summary>
+		Task PublishProductUpdatedAsync(Guid productId, string action);
 	}
 }

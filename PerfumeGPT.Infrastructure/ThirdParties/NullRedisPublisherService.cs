@@ -33,5 +33,11 @@ namespace PerfumeGPT.Infrastructure.ThirdParties
 			_logger.LogDebug("[Redis] NullPublisher: Skipping cart:updated publish (Redis unavailable) for userId={UserId}", userId);
 			return Task.CompletedTask;
 		}
+
+		public Task PublishProductUpdatedAsync(Guid productId, string action)
+		{
+			_logger.LogDebug("[Redis] NullPublisher: Skipping product:updated publish (Redis unavailable) for id={ProductId}, action={Action}", productId, action);
+			return Task.CompletedTask;
+		}
 	}
 }
