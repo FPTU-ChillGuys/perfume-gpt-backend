@@ -153,6 +153,20 @@ namespace PerfumeGPT.Application.Extensions
 				variantId);
 		}
 
+		public static bool EnqueueProductUpdatedRedisEvent(
+			this IBackgroundJobService backgroundJobService,
+			ILogger logger,
+			Guid productId,
+			string action)
+		{
+			return TryEnqueue<IRedisPublisherService>(
+				backgroundJobService,
+				logger,
+				x => x.PublishProductUpdatedAsync(productId, action),
+				"Unable to enqueue product:updated redis event for product {ProductId}.",
+				productId);
+		}
+
 		public static bool EnqueueOrderPreparingNotification(
 			this IBackgroundJobService backgroundJobService,
 			ILogger logger,

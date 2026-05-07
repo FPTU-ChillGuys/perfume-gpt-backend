@@ -1,11 +1,15 @@
 using MapsterMapper;
+using Microsoft.Extensions.Logging;
 using PerfumeGPT.Application.DTOs.Requests.Products;
 using PerfumeGPT.Application.DTOs.Responses.Base;
 using PerfumeGPT.Application.DTOs.Responses.Media;
 using PerfumeGPT.Application.DTOs.Responses.Products;
 using PerfumeGPT.Application.Exceptions;
+using PerfumeGPT.Application.Extensions;
 using PerfumeGPT.Application.Interfaces.Repositories.Commons;
 using PerfumeGPT.Application.Interfaces.Services;
+using PerfumeGPT.Application.Interfaces.ThirdParties;
+using PerfumeGPT.Application.Interfaces.ThirdParties.BackgroundJobs;
 using PerfumeGPT.Application.Services.Helpers;
 using PerfumeGPT.Domain.Entities;
 using PerfumeGPT.Domain.Enums;
@@ -20,19 +24,25 @@ namespace PerfumeGPT.Application.Services
 		private readonly MediaBulkActionHelper _helper;
 		private readonly IProductAttributeService _productAttributeService;
 		private readonly IMapper _mapper;
+		private readonly IBackgroundJobService _backgroundJobService;
+		private readonly ILogger<ProductService> _logger;
 
 		public ProductService(
 			IMediaService mediaService,
 			MediaBulkActionHelper helper,
 			IProductAttributeService productAttributeService,
 			IUnitOfWork unitOfWork,
-			IMapper mapper)
+			IMapper mapper,
+			IBackgroundJobService backgroundJobService,
+			ILogger<ProductService> logger)
 		{
 			_mediaService = mediaService;
 			_helper = helper;
 			_productAttributeService = productAttributeService;
 			_unitOfWork = unitOfWork;
 			_mapper = mapper;
+			_backgroundJobService = backgroundJobService;
+			_logger = logger;
 		}
 		#endregion Dependencies
 
@@ -59,6 +69,9 @@ namespace PerfumeGPT.Application.Services
 			await _unitOfWork.Products.AddAsync(product);
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Tạo sản phẩm thất bại");
+
+			// Notify NestJS to rebuild embedding + BM25
+			_backgroundJobService.EnqueueProductUpdatedRedisEvent(_logger, product.Id, "created");
 
 			var metadata = new BulkActionMetadata { Operations = [] };
 			if (request.TemporaryMediaIds?.Count > 0)
@@ -128,6 +141,9 @@ namespace PerfumeGPT.Application.Services
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Cập nhật sản phẩm thất bại");
 
+			// Notify NestJS to rebuild embedding + BM25
+			_backgroundJobService.EnqueueProductUpdatedRedisEvent(_logger, productId, "updated");
+
 
 
 			var result = new BulkActionResult<string>(
@@ -157,6 +173,9 @@ namespace PerfumeGPT.Application.Services
 			_unitOfWork.Products.Remove(product);
 			var saved = await _unitOfWork.SaveChangesAsync();
 			if (!saved) throw AppException.Internal("Xóa sản phẩm thất bại");
+
+			// Notify NestJS to delete embedding + refresh BM25
+			_backgroundJobService.EnqueueProductUpdatedRedisEvent(_logger, productId, "deleted");
 
 			return BaseResponse<string>.Ok(productId.ToString(), "Xóa sản phẩm thành công");
 		}
