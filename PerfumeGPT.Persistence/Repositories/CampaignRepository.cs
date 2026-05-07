@@ -39,7 +39,7 @@ namespace PerfumeGPT.Persistence.Repositories
 				.ToListAsync();
 		}
 
-		public async Task<List<CampaignLookupItem>> GetCampaignLookupListAsync(bool isActive, bool isAll)
+		public async Task<List<CampaignResponse>> GetCampaignLookupListAsync(bool isActive, bool isAll)
 		{
 			var now = DateTime.UtcNow;
 
@@ -52,12 +52,15 @@ namespace PerfumeGPT.Persistence.Repositories
 						&& x.EndDate >= now))
 					&& (isAll || (x.Status != CampaignStatus.Cancelled && x.Status != CampaignStatus.Completed)))
 				.OrderBy(x => x.Name)
-				.Select(x => new CampaignLookupItem
+				.Select(x => new CampaignResponse
 				{
 					Id = x.Id,
 					Name = x.Name,
+					Description = x.Description,
 					StartDate = x.StartDate,
-					EndDate = x.EndDate
+					EndDate = x.EndDate,
+					Type = x.Type,
+					Status = x.Status
 				})
 				.ToListAsync();
 		}

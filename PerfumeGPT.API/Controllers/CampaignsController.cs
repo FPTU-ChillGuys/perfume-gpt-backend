@@ -44,9 +44,9 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("lookup/active")]
 		[AllowAnonymous]
-		[ProducesResponseType(typeof(BaseResponse<List<CampaignLookupItem>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<CampaignResponse>>), StatusCodes.Status200OK)]
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
-		public async Task<ActionResult<BaseResponse<List<CampaignLookupItem>>>> GetActiveCampaignLookupList()
+		public async Task<ActionResult<BaseResponse<List<CampaignResponse>>>> GetActiveCampaignLookupList()
 		{
 			var response = await _campaignService.GetCampaignLookupListAsync(true, false);
 			return HandleResponse(response);
@@ -54,9 +54,9 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("lookup")]
 		[AllowAnonymous]
-		[ProducesResponseType(typeof(BaseResponse<List<CampaignLookupItem>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<CampaignResponse>>), StatusCodes.Status200OK)]
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
-		public async Task<ActionResult<BaseResponse<List<CampaignLookupItem>>>> GetCampaignLookupList()
+		public async Task<ActionResult<BaseResponse<List<CampaignResponse>>>> GetCampaignLookupList()
 		{
 			var response = await _campaignService.GetCampaignLookupListAsync(false, false);
 			return HandleResponse(response);
@@ -64,9 +64,9 @@ namespace PerfumeGPT.API.Controllers
 
 		[HttpGet("lookup/all")]
 		[AllowAnonymous]
-		[ProducesResponseType(typeof(BaseResponse<List<CampaignLookupItem>>), StatusCodes.Status200OK)]
+		[ProducesResponseType(typeof(BaseResponse<List<CampaignResponse>>), StatusCodes.Status200OK)]
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
-		public async Task<ActionResult<BaseResponse<List<CampaignLookupItem>>>> GetAllCampaignLookupList()
+		public async Task<ActionResult<BaseResponse<List<CampaignResponse>>>> GetAllCampaignLookupList()
 		{
 			var response = await _campaignService.GetCampaignLookupListAsync(false, true);
 			return HandleResponse(response);
