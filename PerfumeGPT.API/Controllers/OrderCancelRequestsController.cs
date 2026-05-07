@@ -70,7 +70,7 @@ namespace PerfumeGPT.API.Controllers
 		}
 
 		[HttpPut("{id:guid}")]
-		[Authorize(Roles = "user")]
+		[Authorize(Roles = "user, staff, admin")]
 		[ProducesResponseType(typeof(BaseResponse<string>), StatusCodes.Status200OK)]
 		[ProducesDefaultResponseType(typeof(BaseResponse))]
 		public async Task<ActionResult<BaseResponse<string>>> UpdateRequest([FromRoute] Guid id, [FromBody] UpdateCancelRequest request)

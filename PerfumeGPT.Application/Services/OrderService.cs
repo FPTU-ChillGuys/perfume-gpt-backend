@@ -701,6 +701,10 @@ namespace PerfumeGPT.Application.Services
 			Guid? createdCancelRequestId = null;
 			string? trackingNumberToCancel = null;
 			string orderCode = string.Empty;
+			Guid? customerIdToNotify = null;
+			string? customerNotificationTitle = null;
+			string? customerNotificationMessage = null;
+			string? noRefundRoleNotificationMessage = null;
 
 			var response = await _unitOfWork.ExecuteInTransactionAsync(async () =>
 			{
@@ -708,6 +712,7 @@ namespace PerfumeGPT.Application.Services
 					?? throw AppException.NotFound("Không tìm thấy đơn hàng.");
 
 				orderCode = order.Code;
+				customerIdToNotify = order.CustomerId;
 
 				// Validate authorization
 				order.EnsureOwnedBy(userId);
@@ -728,10 +733,20 @@ namespace PerfumeGPT.Application.Services
 				var actualRefundAmount = Math.Max(0, order.PaidAmount - penaltyAmount);
 				var isRefundRequired = actualRefundAmount > 0;
 
-				// Pending + Unpaid => auto cancel immediately
+				// Không phát sinh hoàn tiền => hủy trực tiếp, không tạo cancel request.
 				if (order.Status == OrderStatus.Pending && !isRefundRequired)
 				{
 					trackingNumberToCancel = await _orderCancellationFinalizeService.FinalizeOrderCancellationAsync(order, request.Reason, true);
+					if (customerIdToNotify.HasValue)
+					{
+						customerNotificationTitle = "Đơn hàng đã hủy";
+						customerNotificationMessage = penaltyAmount > 0
+							? $"Đơn hàng #{orderCode} đã được hủy. Không có khoản hoàn tiền do tiền cọc đã được dùng làm phí phạt ({penaltyAmount:N0}đ)."
+							: $"Đơn hàng #{orderCode} đã được hủy. Đơn chưa phát sinh khoản tiền cần hoàn.";
+					}
+					noRefundRoleNotificationMessage = penaltyAmount > 0
+						? $"Đơn #{orderCode} đã được hủy theo yêu cầu khách. Không tạo yêu cầu hoàn tiền vì số hoàn sau khi trừ phạt cọc là 0đ (mức phạt: {penaltyAmount:N0}đ)."
+						: $"Đơn #{orderCode} đã được hủy theo yêu cầu khách. Không tạo yêu cầu hoàn tiền vì đơn chưa phát sinh khoản tiền cần hoàn.";
 
 					return BaseResponse<string>.Ok("Hủy đơn hàng thành công.");
 				}
@@ -786,6 +801,41 @@ namespace PerfumeGPT.Application.Services
 			if (!string.IsNullOrWhiteSpace(trackingNumberToCancel))
 			{
 				_backgroundJobService.EnqueueCancelShippingOrder(_logger, trackingNumberToCancel);
+			}
+
+			if (customerIdToNotify.HasValue
+				&& !string.IsNullOrWhiteSpace(customerNotificationTitle)
+				&& !string.IsNullOrWhiteSpace(customerNotificationMessage))
+			{
+				_backgroundJobService.EnqueueCustomerNotificationWithFcm(
+					_logger,
+					customerIdToNotify.Value,
+					customerNotificationTitle,
+					customerNotificationMessage,
+					NotificationType.Warning,
+					orderId,
+					NotifiReferecneType.Order);
+			}
+
+			if (!string.IsNullOrWhiteSpace(noRefundRoleNotificationMessage))
+			{
+				_backgroundJobService.EnqueueRoleNotification(
+					_logger,
+					UserRole.staff,
+					"Đơn hủy không phát sinh hoàn tiền",
+					noRefundRoleNotificationMessage,
+					NotificationType.Warning,
+					null,
+					NotifiReferecneType.Order);
+
+				_backgroundJobService.EnqueueRoleNotification(
+					_logger,
+					UserRole.admin,
+					"Đơn hủy không phát sinh hoàn tiền",
+					noRefundRoleNotificationMessage,
+					NotificationType.Warning,
+					null,
+					NotifiReferecneType.Order);
 			}
 
 			return response;

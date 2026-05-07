@@ -86,6 +86,12 @@ namespace PerfumeGPT.Application.Services
 						{
 							// Trừ đi khoản phạt bom hàng theo mức cọc chính sách (snapshot khi tạo đơn).
 							var actualRefund = Math.Max(0, order.PaidAmount - order.PolicyDepositAmount);
+							if (actualRefund <= 0)
+							{
+								EnqueueNoRefundRoleNotifications(order.Code, newShippingStatus, order.PolicyDepositAmount);
+								EnqueueNoRefundNotification(order, order.PolicyDepositAmount);
+								break;
+							}
 
 							var payload = new CancelRequestPayload
 							{
@@ -215,6 +221,54 @@ namespace PerfumeGPT.Application.Services
 				$"Đơn hàng #{order.Code} đã bị hủy do {reasonText}.",
 				NotificationType.Warning,
 				order.Id,
+				NotifiReferecneType.Order);
+		}
+
+		private void EnqueueNoRefundNotification(Order order, decimal penaltyAmount)
+		{
+			if (!order.CustomerId.HasValue)
+				return;
+
+			_backgroundJobService.EnqueueCustomerNotificationWithFcm(
+				_logger,
+				order.CustomerId.Value,
+				"Đơn hàng không phát sinh hoàn tiền",
+				$"Đơn hàng #{order.Code} đã bị hủy và không có khoản hoàn tiền do đã khấu trừ tiền cọc ({penaltyAmount:N0}đ).",
+				NotificationType.Warning,
+				order.Id,
+				NotifiReferecneType.Order);
+		}
+
+		private void EnqueueNoRefundRoleNotifications(string orderCode, ShippingStatus shippingStatus, decimal penaltyAmount)
+		{
+			var shippingFailureText = shippingStatus switch
+			{
+				ShippingStatus.Returned => "GHN hoàn hàng do giao không thành công",
+				ShippingStatus.Cancelled => "GHN hủy vận đơn",
+				ShippingStatus.Damaged => "GHN báo hàng hư hỏng",
+				ShippingStatus.Lost => "GHN báo hàng thất lạc",
+				_ => "sự cố giao hàng"
+			};
+
+			var title = "Đơn hủy không phát sinh hoàn tiền";
+			var message = $"Đơn #{orderCode} bị hủy do {shippingFailureText}. Không tạo yêu cầu hoàn tiền vì số hoàn sau khi trừ phạt cọc là 0đ (mức phạt: {penaltyAmount:N0}đ).";
+
+			_backgroundJobService.EnqueueRoleNotification(
+				_logger,
+				UserRole.staff,
+				title,
+				message,
+				NotificationType.Warning,
+				null,
+				NotifiReferecneType.Order);
+
+			_backgroundJobService.EnqueueRoleNotification(
+				_logger,
+				UserRole.admin,
+				title,
+				message,
+				NotificationType.Warning,
+				null,
 				NotifiReferecneType.Order);
 		}
 
