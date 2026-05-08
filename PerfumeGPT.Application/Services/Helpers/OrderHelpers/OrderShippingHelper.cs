@@ -212,8 +212,42 @@ namespace PerfumeGPT.Application.Services.Helpers.OrderHelpers
 			try
 			{
 				using var document = System.Text.Json.JsonDocument.Parse(snapshotJson);
-				if (document.RootElement.TryGetProperty("Sku", out var nameProp))
-					return nameProp.GetString();
+				var root = document.RootElement;
+
+				string? productName = null;
+				if (root.TryGetProperty("ProductName", out var productNameProp) &&
+					productNameProp.ValueKind == System.Text.Json.JsonValueKind.String)
+				{
+					productName = productNameProp.GetString();
+				}
+
+				string? volumeText = null;
+				if (root.TryGetProperty("VolumeMl", out var volumeProp) &&
+					volumeProp.ValueKind == System.Text.Json.JsonValueKind.Number &&
+					volumeProp.TryGetDecimal(out var volumeMl))
+				{
+					volumeText = $"{volumeMl:g}ml";
+				}
+
+				string? concentration = null;
+				if (root.TryGetProperty("Concentration", out var concentrationProp) &&
+					concentrationProp.ValueKind == System.Text.Json.JsonValueKind.String)
+				{
+					concentration = concentrationProp.GetString();
+				}
+
+				var nameParts = new[] { productName, volumeText, concentration }
+					.Where(x => !string.IsNullOrWhiteSpace(x));
+				var formattedName = string.Join(" - ", nameParts);
+
+				if (!string.IsNullOrWhiteSpace(formattedName))
+					return formattedName;
+
+				if (root.TryGetProperty("Sku", out var skuProp) &&
+					skuProp.ValueKind == System.Text.Json.JsonValueKind.String)
+				{
+					return skuProp.GetString();
+				}
 			}
 			catch
 			{
