@@ -89,7 +89,7 @@ namespace PerfumeGPT.Application.Services
 					_logger,
 					userId,
 					"Điểm tích lũy được cộng",
-					$"Bạn vừa nhận được {points} điểm tích lũy. Tổng điểm hiện tại: {user.PointBalance}.",
+					$"Bạn vừa nhận được {points} điểm tích lũy từ việc đánh giá sản phẩm. Tổng điểm hiện tại: {user.PointBalance}.",
 					NotificationType.Success,
 					orderId,
 					orderId.HasValue ? NotifiReferecneType.Order : null);
