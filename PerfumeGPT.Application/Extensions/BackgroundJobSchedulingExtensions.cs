@@ -109,15 +109,17 @@ namespace PerfumeGPT.Application.Extensions
 			ILogger logger,
 			Guid orderId,
 			string orderCode,
-			decimal totalAmount)
+			decimal totalAmount,
+			bool isFullyPaid)
 		{
+			var amountText = isFullyPaid ? "Tổng tiền" : "Đã cọc";
 			return TryEnqueue<INotificationService>(
 				backgroundJobService,
 				logger,
 				x => x.SendToRoleAsync(
 					UserRole.staff,
 					"Đơn hàng online mới",
-					$"Có đơn hàng Online #{orderCode} cần đóng gói. Tổng tiền: {totalAmount:N0}.",
+					$"Có đơn hàng Online #{orderCode} cần đóng gói. {amountText}: {totalAmount:N0}đ.",
 					NotificationType.Info,
 					orderId,
 					NotifiReferecneType.Order,

@@ -804,7 +804,7 @@ namespace PerfumeGPT.Application.Services
 				await _unitOfWork.Receipts.AddAsync(receipt);
 			}
 
-			_backgroundJobService.EnqueueOnlineOrderStaffNotification(_logger, order.Id, order.Code, payment.Amount);
+			_backgroundJobService.EnqueueOnlineOrderStaffNotification(_logger, order.Id, order.Code, payment.Amount, payment.Amount == order.TotalAmount);
 
 			if (order.CustomerId.HasValue)
 			{

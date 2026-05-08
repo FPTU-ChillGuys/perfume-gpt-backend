@@ -63,7 +63,7 @@ namespace PerfumeGPT.Infrastructure.BackgroundJobs
 					order.CustomerId.Value,
 					points,
 					order.Id,
-					reason: "Điểm thưởng cho đơn hàng đã giao và thanh toán thành công");
+					reason: $"Điểm thưởng cho đơn hàng `{order.Code}` đã giao và thanh toán thành công");
 			}
 		}
 	}
